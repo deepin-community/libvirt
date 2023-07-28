@@ -9117,7 +9117,8 @@ qemuChrIsPlatformDevice(const virDomainDef *def,
         }
     }
 
-    if (ARCH_IS_RISCV(def->os.arch)) {
+    if (ARCH_IS_RISCV(def->os.arch) ||
+        ARCH_IS_LOONGARCH(def->os.arch)) {
 
         /* 16550a (used by riscv/virt guests) is a platform device */
         if (chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_SERIAL &&
