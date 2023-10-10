@@ -23,9 +23,7 @@
 
 #include <sys/stat.h>
 
-#include "datatypes.h"
 #include "virerror.h"
-#include "viralloc.h"
 #include "internal.h"
 #include "storage_file_backend.h"
 #include "virlog.h"
@@ -92,8 +90,7 @@ virStorageFileBackendRegister(virStorageFileBackend *backend)
 
     if (virStorageFileBackendsCount >= VIR_STORAGE_BACKENDS_MAX) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Too many drivers, cannot register storage file "
-                         "backend '%s'"),
+                       _("Too many drivers, cannot register storage file backend '%1$s'"),
                        virStorageTypeToString(backend->type));
         return -1;
     }
@@ -132,12 +129,11 @@ virStorageFileBackendForType(int type,
 
     if (type == VIR_STORAGE_TYPE_NETWORK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing storage backend for network files "
-                         "using %s protocol"),
+                       _("missing storage backend for network files using %1$s protocol"),
                        virStorageNetProtocolTypeToString(protocol));
     } else {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing storage backend for '%s' storage"),
+                       _("missing storage backend for '%1$s' storage"),
                        virStorageTypeToString(type));
     }
 

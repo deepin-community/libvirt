@@ -96,16 +96,14 @@ remoteSplitURIScheme(virURI *uri,
 
         if ((val = remoteDriverTransportTypeFromString(tmp)) < 0) {
             virReportError(VIR_ERR_INVALID_ARG, "%s",
-                           _("remote_open: transport in URL not recognised "
-                             "(should be tls|unix|ssh|ext|tcp|libssh2|libssh)"));
+                           _("remote_open: transport in URL not recognised (should be tls|unix|ssh|ext|tcp|libssh2|libssh)"));
             return -1;
         }
 
         if (val == REMOTE_DRIVER_TRANSPORT_UNIX &&
             uri->server) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("using unix socket and remote "
-                             "server '%s' is not supported."),
+                           _("using unix socket and remote server '%1$s' is not supported."),
                            uri->server);
             return -1;
         }
@@ -184,7 +182,7 @@ remoteProbeSessionDriverFromBinary(char **driver)
         g_autofree char *daemonpath = NULL;
 
         daemonname = g_strdup_printf("virt%sd", drivers[i]);
-        VIR_DEBUG("Probing driver '%s' via daemon %s", drivers[i], daemonpath);
+        VIR_DEBUG("Probing driver '%s' via daemon %s", drivers[i], daemonname);
 
         if (!(daemonpath = virFileFindResource(daemonname,
                                                abs_top_builddir "/src",
@@ -393,7 +391,7 @@ remoteGetUNIXSocket(remoteDriverTransport transport,
     case REMOTE_DRIVER_MODE_DIRECT:
         if (transport != REMOTE_DRIVER_TRANSPORT_UNIX) {
             virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                           _("Cannot use direct socket mode for %s transport"),
+                           _("Cannot use direct socket mode for %1$s transport"),
                            remoteDriverTransportTypeToString(transport));
             return NULL;
         }

@@ -28,6 +28,7 @@
 #include "virerror.h"
 #include "virlog.h"
 #include "virstring.h"
+#include "virfile.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -46,7 +47,8 @@ VIR_ENUM_IMPL(virStorage,
               "network",
               "volume",
               "nvme",
-              "vhostuser"
+              "vhostuser",
+              "vhostvdpa"
 );
 
 
@@ -258,7 +260,7 @@ virStorageAuthDefParse(xmlNodePtr node,
          */
         if ((authdef->authType = virStorageAuthTypeFromString(authtype)) < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unknown auth type '%s'"), authtype);
+                           _("unknown auth type '%1$s'"), authtype);
             return NULL;
         }
     }
@@ -359,14 +361,14 @@ virStoragePRDefParseXML(xmlXPathContextPtr ctxt)
 
     if (type && STRNEQ(type, "unix")) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("unsupported connection type for <reservations/>: %s"),
+                       _("unsupported connection type for <reservations/>: %1$s"),
                        type);
         goto cleanup;
     }
 
     if (mode && STRNEQ(mode, "client")) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("unsupported connection mode for <reservations/>: %s"),
+                       _("unsupported connection mode for <reservations/>: %1$s"),
                        mode);
         goto cleanup;
     }
@@ -647,7 +649,7 @@ virStorageSourceNetCookieValidate(virStorageNetCookieDef *def)
     if (virStringHasChars(def->name, virStorageSourceCookieValueInvalidChars) ||
         virStringHasChars(def->name, virStorageSourceCookieNameInvalidChars)) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("cookie name '%s' contains invalid characters"),
+                       _("cookie name '%1$s' contains invalid characters"),
                        def->name);
         return -1;
     }
@@ -656,7 +658,7 @@ virStorageSourceNetCookieValidate(virStorageNetCookieDef *def)
     if (val[0] == '"') {
         if (val[len - 1] != '"') {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("value of cookie '%s' contains invalid characters"),
+                           _("value of cookie '%1$s' contains invalid characters"),
                            def->name);
             return -1;
         }
@@ -668,7 +670,7 @@ virStorageSourceNetCookieValidate(virStorageNetCookieDef *def)
     /* check invalid characters in value */
     if (virStringHasChars(checkval, virStorageSourceCookieValueInvalidChars)) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("value of cookie '%s' contains invalid characters"),
+                       _("value of cookie '%1$s' contains invalid characters"),
                        def->name);
         return -1;
     }
@@ -689,7 +691,8 @@ virStorageSourceNetCookiesValidate(virStorageSource *src)
 
         for (j = i + 1; j < src->ncookies; j++) {
             if (STREQ(src->cookies[i]->name, src->cookies[j]->name)) {
-                virReportError(VIR_ERR_XML_ERROR, _("duplicate cookie '%s'"),
+                virReportError(VIR_ERR_XML_ERROR,
+                               _("duplicate cookie '%1$s'"),
                                src->cookies[i]->name);
                 return -1;
             }
@@ -807,15 +810,18 @@ virStorageSourceCopy(const virStorageSource *src,
     def->cachemode = src->cachemode;
     def->discard = src->discard;
     def->detect_zeroes = src->detect_zeroes;
+    def->discard_no_unref = src->discard_no_unref;
     def->sslverify = src->sslverify;
     def->readahead = src->readahead;
     def->timeout = src->timeout;
+    def->reconnectDelay = src->reconnectDelay;
     def->metadataCacheMaxSize = src->metadataCacheMaxSize;
 
     /* storage driver metadata are not copied */
     def->drv = NULL;
 
     def->path = g_strdup(src->path);
+    def->fdgroup = g_strdup(src->fdgroup);
     def->volume = g_strdup(src->volume);
     def->relPath = g_strdup(src->relPath);
     def->backingStoreRaw = g_strdup(src->backingStoreRaw);
@@ -827,7 +833,9 @@ virStorageSourceCopy(const virStorageSource *src,
     def->compat = g_strdup(src->compat);
     def->tlsAlias = g_strdup(src->tlsAlias);
     def->tlsCertdir = g_strdup(src->tlsCertdir);
+    def->tlsHostname = g_strdup(src->tlsHostname);
     def->query = g_strdup(src->query);
+    def->vdpadev = g_strdup(src->vdpadev);
 
     if (src->sliceStorage)
         def->sliceStorage = virStorageSourceSliceCopy(src->sliceStorage);
@@ -883,9 +891,15 @@ virStorageSourceCopy(const virStorageSource *src,
             return NULL;
     }
 
+    if (src->fdtuple)
+        def->fdtuple = g_object_ref(src->fdtuple);
+
     /* ssh config passthrough for libguestfs */
     def->ssh_host_key_check_disabled = src->ssh_host_key_check_disabled;
     def->ssh_user = g_strdup(src->ssh_user);
+    def->ssh_known_hosts_file = g_strdup(src->ssh_known_hosts_file);
+    def->ssh_keyfile = g_strdup(src->ssh_keyfile);
+    def->ssh_agent = g_strdup(src->ssh_agent);
 
     def->nfs_user = g_strdup(src->nfs_user);
     def->nfs_group = g_strdup(src->nfs_group);
@@ -928,7 +942,8 @@ virStorageSourceIsSameLocation(virStorageSource *a,
         STRNEQ_NULLABLE(a->snapshot, b->snapshot))
         return false;
 
-    if (a->type == VIR_STORAGE_TYPE_NETWORK) {
+    switch (virStorageSourceGetActualType(a)) {
+    case VIR_STORAGE_TYPE_NETWORK:
         if (a->protocol != b->protocol ||
             a->nhosts != b->nhosts)
             return false;
@@ -940,11 +955,24 @@ virStorageSourceIsSameLocation(virStorageSource *a,
                 STRNEQ_NULLABLE(a->hosts[i].socket, b->hosts[i].socket))
                 return false;
         }
-    }
+        break;
 
-    if (a->type == VIR_STORAGE_TYPE_NVME &&
-        !virStorageSourceNVMeDefIsEqual(a->nvme, b->nvme))
-        return false;
+    case VIR_STORAGE_TYPE_NVME:
+        if (!virStorageSourceNVMeDefIsEqual(a->nvme, b->nvme))
+            return false;
+        break;
+
+    case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
+    case VIR_STORAGE_TYPE_NONE:
+    case VIR_STORAGE_TYPE_FILE:
+    case VIR_STORAGE_TYPE_BLOCK:
+    case VIR_STORAGE_TYPE_DIR:
+    case VIR_STORAGE_TYPE_LAST:
+    case VIR_STORAGE_TYPE_VOLUME:
+        /* nothing to do */
+        break;
+    }
 
     return true;
 }
@@ -1003,7 +1031,7 @@ virStorageSourcePoolDefFree(virStorageSourcePoolDef *def)
  * and virDomainDiskTranslateSourcePool was called on @def the actual type
  * of the storage volume is returned rather than VIR_STORAGE_TYPE_VOLUME.
  */
-int
+virStorageType
 virStorageSourceGetActualType(const virStorageSource *def)
 {
     if (def->type == VIR_STORAGE_TYPE_VOLUME &&
@@ -1032,12 +1060,20 @@ virStorageSourceIsLocalStorage(const virStorageSource *src)
          * Therefore, we have to return false here. */
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_LAST:
     case VIR_STORAGE_TYPE_NONE:
         return false;
     }
 
     return false;
+}
+
+
+bool
+virStorageSourceIsFD(const virStorageSource *src)
+{
+    return src->fdgroup;
 }
 
 
@@ -1108,7 +1144,9 @@ virStorageSourceClear(virStorageSource *def)
         return;
 
     VIR_FREE(def->path);
+    VIR_FREE(def->fdgroup);
     VIR_FREE(def->volume);
+    VIR_FREE(def->vdpadev);
     VIR_FREE(def->snapshot);
     VIR_FREE(def->configFile);
     VIR_FREE(def->query);
@@ -1137,13 +1175,19 @@ virStorageSourceClear(virStorageSource *def)
 
     VIR_FREE(def->tlsAlias);
     VIR_FREE(def->tlsCertdir);
+    VIR_FREE(def->tlsHostname);
 
     VIR_FREE(def->ssh_user);
+    VIR_FREE(def->ssh_known_hosts_file);
+    VIR_FREE(def->ssh_keyfile);
+    VIR_FREE(def->ssh_agent);
 
     VIR_FREE(def->nfs_user);
     VIR_FREE(def->nfs_group);
 
     virStorageSourceInitiatorClear(&def->initiator);
+
+    g_clear_pointer(&def->fdtuple, g_object_unref);
 
     /* clear everything except the class header as the object APIs
      * will break otherwise */
@@ -1213,6 +1257,7 @@ virStorageSourceIsRelative(virStorageSource *src)
     case VIR_STORAGE_TYPE_VOLUME:
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         return false;
@@ -1345,4 +1390,46 @@ void
 virStorageSourceInitiatorClear(virStorageSourceInitiatorDef *initiator)
 {
     VIR_FREE(initiator->iqn);
+}
+
+G_DEFINE_TYPE(virStorageSourceFDTuple, vir_storage_source_fd_tuple, G_TYPE_OBJECT);
+
+static void
+vir_storage_source_fd_tuple_init(virStorageSourceFDTuple *fdt G_GNUC_UNUSED)
+{
+}
+
+
+static void
+virStorageSourceFDTupleFinalize(GObject *object)
+{
+    virStorageSourceFDTuple *fdt = VIR_STORAGE_SOURCE_FD_TUPLE(object);
+    size_t i;
+
+    if (!fdt)
+        return;
+
+    for (i = 0; i < fdt->nfds; i++)
+        VIR_FORCE_CLOSE(fdt->fds[i]);
+
+    g_free(fdt->fds);
+    g_free(fdt->testfds);
+    g_free(fdt->selinuxLabel);
+    G_OBJECT_CLASS(vir_storage_source_fd_tuple_parent_class)->finalize(object);
+}
+
+
+static void
+vir_storage_source_fd_tuple_class_init(virStorageSourceFDTupleClass *klass)
+{
+    GObjectClass *obj = G_OBJECT_CLASS(klass);
+
+    obj->finalize = virStorageSourceFDTupleFinalize;
+}
+
+
+virStorageSourceFDTuple *
+virStorageSourceFDTupleNew(void)
+{
+    return g_object_new(vir_storage_source_fd_tuple_get_type(), NULL);
 }

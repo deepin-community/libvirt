@@ -83,6 +83,8 @@ typedef enum {
     VIR_PCIE_LINK_SPEED_5,
     VIR_PCIE_LINK_SPEED_8,
     VIR_PCIE_LINK_SPEED_16,
+    VIR_PCIE_LINK_SPEED_32,
+    VIR_PCIE_LINK_SPEED_64,
     VIR_PCIE_LINK_SPEED_LAST
 } virPCIELinkSpeed;
 
@@ -132,9 +134,12 @@ int virPCIDeviceReset(virPCIDevice *dev,
 void virPCIDeviceSetManaged(virPCIDevice *dev,
                             bool managed);
 bool virPCIDeviceGetManaged(virPCIDevice *dev);
-void virPCIDeviceSetStubDriver(virPCIDevice *dev,
-                               virPCIStubDriver driver);
-virPCIStubDriver virPCIDeviceGetStubDriver(virPCIDevice *dev);
+void virPCIDeviceSetStubDriverType(virPCIDevice *dev,
+                                   virPCIStubDriver driverType);
+virPCIStubDriver virPCIDeviceGetStubDriverType(virPCIDevice *dev);
+void virPCIDeviceSetStubDriverName(virPCIDevice *dev,
+                                   const char *driverName);
+const char *virPCIDeviceGetStubDriverName(virPCIDevice *dev);
 virPCIDeviceAddress *virPCIDeviceGetAddress(virPCIDevice *dev);
 int virPCIDeviceSetUsedBy(virPCIDevice *dev,
                           const char *drv_name,
@@ -275,9 +280,12 @@ virPCIVPDResource * virPCIDeviceGetVPD(virPCIDevice *dev);
 
 int virPCIDeviceUnbind(virPCIDevice *dev);
 int virPCIDeviceRebind(virPCIDevice *dev);
-int virPCIDeviceGetDriverPathAndName(virPCIDevice *dev,
-                                     char **path,
-                                     char **name);
+int virPCIDeviceGetCurrentDriverPathAndName(virPCIDevice *dev,
+                                            char **path,
+                                            char **name);
+int virPCIDeviceGetCurrentDriverNameAndType(virPCIDevice *dev,
+                                            char **drvName,
+                                            virPCIStubDriver *drvType);
 
 int virPCIDeviceIsPCIExpress(virPCIDevice *dev);
 int virPCIDeviceHasPCIExpressLink(virPCIDevice *dev);

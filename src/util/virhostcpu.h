@@ -45,7 +45,7 @@ virBitmap *virHostCPUGetOnlineBitmap(void);
 virBitmap *virHostCPUGetAvailableCPUsBitmap(void);
 
 int virHostCPUGetCount(void);
-int virHostCPUGetThreadsPerSubcore(virArch arch) G_GNUC_NO_INLINE;
+int virHostCPUGetThreadsPerSubcore(virArch arch) G_NO_INLINE;
 
 int virHostCPUGetMap(unsigned char **cpumap,
                      unsigned int *online,
@@ -58,7 +58,8 @@ int virHostCPUGetInfo(virArch hostarch,
                       unsigned int *cores,
                       unsigned int *threads);
 
-int virHostCPUGetKVMMaxVCPUs(void) G_GNUC_NO_INLINE;
+
+int virHostCPUGetKVMMaxVCPUs(void) G_NO_INLINE;
 
 int virHostCPUStatsAssign(virNodeCPUStatsPtr param,
                           const char *name,
@@ -75,7 +76,7 @@ virBitmap *virHostCPUGetSiblingsList(unsigned int cpu);
 int virHostCPUGetOnline(unsigned int cpu, bool *online);
 
 unsigned int
-virHostCPUGetMicrocodeVersion(virArch hostArch) G_GNUC_NO_INLINE;
+virHostCPUGetMicrocodeVersion(virArch hostArch) G_NO_INLINE;
 
 int virHostCPUGetMSR(unsigned long index,
                      uint64_t *msr);
@@ -85,6 +86,9 @@ struct kvm_cpuid2 *virHostCPUGetCPUID(void);
 virHostCPUTscInfo *virHostCPUGetTscInfo(void);
 
 int virHostCPUGetSignature(char **signature);
+
+int virHostCPUGetPhysAddrSize(const virArch hostArch,
+                              unsigned int *size);
 
 int virHostCPUGetHaltPollTime(pid_t pid,
                               unsigned long long *haltPollSuccess,

@@ -27,7 +27,6 @@
 #include "virerror.h"
 #include "virfile.h"
 #include "viralloc.h"
-#include "virstring.h"
 #include "domain_conf.h"
 #include "capabilities.h"
 #include "domain_capabilities.h"
@@ -329,10 +328,8 @@ libxlCapsInitGuests(libxl_ctx *ctx, virCaps *caps)
     char *saveptr = NULL;
     size_t i;
 
-    struct guest_arch guest_archs[32];
+    struct guest_arch guest_archs[32] = { 0 };
     int nr_guest_archs = 0;
-
-    memset(guest_archs, 0, sizeof(guest_archs));
 
     if ((ver_info = libxl_get_version_info(ctx)) == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -349,7 +346,7 @@ libxlCapsInitGuests(libxl_ctx *ctx, virCaps *caps)
     regex = g_regex_new(XEN_CAP_REGEX, 0, 0, &err);
     if (!regex) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to compile regex %s"), err->message);
+                       _("Failed to compile regex %1$s"), err->message);
         return -1;
     }
 
@@ -464,26 +461,33 @@ libxlCapsInitGuests(libxl_ctx *ctx, virCaps *caps)
 
     for (i = 0; i < nr_guest_archs; ++i) {
         virCapsGuest *guest;
-        char const *const xen_machines[] = {
-            guest_archs[i].hvm ? "xenfv" :
-                (guest_archs[i].pvh ? "xenpvh" : "xenpv")};
         virCapsGuestMachine **machines;
+        int nmachines;
+        virDomainOSType ostype = VIR_DOMAIN_OSTYPE_XEN;
+        const char *loader = NULL;
 
-        if ((machines = virCapabilitiesAllocMachines(xen_machines, 1)) == NULL)
-            return -1;
+        if (guest_archs[i].hvm) {
+            char const *const xen_machines[] = { "xenfv", NULL };
 
-        guest = virCapabilitiesAddGuest(caps,
-                                        guest_archs[i].hvm ? VIR_DOMAIN_OSTYPE_HVM :
-                                        (guest_archs[i].pvh ? VIR_DOMAIN_OSTYPE_XENPVH :
-                                         VIR_DOMAIN_OSTYPE_XEN),
-                                        guest_archs[i].arch,
+            ostype = VIR_DOMAIN_OSTYPE_HVM;
+            loader = LIBXL_FIRMWARE_DIR "/hvmloader";
+
+            machines = virCapabilitiesAllocMachines(xen_machines, &nmachines);
+        } else if (guest_archs[i].pvh) {
+            char const *const xen_machines[] = { "xenpvh", NULL };
+
+            ostype = VIR_DOMAIN_OSTYPE_XENPVH;
+            machines = virCapabilitiesAllocMachines(xen_machines, &nmachines);
+        } else {
+            char const *const xen_machines[] = { "xenpv", NULL };
+
+            ostype = VIR_DOMAIN_OSTYPE_XEN;
+            machines = virCapabilitiesAllocMachines(xen_machines, &nmachines);
+        }
+
+        guest = virCapabilitiesAddGuest(caps, ostype, guest_archs[i].arch,
                                         LIBXL_EXECBIN_DIR "/qemu-system-i386",
-                                        (guest_archs[i].hvm ?
-                                         LIBXL_FIRMWARE_DIR "/hvmloader" :
-                                         NULL),
-                                        1,
-                                        machines);
-        machines = NULL;
+                                        loader, nmachines, machines);
 
         virCapabilitiesAddGuestDomain(guest, VIR_DOMAIN_VIRT_XEN,
                                       NULL, NULL, 0, NULL);

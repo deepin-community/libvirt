@@ -23,7 +23,6 @@
 #include "node_device_util.h"
 #include "virlog.h"
 #include "virscsihost.h"
-#include "virstring.h"
 #include "virvhba.h"
 #include "viralloc.h"
 #include "virutil.h"
@@ -50,7 +49,7 @@ virNodeDeviceGetParentName(virConnectPtr conn,
 
     if (!(device = virNodeDeviceLookupByName(conn, nodedev_name))) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("Cannot find '%s' in node device database"),
+                       _("Cannot find '%1$s' in node device database"),
                        nodedev_name);
         return NULL;
     }
@@ -79,7 +78,7 @@ virNodeDeviceCreateVport(virStorageAdapterFCHost *fchost)
 {
     unsigned int parent_host;
     char *name = NULL;
-    char *parent_hoststr = NULL;
+    g_autofree char *parent_hoststr = NULL;
     bool skip_capable_check = false;
 
     VIR_DEBUG("parent='%s', wwnn='%s' wwpn='%s'",
@@ -92,27 +91,26 @@ virNodeDeviceCreateVport(virStorageAdapterFCHost *fchost)
                                                    fchost->parent_wwpn))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("cannot find parent using provided wwnn/wwpn"));
-            goto cleanup;
+            return NULL;
         }
     } else if (fchost->parent_fabric_wwn) {
         if (!(parent_hoststr =
               virVHBAGetHostByFabricWWN(NULL, fchost->parent_fabric_wwn))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("cannot find parent using provided fabric_wwn"));
-            goto cleanup;
+            return NULL;
         }
     } else {
         if (!(parent_hoststr = virVHBAFindVportHost(NULL))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("'parent' for vHBA not specified, and "
-                             "cannot find one on this host"));
-            goto cleanup;
+                           _("'parent' for vHBA not specified, and cannot find one on this host"));
+            return NULL;
         }
         skip_capable_check = true;
     }
 
     if (virSCSIHostGetNumber(parent_hoststr, &parent_host) < 0)
-        goto cleanup;
+        return NULL;
 
     /* NOTE:
      * We do not save the parent_hoststr in fchost->parent since
@@ -124,25 +122,23 @@ virNodeDeviceCreateVport(virStorageAdapterFCHost *fchost)
      */
     if (!skip_capable_check && !virVHBAPathExists(NULL, parent_host)) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("parent '%s' specified for vHBA does not exist"),
+                       _("parent '%1$s' specified for vHBA does not exist"),
                        parent_hoststr);
-        goto cleanup;
+        return NULL;
     }
 
     if (virVHBAManageVport(parent_host, fchost->wwpn, fchost->wwnn,
                            VPORT_CREATE) < 0)
-        goto cleanup;
+        return NULL;
 
     /* Let's ensure the device was created */
     virWaitForDevices();
     if (!(name = virVHBAGetHostByWWN(NULL, fchost->wwnn, fchost->wwpn))) {
         ignore_value(virVHBAManageVport(parent_host, fchost->wwpn, fchost->wwnn,
                                         VPORT_DELETE));
-        goto cleanup;
+        return NULL;
     }
 
- cleanup:
-    VIR_FREE(parent_hoststr);
     return name;
 }
 
@@ -161,11 +157,10 @@ int
 virNodeDeviceDeleteVport(virConnectPtr conn,
                          virStorageAdapterFCHost *fchost)
 {
-    char *name = NULL;
-    char *scsi_host_name = NULL;
+    g_autofree char *name = NULL;
+    g_autofree char *scsi_host_name = NULL;
     unsigned int parent_host;
-    char *vhba_parent = NULL;
-    int ret = -1;
+    g_autofree char *vhba_parent = NULL;
 
     VIR_DEBUG("conn=%p parent='%s', managed='%d' wwnn='%s' wwpn='%s'",
               conn, NULLSTR(fchost->parent), fchost->managed,
@@ -178,9 +173,9 @@ virNodeDeviceDeleteVport(virConnectPtr conn,
     /* Find our vHBA by searching the fc_host sysfs tree for our wwnn/wwpn */
     if (!(name = virVHBAGetHostByWWN(NULL, fchost->wwnn, fchost->wwpn))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to find fc_host for wwnn='%s' and wwpn='%s'"),
+                       _("Failed to find fc_host for wwnn='%1$s' and wwpn='%2$s'"),
                        fchost->wwnn, fchost->wwpn);
-        goto cleanup;
+        return -1;
     }
 
     scsi_host_name = g_strdup_printf("scsi_%s", name);
@@ -194,36 +189,28 @@ virNodeDeviceDeleteVport(virConnectPtr conn,
          * was the same as the scsi_host - meaning we have a pool
          * backed to an HBA, so there won't be a vHBA to delete */
         if (STREQ(scsi_host_name, fchost->parent)) {
-            ret = 0;
-            goto cleanup;
+            return 0;
         }
 
         if (virSCSIHostGetNumber(fchost->parent, &parent_host) < 0)
-            goto cleanup;
+            return -1;
     } else {
         if (!(vhba_parent = virNodeDeviceGetParentName(conn, scsi_host_name)))
-            goto cleanup;
+            return -1;
 
         /* If the parent is not a scsi_host, then this is a pool backed
          * directly to an HBA and there's no vHBA to remove - so we're done */
         if (!STRPREFIX(vhba_parent, "scsi_host")) {
-            ret = 0;
-            goto cleanup;
+            return 0;
         }
 
         if (virSCSIHostGetNumber(vhba_parent, &parent_host) < 0)
-            goto cleanup;
+            return -1;
     }
 
     if (virVHBAManageVport(parent_host, fchost->wwpn, fchost->wwnn,
                            VPORT_DELETE) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(name);
-    VIR_FREE(vhba_parent);
-    VIR_FREE(scsi_host_name);
-    return ret;
+    return 0;
 }

@@ -20,67 +20,51 @@
 
 #include "netdev_bandwidth_conf.h"
 #include "virerror.h"
-#include "viralloc.h"
 #include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 static int
-virNetDevBandwidthParseRate(xmlNodePtr node, virNetDevBandwidthRate *rate)
+virNetDevBandwidthParseRate(xmlNodePtr node,
+                            virNetDevBandwidthRate *rate,
+                            bool allowFloor)
 {
-    g_autofree char *average = NULL;
-    g_autofree char *peak = NULL;
-    g_autofree char *burst = NULL;
-    g_autofree char *floor = NULL;
+    int rc_average;
+    int rc_peak;
+    int rc_burst;
+    int rc_floor;
 
-    if (!node || !rate) {
-        virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("invalid argument supplied"));
+    if ((rc_average = virXMLPropULongLong(node, "average", 10, VIR_XML_PROP_NONE,
+                                          &rate->average)) < 0)
         return -1;
-    }
 
-    average = virXMLPropString(node, "average");
-    peak = virXMLPropString(node, "peak");
-    burst = virXMLPropString(node, "burst");
-    floor = virXMLPropString(node, "floor");
+    if ((rc_peak = virXMLPropULongLong(node, "peak", 10, VIR_XML_PROP_NONE,
+                                       &rate->peak)) < 0)
+        return -1;
 
-    if (average) {
-        if (virStrToLong_ullp(average, NULL, 10, &rate->average) < 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("could not convert bandwidth average value '%s'"),
-                           average);
-            return -1;
-        }
-    } else if (!floor) {
+    if ((rc_burst = virXMLPropULongLong(node, "burst", 10, VIR_XML_PROP_NONE,
+                                        &rate->burst)) < 0)
+        return -1;
+
+    if ((rc_floor = virXMLPropULongLong(node, "floor", 10, VIR_XML_PROP_NONE,
+                                        &rate->floor)) < 0)
+        return -1;
+
+    if (!rc_average && !rc_floor) {
         virReportError(VIR_ERR_XML_DETAIL, "%s",
                        _("Missing mandatory average or floor attributes"));
         return -1;
     }
 
-    if ((peak || burst) && !average) {
+    if ((rc_peak || rc_burst) && !rc_average) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("'peak' and 'burst' require 'average' attribute"));
         return -1;
     }
 
-    if (peak && virStrToLong_ullp(peak, NULL, 10, &rate->peak) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("could not convert bandwidth peak value '%s'"),
-                       peak);
-        return -1;
-    }
-
-    if (burst && virStrToLong_ullp(burst, NULL, 10, &rate->burst) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("could not convert bandwidth burst value '%s'"),
-                       burst);
-        return -1;
-    }
-
-    if (floor && virStrToLong_ullp(floor, NULL, 10, &rate->floor) < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("could not convert bandwidth floor value '%s'"),
-                       floor);
+    if (rc_floor && !allowFloor) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("floor attribute is not supported for this config"));
         return -1;
     }
 
@@ -107,89 +91,40 @@ virNetDevBandwidthParse(virNetDevBandwidth **bandwidth,
                         bool allowFloor)
 {
     g_autoptr(virNetDevBandwidth) def = NULL;
-    xmlNodePtr cur;
-    xmlNodePtr in = NULL, out = NULL;
-    g_autofree char *class_id_prop = NULL;
+    xmlNodePtr in;
+    xmlNodePtr out;
+    unsigned int class_id_value;
+    int rc;
 
     def = g_new0(virNetDevBandwidth, 1);
 
-    if (!node || !virXMLNodeNameEqual(node, "bandwidth")) {
-        virReportError(VIR_ERR_INVALID_ARG, "%s",
-                       _("invalid argument supplied"));
-        return -1;
-    }
 
-    class_id_prop = virXMLPropString(node, "classID");
-    if (class_id_prop) {
+    if ((rc = virXMLPropUInt(node, "classID", 10, VIR_XML_PROP_NONE, &class_id_value)) < 0)
+        return -1;
+
+    if (rc == 1) {
         if (!class_id) {
             virReportError(VIR_ERR_XML_DETAIL, "%s",
-                           _("classID attribute not supported on <bandwidth> "
-                             "in this usage context"));
+                           _("classID attribute not supported on <bandwidth> in this usage context"));
             return -1;
         }
-        if (virStrToLong_ui(class_id_prop, NULL, 10, class_id) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unable to parse class id '%s'"),
-                           class_id_prop);
-            return -1;
-        }
+
+        *class_id = class_id_value;
     }
 
-    cur = node->children;
-
-    while (cur) {
-        if (cur->type == XML_ELEMENT_NODE) {
-            if (virXMLNodeNameEqual(cur, "inbound")) {
-                if (in) {
-                    virReportError(VIR_ERR_XML_DETAIL, "%s",
-                                   _("Only one child <inbound> "
-                                     "element allowed"));
-                    return -1;
-                }
-                in = cur;
-            } else if (virXMLNodeNameEqual(cur, "outbound")) {
-                if (out) {
-                    virReportError(VIR_ERR_XML_DETAIL, "%s",
-                                   _("Only one child <outbound> "
-                                     "element allowed"));
-                    return -1;
-                }
-                out = cur;
-            }
-            /* Silently ignore unknown elements */
-        }
-        cur = cur->next;
-    }
-
-    if (in) {
+    if ((in = virXMLNodeGetSubelement(node, "inbound"))) {
         def->in = g_new0(virNetDevBandwidthRate, 1);
 
-        if (virNetDevBandwidthParseRate(in, def->in) < 0) {
-            /* helper reported error for us */
+        if (virNetDevBandwidthParseRate(in, def->in, allowFloor) < 0)
             return -1;
-        }
-
-        if (def->in->floor && !allowFloor) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("floor attribute is not supported for this config"));
-            return -1;
-        }
     }
 
-    if (out) {
+    if ((out = virXMLNodeGetSubelement(node, "outbound"))) {
         def->out = g_new0(virNetDevBandwidthRate, 1);
 
-        if (virNetDevBandwidthParseRate(out, def->out) < 0) {
-            /* helper reported error for us */
+        /* floor is not allowed for <outbound> */
+        if (virNetDevBandwidthParseRate(out, def->out, false) < 0)
             return -1;
-        }
-
-        if (def->out->floor) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("'floor' attribute allowed "
-                             "only in <inbound> element"));
-            return -1;
-        }
     }
 
     if (def->in || def->out)
@@ -296,6 +231,8 @@ bool virNetDevSupportsBandwidth(virDomainNetType type)
     case VIR_DOMAIN_NET_TYPE_INTERNAL:
     case VIR_DOMAIN_NET_TYPE_HOSTDEV:
     case VIR_DOMAIN_NET_TYPE_VDPA:
+    case VIR_DOMAIN_NET_TYPE_NULL:
+    case VIR_DOMAIN_NET_TYPE_VDS:
     case VIR_DOMAIN_NET_TYPE_LAST:
         break;
     }

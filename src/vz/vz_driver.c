@@ -24,7 +24,7 @@
 #include <config.h>
 
 #include <sys/types.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -331,7 +331,7 @@ vzDriverObjNew(void)
     if (!(driver->caps = vzBuildCapabilities()) ||
         !(driver->xmlopt = virDomainXMLOptionNew(&vzDomainDefParserConfig,
                                                  &vzDomainXMLPrivateDataCallbacksPtr,
-                                                 NULL, NULL, NULL)) ||
+                                                 NULL, NULL, NULL, NULL)) ||
         !(driver->domains = virDomainObjListNew()) ||
         !(driver->domainEventState = virObjectEventStateNew()) ||
         (vzInitVersion(driver) < 0) ||
@@ -364,7 +364,7 @@ vzConnectOpen(virConnectPtr conn,
     /* From this point on, the connection is for us. */
     if (STRNEQ(conn->uri->path, "/system")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unexpected Virtuozzo URI path '%s', try vz:///system"),
+                       _("Unexpected Virtuozzo URI path '%1$s', try vz:///system"),
                        conn->uri->path);
         return VIR_DRV_OPEN_ERROR;
     }
@@ -575,7 +575,7 @@ vzDomainLookupByUUID(virConnectPtr conn, const unsigned char *uuid)
         char uuidstr[VIR_UUID_STRING_BUFLEN];
         virUUIDFormat(uuid, uuidstr);
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+                       _("no domain with matching uuid '%1$s'"), uuidstr);
         return NULL;
     }
 
@@ -600,7 +600,7 @@ vzDomainLookupByName(virConnectPtr conn, const char *name)
 
     if (dom == NULL) {
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching name '%s'"), name);
+                       _("no domain with matching name '%1$s'"), name);
         return NULL;
     }
 
@@ -773,7 +773,7 @@ vzEnsureDomainExists(virDomainObj *dom)
 
     virUUIDFormat(dom->def->uuid, uuidstr);
     virReportError(VIR_ERR_NO_DOMAIN,
-                   _("no domain with matching uuid '%s' (%s)"),
+                   _("no domain with matching uuid '%1$s' (%2$s)"),
                    uuidstr, dom->def->name);
 
     return -1;
@@ -816,7 +816,7 @@ vzDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
                 goto cleanup;
         } else {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Unsupported OS type: %s"),
+                           _("Unsupported OS type: %1$s"),
                            virDomainOSTypeToString(def->os.type));
             goto cleanup;
         }
@@ -842,8 +842,7 @@ vzDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
 
             if (!virDomainDefCheckABIStability(dom->def, def, driver->xmlopt)) {
                 virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
-                               _("Can't change domain configuration "
-                                 "in managed save state"));
+                               _("Can't change domain configuration in managed save state"));
                 goto cleanup;
             }
         } else {
@@ -1461,15 +1460,13 @@ static int vzCheckConfigUpdateFlags(virDomainObj *dom, unsigned int *flags)
 
     if (!(*flags & VIR_DOMAIN_AFFECT_CONFIG)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("domain config update needs VIR_DOMAIN_AFFECT_CONFIG "
-                         "flag to be set"));
+                       _("domain config update needs VIR_DOMAIN_AFFECT_CONFIG flag to be set"));
         return -1;
     }
 
     if (virDomainObjIsActive(dom) && !(*flags & VIR_DOMAIN_AFFECT_LIVE)) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("Updates on a running domain need "
-                         "VIR_DOMAIN_AFFECT_LIVE flag"));
+                       _("Updates on a running domain need VIR_DOMAIN_AFFECT_LIVE flag"));
         return -1;
     }
 
@@ -1705,7 +1702,7 @@ vzDomainBlockStatsImpl(virDomainObj *dom,
 
     if (*path) {
         if ((idx = virDomainDiskIndexByName(dom->def, path, false)) < 0) {
-            virReportError(VIR_ERR_INVALID_ARG, _("invalid path: %s"), path);
+            virReportError(VIR_ERR_INVALID_ARG, _("invalid path: %1$s"), path);
             return -1;
         }
         if (prlsdkGetBlockStats(privdom->stats,
@@ -1956,7 +1953,7 @@ static int vzConnectGetMaxVcpus(virConnectPtr conn,
         return 1028;
 
     virReportError(VIR_ERR_INVALID_ARG,
-                   _("unknown type '%s'"), type);
+                   _("unknown type '%1$s'"), type);
     return -1;
 }
 
@@ -2018,53 +2015,43 @@ vzConnectRegisterCloseCallback(virConnectPtr conn,
                                virFreeCallback freecb)
 {
     struct _vzConn *privconn = conn->privateData;
-    int ret = -1;
 
     if (virConnectRegisterCloseCallbackEnsureACL(conn) < 0)
         return -1;
 
-    virObjectLock(privconn->driver);
+    VIR_WITH_OBJECT_LOCK_GUARD(privconn->driver) {
+        if (virConnectCloseCallbackDataGetCallback(privconn->closeCallback) != NULL) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("A close callback is already registered"));
+            return -1;
+        }
 
-    if (virConnectCloseCallbackDataGetCallback(privconn->closeCallback) != NULL) {
-        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("A close callback is already registered"));
-        goto cleanup;
+        virConnectCloseCallbackDataRegister(privconn->closeCallback, conn, cb,
+                                            opaque, freecb);
     }
 
-    virConnectCloseCallbackDataRegister(privconn->closeCallback, conn, cb,
-                                        opaque, freecb);
-    ret = 0;
-
- cleanup:
-    virObjectUnlock(privconn->driver);
-
-    return ret;
+    return 0;
 }
 
 static int
 vzConnectUnregisterCloseCallback(virConnectPtr conn, virConnectCloseFunc cb)
 {
     struct _vzConn *privconn = conn->privateData;
-    int ret = -1;
 
     if (virConnectUnregisterCloseCallbackEnsureACL(conn) < 0)
         return -1;
 
-    virObjectLock(privconn->driver);
+    VIR_WITH_OBJECT_LOCK_GUARD(privconn->driver) {
+        if (virConnectCloseCallbackDataGetCallback(privconn->closeCallback) != cb) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("A different callback was requested"));
+            return -1;
+        }
 
-    if (virConnectCloseCallbackDataGetCallback(privconn->closeCallback) != cb) {
-        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                       _("A different callback was requested"));
-        goto cleanup;
+        virConnectCloseCallbackDataUnregister(privconn->closeCallback, cb);
     }
 
-    virConnectCloseCallbackDataUnregister(privconn->closeCallback, cb);
-    ret = 0;
-
- cleanup:
-    virObjectUnlock(privconn->driver);
-
-    return ret;
+    return 0;
 }
 
 static int vzDomainSetMemoryFlags(virDomainPtr domain, unsigned long memory,
@@ -2139,7 +2126,7 @@ vzSnapObjFromName(virDomainSnapshotObjList *snapshots, const char *name)
     snap = virDomainSnapshotFindByName(snapshots, name);
     if (!snap)
         virReportError(VIR_ERR_NO_DOMAIN_SNAPSHOT,
-                       _("no domain snapshot with matching name '%s'"), name);
+                       _("no domain snapshot with matching name '%1$s'"), name);
 
     return snap;
 }
@@ -2462,7 +2449,7 @@ vzDomainSnapshotGetParent(virDomainSnapshotPtr snapshot, unsigned int flags)
 
     if (!snap->def->parent_name) {
         virReportError(VIR_ERR_NO_DOMAIN_SNAPSHOT,
-                       _("snapshot '%s' does not have a parent"),
+                       _("snapshot '%1$s' does not have a parent"),
                        snap->def->name);
         goto cleanup;
     }
@@ -2580,7 +2567,7 @@ vzDomainSnapshotCreateXML(virDomainPtr domain,
     virDomainObj *dom;
     struct _vzConn *privconn = domain->conn->privateData;
     struct _vzDriver *driver = privconn->driver;
-    unsigned int parse_flags = VIR_DOMAIN_SNAPSHOT_PARSE_DISKS;
+    unsigned int parse_flags = 0;
     virDomainSnapshotObjList *snapshots = NULL;
     virDomainMomentObj *current;
     bool job = false;
@@ -2803,8 +2790,7 @@ vzEatCookie(const char *cookiein, int cookieinlen, unsigned int flags)
         if ((!(tmp = virXPathString("string(./session-uuid[1])", ctx))
             || (virUUIDParse(tmp, mig->session_uuid) < 0))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("missing or malformed session-uuid element "
-                             "in migration data"));
+                           _("missing or malformed session-uuid element in migration data"));
             goto error;
         }
     }
@@ -2931,8 +2917,7 @@ vzMigrationCreateURI(void)
 
     if (STRPREFIX(hostname, "localhost")) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("hostname on destination resolved to localhost,"
-                         " but migration requires an FQDN"));
+                       _("hostname on destination resolved to localhost, but migration requires an FQDN"));
         goto cleanup;
     }
 
@@ -3047,21 +3032,21 @@ vzParseVzURI(const char *uri_str)
 
     if (!uri->scheme || !uri->server) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("scheme and host are mandatory vz migration URI: %s"),
+                       _("scheme and host are mandatory vz migration URI: %1$s"),
                        uri_str);
         goto error;
     }
 
     if (uri->user || uri->path || uri->query || uri->fragment) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("only scheme, host and port are supported in "
-                         "vz migration URI: %s"), uri_str);
+                       _("only scheme, host and port are supported in vz migration URI: %1$s"),
+                       uri_str);
         goto error;
     }
 
     if (STRNEQ(uri->scheme, "vzmigr")) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
-                       _("unsupported scheme %s in migration URI %s"),
+                       _("unsupported scheme %1$s in migration URI %2$s"),
                        uri->scheme, uri_str);
         goto error;
     }
@@ -3084,7 +3069,7 @@ vzDomainMigratePerformStep(virDomainObj *dom,
 {
     int ret = -1;
     struct vzDomObj *privdom = dom->privateData;
-    virURI *vzuri = NULL;
+    g_autoptr(virURI) vzuri = NULL;
     const char *miguri = NULL;
     const char *dname = NULL;
     vzMigrationCookie *mig = NULL;
@@ -3127,7 +3112,6 @@ vzDomainMigratePerformStep(virDomainObj *dom,
  cleanup:
     if (job)
         vzDomainObjEndJob(dom);
-    virURIFree(vzuri);
     vzMigrationCookieFree(mig);
 
     return ret;
@@ -3155,8 +3139,7 @@ vzDomainMigratePerformP2P(virDomainObj *dom,
     int ret = -1;
     int maxparams = nparams;
 
-    if (virTypedParamsCopy(&params, orig_params, nparams) < 0)
-        return -1;
+    virTypedParamsCopy(&params, orig_params, nparams);
 
     if (!(dconn = virConnectOpen(dconnuri)))
         goto done;
@@ -3772,7 +3755,7 @@ vzConnectGetAllDomainStats(virConnectPtr conn,
     } else if ((flags & VIR_CONNECT_GET_ALL_DOMAINS_STATS_ENFORCE_STATS) &&
                (stats & ~supported)) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
-                       _("Stats types bits 0x%x are not supported by this daemon"),
+                       _("Stats types bits 0x%1$x are not supported by this daemon"),
                        stats & ~supported);
         return -1;
     }
@@ -3783,10 +3766,9 @@ vzConnectGetAllDomainStats(virConnectPtr conn,
                                     lflags, true) < 0)
             return -1;
     } else {
-        if (virDomainObjListCollect(driver->domains, conn, &doms, &ndoms,
-                                    virConnectGetAllDomainStatsCheckACL,
-                                    lflags) < 0)
-            return -1;
+        virDomainObjListCollect(driver->domains, conn, &doms, &ndoms,
+                                virConnectGetAllDomainStatsCheckACL,
+                                lflags);
     }
 
     tmpstats = g_new0(virDomainStatsRecordPtr, ndoms + 1);
@@ -3795,9 +3777,9 @@ vzConnectGetAllDomainStats(virConnectPtr conn,
         virDomainStatsRecordPtr tmp;
         virDomainObj *dom = doms[i];
 
-        virObjectLock(dom);
-        tmp = vzDomainGetAllStats(conn, dom);
-        virObjectUnlock(dom);
+        VIR_WITH_OBJECT_LOCK_GUARD(dom) {
+            tmp = vzDomainGetAllStats(conn, dom);
+        }
 
         if (!tmp)
             goto cleanup;
@@ -3950,7 +3932,7 @@ vzDomainBlockResize(virDomainPtr domain,
 
     if (!(disk = virDomainDiskByName(dom->def, path, false))) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("invalid path: %s"), path);
+                       _("invalid path: %1$s"), path);
         goto cleanup;
     }
 
@@ -4088,6 +4070,7 @@ vzStateCleanup(void)
 static int
 vzStateInitialize(bool privileged,
                   const char *root,
+                  bool monolithic G_GNUC_UNUSED,
                   virStateInhibitCallback callback G_GNUC_UNUSED,
                   void *opaque G_GNUC_UNUSED)
 {
@@ -4103,17 +4086,17 @@ vzStateInitialize(bool privileged,
     vz_driver_privileged = privileged;
 
     if (g_mkdir_with_parents(VZ_STATEDIR, S_IRWXU) < 0) {
-        virReportSystemError(errno, _("cannot create state directory '%s'"),
+        virReportSystemError(errno, _("cannot create state directory '%1$s'"),
                              VZ_STATEDIR);
         return VIR_DRV_STATE_INIT_ERROR;
     }
 
     if ((vz_driver_lock_fd =
-         virPidFileAcquire(VZ_STATEDIR, "driver", false, getpid())) < 0)
+         virPidFileAcquire(VZ_STATEDIR, "driver", getpid())) < 0)
         return VIR_DRV_STATE_INIT_ERROR;
 
     if (prlsdkInit() < 0) {
-        VIR_DEBUG("%s", _("Can't initialize Parallels SDK"));
+        VIR_DEBUG("Can't initialize Parallels SDK");
         return VIR_DRV_STATE_INIT_ERROR;
     }
 
@@ -4156,7 +4139,7 @@ vzRegister(void)
 
     prlctl_path = virFindFileInPath(PRLCTL);
     if (!prlctl_path) {
-        VIR_DEBUG("%s", _("Can't find prlctl command in the PATH env"));
+        VIR_DEBUG("Can't find prlctl command in the PATH env");
         return 0;
     }
 

@@ -35,7 +35,7 @@
 
 VIR_LOG_INIT("util.string");
 
-/* Like strtol, but produce an "int" result, and check more carefully.
+/* Like strtol with C locale, but produce an "int" result, and check more carefully.
    Return 0 upon success;  return -1 to indicate failure.
    When END_PTR is NULL, the byte after the final valid digit must be NUL.
    Otherwise, it's like strtol and lets the caller check any suffix for
@@ -44,12 +44,12 @@ VIR_LOG_INIT("util.string");
 int
 virStrToLong_i(char const *s, char **end_ptr, int base, int *result)
 {
-    long int val;
+    long long val;
     char *p;
     int err;
 
     errno = 0;
-    val = strtol(s, &p, base); /* exempt from syntax-check */
+    val = g_ascii_strtoll(s, &p, base);
     err = (errno || (!end_ptr && *p) || p == s || (int) val != val);
     if (end_ptr)
         *end_ptr = p;
@@ -65,22 +65,22 @@ virStrToLong_i(char const *s, char **end_ptr, int base, int *result)
 int
 virStrToLong_ui(char const *s, char **end_ptr, int base, unsigned int *result)
 {
-    unsigned long int val;
+    unsigned long long val;
     char *p;
     bool err = false;
 
     errno = 0;
-    val = strtoul(s, &p, base); /* exempt from syntax-check */
+    val = g_ascii_strtoull(s, &p, base);
 
     /* This one's tricky.  We _want_ to allow "-1" as shorthand for
      * UINT_MAX regardless of whether long is 32-bit or 64-bit.  But
-     * strtoul treats "-1" as ULONG_MAX, and going from ulong back
-     * to uint differs depending on the size of long. */
-    if (sizeof(long) > sizeof(int) && memchr(s, '-', p - s)) {
+     * g_ascii_strtoull treats "-1" as ULLONG_MAX, and going from ullong back
+     * to uint differs depending on the size of uint. */
+    if (memchr(s, '-', p - s)) {
         if (-val > UINT_MAX)
             err = true;
         else
-            val &= 0xffffffff;
+            val &= UINT_MAX;
     }
 
     err |= (errno || (!end_ptr && *p) || p == s || (unsigned int) val != val);
@@ -97,12 +97,12 @@ virStrToLong_ui(char const *s, char **end_ptr, int base, unsigned int *result)
 int
 virStrToLong_uip(char const *s, char **end_ptr, int base, unsigned int *result)
 {
-    unsigned long int val;
+    unsigned long long val;
     char *p;
     bool err = false;
 
     errno = 0;
-    val = strtoul(s, &p, base); /* exempt from syntax-check */
+    val = g_ascii_strtoull(s, &p, base);
     err = (memchr(s, '-', p - s) ||
            errno || (!end_ptr && *p) || p == s || (unsigned int) val != val);
     if (end_ptr)
@@ -113,24 +113,7 @@ virStrToLong_uip(char const *s, char **end_ptr, int base, unsigned int *result)
     return 0;
 }
 
-/* Just like virStrToLong_i, above, but produce a "long" value.  */
-int
-virStrToLong_l(char const *s, char **end_ptr, int base, long *result)
-{
-    long int val;
-    char *p;
-    int err;
-
-    errno = 0;
-    val = strtol(s, &p, base); /* exempt from syntax-check */
-    err = (errno || (!end_ptr && *p) || p == s);
-    if (end_ptr)
-        *end_ptr = p;
-    if (err)
-        return -1;
-    *result = val;
-    return 0;
-}
+/* virStrToLong_l is intentionally skipped, consider virStrToLong_ll instead */
 
 /* Just like virStrToLong_i, above, but produce an "unsigned long"
  * value.  This version allows twos-complement wraparound of negative
@@ -138,13 +121,25 @@ virStrToLong_l(char const *s, char **end_ptr, int base, long *result)
 int
 virStrToLong_ul(char const *s, char **end_ptr, int base, unsigned long *result)
 {
-    unsigned long int val;
+    unsigned long long val;
     char *p;
-    int err;
+    bool err = false;
 
     errno = 0;
-    val = strtoul(s, &p, base); /* exempt from syntax-check */
-    err = (errno || (!end_ptr && *p) || p == s);
+    val = g_ascii_strtoull(s, &p, base);
+
+    /* This one's tricky.  We _want_ to allow "-1" as shorthand for
+     * ULONG_MAX regardless of whether long is 32-bit or 64-bit.  But
+     * g_ascii_strtoull treats "-1" as ULLONG_MAX, and going from ullong back
+     * to ulong differs depending on the size of ulong. */
+    if (memchr(s, '-', p - s)) {
+        if (-val > ULONG_MAX)
+            err = true;
+        else
+            val &= ULONG_MAX;
+    }
+
+    err |= (errno || (!end_ptr && *p) || p == s || (unsigned long) val != val);
     if (end_ptr)
         *end_ptr = p;
     if (err)
@@ -159,14 +154,14 @@ int
 virStrToLong_ulp(char const *s, char **end_ptr, int base,
                  unsigned long *result)
 {
-    unsigned long int val;
+    unsigned long long val;
     char *p;
     int err;
 
     errno = 0;
-    val = strtoul(s, &p, base); /* exempt from syntax-check */
+    val = g_ascii_strtoull(s, &p, base);
     err = (memchr(s, '-', p - s) ||
-           errno || (!end_ptr && *p) || p == s);
+           errno || (!end_ptr && *p) || p == s || (unsigned long) val != val);
     if (end_ptr)
         *end_ptr = p;
     if (err)
@@ -184,7 +179,7 @@ virStrToLong_ll(char const *s, char **end_ptr, int base, long long *result)
     int err;
 
     errno = 0;
-    val = strtoll(s, &p, base); /* exempt from syntax-check */
+    val = g_ascii_strtoll(s, &p, base);
     err = (errno || (!end_ptr && *p) || p == s);
     if (end_ptr)
         *end_ptr = p;
@@ -206,7 +201,7 @@ virStrToLong_ull(char const *s, char **end_ptr, int base,
     int err;
 
     errno = 0;
-    val = strtoull(s, &p, base); /* exempt from syntax-check */
+    val = g_ascii_strtoull(s, &p, base);
     err = (errno || (!end_ptr && *p) || p == s);
     if (end_ptr)
         *end_ptr = p;
@@ -227,7 +222,7 @@ virStrToLong_ullp(char const *s, char **end_ptr, int base,
     int err;
 
     errno = 0;
-    val = strtoull(s, &p, base); /* exempt from syntax-check */
+    val = g_ascii_strtoull(s, &p, base);
     err = (memchr(s, '-', p - s) ||
            errno || (!end_ptr && *p) || p == s);
     if (end_ptr)
@@ -598,13 +593,13 @@ virStringSearch(const char *str,
     regex = g_regex_new(regexp, 0, 0, &err);
     if (!regex) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to compile regex %s"), err->message);
+                       _("Failed to compile regex %1$s"), err->message);
         return -1;
     }
 
     if (g_regex_get_capture_count(regex) != 1) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Regular expression '%s' must have exactly 1 match group, not %d"),
+                       _("Regular expression '%1$s' must have exactly 1 match group, not %2$d"),
                        regexp, g_regex_get_capture_count(regex));
         goto cleanup;
     }
@@ -982,13 +977,13 @@ virStringParsePort(const char *str,
 
     if (virStrToLong_uip(str, NULL, 10, &p) < 0) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("failed to parse port number '%s'"), str);
+                       _("failed to parse port number '%1$s'"), str);
         return -1;
     }
 
     if (p > UINT16_MAX) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("port '%s' out of range"), str);
+                       _("port '%1$s' out of range"), str);
         return -1;
     }
 
@@ -1022,7 +1017,7 @@ int virStringParseYesNo(const char *str, bool *result)
 
 /**
  * virStringParseVersion:
- * @version: unsigned long pointer to output the version number
+ * @version: unsigned long long pointer to output the version number
  * @str: const char pointer to the version string
  * @allowMissing: true to treat 3 like 3.0.0, false to error out on
  * missing minor or micro
@@ -1037,7 +1032,7 @@ int virStringParseYesNo(const char *str, bool *result)
  * Returns the 0 for success, -1 for error.
  */
 int
-virStringParseVersion(unsigned long *version,
+virStringParseVersion(unsigned long long *version,
                       const char *str,
                       bool allowMissing)
 {

@@ -20,7 +20,6 @@
 
 #include "virnetdevmidonet.h"
 #include "vircommand.h"
-#include "viralloc.h"
 #include "virerror.h"
 #include "viruuid.h"
 
@@ -50,7 +49,7 @@ virNetDevMidonetBindPort(const char *ifname,
 
     if (virCommandRun(cmd, NULL) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to bind port %s to the virtual port %s"),
+                       _("Unable to bind port %1$s to the virtual port %2$s"),
                        ifname, virtportuuid);
         return -1;
     }
@@ -79,7 +78,7 @@ virNetDevMidonetUnbindPort(const virNetDevVPortProfile *virtualport)
 
     if (virCommandRun(cmd, NULL) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to unbind the virtual port %s from Midonet"),
+                       _("Unable to unbind the virtual port %1$s from Midonet"),
                        virtportuuid);
         return -1;
     }

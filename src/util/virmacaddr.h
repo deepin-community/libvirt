@@ -49,7 +49,7 @@ void virMacAddrGetRaw(const virMacAddr *src, unsigned char dst[VIR_MAC_BUFLEN]);
 const char *virMacAddrFormat(const virMacAddr *addr,
                              char *str);
 void virMacAddrGenerate(const unsigned char prefix[VIR_MAC_PREFIX_BUFLEN],
-                        virMacAddr *addr) G_GNUC_NO_INLINE;
+                        virMacAddr *addr) G_NO_INLINE;
 int virMacAddrParse(const char* str,
                     virMacAddr *addr) G_GNUC_WARN_UNUSED_RESULT;
 int virMacAddrParseHex(const char* str,
@@ -58,6 +58,7 @@ int virMacAddrParseHex(const char* str,
 bool virMacAddrIsUnicast(const virMacAddr *addr);
 bool virMacAddrIsMulticast(const virMacAddr *addr);
 bool virMacAddrIsBroadcastRaw(const unsigned char s[VIR_MAC_BUFLEN]);
+bool virMacAddrIsAllClear(const virMacAddr *addr);
 void virMacAddrFree(virMacAddr *addr);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virMacAddr, virMacAddrFree);

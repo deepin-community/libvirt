@@ -230,6 +230,9 @@ const REMOTE_NODE_MEMORY_PARAMETERS_MAX = 64;
 /* Upper limit on migrate parameters */
 const REMOTE_DOMAIN_MIGRATE_PARAM_LIST_MAX = 64;
 
+/* Upper limit on save/restore parameters */
+const REMOTE_DOMAIN_SAVE_PARAMS_MAX = 64;
+
 /* Upper limit on number of job stats */
 const REMOTE_DOMAIN_JOB_STATS_MAX = 64;
 
@@ -980,6 +983,12 @@ struct remote_domain_save_flags_args {
     unsigned int flags;
 };
 
+struct remote_domain_save_params_args {
+    remote_nonnull_domain dom;
+    remote_typed_param params<REMOTE_DOMAIN_SAVE_PARAMS_MAX>;
+    unsigned int flags;
+};
+
 struct remote_domain_restore_args {
     remote_nonnull_string from;
 };
@@ -987,6 +996,11 @@ struct remote_domain_restore_args {
 struct remote_domain_restore_flags_args {
     remote_nonnull_string from;
     remote_string dxml;
+    unsigned int flags;
+};
+
+struct remote_domain_restore_params_args {
+    remote_typed_param params<REMOTE_DOMAIN_SAVE_PARAMS_MAX>;
     unsigned int flags;
 };
 
@@ -2478,6 +2492,12 @@ struct remote_domain_abort_job_args {
 };
 
 
+struct remote_domain_abort_job_flags_args {
+    remote_nonnull_domain dom;
+    unsigned int flags;
+};
+
+
 struct remote_domain_migrate_get_max_downtime_args {
     remote_nonnull_domain dom;
     unsigned int flags;
@@ -3303,6 +3323,33 @@ struct remote_network_event_lifecycle_msg {
     int detail;
 };
 
+struct remote_network_event_callback_metadata_change_msg {
+    int callbackID;
+    remote_nonnull_network net;
+    int type;
+    remote_string nsuri;
+};
+
+struct remote_network_set_metadata_args {
+    remote_nonnull_network network;
+    int type;
+    remote_string metadata;
+    remote_string key;
+    remote_string uri;
+    unsigned int flags;
+};
+
+struct remote_network_get_metadata_args {
+    remote_nonnull_network network;
+    int type;
+    remote_string uri;
+    unsigned int flags;
+};
+
+struct remote_network_get_metadata_ret {
+    remote_nonnull_string metadata;
+};
+
 struct remote_connect_storage_pool_event_register_any_args {
     int eventID;
     remote_storage_pool pool;
@@ -3909,6 +3956,12 @@ struct remote_domain_event_memory_device_size_change_msg {
     unsigned hyper size;
 };
 
+
+struct remote_domain_fd_associate_args {
+    remote_nonnull_domain dom;
+    remote_nonnull_string name;
+    unsigned int flags;
+};
 /*----- Protocol. -----*/
 
 /* Define the program number, protocol version and procedure numbers here. */
@@ -3948,8 +4001,9 @@ enum remote_procedure {
      *   Declare the access control requirements for the API. May be repeated
      *   multiple times, if multiple rules are required.
      *
-     *     <object> is one of 'connect', 'domain', 'network', 'storagepool',
-     *              'interface', 'nodedev', 'secret'.
+     *     <object> is one of 'connect', 'domain', 'interface', 'network',
+     *              'network_port', 'node_device', 'nwfilter',
+     *              'nwfilter_binding', 'secret', 'storage_pool', 'storage_vol'
      *     <permission> is one of the permissions in access/viraccessperm.h
      *     <flagname> indicates the rule only applies if the named flag
      *     is set in the API call
@@ -6396,12 +6450,14 @@ enum remote_procedure {
 
     /**
      * @generate: none
+     * @priority: high
      * @acl: connect:getattr
      */
     REMOTE_PROC_CONNECT_REGISTER_CLOSE_CALLBACK = 360,
 
     /**
      * @generate: none
+     * @priority: high
      * @acl: connect:getattr
      */
     REMOTE_PROC_CONNECT_UNREGISTER_CLOSE_CALLBACK = 361,
@@ -6920,5 +6976,50 @@ enum remote_procedure {
      * @generate: both
      * @acl: domain:write
      */
-    REMOTE_PROC_DOMAIN_SET_LAUNCH_SECURITY_STATE = 439
+    REMOTE_PROC_DOMAIN_SET_LAUNCH_SECURITY_STATE = 439,
+
+    /**
+     * @generate: both
+     * @acl: domain:hibernate
+     */
+    REMOTE_PROC_DOMAIN_SAVE_PARAMS = 440,
+
+    /**
+     * @generate: both
+     * @acl: domain:start
+     * @acl: domain:write
+     */
+    REMOTE_PROC_DOMAIN_RESTORE_PARAMS = 441,
+
+    /**
+     * @generate: both
+     * @acl: domain:write
+     */
+    REMOTE_PROC_DOMAIN_ABORT_JOB_FLAGS = 442,
+
+    /**
+     * @generate: none
+     * @acl: domain:write
+     */
+    REMOTE_PROC_DOMAIN_FD_ASSOCIATE = 443,
+
+    /**
+     * @generate: both
+     * @acl: network:write
+     * @acl: network:save:!VIR_NETWORK_UPDATE_AFFECT_CONFIG|VIR_NETWORK_UPDATE_AFFECT_LIVE
+     * @acl: network:save:VIR_NETWORK_UPDATE_AFFECT_CONFIG
+     */
+    REMOTE_PROC_NETWORK_SET_METADATA = 444,
+
+    /**
+     * @generate: both
+     * @acl: network:read
+     */
+    REMOTE_PROC_NETWORK_GET_METADATA = 445,
+
+    /**
+     * @generate: both
+     * @acl: none
+     */
+    REMOTE_PROC_NETWORK_EVENT_CALLBACK_METADATA_CHANGE = 446
 };

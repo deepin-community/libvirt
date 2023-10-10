@@ -1,0 +1,94 @@
+# libvirt po-debconf translation to Spanish.
+# Copyright (C) 2021 Software in the Public Interest
+# This file is distributed under the same license as the libvirt package.
+#
+# Changes:
+# - Initial translation
+# Jonathan Bustillos <jathan@debian.org>, 2021.
+#
+# Traductores, si no conocen el formato PO, merece la pena leer la
+# documentación de gettext, especialmente las secciones dedicadas a este
+# formato, por ejemplo ejecutando:
+# info -n '(gettext)PO Files'
+# info -n '(gettext)Header Entry'
+#
+# Equipo de traducción al español, por favor lean antes de traducir
+# los siguientes documentos:
+#
+# - El proyecto de traducción de Debian al español
+# http://www.debian.org/intl/spanish/
+# especialmente las notas y normas de traducción en
+# http://www.debian.org/intl/spanish/notas
+#
+# - La guía de traducción de po's de debconf:
+# /usr/share/doc/po-debconf/README-trans
+# o http://www.debian.org/intl/l10n/po-debconf/README-trans
+msgid ""
+msgstr ""
+"Project-Id-Version: libvirt\n"
+"Report-Msgid-Bugs-To: libvirt@packages.debian.org\n"
+"POT-Creation-Date: 2016-12-22 14:20+0100\n"
+"PO-Revision-Date: 2021-04-03 13:42-0600\n"
+"Last-Translator: Jonathan Bustillos <jathan@debian.org>\n"
+"Language-Team: Debian Spanish <debian-l10n-spanish@lists.debian.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"X-Generator: Gtranslator 2.91.7\n"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid "Continue with incorrect libvirt-qemu user/group ID(s)?"
+msgstr "¿Continuar con ID(s) de usuario/grupo incorrectos de libvirt-qemu?"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid ""
+" The user/group ID (uid/gid) allocated for libvirt-qemu (64055)\n"
+" seems to be taken by another user/group, thus it is not possible\n"
+" to create the user/group with this numeric ID."
+msgstr ""
+" El ID de usuario/grupo (uid/gid) asignado para libvirt-qemu (64055) \n"
+" parece estar ocupado por otro usuario/grupo, por lo que no es posible\n"
+" crear el usuario/grupo con este ID numérico."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid ""
+" The migration of guests with disk image files shared over NFS\n"
+" requires a static libvirt-qemu user and group ID (uid and gid)\n"
+" between the source and destination host systems."
+msgstr ""
+" La migración de huéspedes con archivos de imagen de disco compartidos a "
+"través de NFS\n"
+" requiere una identificación estática de usuario y grupo (uid y gid) de "
+"libvirt-qemu\n"
+" entre los sistemas anfitriones de origen y destino."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid ""
+" If guest migration over NFS is not required, you can continue\n"
+" the installation."
+msgstr ""
+" Si la migración de huésped a través de NFS no es necesaria, puede "
+"continuar\n"
+" la instalación."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid ""
+" In order to resolve this problem, do not continue the installation,\n"
+" release the 64055 uid/gid (which might involve permission changes),\n"
+" then install this package again."
+msgstr ""
+" Para resolver este problema, no continúe la instalación,\n"
+" libere el uid/gid 64055 (lo que podría implicar cambios en los permisos),\n"
+" y vuelva a instalar este paquete."

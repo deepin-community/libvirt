@@ -45,7 +45,7 @@ qemuFirmwareFetchConfigs(char ***firmwares,
 int
 qemuFirmwareFillDomain(virQEMUDriver *driver,
                        virDomainDef *def,
-                       unsigned int flags);
+                       bool abiUpdate);
 
 int
 qemuFirmwareGetSupported(const char *machine,

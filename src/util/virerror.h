@@ -76,7 +76,7 @@ void virReportSystemErrorFull(int domcode,
                       #argname, \
                       NULL, \
                       0, 0, \
-                      _("%s in %s must be NULL"), \
+                      _("%1$s in %2$s must be NULL"), \
                       #argname, __FUNCTION__)
 #define virReportInvalidNonNullArg(argname) \
     virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__, \
@@ -87,7 +87,7 @@ void virReportSystemErrorFull(int domcode,
                       #argname, \
                       NULL, \
                       0, 0, \
-                      _("%s in %s must not be NULL"), \
+                      _("%1$s in %2$s must not be NULL"), \
                       #argname, __FUNCTION__)
 #define virReportInvalidEmptyStringArg(argname) \
     virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__, \
@@ -98,7 +98,7 @@ void virReportSystemErrorFull(int domcode,
                       #argname, \
                       NULL, \
                       0, 0, \
-                      _("string %s in %s must not be empty"), \
+                      _("string %1$s in %2$s must not be empty"), \
                       #argname, __FUNCTION__)
 #define virReportInvalidPositiveArg(argname) \
     virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__, \
@@ -109,7 +109,7 @@ void virReportSystemErrorFull(int domcode,
                       #argname, \
                       NULL, \
                       0, 0, \
-                      _("%s in %s must be greater than zero"), \
+                      _("%1$s in %2$s must be greater than zero"), \
                       #argname, __FUNCTION__)
 #define virReportInvalidNonZeroArg(argname) \
     virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__, \
@@ -120,7 +120,7 @@ void virReportSystemErrorFull(int domcode,
                       #argname, \
                       NULL, \
                       0, 0, \
-                      _("%s in %s must not be zero"), \
+                      _("%1$s in %2$s must not be zero"), \
                       #argname, __FUNCTION__)
 #define virReportInvalidZeroArg(argname) \
     virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__, \
@@ -131,7 +131,7 @@ void virReportSystemErrorFull(int domcode,
                       #argname, \
                       NULL, \
                       0, 0, \
-                      _("%s in %s must be zero"), \
+                      _("%1$s in %2$s must be zero"), \
                       #argname, __FUNCTION__)
 #define virReportInvalidNonNegativeArg(argname) \
     virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__, \
@@ -142,7 +142,7 @@ void virReportSystemErrorFull(int domcode,
                       #argname, \
                       NULL, \
                       0, 0, \
-                      _("%s in %s must be zero or greater"), \
+                      _("%1$s in %2$s must be zero or greater"), \
                       #argname, __FUNCTION__)
 #define virReportInvalidArg(argname, fmt, ...) \
     virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__, \
@@ -161,16 +161,18 @@ void virReportSystemErrorFull(int domcode,
 #define virReportRestrictedError(...) \
     virReportErrorHelper(VIR_FROM_THIS, VIR_ERR_OPERATION_DENIED, \
                          __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
-/* The sizeof(...) comparison here is a hack to catch typos
- * in the name of the enum by triggering a compile error, as well
- * as detecting if you passed a typename that refers to a function
- * or struct type, instead of an enum. It should get optimized away
- * since sizeof() is known at compile time  */
+/* The ternary operator here is a hack to catch typos in the name of
+ * the enum and mismatching enum by triggering a compile error, as
+ * well as detecting if you passed a typename that refers to a
+ * function or struct type, instead of an enum. It should get
+ * optimized away since the value is constant and thus is known at
+ * compile time.  */
 #define virReportEnumRangeError(typname, value) \
     virReportErrorHelper(VIR_FROM_THIS, VIR_ERR_INTERNAL_ERROR, \
                          __FILE__, __FUNCTION__, __LINE__, \
                          "Unexpected enum value %d for %s", \
-                         value, sizeof((typname)1) != 0 ? #typname : #typname);
+                         value, \
+                         (__typeof__(value))1 == (typname)1 && sizeof((typname)1) != 0 ? #typname : #typname)
 
 #define virReportError(code, ...) \
     virReportErrorHelper(VIR_FROM_THIS, code, __FILE__, \

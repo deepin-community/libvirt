@@ -24,16 +24,10 @@
 #include <config.h>
 
 #include "internal.h"
-#include "viralloc.h"
-#include "viruuid.h"
 #include "interface_conf.h"
 #include "virsocketaddr.h"
 #include "esx_private.h"
-#include "esx_interface_driver.h"
 #include "esx_vi.h"
-#include "esx_vi_methods.h"
-#include "esx_util.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_ESX
 
@@ -163,20 +157,15 @@ esxInterfaceGetXMLDesc(virInterfacePtr iface, unsigned int flags)
     char *xml = NULL;
     esxPrivate *priv = iface->conn->privateData;
     esxVI_PhysicalNic *physicalNic = NULL;
-    virInterfaceDef def;
+    virInterfaceDef def = { 0 };
     bool hasAddress = false;
     virInterfaceProtocolDef *protocols;
-    virInterfaceProtocolDef protocol;
-    virSocketAddr socketAddress;
+    virInterfaceProtocolDef protocol = { 0 };
+    virSocketAddr socketAddress = { 0 };
     virInterfaceIPDef *ips;
-    virInterfaceIPDef ip;
+    virInterfaceIPDef ip = { 0 };
 
     virCheckFlags(VIR_INTERFACE_XML_INACTIVE, NULL);
-
-    memset(&def, 0, sizeof(def));
-    memset(&protocol, 0, sizeof(protocol));
-    memset(&socketAddress, 0, sizeof(socketAddress));
-    memset(&ip, 0, sizeof(ip));
 
     if (esxVI_EnsureSession(priv->primary) < 0 ||
         esxVI_LookupPhysicalNicByMACAddress(priv->primary, iface->mac,

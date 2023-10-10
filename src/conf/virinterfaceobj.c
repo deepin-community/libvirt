@@ -27,7 +27,6 @@
 #include "virinterfaceobj.h"
 #include "virhash.h"
 #include "virlog.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_INTERFACE
 
@@ -44,7 +43,7 @@ struct _virInterfaceObjList {
     virObjectRWLockable parent;
 
     /* name string -> virInterfaceObj  mapping
-     * for O(1), lockless lookup-by-name */
+     * for O(1), lookup-by-name */
     GHashTable *objsName;
 };
 
@@ -141,7 +140,7 @@ virInterfaceObjListNew(void)
     if (!(interfaces = virObjectRWLockableNew(virInterfaceObjListClass)))
         return NULL;
 
-    interfaces->objsName = virHashNew(virObjectFreeHashData);
+    interfaces->objsName = virHashNew(virObjectUnref);
 
     return interfaces;
 }

@@ -2,6 +2,7 @@
   <arch>x86_64</arch>
   <model>Icelake-Server</model>
   <vendor>Intel</vendor>
+  <signature family='6' model='106' stepping='0'/>
   <feature name='ds'/>
   <feature name='acpi'/>
   <feature name='ss'/>
@@ -20,14 +21,17 @@
   <feature name='dca'/>
   <feature name='osxsave'/>
   <feature name='tsc_adjust'/>
+  <feature name='sgx'/>
   <feature name='cmt'/>
   <feature name='avx512ifma'/>
   <feature name='intel-pt'/>
   <feature name='sha-ni'/>
   <feature name='ospke'/>
   <feature name='rdpid'/>
+  <feature name='sgxlc'/>
   <feature name='fsrm'/>
   <feature name='stibp'/>
+  <feature name='flush-l1d'/>
   <feature name='arch-capabilities'/>
   <feature name='xsaves'/>
   <feature name='mbm_total'/>

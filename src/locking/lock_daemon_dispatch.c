@@ -23,7 +23,6 @@
 #include "rpc/virnetdaemon.h"
 #include "rpc/virnetserverclient.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "lock_daemon.h"
 #include "lock_protocol.h"
 #include "virerror.h"
@@ -68,7 +67,7 @@ virLockSpaceProtocolDispatchAcquireResource(virNetServer *server G_GNUC_UNUSED,
 
     if (!(lockspace = virLockDaemonFindLockSpace(lockDaemon, args->path))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Lockspace for path %s does not exist"),
+                       _("Lockspace for path %1$s does not exist"),
                        args->path);
         goto cleanup;
     }
@@ -126,7 +125,7 @@ virLockSpaceProtocolDispatchCreateResource(virNetServer *server G_GNUC_UNUSED,
 
     if (!(lockspace = virLockDaemonFindLockSpace(lockDaemon, args->path))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Lockspace for path %s does not exist"),
+                       _("Lockspace for path %1$s does not exist"),
                        args->path);
         goto cleanup;
     }
@@ -175,7 +174,7 @@ virLockSpaceProtocolDispatchDeleteResource(virNetServer *server G_GNUC_UNUSED,
 
     if (!(lockspace = virLockDaemonFindLockSpace(lockDaemon, args->path))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Lockspace for path %s does not exist"),
+                       _("Lockspace for path %1$s does not exist"),
                        args->path);
         goto cleanup;
     }
@@ -230,7 +229,7 @@ virLockSpaceProtocolDispatchNew(virNetServer *server G_GNUC_UNUSED,
 
     if (virLockDaemonFindLockSpace(lockDaemon, args->path) != NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Lockspace for path %s already exists"),
+                       _("Lockspace for path %1$s already exists"),
                        args->path);
         goto cleanup;
     }
@@ -325,7 +324,7 @@ virLockSpaceProtocolDispatchReleaseResource(virNetServer *server G_GNUC_UNUSED,
 
     if (!(lockspace = virLockDaemonFindLockSpace(lockDaemon, args->path))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Lockspace for path %s does not exist"),
+                       _("Lockspace for path %1$s does not exist"),
                        args->path);
         goto cleanup;
     }

@@ -21,13 +21,10 @@
 #include <config.h>
 
 #include "virnetsaslcontext.h"
-#include "virnetmessage.h"
 
 #include "virerror.h"
-#include "viralloc.h"
 #include "virthread.h"
 #include "virlog.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_RPC
 
@@ -81,7 +78,7 @@ static int virNetSASLContextClientOnceInit(void)
     int err = sasl_client_init(NULL);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("failed to initialize SASL library: %d (%s)"),
+                       _("failed to initialize SASL library: %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         return -1;
     }
@@ -97,7 +94,7 @@ static int virNetSASLContextServerOnceInit(void)
     int err = sasl_server_init(NULL, "libvirt");
     if (err != SASL_OK) {
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("failed to initialize SASL library: %d (%s)"),
+                       _("failed to initialize SASL library: %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         return -1;
     }
@@ -165,7 +162,7 @@ int virNetSASLContextCheckIdentity(virNetSASLContext *ctxt,
     }
 
     /* Denied */
-    VIR_ERROR(_("SASL client identity '%s' not allowed by ACL"), identity);
+    VIR_ERROR(_("SASL client identity '%1$s' not allowed by ACL"), identity);
 
     /* This is the most common error: make it informative. */
     virReportError(VIR_ERR_SYSTEM_ERROR, "%s",
@@ -209,7 +206,7 @@ virNetSASLSession *virNetSASLSessionNewClient(virNetSASLContext *ctxt G_GNUC_UNU
                           &sasl->conn);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("Failed to create SASL client context: %d (%s)"),
+                       _("Failed to create SASL client context: %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         goto cleanup;
     }
@@ -246,7 +243,7 @@ virNetSASLSession *virNetSASLSessionNewServer(virNetSASLContext *ctxt G_GNUC_UNU
                           &sasl->conn);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("Failed to create SASL client context: %d (%s)"),
+                       _("Failed to create SASL client context: %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         goto cleanup;
     }
@@ -268,7 +265,7 @@ int virNetSASLSessionExtKeySize(virNetSASLSession *sasl,
     err = sasl_setprop(sasl->conn, SASL_SSF_EXTERNAL, &ssf);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot set external SSF %d (%s)"),
+                       _("cannot set external SSF %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         goto cleanup;
     }
@@ -289,7 +286,7 @@ const char *virNetSASLSessionGetIdentity(virNetSASLSession *sasl)
     err = sasl_getprop(sasl->conn, SASL_USERNAME, &val);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("cannot query SASL username on connection %d (%s)"),
+                       _("cannot query SASL username on connection %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         val = NULL;
         goto cleanup;
@@ -317,7 +314,7 @@ int virNetSASLSessionGetKeySize(virNetSASLSession *sasl)
     err = sasl_getprop(sasl->conn, SASL_SSF, &val);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("cannot query SASL ssf on connection %d (%s)"),
+                       _("cannot query SASL ssf on connection %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         ssf = -1;
         goto cleanup;
@@ -334,7 +331,7 @@ int virNetSASLSessionSecProps(virNetSASLSession *sasl,
                               int maxSSF,
                               bool allowAnonymous)
 {
-    sasl_security_properties_t secprops;
+    sasl_security_properties_t secprops = { 0 };
     int err;
     int ret = -1;
 
@@ -342,7 +339,6 @@ int virNetSASLSessionSecProps(virNetSASLSession *sasl,
               minSSF, maxSSF, allowAnonymous, sasl->maxbufsize);
 
     virObjectLock(sasl);
-    memset(&secprops, 0, sizeof(secprops));
 
     secprops.min_ssf = minSSF;
     secprops.max_ssf = maxSSF;
@@ -353,7 +349,7 @@ int virNetSASLSessionSecProps(virNetSASLSession *sasl,
     err = sasl_setprop(sasl->conn, SASL_SEC_PROPS, &secprops);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot set security props %d (%s)"),
+                       _("cannot set security props %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         goto cleanup;
     }
@@ -377,7 +373,7 @@ static int virNetSASLSessionUpdateBufSize(virNetSASLSession *sasl)
     err = sasl_getprop(sasl->conn, SASL_MAXOUTBUF, &u.ptr);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot get security props %d (%s)"),
+                       _("cannot get security props %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         return -1;
     }
@@ -405,7 +401,7 @@ char *virNetSASLSessionListMechanisms(virNetSASLSession *sasl)
                         NULL);
     if (err != SASL_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot list SASL mechanisms %d (%s)"),
+                       _("cannot list SASL mechanisms %1$d (%2$s)"),
                        err, sasl_errdetail(sasl->conn));
         goto cleanup;
     }
@@ -461,7 +457,7 @@ int virNetSASLSessionClientStart(virNetSASLSession *sasl,
         break;
     default:
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("Failed to start SASL negotiation: %d (%s)"),
+                       _("Failed to start SASL negotiation: %1$d (%2$s)"),
                        err, sasl_errdetail(sasl->conn));
         break;
     }
@@ -510,7 +506,7 @@ int virNetSASLSessionClientStep(virNetSASLSession *sasl,
         break;
     default:
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("Failed to step SASL negotiation: %d (%s)"),
+                       _("Failed to step SASL negotiation: %1$d (%2$s)"),
                        err, sasl_errdetail(sasl->conn));
         break;
     }
@@ -556,7 +552,7 @@ int virNetSASLSessionServerStart(virNetSASLSession *sasl,
         break;
     default:
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("Failed to start SASL negotiation: %d (%s)"),
+                       _("Failed to start SASL negotiation: %1$d (%2$s)"),
                        err, sasl_errdetail(sasl->conn));
         break;
     }
@@ -601,7 +597,7 @@ int virNetSASLSessionServerStep(virNetSASLSession *sasl,
         break;
     default:
         virReportError(VIR_ERR_AUTH_FAILED,
-                       _("Failed to start SASL negotiation: %d (%s)"),
+                       _("Failed to start SASL negotiation: %1$d (%2$s)"),
                        err, sasl_errdetail(sasl->conn));
         break;
     }
@@ -634,7 +630,7 @@ ssize_t virNetSASLSessionEncode(virNetSASLSession *sasl,
     virObjectLock(sasl);
     if (inputLen > sasl->maxbufsize) {
         virReportSystemError(EINVAL,
-                             _("SASL data length %zu too long, max %zu"),
+                             _("SASL data length %1$zu too long, max %2$zu"),
                              inputLen, sasl->maxbufsize);
         goto cleanup;
     }
@@ -648,7 +644,7 @@ ssize_t virNetSASLSessionEncode(virNetSASLSession *sasl,
 
     if (err != SASL_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to encode SASL data: %d (%s)"),
+                       _("failed to encode SASL data: %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         goto cleanup;
     }
@@ -673,7 +669,7 @@ ssize_t virNetSASLSessionDecode(virNetSASLSession *sasl,
     virObjectLock(sasl);
     if (inputLen > sasl->maxbufsize) {
         virReportSystemError(EINVAL,
-                             _("SASL data length %zu too long, max %zu"),
+                             _("SASL data length %1$zu too long, max %2$zu"),
                              inputLen, sasl->maxbufsize);
         goto cleanup;
     }
@@ -686,7 +682,7 @@ ssize_t virNetSASLSessionDecode(virNetSASLSession *sasl,
     *outputlen = outlen;
     if (err != SASL_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to decode SASL data: %d (%s)"),
+                       _("failed to decode SASL data: %1$d (%2$s)"),
                        err, sasl_errstring(err, NULL, NULL));
         goto cleanup;
     }

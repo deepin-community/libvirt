@@ -25,8 +25,8 @@ ebtables \
 -s 01:02:03:04:05:06/ff:ff:ff:ff:ff:fe \
 -d aa:bb:cc:dd:ee:ff/ff:ff:ff:ff:ff:80 \
 -p ipv6 \
---ip6-source ::10.1.2.3/22 \
---ip6-destination ::10.1.2.3/113 \
+--ip6-source ::ffff:10.1.2.3/22 \
+--ip6-destination ::ffff:10.1.2.3/113 \
 --ip6-protocol 6 \
 --ip6-source-port 273:400 \
 --ip6-destination-port 13107:65535 \
@@ -55,8 +55,10 @@ iptables \
 --dscp 34 \
 --sport 291:400 \
 --dport 564:1092 \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -j RETURN
 iptables \
 -w \
@@ -67,8 +69,10 @@ iptables \
 --dscp 34 \
 --dport 291:400 \
 --sport 564:1092 \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -j ACCEPT
 iptables \
 -w \
@@ -81,8 +85,10 @@ iptables \
 --dscp 34 \
 --sport 291:400 \
 --dport 564:1092 \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -j RETURN
 ip6tables \
 -w \
@@ -93,8 +99,10 @@ ip6tables \
 --dscp 57 \
 --dport 32:33 \
 --sport 256:4369 \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -j RETURN
 ip6tables \
 -w \
@@ -107,8 +115,10 @@ ip6tables \
 --dscp 57 \
 --sport 32:33 \
 --dport 256:4369 \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -j ACCEPT
 ip6tables \
 -w \
@@ -119,6 +129,8 @@ ip6tables \
 --dscp 57 \
 --dport 32:33 \
 --sport 256:4369 \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -j RETURN

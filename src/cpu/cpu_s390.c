@@ -21,8 +21,6 @@
 
 #include <config.h>
 
-#include "viralloc.h"
-#include "virstring.h"
 #include "cpu.h"
 
 
@@ -46,7 +44,7 @@ virCPUs390Update(virCPUDef *guest,
                  const virCPUDef *host,
                  bool relative)
 {
-    g_autoptr(virCPUDef) updated = NULL;
+    g_autoptr(virCPUDef) updated = virCPUDefCopyWithoutModel(guest);
     size_t i;
 
     if (!relative)
@@ -55,7 +53,7 @@ virCPUs390Update(virCPUDef *guest,
     if (guest->mode == VIR_CPU_MODE_CUSTOM) {
         if (guest->match == VIR_CPU_MATCH_MINIMUM) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("match mode %s not supported"),
+                           _("match mode %1$s not supported"),
                            virCPUMatchTypeToString(guest->match));
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
@@ -70,12 +68,8 @@ virCPUs390Update(virCPUDef *guest,
         return -1;
     }
 
-    if (!(updated = virCPUDefCopyWithoutModel(guest)))
-        return -1;
-
     updated->mode = VIR_CPU_MODE_CUSTOM;
-    if (virCPUDefCopyModel(updated, host, true) < 0)
-        return -1;
+    virCPUDefCopyModel(updated, host, true);
 
     for (i = 0; i < guest->nfeatures; i++) {
        if (virCPUDefUpdateFeature(updated,
@@ -100,14 +94,23 @@ virCPUs390ValidateFeatures(virCPUDef *cpu)
     for (i = 0; i < cpu->nfeatures; i++) {
         if (cpu->features[i].policy == VIR_CPU_FEATURE_OPTIONAL) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("only cpu feature policies 'require' and "
-                             "'disable' are supported for %s"),
+                           _("only cpu feature policies 'require' and 'disable' are supported for %1$s"),
                            cpu->features[i].name);
             return -1;
         }
     }
 
     return 0;
+}
+
+
+static const char *
+virCPUs390GetVendorForModel(const char *modelName)
+{
+    if (STRPREFIX(modelName, "z") || STRPREFIX(modelName, "gen"))
+        return "IBM";
+
+    return NULL;
 }
 
 
@@ -121,4 +124,5 @@ struct cpuArchDriver cpuDriverS390 = {
     .baseline   = NULL,
     .update     = virCPUs390Update,
     .validateFeatures = virCPUs390ValidateFeatures,
+    .getVendorForModel = virCPUs390GetVendorForModel,
 };

@@ -1,9 +1,9 @@
 tests_dep = declare_dependency(
   compile_args: [
     '-Dabs_builddir="@0@"'.format(meson.current_build_dir()),
-    '-Dabs_top_builddir="@0@"'.format(meson.build_root()),
+    '-Dabs_top_builddir="@0@"'.format(meson.project_build_root()),
     '-Dabs_srcdir="@0@"'.format(meson.current_source_dir()),
-    '-Dabs_top_srcdir="@0@"'.format(meson.source_root()),
+    '-Dabs_top_srcdir="@0@"'.format(meson.project_source_root()),
   ] + coverage_flags + cc_flags_relaxed_frame_limit,
   dependencies: [
     apparmor_dep,
@@ -28,6 +28,7 @@ tests_dep = declare_dependency(
   ],
   link_args: (
     libvirt_export_dynamic
+    + libvirt_flat_namespace
     + coverage_flags
   ),
 )
@@ -35,12 +36,27 @@ tests_dep = declare_dependency(
 tests_env = [
   'abs_builddir=@0@'.format(meson.current_build_dir()),
   'abs_srcdir=@0@'.format(meson.current_source_dir()),
-  'abs_top_builddir=@0@'.format(meson.build_root()),
-  'abs_top_srcdir=@0@'.format(meson.source_root()),
+  'abs_top_builddir=@0@'.format(meson.project_build_root()),
+  'abs_top_srcdir=@0@'.format(meson.project_source_root()),
   'LC_ALL=C',
   'LIBVIRT_AUTOSTART=0',
-  'G_DEBUG=fatal-warnings',
 ]
+
+
+# On macOS when BROKEN_POLL is set for GLib, our tests will
+# periodically trigger a warning:
+#
+#  (process:50880): GLib-WARNING **: 02:54:15.272: poll(2) failed due to: Bad file descriptor.
+#
+# Our code is inherently racy, calling g_source_destroy which
+# removes the FD from the event thread poll asynchronously
+# but we close the FD immediately after g_source_destroy returns.
+#
+# With poll() this results in POLLNVAL, but with select() it
+# generates the BADF error on macOS
+if host_machine.system() != 'darwin'
+  tests_env += ['G_DEBUG=fatal-warnings']
+endif
 
 if use_expensive_tests
   tests_env += 'VIR_TEST_EXPENSIVE=1'
@@ -62,12 +78,12 @@ mock_libs = [
   { 'name': 'virdnsmasqmock' },
   { 'name': 'virfilecachemock' },
   { 'name': 'virfirewallmock' },
-  { 'name': 'virgdbusmock' },
   { 'name': 'virhostcpumock' },
   { 'name': 'virhostdevmock' },
   { 'name': 'virnetdaemonmock' },
   { 'name': 'virnetdevmock' },
   { 'name': 'virnetserverclientmock' },
+  { 'name': 'virnumamock' },
   { 'name': 'virpcimock' },
   { 'name': 'virportallocatormock' },
   { 'name': 'virprocessmock' },
@@ -78,44 +94,14 @@ if host_machine.system() == 'linux'
   mock_libs += [
     { 'name': 'virfilemock' },
     { 'name': 'virnetdevbandwidthmock' },
-    { 'name': 'virnumamock' },
     { 'name': 'virtestmock' },
     { 'name': 'virusbmock' },
   ]
 endif
 
-if conf.has('WITH_BHYVE')
+if host_machine.system() != 'windows'
   mock_libs += [
-    { 'name': 'bhyveargv2xmlmock' },
-    { 'name': 'bhyvexml2argvmock' },
-  ]
-endif
-
-if conf.has('WITH_LIBXL')
-  mock_libs += [
-    { 'name': 'xlmock', 'sources': [ 'libxlmock.c' ], 'deps': [ libxl_dep ] },
-  ]
-endif
-
-if conf.has('WITH_NSS')
-  mock_libs += [
-    { 'name': 'nssmock' },
-  ]
-endif
-
-if conf.has('WITH_QEMU')
-  mock_libs += [
-    { 'name': 'qemucaps2xmlmock' },
-    { 'name': 'qemucpumock' },
-    { 'name': 'qemuhotplugmock' },
-    { 'name': 'qemuxml2argvmock' },
-    { 'name': 'virhostidmock' },
-  ]
-endif
-
-if conf.has('WITH_SECDRIVER_SELINUX')
-  mock_libs += [
-    { 'name': 'securityselinuxhelper' },
+    { 'name': 'virgdbusmock' },
   ]
 endif
 
@@ -140,6 +126,10 @@ if conf.has('WITH_LIBXL')
     link_whole: [ libxl_driver_imp ],
     link_with: [ libvirt_lib ],
   )
+
+  mock_libs += [
+    { 'name': 'xlmock', 'sources': [ 'libxlmock.c' ], 'deps': [ libxl_dep ] },
+  ]
 else
   test_utils_xen_lib = []
   test_xen_driver_lib = []
@@ -158,13 +148,13 @@ endif
 if conf.has('WITH_QEMU')
   test_utils_qemu_lib = static_library(
     'test_utils_qemu',
-    [ 'testutilsqemu.c' ],
+    [ 'testutilsqemu.c', 'testutilsqemuschema.c' ],
     dependencies: [ tests_dep ],
   )
 
   test_utils_qemu_monitor_lib = static_library(
     'test_utils_qemu_monitor',
-    [ 'qemumonitortestutils.c', 'testutilsqemuschema.c' ],
+    [ 'qemumonitortestutils.c', ],
     dependencies: [ tests_dep ],
   )
 
@@ -177,7 +167,12 @@ if conf.has('WITH_QEMU')
   )
 
   mock_libs += [
+    { 'name': 'qemucaps2xmlmock' },
     { 'name': 'qemucapsprobemock', 'link_with': [ test_qemu_driver_lib ] },
+    { 'name': 'qemucpumock' },
+    { 'name': 'qemuhotplugmock', 'link_with': [ test_utils_qemu_lib, test_utils_lib ] },
+    { 'name': 'qemuxml2argvmock' },
+    { 'name': 'virhostidmock' },
   ]
 else
   test_qemu_driver_lib = []
@@ -191,31 +186,14 @@ test_file_wrapper_lib = static_library(
   dependencies: [ tests_dep ],
 )
 
-foreach mock : mock_libs
-  shared_library(
-    mock['name'],
-    mock.get('sources', [ '@0@.c'.format(mock['name']) ]),
-    override_options: [
-     'b_asneeded=false',
-     'b_lundef=false',
-    ],
-    dependencies: [
-      tests_dep,
-      mock.get('deps', []),
-    ],
-    link_with: [
-      libvirt_lib,
-      mock.get('link_with', []),
-    ],
-  )
-endforeach
+tests_deps = []
 
 # build helpers used by tests
 
 # Must not link to any libvirt modules - libc only otherwise external
 # libraries might unexpectedly leak file descriptors into commandhelper
 # invalidating the test logic assumptions.
-executable(
+tests_deps += executable(
   'commandhelper',
   [ 'commandhelper.c' ],
   dependencies: [
@@ -227,7 +205,7 @@ executable(
 )
 
 # This is a fake SSH we use from virnetsockettest
-executable(
+tests_deps += executable(
   'ssh',
   [ 'ssh.c' ],
   dependencies: [
@@ -235,6 +213,7 @@ executable(
   ],
 )
 
+subdir('schemas')
 
 # build and define libvirt tests
 
@@ -271,19 +250,6 @@ if conf.has('WITH_QEMU')
   domaincapstest_link_whole += [ test_utils_qemu_lib ]
 endif
 
-vircapstest_link_with = []
-vircapstest_link_whole = []
-vircapstest_sources = [ 'vircapstest.c' ]
-if conf.has('WITH_LXC')
-  vircapstest_link_with += [ lxc_driver_impl_lib ]
-  vircapstest_link_whole += [ test_utils_lxc_lib ]
-endif
-if conf.has('WITH_QEMU')
-  vircapstest_link_with += [ qemu_driver_impl ]
-  vircapstest_link_whole += [ test_utils_qemu_lib ]
-  vircapstest_sources += [ qemu_dtrace_gen_objects ]
-endif
-
 tests += [
   { 'name': 'commandtest' },
   { 'name': 'cputest', 'link_with': cputest_link_with, 'link_whole': cputest_link_whole },
@@ -292,6 +258,7 @@ tests += [
   { 'name': 'genericxml2xmltest' },
   { 'name': 'interfacexml2xmltest' },
   { 'name': 'metadatatest' },
+  { 'name': 'networkmetadatatest' },
   { 'name': 'networkxml2xmlupdatetest' },
   { 'name': 'nodedevxml2xmltest' },
   { 'name': 'nwfilterxml2xmltest' },
@@ -307,7 +274,6 @@ tests += [
   { 'name': 'virauthconfigtest' },
   { 'name': 'virbitmaptest' },
   { 'name': 'virbuftest' },
-  { 'name': 'vircapstest', 'sources': vircapstest_sources, 'link_with': vircapstest_link_with, 'link_whole': vircapstest_link_whole },
   { 'name': 'vircgrouptest' },
   { 'name': 'virconftest' },
   { 'name': 'vircryptotest' },
@@ -342,6 +308,12 @@ tests += [
   { 'name': 'virmigtest' },
 ]
 
+if host_machine.endian() == 'little'
+  tests += [
+    { 'name': 'viracpitest' },
+  ]
+endif
+
 if host_machine.system() == 'linux'
   tests += [
     { 'name': 'fchosttest' },
@@ -365,6 +337,17 @@ if conf.has('WITH_BHYVE')
     { 'name': 'bhyveargv2xmltest', 'link_with': [ bhyve_driver_impl ] },
     { 'name': 'bhyvexml2argvtest', 'link_with': [ bhyve_driver_impl ] },
     { 'name': 'bhyvexml2xmltest', 'link_with': [ bhyve_driver_impl ] },
+  ]
+
+  mock_libs += [
+    { 'name': 'bhyveargv2xmlmock' },
+    { 'name': 'bhyvexml2argvmock' },
+  ]
+endif
+
+if conf.has('WITH_CH')
+  tests += [
+    { 'name': 'chxml2xmltest', 'link_with': [ ch_driver_impl ] },
   ]
 endif
 
@@ -427,6 +410,10 @@ if conf.has('WITH_NSS')
       'link_with': [ nss_libvirt_guest_impl ],
     },
   ]
+
+  mock_libs += [
+    { 'name': 'nssmock' },
+  ]
 endif
 
 if conf.has('WITH_NWFILTER')
@@ -470,6 +457,11 @@ if conf.has('WITH_QEMU')
     { 'name': 'qemuxml2argvtest', 'link_with': [ test_qemu_driver_lib, test_utils_qemu_monitor_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
     { 'name': 'qemuxml2xmltest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
   ]
+  if conf.has('WITH_NBDKIT')
+    tests += [
+      { 'name': 'qemunbdkittest', 'link_with': [ test_qemu_driver_lib ], 'link_whole': [ test_utils_qemu_lib, test_file_wrapper_lib ] },
+    ]
+  endif
 endif
 
 if conf.has('WITH_REMOTE')
@@ -505,6 +497,10 @@ if conf.has('WITH_SECDRIVER_SELINUX')
       ]
     endif
   endif
+
+  mock_libs += [
+    { 'name': 'securityselinuxhelper' },
+  ]
 endif
 
 if conf.has('WITH_STORAGE')
@@ -520,12 +516,6 @@ endif
 if conf.has('WITH_STORAGE_FS')
   tests += [
     { 'name': 'virstoragetest', 'include': [ storage_file_inc_dir ],'link_with': [ storage_driver_impl_lib ] },
-  ]
-endif
-
-if conf.has('WITH_STORAGE_SHEEPDOG')
-  tests += [
-    { 'name': 'storagebackendsheepdogtest', 'link_with': [ storage_driver_impl_lib, storage_backend_sheepdog_priv_lib ] },
   ]
 endif
 
@@ -554,6 +544,25 @@ if conf.has('WITH_YAJL')
     { 'name': 'virmacmaptest' },
   ]
 endif
+
+foreach mock : mock_libs
+  tests_deps += shared_library(
+    mock['name'],
+    mock.get('sources', [ '@0@.c'.format(mock['name']) ]),
+    override_options: [
+     'b_asneeded=false',
+     'b_lundef=false',
+    ],
+    dependencies: [
+      tests_dep,
+      mock.get('deps', []),
+    ],
+    link_with: [
+      libvirt_lib,
+      mock.get('link_with', []),
+    ],
+  )
+endforeach
 
 foreach data : tests
   test_sources = '@0@.c'.format(data['name'])
@@ -592,7 +601,14 @@ foreach data : tests
     # default meson timeout
     timeout = 30
   endif
-  test(data['name'], test_bin, env: tests_env, timeout: timeout)
+  test(
+    data['name'],
+    test_bin,
+    env: tests_env,
+    timeout: timeout,
+    depends: tests_deps,
+    suite: 'bin'
+  )
 endforeach
 
 
@@ -692,7 +708,7 @@ endif
 
 foreach name : test_scripts
   script = find_program(name)
-  test(name, script, env: tests_env)
+  test(name, script, env: tests_env, suite: 'script')
 endforeach
 
 testenv = runutf8
@@ -701,7 +717,7 @@ testenv += 'VIR_TEST_FILE_ACCESS=1'
 add_test_setup(
   'access',
   env: testenv,
-  exe_wrapper: [ python3_prog, check_file_access_prog.path() ],
+  exe_wrapper: [ python3_prog, check_file_access_prog.full_path() ],
 )
 
 add_test_setup(

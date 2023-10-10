@@ -26,8 +26,6 @@
 #include "virerror.h"
 #include "virlog.h"
 #include "virqemu.h"
-#include "virstring.h"
-#include "viralloc.h"
 #include "virbitmap.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -55,8 +53,7 @@ virQEMUBuildCommandLineJSONRecurse(const char *key,
 int
 virQEMUBuildCommandLineJSONArrayBitmap(const char *key,
                                        virJSONValue *array,
-                                       virBuffer *buf,
-                                       const char *skipKey G_GNUC_UNUSED)
+                                       virBuffer *buf)
 {
     ssize_t pos = -1;
     ssize_t end;
@@ -92,8 +89,7 @@ virQEMUBuildCommandLineJSONArrayBitmap(const char *key,
 int
 virQEMUBuildCommandLineJSONArrayNumbered(const char *key,
                                          virJSONValue *array,
-                                         virBuffer *buf,
-                                         const char *skipKey)
+                                         virBuffer *buf)
 {
     virJSONValue *member;
     size_t i;
@@ -104,7 +100,7 @@ virQEMUBuildCommandLineJSONArrayNumbered(const char *key,
         member = virJSONValueArrayGet((virJSONValue *) array, i);
         prefix = g_strdup_printf("%s.%zu", key, i);
 
-        if (virQEMUBuildCommandLineJSONRecurse(prefix, member, buf, skipKey,
+        if (virQEMUBuildCommandLineJSONRecurse(prefix, member, buf, NULL,
                                                virQEMUBuildCommandLineJSONArrayNumbered,
                                                true) < 0)
             return 0;
@@ -129,8 +125,7 @@ virQEMUBuildCommandLineJSONArrayNumbered(const char *key,
 int
 virQEMUBuildCommandLineJSONArrayObjectsStr(const char *key,
                                            virJSONValue *array,
-                                           virBuffer *buf,
-                                           const char *skipKey G_GNUC_UNUSED)
+                                           virBuffer *buf)
 {
     g_auto(virBuffer) tmp = VIR_BUFFER_INITIALIZER;
     size_t i;
@@ -165,8 +160,7 @@ virQEMUBuildCommandLineJSONIterate(const char *key,
     if (data->prefix)
         key = tmpkey = g_strdup_printf("%s.%s", data->prefix, key);
 
-    return virQEMUBuildCommandLineJSONRecurse(key, value, data->buf,
-                                              data->skipKey,
+    return virQEMUBuildCommandLineJSONRecurse(key, value, data->buf, NULL,
                                               data->arrayFunc, false);
 }
 
@@ -213,8 +207,7 @@ virQEMUBuildCommandLineJSONRecurse(const char *key,
     case VIR_JSON_TYPE_ARRAY:
         if (nested) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("nested JSON array to commandline conversion is "
-                             "not supported"));
+                           _("nested JSON array to commandline conversion is not supported"));
             return -1;
         }
 
@@ -224,14 +217,14 @@ virQEMUBuildCommandLineJSONRecurse(const char *key,
             return -1;
         }
 
-        if (arrayFunc(key, value, buf, skipKey) < 0) {
+        if (arrayFunc(key, value, buf) < 0) {
             /* fallback, treat the array as a non-bitmap, adding the key
              * for each member */
             for (i = 0; i < virJSONValueArraySize(value); i++) {
                 elem = virJSONValueArrayGet((virJSONValue *)value, i);
 
                 /* recurse to avoid duplicating code */
-                if (virQEMUBuildCommandLineJSONRecurse(key, elem, buf, skipKey,
+                if (virQEMUBuildCommandLineJSONRecurse(key, elem, buf, NULL,
                                                        arrayFunc, true) < 0)
                     return -1;
             }
@@ -259,7 +252,8 @@ virQEMUBuildCommandLineJSONRecurse(const char *key,
  * virQEMUBuildCommandLineJSON:
  * @value: json object containing the value
  * @buf: otuput buffer
- * @skipKey: name of key that will be handled separately by caller
+ * @skipKey: name of key inside the top level object that will be handled
+ *           separately by caller
  * @arrayFunc: array formatter function to allow for different syntax
  *
  * Formats JSON value object into command line parameters suitable for use with

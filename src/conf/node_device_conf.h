@@ -24,12 +24,12 @@
 
 #include "internal.h"
 #include "virbitmap.h"
+#include "virccw.h"
 #include "virpcivpd.h"
 #include "virscsihost.h"
 #include "virpci.h"
 #include "virvhba.h"
 #include "device_conf.h"
-#include "storage_adapter_conf.h"
 #include "virenum.h"
 
 #include <libxml/tree.h>
@@ -279,6 +279,7 @@ struct _virNodeDevCapCCW {
     unsigned int flags; /* enum virNodeDevCCWCapFlags */
     virMediatedDeviceType **mdev_types;
     size_t nmdev_types;
+    virCCWDeviceAddress *channel_dev_addr;
 };
 
 typedef struct _virNodeDevCapVDPA virNodeDevCapVDPA;
@@ -305,6 +306,14 @@ struct _virNodeDevCapAPMatrix {
     size_t nmdev_types;
 };
 
+
+typedef struct _virNodeDevCapMdevParent virNodeDevCapMdevParent;
+struct _virNodeDevCapMdevParent {
+    virMediatedDeviceType **mdev_types;
+    size_t nmdev_types;
+    char *address;
+};
+
 typedef struct _virNodeDevCapData virNodeDevCapData;
 struct _virNodeDevCapData {
     virNodeDevCapType type;
@@ -326,6 +335,7 @@ struct _virNodeDevCapData {
         virNodeDevCapAPCard ap_card;
         virNodeDevCapAPQueue ap_queue;
         virNodeDevCapAPMatrix ap_matrix;
+        virNodeDevCapMdevParent mdev_parent;
     };
 };
 
@@ -367,24 +377,18 @@ typedef struct _virNodeDeviceDefParserCallbacks {
 } virNodeDeviceDefParserCallbacks;
 
 virNodeDeviceDef *
-virNodeDeviceDefParseString(const char *str,
-                            int create,
-                            const char *virt_type,
-                            virNodeDeviceDefParserCallbacks *callbacks,
-                            void *opaque);
+virNodeDeviceDefParse(const char *str,
+                      const char *filename,
+                      int create,
+                      const char *virt_type,
+                      virNodeDeviceDefParserCallbacks *parserCallbacks,
+                      void *opaque,
+                      bool validate);
 
 virNodeDeviceDef *
-virNodeDeviceDefParseFile(const char *filename,
-                          int create,
-                          const char *virt_type,
-                          virNodeDeviceDefParserCallbacks *callbacks,
-                          void *opaque);
-
-virNodeDeviceDef *
-virNodeDeviceDefParseNode(xmlDocPtr xml,
-                          xmlNodePtr root,
-                          int create,
-                          const char *virt_type);
+virNodeDeviceDefParseXML(xmlXPathContextPtr ctxt,
+                         int create,
+                         const char *virt_type);
 
 int
 virNodeDeviceGetWWNs(virNodeDeviceDef *def,
@@ -451,6 +455,10 @@ virNodeDeviceGetCSSDynamicCaps(const char *sysfsPath,
 int
 virNodeDeviceGetAPMatrixDynamicCaps(const char *sysfsPath,
                                     virNodeDevCapAPMatrix *ap_matrix);
+
+int
+virNodeDeviceGetMdevParentDynamicCaps(const char *sysfsPath,
+                                      virNodeDevCapMdevParent *mdev_parent);
 
 int
 virNodeDeviceUpdateCaps(virNodeDeviceDef *def);

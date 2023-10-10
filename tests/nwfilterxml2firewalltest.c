@@ -26,7 +26,6 @@
 # include "testutils.h"
 # include "nwfilter/nwfilter_ebiptables_driver.h"
 # include "virbuffer.h"
-# include "virfirewall.h"
 
 # define LIBVIRT_VIRCOMMANDPRIV_H_ALLOW
 # include "vircommandpriv.h"
@@ -256,7 +255,7 @@ virNWFilterDefToInst(const char *xml,
 {
     size_t i;
     int ret = -1;
-    virNWFilterDef *def = virNWFilterDefParseFile(xml);
+    virNWFilterDef *def = virNWFilterDefParse(NULL, xml, 0);
 
     if (!def)
         return -1;
@@ -349,11 +348,9 @@ static int testCompareXMLToArgvFiles(const char *xml,
     g_autofree char *actualargv = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     g_autoptr(GHashTable) vars = virHashNew(virNWFilterVarValueHashFree);
-    virNWFilterInst inst;
+    virNWFilterInst inst = { 0 };
     int ret = -1;
     g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
-
-    memset(&inst, 0, sizeof(inst));
 
     virCommandSetDryRun(dryRunToken, &buf, true, true, NULL, NULL);
 

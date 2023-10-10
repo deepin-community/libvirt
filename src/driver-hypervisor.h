@@ -241,6 +241,12 @@ typedef int
                          unsigned int flags);
 
 typedef int
+(*virDrvDomainSaveParams)(virDomainPtr domain,
+                          virTypedParameterPtr params,
+                          int nparams,
+                          unsigned int flags);
+
+typedef int
 (*virDrvDomainRestore)(virConnectPtr conn,
                        const char *from);
 
@@ -249,6 +255,12 @@ typedef int
                             const char *from,
                             const char *dxml,
                             unsigned int flags);
+
+typedef int
+(*virDrvDomainRestoreParams)(virConnectPtr conn,
+                             virTypedParameterPtr params,
+                             int nparams,
+                             unsigned int flags);
 
 typedef char *
 (*virDrvDomainSaveImageGetXMLDesc)(virConnectPtr conn,
@@ -735,6 +747,10 @@ typedef int
 (*virDrvDomainAbortJob)(virDomainPtr domain);
 
 typedef int
+(*virDrvDomainAbortJobFlags)(virDomainPtr domain,
+                             unsigned int flags);
+
+typedef int
 (*virDrvDomainMigrateGetMaxDowntime)(virDomainPtr domain,
                                      unsigned long long *downtime,
                                      unsigned int flags);
@@ -874,6 +890,15 @@ typedef int
                                   const char *cmd,
                                   char **result,
                                   unsigned int flags);
+typedef int
+(*virDrvDomainQemuMonitorCommandWithFiles)(virDomainPtr domain,
+                                           const char *cmd,
+                                           unsigned int ninfiles,
+                                           int *infiles,
+                                           unsigned int *noutfiles,
+                                           int **outfiles,
+                                           char **result,
+                                           unsigned int flags);
 
 typedef char *
 (*virDrvDomainQemuAgentCommand)(virDomainPtr domain,
@@ -1416,6 +1441,13 @@ typedef int
                                   int seconds,
                                   unsigned int flags);
 
+typedef int
+(*virDrvDomainFDAssociate)(virDomainPtr domain,
+                           const char *name,
+                           unsigned int nfds,
+                           int *fds,
+                           unsigned int flags);
+
 typedef struct _virHypervisorDriver virHypervisorDriver;
 
 /**
@@ -1480,8 +1512,10 @@ struct _virHypervisorDriver {
     virDrvDomainGetControlInfo domainGetControlInfo;
     virDrvDomainSave domainSave;
     virDrvDomainSaveFlags domainSaveFlags;
+    virDrvDomainSaveParams domainSaveParams;
     virDrvDomainRestore domainRestore;
     virDrvDomainRestoreFlags domainRestoreFlags;
+    virDrvDomainRestoreParams domainRestoreParams;
     virDrvDomainSaveImageGetXMLDesc domainSaveImageGetXMLDesc;
     virDrvDomainSaveImageDefineXML domainSaveImageDefineXML;
     virDrvDomainCoreDump domainCoreDump;
@@ -1567,6 +1601,7 @@ struct _virHypervisorDriver {
     virDrvDomainGetJobInfo domainGetJobInfo;
     virDrvDomainGetJobStats domainGetJobStats;
     virDrvDomainAbortJob domainAbortJob;
+    virDrvDomainAbortJobFlags domainAbortJobFlags;
     virDrvDomainMigrateGetMaxDowntime domainMigrateGetMaxDowntime;
     virDrvDomainMigrateSetMaxDowntime domainMigrateSetMaxDowntime;
     virDrvDomainMigrateGetCompressionCache domainMigrateGetCompressionCache;
@@ -1597,6 +1632,7 @@ struct _virHypervisorDriver {
     virDrvDomainRevertToSnapshot domainRevertToSnapshot;
     virDrvDomainSnapshotDelete domainSnapshotDelete;
     virDrvDomainQemuMonitorCommand domainQemuMonitorCommand;
+    virDrvDomainQemuMonitorCommandWithFiles domainQemuMonitorCommandWithFiles;
     virDrvDomainQemuAttach domainQemuAttach;
     virDrvDomainQemuAgentCommand domainQemuAgentCommand;
     virDrvConnectDomainQemuMonitorEventRegister connectDomainQemuMonitorEventRegister;
@@ -1683,4 +1719,5 @@ struct _virHypervisorDriver {
     virDrvDomainAuthorizedSSHKeysSet domainAuthorizedSSHKeysSet;
     virDrvDomainGetMessages domainGetMessages;
     virDrvDomainStartDirtyRateCalc domainStartDirtyRateCalc;
+    virDrvDomainFDAssociate domainFDAssociate;
 };

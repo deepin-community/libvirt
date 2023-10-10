@@ -85,7 +85,7 @@ virMediatedDeviceGetSysfsDeviceAPI(virMediatedDevice *dev,
      * kinds of devices
      */
     if (!virFileExists(file)) {
-        virReportSystemError(errno, _("failed to read '%s'"), file);
+        virReportSystemError(errno, _("failed to read '%1$s'"), file);
         return -1;
     }
 
@@ -116,15 +116,14 @@ virMediatedDeviceCheckModel(virMediatedDevice *dev,
      */
     if ((actual_model = virMediatedDeviceModelTypeFromString(dev_api)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("device API '%s' not supported yet"),
+                       _("device API '%1$s' not supported yet"),
                        dev_api);
         return -1;
     }
 
     if (actual_model != model) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("invalid device API '%s' for device %s: "
-                         "device only supports '%s'"),
+                       _("invalid device API '%1$s' for device %2$s: device only supports '%3$s'"),
                        virMediatedDeviceModelTypeToString(model),
                        dev->path, dev_api);
         return -1;
@@ -143,7 +142,7 @@ virMediatedDeviceNew(const char *uuidstr, virMediatedDeviceModelType model)
     sysfspath = virMediatedDeviceGetSysfsPath(uuidstr);
     if (!virFileExists(sysfspath)) {
         virReportError(VIR_ERR_DEVICE_MISSING,
-                       _("mediated device '%s' not found"), uuidstr);
+                       _("mediated device '%1$s' not found"), uuidstr);
         return NULL;
     }
 
@@ -168,8 +167,7 @@ virMediatedDeviceNew(const char *uuidstr G_GNUC_UNUSED,
                      virMediatedDeviceModelType model G_GNUC_UNUSED)
 {
     virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                   _("mediated devices are not supported on non-linux "
-                     "platforms"));
+                   _("mediated devices are not supported on non-linux platforms"));
     return NULL;
 }
 
@@ -222,12 +220,12 @@ virMediatedDeviceGetIOMMUGroupNum(const char *uuidstr)
     iommu_path = g_strdup_printf("%s/iommu_group", dev_path);
 
     if (!virFileExists(iommu_path)) {
-        virReportSystemError(errno, _("failed to access '%s'"), iommu_path);
+        virReportSystemError(errno, _("failed to access '%1$s'"), iommu_path);
         return -1;
     }
 
     if (virFileResolveLink(iommu_path, &result_path) < 0) {
-        virReportSystemError(errno, _("failed to resolve '%s'"), iommu_path);
+        virReportSystemError(errno, _("failed to resolve '%1$s'"), iommu_path);
         return -1;
     }
 
@@ -299,7 +297,7 @@ virMediatedDeviceListAdd(virMediatedDeviceList *list,
 {
     if (virMediatedDeviceListFind(list, (*dev)->path)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("device %s is already in use"), (*dev)->path);
+                       _("device %1$s is already in use"), (*dev)->path);
         return -1;
     }
     VIR_APPEND_ELEMENT(list->devs, list->count, *dev);
@@ -402,8 +400,7 @@ virMediatedDeviceIsUsed(virMediatedDevice *dev,
     if ((tmp = virMediatedDeviceListFind(list, dev->path))) {
         virMediatedDeviceGetUsedBy(tmp, &drvname, &domname);
         virReportError(VIR_ERR_OPERATION_INVALID,
-                       _("mediated device %s is in use by "
-                         "driver %s, domain %s"),
+                       _("mediated device %1$s is in use by driver %2$s, domain %3$s"),
                        tmp->path, drvname, domname);
     }
 
@@ -519,6 +516,34 @@ void virMediatedDeviceAttrFree(virMediatedDeviceAttr *attr)
     g_free(attr);
 }
 
+
+#define MDEV_BUS_DIR "/sys/class/mdev_bus"
+
+
+int
+virMediatedDeviceParentGetAddress(const char *sysfspath,
+                                  char **address)
+{
+    g_autoptr(DIR) dir = NULL;
+    struct dirent *entry;
+    if (virDirOpen(&dir, MDEV_BUS_DIR) < 0)
+        return -1;
+
+    /* check if one of the links in /sys/class/mdev_bus/ points at the sysfs
+     * path for this device. If so, the link name is treated as the 'address'
+     * for the mdev parent */
+    while (virDirRead(dir, &entry, MDEV_BUS_DIR) > 0) {
+        g_autofree char *tmppath = g_strdup_printf("%s/%s", MDEV_BUS_DIR,
+                                                   entry->d_name);
+
+        if (virFileLinkPointsTo(tmppath, sysfspath)) {
+            *address = g_strdup(entry->d_name);
+            return 0;
+        }
+    }
+
+    return -1;
+}
 
 #ifdef __linux__
 

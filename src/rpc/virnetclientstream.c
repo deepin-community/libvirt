@@ -22,7 +22,6 @@
 
 #include "virnetclientstream.h"
 #include "virnetclient.h"
-#include "viralloc.h"
 #include "virerror.h"
 #include "virlog.h"
 #include "virthread.h"
@@ -262,7 +261,7 @@ void virNetClientStreamSetClosed(virNetClientStream *st,
 int virNetClientStreamSetError(virNetClientStream *st,
                                virNetMessage *msg)
 {
-    virNetMessageError err;
+    virNetMessageError err = { 0 };
     int ret = -1;
 
     virObjectLock(st);
@@ -271,7 +270,6 @@ int virNetClientStreamSetError(virNetClientStream *st,
         VIR_DEBUG("Overwriting existing stream error %s", NULLSTR(st->err.message));
 
     virResetError(&st->err);
-    memset(&err, 0, sizeof(err));
 
     if (virNetMessageDecodePayload(msg, (xdrproc_t)xdr_virNetMessageError, &err) < 0)
         goto cleanup;
@@ -418,7 +416,7 @@ virNetClientStreamSetHole(virNetClientStream *st,
     /* Shouldn't happen, But it's better to safe than sorry. */
     if (st->holeLength) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unprocessed hole of size %lld already in the queue"),
+                       _("unprocessed hole of size %1$lld already in the queue"),
                        st->holeLength);
         return -1;
     }
@@ -445,13 +443,12 @@ virNetClientStreamHandleHole(virNetClient *client,
                              virNetClientStream *st)
 {
     virNetMessage *msg;
-    virNetStreamHole data;
+    virNetStreamHole data = { 0 };
     int ret = -1;
 
     VIR_DEBUG("client=%p st=%p", client, st);
 
     msg = st->rx;
-    memset(&data, 0, sizeof(data));
 
     /* We should not be called unless there's VIR_NET_STREAM_HOLE
      * message at the head of the list. But doesn't hurt to check */
@@ -463,7 +460,7 @@ virNetClientStreamHandleHole(virNetClient *client,
 
     if (msg->header.type != VIR_NET_STREAM_HOLE) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Invalid message prog=%d type=%d serial=%u proc=%d"),
+                       _("Invalid message prog=%1$d type=%2$d serial=%3$u proc=%4$d"),
                        msg->header.prog,
                        msg->header.type,
                        msg->header.serial,
@@ -635,7 +632,7 @@ virNetClientStreamSendHole(virNetClientStream *st,
                            unsigned int flags)
 {
     virNetMessage *msg = NULL;
-    virNetStreamHole data;
+    virNetStreamHole data = { 0 };
     int ret = -1;
 
     VIR_DEBUG("st=%p length=%llu", st, length);
@@ -646,7 +643,6 @@ virNetClientStreamSendHole(virNetClientStream *st,
         return -1;
     }
 
-    memset(&data, 0, sizeof(data));
     data.length = length;
     data.flags = flags;
 
@@ -728,7 +724,7 @@ int virNetClientStreamEventAddCallback(virNetClientStream *st,
          virEventAddTimeout(-1,
                             virNetClientStreamEventTimer,
                             st,
-                            virObjectFreeCallback)) < 0) {
+                            virObjectUnref)) < 0) {
         virObjectUnref(st);
         goto cleanup;
     }
@@ -852,7 +848,7 @@ int virNetClientStreamInData(virNetClientStream *st,
         st->holeLength = 0;
     } else {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Invalid message prog=%d type=%d serial=%u proc=%d"),
+                       _("Invalid message prog=%1$d type=%2$d serial=%3$u proc=%4$d"),
                        msg->header.prog,
                        msg->header.type,
                        msg->header.serial,

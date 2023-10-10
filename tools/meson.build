@@ -174,6 +174,7 @@ executable(
     'virsh-completer-volume.c',
     'virsh-console.c',
     'virsh-domain.c',
+    'virsh-domain-event.c',
     'virsh-domain-monitor.c',
     'virsh-host.c',
     'virsh-interface.c',
@@ -230,16 +231,18 @@ if conf.has('WITH_REMOTE')
   )
 endif
 
-tools_conf = configuration_data()
-tools_conf.set('PACKAGE', meson.project_name())
-tools_conf.set('VERSION', meson.project_version())
-tools_conf.set('bindir', bindir)
-tools_conf.set('libexecdir', libexecdir)
-tools_conf.set('localedir', localedir)
-tools_conf.set('localstatedir', localstatedir)
-tools_conf.set('sbindir', sbindir)
-tools_conf.set('schemadir', pkgdatadir / 'schemas')
-tools_conf.set('sysconfdir', sysconfdir)
+tools_conf = configuration_data({
+  'PACKAGE': meson.project_name(),
+  'VERSION': meson.project_version(),
+  'bindir': bindir,
+  'libexecdir': libexecdir,
+  'localedir': localedir,
+  'localstatedir': localstatedir,
+  'sbindir': sbindir,
+  'schemadir': pkgdatadir / 'schemas',
+  'sysconfdir': sysconfdir,
+  'initconfdir': initconfdir,
+})
 
 configure_file(
   input: 'virt-xml-validate.in',
@@ -247,7 +250,7 @@ configure_file(
   configuration: tools_conf,
   install: true,
   install_dir: bindir,
-  install_mode: 'rwxrwxr-x',
+  install_mode: 'rwxr-xr-x',
 )
 
 configure_file(
@@ -256,7 +259,7 @@ configure_file(
   configuration: tools_conf,
   install: true,
   install_dir: bindir,
-  install_mode: 'rwxrwxr-x',
+  install_mode: 'rwxr-xr-x',
 )
 
 executable(
@@ -293,8 +296,13 @@ if conf.has('WITH_SANLOCK')
     configuration: tools_conf,
     install: true,
     install_dir: sbindir,
-    install_mode: 'rwxrwxr-x',
+    install_mode: 'rwxr-xr-x',
   )
+endif
+
+if conf.has('WITH_QEMU')
+  install_data('virt-qemu-sev-validate',
+               install_dir: bindir)
 endif
 
 if conf.has('WITH_LIBVIRTD')
@@ -304,7 +312,7 @@ if conf.has('WITH_LIBVIRTD')
     configuration: tools_conf,
     install: true,
     install_dir: libexecdir,
-    install_mode: 'rwxrwxr-x',
+    install_mode: 'rwxr-xr-x',
   )
 
   if init_script == 'systemd'
@@ -316,6 +324,11 @@ if conf.has('WITH_LIBVIRTD')
       install_dir: prefix / 'lib' / 'systemd' / 'system',
     )
   endif
+endif
+
+if conf.has('WITH_QEMU')
+    install_data('virt-qemu-qmp-proxy',
+                 install_dir: bindir)
 endif
 
 if bash_completion_dep.found()

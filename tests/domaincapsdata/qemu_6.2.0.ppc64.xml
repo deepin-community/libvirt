@@ -8,9 +8,8 @@
   <os supported='yes'>
     <enum name='firmware'/>
     <loader supported='yes'>
-      <value>/usr/share/AAVMF/AAVMF_CODE.fd</value>
-      <value>/usr/share/AAVMF/AAVMF32_CODE.fd</value>
-      <value>/usr/share/OVMF/OVMF_CODE.fd</value>
+      <value>/obviously/fake/firmware1.fd</value>
+      <value>/obviously/fake/firmware2.fd</value>
       <enum name='type'>
         <value>rom</value>
         <value>pflash</value>
@@ -38,11 +37,13 @@
     </mode>
     <mode name='host-model' supported='yes'>
       <model fallback='allow'>POWER8</model>
+      <maxphysaddr mode='passthrough' limit='64'/>
     </mode>
     <mode name='custom' supported='yes'>
-      <model usable='unknown'>POWER9</model>
-      <model usable='unknown'>POWER8</model>
-      <model usable='unknown'>POWER7</model>
+      <model usable='unknown' vendor='IBM'>POWER10</model>
+      <model usable='unknown' vendor='IBM'>POWER9</model>
+      <model usable='unknown' vendor='IBM'>POWER8</model>
+      <model usable='unknown' vendor='IBM'>POWER7</model>
     </mode>
   </cpu>
   <memoryBacking supported='yes'>
@@ -134,8 +135,31 @@
       <enum name='backendModel'>
         <value>passthrough</value>
         <value>emulator</value>
+        <value>external</value>
+      </enum>
+      <enum name='backendVersion'>
+        <value>1.2</value>
+        <value>2.0</value>
       </enum>
     </tpm>
+    <redirdev supported='no'/>
+    <channel supported='yes'>
+      <enum name='type'>
+        <value>pty</value>
+        <value>unix</value>
+      </enum>
+    </channel>
+    <crypto supported='yes'>
+      <enum name='model'>
+        <value>virtio</value>
+      </enum>
+      <enum name='type'>
+        <value>qemu</value>
+      </enum>
+      <enum name='backendModel'>
+        <value>builtin</value>
+      </enum>
+    </crypto>
   </devices>
   <features>
     <gic supported='no'/>
@@ -143,6 +167,8 @@
     <genid supported='no'/>
     <backingStoreInput supported='yes'/>
     <backup supported='yes'/>
+    <async-teardown supported='no'/>
     <sev supported='no'/>
+    <sgx supported='no'/>
   </features>
 </domainCapabilities>

@@ -28,13 +28,12 @@
 #include "viralloc.h"
 #include "virerror.h"
 #include "virthread.h"
-#include "virthreadpool.h"
 #include "virutil.h"
 #include "virfile.h"
 #include "virnetserver.h"
 #include "virgdbus.h"
 #include "virhash.h"
-#include "virstring.h"
+#include "virprocess.h"
 #include "virsystemd.h"
 
 #define VIR_FROM_THIS VIR_FROM_RPC
@@ -75,8 +74,11 @@ struct _virNetDaemon {
     bool finished;
     bool graceful;
     bool execRestart;
+    bool running; /* the daemon has reached the running phase */
 
     unsigned int autoShutdownTimeout;
+    int autoShutdownTimerID;
+    bool autoShutdownTimerActive;
     size_t autoShutdownInhibitions;
     int autoShutdownInhibitFd;
 };
@@ -132,7 +134,7 @@ virNetDaemonNew(void)
 {
     virNetDaemon *dmn;
 #ifndef WIN32
-    struct sigaction sig_action;
+    struct sigaction sig_action = { 0 };
 #endif /* !WIN32 */
 
     if (virNetDaemonInitialize() < 0)
@@ -141,7 +143,7 @@ virNetDaemonNew(void)
     if (!(dmn = virObjectLockableNew(virNetDaemonClass)))
         return NULL;
 
-    dmn->servers = virHashNew(virObjectFreeHashData);
+    dmn->servers = virHashNew(virObjectUnref);
 
 #ifndef WIN32
     dmn->sigwrite = dmn->sigread = -1;
@@ -150,11 +152,14 @@ virNetDaemonNew(void)
     dmn->privileged = geteuid() == 0;
     dmn->autoShutdownInhibitFd = -1;
 
+    virProcessActivateMaxFiles();
+
     if (virEventRegisterDefaultImpl() < 0)
         goto error;
 
+    dmn->autoShutdownTimerID = -1;
+
 #ifndef WIN32
-    memset(&sig_action, 0, sizeof(sig_action));
     sig_action.sa_handler = SIG_IGN;
     sigaction(SIGPIPE, &sig_action, NULL);
 #endif /* !WIN32 */
@@ -171,20 +176,14 @@ int
 virNetDaemonAddServer(virNetDaemon *dmn,
                       virNetServer *srv)
 {
-    int ret = -1;
     const char *serverName = virNetServerGetName(srv);
-
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
     if (virHashAddEntry(dmn->servers, serverName, srv) < 0)
-        goto cleanup;
+        return -1;
 
     virObjectRef(srv);
-
-    ret = 0;
- cleanup:
-    virObjectUnlock(dmn);
-    return ret;
+    return 0;
 }
 
 
@@ -192,15 +191,12 @@ virNetServer *
 virNetDaemonGetServer(virNetDaemon *dmn,
                       const char *serverName)
 {
-    virNetServer *srv = NULL;
-
-    virObjectLock(dmn);
-    srv = virObjectRef(virHashLookup(dmn->servers, serverName));
-    virObjectUnlock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
+    virNetServer *srv = virObjectRef(virHashLookup(dmn->servers, serverName));
 
     if (!srv) {
         virReportError(VIR_ERR_NO_SERVER,
-                       _("No server named '%s'"), serverName);
+                       _("No server named '%1$s'"), serverName);
     }
 
     return srv;
@@ -210,13 +206,9 @@ bool
 virNetDaemonHasServer(virNetDaemon *dmn,
                       const char *serverName)
 {
-    void *ent;
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
-    virObjectLock(dmn);
-    ent = virHashLookup(dmn->servers, serverName);
-    virObjectUnlock(dmn);
-
-    return ent != NULL;
+    return virHashLookup(dmn->servers, serverName) != NULL;
 }
 
 
@@ -252,26 +244,19 @@ ssize_t
 virNetDaemonGetServers(virNetDaemon *dmn,
                        virNetServer ***servers)
 {
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
     struct collectData data = { servers, 0 };
-    ssize_t ret = -1;
 
     *servers = NULL;
-
-    virObjectLock(dmn);
 
     if (virHashForEach(dmn->servers, collectServers, &data) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Cannot get all servers from daemon"));
-        goto cleanup;
+        virObjectListFreeCount(*servers, data.nservers);
+        return -1;
     }
 
-    ret = data.nservers;
-
- cleanup:
-    if (ret < 0)
-        virObjectListFreeCount(*servers, data.nservers);
-    virObjectUnlock(dmn);
-    return ret;
+    return data.nservers;
 }
 
 
@@ -341,7 +326,7 @@ virNetDaemonNewPostExecRestart(virJSONValue *object,
         size_t n = virJSONValueArraySize(servers);
         if (n > nDefServerNames) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Server count %zd greater than default name count %zu"),
+                           _("Server count %1$zd greater than default name count %2$zu"),
                            n, nDefServerNames);
             goto error;
         }
@@ -387,60 +372,122 @@ virNetDaemonPreExecRestart(virNetDaemon *dmn)
     g_autoptr(virJSONValue) object = virJSONValueNewObject();
     g_autoptr(virJSONValue) srvObj = virJSONValueNewObject();
     g_autofree virHashKeyValuePair *srvArray = NULL;
-
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
     if (!(srvArray = virHashGetItems(dmn->servers, NULL, true)))
-        goto error;
+        return NULL;
 
     for (i = 0; srvArray[i].key; i++) {
         virNetServer *server = virHashLookup(dmn->servers, srvArray[i].key);
         g_autoptr(virJSONValue) srvJSON = NULL;
 
         if (!server)
-            goto error;
+            return NULL;
 
         srvJSON = virNetServerPreExecRestart(server);
         if (!srvJSON)
-            goto error;
+            return NULL;
 
         if (virJSONValueObjectAppend(srvObj, srvArray[i].key, &srvJSON) < 0)
-            goto error;
+            return NULL;
     }
-
-    virObjectUnlock(dmn);
 
     if (virJSONValueObjectAppend(object, "servers", &srvObj) < 0)
         return NULL;
 
     return g_steal_pointer(&object);
-
- error:
-    virObjectUnlock(dmn);
-    return NULL;
 }
 
 
 bool
 virNetDaemonIsPrivileged(virNetDaemon *dmn)
 {
-    bool priv;
-    virObjectLock(dmn);
-    priv = dmn->privileged;
-    virObjectUnlock(dmn);
-    return priv;
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
+
+    return dmn->privileged;
 }
 
 
-void
+static void
+virNetDaemonAutoShutdownTimer(int timerid G_GNUC_UNUSED,
+                              void *opaque)
+{
+    virNetDaemon *dmn = opaque;
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
+
+    if (!dmn->autoShutdownInhibitions) {
+        VIR_DEBUG("Automatic shutdown triggered");
+        dmn->quit = true;
+    }
+}
+
+
+static int
+virNetDaemonShutdownTimerRegister(virNetDaemon *dmn)
+{
+    if (dmn->autoShutdownTimerID != -1)
+        return 0;
+
+    if ((dmn->autoShutdownTimerID = virEventAddTimeout(-1,
+                                                       virNetDaemonAutoShutdownTimer,
+                                                       dmn, NULL)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Failed to register shutdown timeout"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static void
+virNetDaemonShutdownTimerUpdate(virNetDaemon *dmn)
+{
+    if (dmn->autoShutdownTimerID == -1)
+        return;
+
+    /* A shutdown timeout is specified, so check
+     * if any drivers have active state, if not
+     * shutdown after timeout seconds
+     */
+    if (dmn->autoShutdownTimerActive) {
+        if (virNetDaemonHasClients(dmn) ||
+            dmn->autoShutdownTimeout == 0) {
+            VIR_DEBUG("Deactivating shutdown timer %d", dmn->autoShutdownTimerID);
+            virEventUpdateTimeout(dmn->autoShutdownTimerID, -1);
+            dmn->autoShutdownTimerActive = false;
+        }
+    } else {
+        if (!virNetDaemonHasClients(dmn) &&
+            dmn->autoShutdownTimeout != 0) {
+            VIR_DEBUG("Activating shutdown timer %d", dmn->autoShutdownTimerID);
+            virEventUpdateTimeout(dmn->autoShutdownTimerID,
+                                  dmn->autoShutdownTimeout * 1000);
+            dmn->autoShutdownTimerActive = true;
+        }
+    }
+}
+
+
+int
 virNetDaemonAutoShutdown(virNetDaemon *dmn,
                          unsigned int timeout)
 {
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
+
+    VIR_DEBUG("Registering shutdown timeout %u", timeout);
+
+    if (timeout > 0) {
+        if (virNetDaemonShutdownTimerRegister(dmn) < 0)
+            return -1;
+    }
 
     dmn->autoShutdownTimeout = timeout;
 
-    virObjectUnlock(dmn);
+    if (dmn->running)
+        virNetDaemonShutdownTimerUpdate(dmn);
+
+    return 0;
 }
 
 
@@ -507,7 +554,8 @@ virNetDaemonCallInhibit(virNetDaemon *dmn,
 void
 virNetDaemonAddShutdownInhibition(virNetDaemon *dmn)
 {
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
+
     dmn->autoShutdownInhibitions++;
 
     VIR_DEBUG("dmn=%p inhibitions=%zu", dmn, dmn->autoShutdownInhibitions);
@@ -520,15 +568,14 @@ virNetDaemonAddShutdownInhibition(virNetDaemon *dmn)
                                 _("Virtual machines need to be saved"),
                                 "delay");
 #endif
-
-    virObjectUnlock(dmn);
 }
 
 
 void
 virNetDaemonRemoveShutdownInhibition(virNetDaemon *dmn)
 {
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
+
     dmn->autoShutdownInhibitions--;
 
     VIR_DEBUG("dmn=%p inhibitions=%zu", dmn, dmn->autoShutdownInhibitions);
@@ -537,8 +584,6 @@ virNetDaemonRemoveShutdownInhibition(virNetDaemon *dmn)
         VIR_DEBUG("Closing inhibit FD %d", dmn->autoShutdownInhibitFd);
         VIR_FORCE_CLOSE(dmn->autoShutdownInhibitFd);
     }
-
-    virObjectUnlock(dmn);
 }
 
 
@@ -553,12 +598,10 @@ virNetDaemonSignalHandler(int sig, siginfo_t * siginfo,
 {
     int origerrno;
     int r;
-    siginfo_t tmp;
+    siginfo_t tmp = { 0 };
 
     if (SA_SIGINFO)
         tmp = *siginfo;
-    else
-        memset(&tmp, 0, sizeof(tmp));
 
     /* set the sig num in the struct */
     tmp.si_signo = sig;
@@ -603,7 +646,7 @@ virNetDaemonSignalEvent(int watch,
     }
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Unexpected signal received: %d"), siginfo.si_signo);
+                   _("Unexpected signal received: %1$d"), siginfo.si_signo);
 
  cleanup:
     virObjectUnlock(dmn);
@@ -648,13 +691,12 @@ virNetDaemonAddSignalHandler(virNetDaemon *dmn,
                              virNetDaemonSignalFunc func,
                              void *opaque)
 {
-    virNetDaemonSignal *sigdata = NULL;
-    struct sigaction sig_action;
-
-    virObjectLock(dmn);
+    g_autofree virNetDaemonSignal *sigdata = NULL;
+    struct sigaction sig_action = { 0 };
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
     if (virNetDaemonSignalSetup(dmn) < 0)
-        goto error;
+        return -1;
 
     VIR_EXPAND_N(dmn->signals, dmn->nsignals, 1);
 
@@ -664,22 +706,14 @@ virNetDaemonAddSignalHandler(virNetDaemon *dmn,
     sigdata->func = func;
     sigdata->opaque = opaque;
 
-    memset(&sig_action, 0, sizeof(sig_action));
     sig_action.sa_sigaction = virNetDaemonSignalHandler;
     sig_action.sa_flags = SA_SIGINFO;
     sigemptyset(&sig_action.sa_mask);
 
     sigaction(signum, &sig_action, &sigdata->oldaction);
 
-    dmn->signals[dmn->nsignals-1] = sigdata;
-
-    virObjectUnlock(dmn);
+    dmn->signals[dmn->nsignals-1] = g_steal_pointer(&sigdata);
     return 0;
-
- error:
-    VIR_FREE(sigdata);
-    virObjectUnlock(dmn);
-    return -1;
 }
 
 #else /* WIN32 */
@@ -698,22 +732,6 @@ virNetDaemonAddSignalHandler(virNetDaemon *dmn G_GNUC_UNUSED,
 #endif /* WIN32 */
 
 
-static void
-virNetDaemonAutoShutdownTimer(int timerid G_GNUC_UNUSED,
-                              void *opaque)
-{
-    virNetDaemon *dmn = opaque;
-
-    virObjectLock(dmn);
-
-    if (!dmn->autoShutdownInhibitions) {
-        VIR_DEBUG("Automatic shutdown triggered");
-        dmn->quit = true;
-    }
-
-    virObjectUnlock(dmn);
-}
-
 static int
 daemonServerUpdateServices(void *payload,
                            const char *key G_GNUC_UNUSED,
@@ -730,9 +748,9 @@ void
 virNetDaemonUpdateServices(virNetDaemon *dmn,
                            bool enabled)
 {
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
+
     virHashForEach(dmn->servers, daemonServerUpdateServices, &enabled);
-    virObjectUnlock(dmn);
 }
 
 static int
@@ -764,19 +782,17 @@ daemonShutdownWait(void *opaque)
     bool graceful = false;
 
     virHashForEach(dmn->servers, daemonServerShutdownWait, NULL);
-    if (dmn->shutdownWaitCb && dmn->shutdownWaitCb() < 0)
-        goto finish;
+    if (!dmn->shutdownWaitCb || dmn->shutdownWaitCb() >= 0) {
+        if (dmn->stateStopThread)
+            virThreadJoin(dmn->stateStopThread);
 
-    if (dmn->stateStopThread)
-        virThreadJoin(dmn->stateStopThread);
+        graceful = true;
+    }
 
-    graceful = true;
-
- finish:
-    virObjectLock(dmn);
-    dmn->graceful = graceful;
-    virEventUpdateTimeout(dmn->finishTimer, 0);
-    virObjectUnlock(dmn);
+    VIR_WITH_OBJECT_LOCK_GUARD(dmn) {
+        dmn->graceful = graceful;
+        virEventUpdateTimeout(dmn->finishTimer, 0);
+    }
 }
 
 static void
@@ -784,17 +800,15 @@ virNetDaemonFinishTimer(int timerid G_GNUC_UNUSED,
                         void *opaque)
 {
     virNetDaemon *dmn = opaque;
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
-    virObjectLock(dmn);
     dmn->finished = true;
-    virObjectUnlock(dmn);
 }
+
 
 void
 virNetDaemonRun(virNetDaemon *dmn)
 {
-    int timerid = -1;
-    bool timerActive = false;
     virThread shutdownThread;
 
     virObjectLock(dmn);
@@ -809,15 +823,7 @@ virNetDaemonRun(virNetDaemon *dmn)
     dmn->finishTimer = -1;
     dmn->finished = false;
     dmn->graceful = false;
-
-    if (dmn->autoShutdownTimeout &&
-        (timerid = virEventAddTimeout(-1,
-                                      virNetDaemonAutoShutdownTimer,
-                                      dmn, NULL)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed to register shutdown timeout"));
-        goto cleanup;
-    }
+    dmn->running = true;
 
     /* We are accepting connections now. Notify systemd
      * so it can start dependent services. */
@@ -825,26 +831,7 @@ virNetDaemonRun(virNetDaemon *dmn)
 
     VIR_DEBUG("dmn=%p quit=%d", dmn, dmn->quit);
     while (!dmn->finished) {
-        /* A shutdown timeout is specified, so check
-         * if any drivers have active state, if not
-         * shutdown after timeout seconds
-         */
-        if (dmn->autoShutdownTimeout) {
-            if (timerActive) {
-                if (virNetDaemonHasClients(dmn)) {
-                    VIR_DEBUG("Deactivating shutdown timer %d", timerid);
-                    virEventUpdateTimeout(timerid, -1);
-                    timerActive = false;
-                }
-            } else {
-                if (!virNetDaemonHasClients(dmn)) {
-                    VIR_DEBUG("Activating shutdown timer %d", timerid);
-                    virEventUpdateTimeout(timerid,
-                                          dmn->autoShutdownTimeout * 1000);
-                    timerActive = true;
-                }
-            }
-        }
+        virNetDaemonShutdownTimerUpdate(dmn);
 
         virObjectUnlock(dmn);
         if (virEventRunDefaultImpl() < 0) {
@@ -896,36 +883,31 @@ void
 virNetDaemonSetStateStopWorkerThread(virNetDaemon *dmn,
                                      virThread **thr)
 {
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
     VIR_DEBUG("Setting state stop worker thread on dmn=%p to thr=%p", dmn, thr);
     dmn->stateStopThread = g_steal_pointer(thr);
-    virObjectUnlock(dmn);
 }
 
 
 void
 virNetDaemonQuit(virNetDaemon *dmn)
 {
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
     VIR_DEBUG("Quit requested %p", dmn);
     dmn->quit = true;
-
-    virObjectUnlock(dmn);
 }
 
 
 void
 virNetDaemonQuitExecRestart(virNetDaemon *dmn)
 {
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
     VIR_DEBUG("Exec-restart requested %p", dmn);
     dmn->quit = true;
     dmn->execRestart = true;
-
-    virObjectUnlock(dmn);
 }
 
 
@@ -969,10 +951,8 @@ virNetDaemonSetShutdownCallbacks(virNetDaemon *dmn,
                                  virNetDaemonShutdownCallback prepareCb,
                                  virNetDaemonShutdownCallback waitCb)
 {
-    virObjectLock(dmn);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(dmn);
 
     dmn->shutdownPrepareCb = prepareCb;
     dmn->shutdownWaitCb = waitCb;
-
-    virObjectUnlock(dmn);
 }

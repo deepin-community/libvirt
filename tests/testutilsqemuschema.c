@@ -187,6 +187,10 @@ testQEMUSchemaValidateObjectMember(const char *key,
         return -1;
     }
 
+    /* validate that the member is not deprecated */
+    if ((rc = testQEMUSchemaValidateDeprecated(keymember, key, data->ctxt)) < 0)
+        return rc;
+
     /* lookup schema entry for keytype */
     if (!(keytype = virJSONValueObjectGetString(keymember, "type")) ||
         !(keyschema = virHashLookup(data->ctxt->schema, keytype))) {
@@ -289,7 +293,7 @@ testQEMUSchemaValidateObjectMandatoryMember(size_t pos G_GNUC_UNUSED,
 {
     struct testQEMUSchemaValidateObjectMemberData *data = opaque;
 
-    if (virJSONValueObjectHasKey(item, "default") != 1) {
+    if (!virJSONValueObjectHasKey(item, "default")) {
         virBufferAsprintf(data->ctxt->debug, "ERROR: missing mandatory attribute '%s'\n",
                           NULLSTR(virJSONValueObjectGetString(item, "name")));
         data->missingMandatory = true;

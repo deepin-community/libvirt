@@ -27,7 +27,6 @@
 #include "virsh-domain-monitor.h"
 #include "virsh-util.h"
 #include "virsh.h"
-#include "virstring.h"
 #include "virxml.h"
 #include "virperf.h"
 #include "virbitmap.h"
@@ -358,25 +357,6 @@ virshDomainBlockjobBaseTopCompleter(vshControl *ctl,
 }
 
 char **
-virshDomainEventNameCompleter(vshControl *ctl G_GNUC_UNUSED,
-                              const vshCmd *cmd G_GNUC_UNUSED,
-                              unsigned int flags)
-{
-    size_t i = 0;
-    g_auto(GStrv) tmp = NULL;
-
-    virCheckFlags(0, NULL);
-
-    tmp = g_new0(char *, VIR_DOMAIN_EVENT_ID_LAST + 1);
-
-    for (i = 0; i < VIR_DOMAIN_EVENT_ID_LAST; i++)
-        tmp[i] = g_strdup(virshDomainEventCallbacks[i].name);
-
-    return g_steal_pointer(&tmp);
-}
-
-
-char **
 virshDomainInterfaceStateCompleter(vshControl *ctl,
                                    const vshCmd *cmd,
                                    unsigned int flags)
@@ -495,17 +475,10 @@ virshDomainInterfaceAddrSourceCompleter(vshControl *ctl G_GNUC_UNUSED,
                                         const vshCmd *cmd G_GNUC_UNUSED,
                                         unsigned int flags)
 {
-    char **ret = NULL;
-    size_t i;
-
     virCheckFlags(0, NULL);
 
-    ret = g_new0(char *, VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LAST + 1);
-
-    for (i = 0; i < VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LAST; i++)
-        ret[i] = g_strdup(virshDomainInterfaceAddressesSourceTypeToString(i));
-
-    return ret;
+    return virshEnumComplete(VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LAST,
+                             virshDomainInterfaceAddressesSourceTypeToString);
 }
 
 
@@ -514,17 +487,10 @@ virshDomainInterfaceSourceModeCompleter(vshControl *ctl G_GNUC_UNUSED,
                                         const vshCmd *cmd G_GNUC_UNUSED,
                                         unsigned int flags)
 {
-    char **ret = NULL;
-    size_t i;
-
     virCheckFlags(0, NULL);
 
-    ret = g_new0(char *, VIRSH_DOMAIN_INTERFACE_SOURCE_MODE_LAST);
-
-    for (i = 0; i < VIRSH_DOMAIN_INTERFACE_SOURCE_MODE_LAST; i++)
-        ret[i] = g_strdup(virshDomainInterfaceSourceModeTypeToString(i));
-
-    return ret;
+    return virshEnumComplete(VIRSH_DOMAIN_INTERFACE_SOURCE_MODE_LAST,
+                             virshDomainInterfaceSourceModeTypeToString);
 }
 
 
@@ -533,17 +499,10 @@ virshDomainHostnameSourceCompleter(vshControl *ctl G_GNUC_UNUSED,
                                    const vshCmd *cmd G_GNUC_UNUSED,
                                    unsigned int flags)
 {
-    char **ret = NULL;
-    size_t i;
-
     virCheckFlags(0, NULL);
 
-    ret = g_new0(char *, VIRSH_DOMAIN_HOSTNAME_SOURCE_LAST + 1);
-
-    for (i = 0; i < VIRSH_DOMAIN_HOSTNAME_SOURCE_LAST; i++)
-        ret[i] = g_strdup(virshDomainHostnameSourceTypeToString(i));
-
-    return ret;
+    return virshEnumComplete(VIRSH_DOMAIN_HOSTNAME_SOURCE_LAST,
+                             virshDomainHostnameSourceTypeToString);
 }
 
 
@@ -552,19 +511,16 @@ virshDomainPerfEnableCompleter(vshControl *ctl,
                               const vshCmd *cmd,
                               unsigned int flags)
 {
-    size_t i = 0;
     g_auto(GStrv) events = NULL;
     const char *event = NULL;
 
     virCheckFlags(0, NULL);
 
-    events = g_new0(char *, VIR_PERF_EVENT_LAST + 1);
-
-    for (i = 0; i < VIR_PERF_EVENT_LAST; i++)
-        events[i] = g_strdup(virPerfEventTypeToString(i));
-
     if (vshCommandOptStringQuiet(ctl, cmd, "enable", &event) < 0)
         return NULL;
+
+    events = virshEnumComplete(VIR_PERF_EVENT_LAST,
+                               virPerfEventTypeToString);
 
     return virshCommaStringListComplete(event, (const char **)events);
 }
@@ -575,19 +531,16 @@ virshDomainPerfDisableCompleter(vshControl *ctl,
                                 const vshCmd *cmd,
                                 unsigned int flags)
 {
-    size_t i = 0;
     g_auto(GStrv) events = NULL;
     const char *event = NULL;
 
     virCheckFlags(0, NULL);
 
-    events = g_new0(char *, VIR_PERF_EVENT_LAST + 1);
-
-    for (i = 0; i < VIR_PERF_EVENT_LAST; i++)
-        events[i] = g_strdup(virPerfEventTypeToString(i));
-
     if (vshCommandOptStringQuiet(ctl, cmd, "disable", &event) < 0)
         return NULL;
+
+    events = virshEnumComplete(VIR_PERF_EVENT_LAST,
+                               virPerfEventTypeToString);
 
     return virshCommaStringListComplete(event, (const char **)events);
 }
@@ -890,19 +843,10 @@ virshDomainSignalCompleter(vshControl *ctl G_GNUC_UNUSED,
                            const vshCmd *cmd G_GNUC_UNUSED,
                            unsigned int flags)
 {
-    g_auto(GStrv) tmp = NULL;
-    size_t i = 0;
-
     virCheckFlags(0, NULL);
 
-    tmp = g_new0(char *, VIR_DOMAIN_PROCESS_SIGNAL_LAST + 1);
-
-    for (i = 0; i < VIR_DOMAIN_PROCESS_SIGNAL_LAST; i++) {
-        const char *name = virshDomainProcessSignalTypeToString(i);
-        tmp[i] = g_strdup(name);
-    }
-
-    return g_steal_pointer(&tmp);
+    return virshEnumComplete(VIR_DOMAIN_PROCESS_SIGNAL_LAST,
+                             virshDomainProcessSignalTypeToString);
 }
 
 
@@ -911,19 +855,10 @@ virshDomainLifecycleCompleter(vshControl *ctl G_GNUC_UNUSED,
                               const vshCmd *cmd G_GNUC_UNUSED,
                               unsigned int flags)
 {
-    g_auto(GStrv) tmp = NULL;
-    size_t i = 0;
-
     virCheckFlags(0, NULL);
 
-    tmp = g_new0(char *, VIR_DOMAIN_LIFECYCLE_LAST + 1);
-
-    for (i = 0; i < VIR_DOMAIN_LIFECYCLE_LAST; i++) {
-        const char *name = virshDomainLifecycleTypeToString(i);
-        tmp[i] = g_strdup(name);
-    }
-
-    return g_steal_pointer(&tmp);
+    return virshEnumComplete(VIR_DOMAIN_LIFECYCLE_LAST,
+                             virshDomainLifecycleTypeToString);
 }
 
 
@@ -932,19 +867,10 @@ virshDomainLifecycleActionCompleter(vshControl *ctl G_GNUC_UNUSED,
                                     const vshCmd *cmd G_GNUC_UNUSED,
                                     unsigned int flags)
 {
-    g_auto(GStrv) tmp = NULL;
-    size_t i = 0;
-
     virCheckFlags(0, NULL);
 
-    tmp = g_new0(char *, VIR_DOMAIN_LIFECYCLE_ACTION_LAST + 1);
-
-    for (i = 0; i < VIR_DOMAIN_LIFECYCLE_ACTION_LAST; i++) {
-        const char *action = virshDomainLifecycleActionTypeToString(i);
-        tmp[i] = g_strdup(action);
-    }
-
-    return g_steal_pointer(&tmp);
+    return virshEnumComplete(VIR_DOMAIN_LIFECYCLE_ACTION_LAST,
+                             virshDomainLifecycleActionTypeToString);
 }
 
 
@@ -953,19 +879,10 @@ virshCodesetNameCompleter(vshControl *ctl G_GNUC_UNUSED,
                           const vshCmd *cmd G_GNUC_UNUSED,
                           unsigned int flags)
 {
-    g_auto(GStrv) tmp = NULL;
-    size_t i = 0;
-
     virCheckFlags(0, NULL);
 
-    tmp = g_new0(char *, VIR_KEYCODE_SET_LAST + 1);
-
-    for (i = 0; i < VIR_KEYCODE_SET_LAST; i++) {
-        const char *name = virKeycodeSetTypeToString(i);
-        tmp[i] = g_strdup(name);
-    }
-
-    return g_steal_pointer(&tmp);
+    return virshEnumComplete(VIR_KEYCODE_SET_LAST,
+                             virKeycodeSetTypeToString);
 }
 
 
@@ -1083,17 +1000,10 @@ virshDomainCoreDumpFormatCompleter(vshControl *ctl G_GNUC_UNUSED,
                                    const vshCmd *cmd G_GNUC_UNUSED,
                                    unsigned int flags)
 {
-    char **ret = NULL;
-    size_t i;
-
     virCheckFlags(0, NULL);
 
-    ret = g_new0(char *, VIR_DOMAIN_CORE_DUMP_FORMAT_LAST + 1);
-
-    for (i = 0; i < VIR_DOMAIN_CORE_DUMP_FORMAT_LAST; i++)
-        ret[i] = g_strdup(virshDomainCoreDumpFormatTypeToString(i));
-
-    return ret;
+    return virshEnumComplete(VIR_DOMAIN_CORE_DUMP_FORMAT_LAST,
+                             virshDomainCoreDumpFormatTypeToString);
 }
 
 
@@ -1119,17 +1029,10 @@ virshDomainStorageFileFormatCompleter(vshControl *ctl G_GNUC_UNUSED,
                                       const vshCmd *cmd G_GNUC_UNUSED,
                                       unsigned int flags)
 {
-    char **ret = NULL;
-    size_t i;
-
     virCheckFlags(0, NULL);
 
-    ret = g_new0(char *, VIR_STORAGE_FILE_LAST + 1);
-
-    for (i = 0; i < VIR_STORAGE_FILE_LAST; i++)
-        ret[i] = g_strdup(virStorageFileFormatTypeToString(i));
-
-    return ret;
+    return virshEnumComplete(VIR_STORAGE_FILE_LAST,
+                             virStorageFileFormatTypeToString);
 }
 
 
@@ -1138,17 +1041,10 @@ virshDomainNumatuneModeCompleter(vshControl *ctl G_GNUC_UNUSED,
                                  const vshCmd *cmd G_GNUC_UNUSED,
                                  unsigned int flags)
 {
-    char **ret = NULL;
-    size_t i;
-
     virCheckFlags(0, NULL);
 
-    ret = g_new0(char *, VIR_DOMAIN_NUMATUNE_MEM_LAST + 1);
-
-    for (i = 0; i < VIR_DOMAIN_NUMATUNE_MEM_LAST; i++)
-        ret[i] = g_strdup(virDomainNumatuneMemModeTypeToString(i));
-
-    return ret;
+    return virshEnumComplete(VIR_DOMAIN_NUMATUNE_MEM_LAST,
+                             virDomainNumatuneMemModeTypeToString);
 }
 
 
@@ -1157,15 +1053,8 @@ virshDomainDirtyRateCalcModeCompleter(vshControl *ctl G_GNUC_UNUSED,
                                       const vshCmd *cmd G_GNUC_UNUSED,
                                       unsigned int flags)
 {
-    char **ret = NULL;
-    size_t i;
-
     virCheckFlags(0, NULL);
 
-    ret = g_new0(char *, VIRSH_DOMAIN_DIRTYRATE_CALC_MODE_LAST + 1);
-
-    for (i = 0; i < VIRSH_DOMAIN_DIRTYRATE_CALC_MODE_LAST; i++)
-        ret[i] = g_strdup(virshDomainDirtyRateCalcModeTypeToString(i));
-
-    return ret;
+    return virshEnumComplete(VIRSH_DOMAIN_DIRTYRATE_CALC_MODE_LAST,
+                             virshDomainDirtyRateCalcModeTypeToString);
 }

@@ -1,2 +1,2 @@
-// the nss module (once enabled) will make apt call getdents (LP: #1732030)
-apt::sandbox::seccomp::allow { "getdents" };
+// the nss module (once enabled) will make apt call getdents and getdents64 (#934474 and LP: #1732030)
+apt::sandbox::seccomp::allow { "getdents", "getdents64" };

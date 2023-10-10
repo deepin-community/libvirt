@@ -24,9 +24,6 @@
 
 #include "virnwfilterobj.h"
 #include "virnwfilterbindingdef.h"
-#include "nwfilter_tech_driver.h"
-
-virNWFilterTechDriver *virNWFilterTechDriverForName(const char *name);
 
 int virNWFilterTechDriversInit(bool privileged);
 void virNWFilterTechDriversShutdown(void);
@@ -39,18 +36,12 @@ enum instCase {
 
 int virNWFilterInstantiateFilter(virNWFilterDriverState *driver,
                                  virNWFilterBindingDef *binding);
-int virNWFilterUpdateInstantiateFilter(virNWFilterDriverState *driver,
-                                       virNWFilterBindingDef *binding,
-                                       bool *skipIface);
 
 int virNWFilterInstantiateFilterLate(virNWFilterDriverState *driver,
                                      virNWFilterBindingDef *binding,
                                      int ifindex);
 
 int virNWFilterTeardownFilter(virNWFilterBindingDef *binding);
-
-GHashTable *virNWFilterCreateVarHashmap(const char *macaddr,
-                                            const virNWFilterVarValue *value);
 
 int virNWFilterBuildAll(virNWFilterDriverState *driver,
                         bool newFilters);

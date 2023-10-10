@@ -116,8 +116,6 @@ typedef struct _virDomainHostdevCaps virDomainHostdevCaps;
 
 typedef struct _virDomainHostdevDef virDomainHostdevDef;
 
-typedef struct _virDomainHostdevOrigStates virDomainHostdevOrigStates;
-
 typedef struct _virDomainHostdevSubsys virDomainHostdevSubsys;
 
 typedef struct _virDomainHostdevSubsysMediatedDev virDomainHostdevSubsysMediatedDev;
@@ -142,11 +140,15 @@ typedef struct _virDomainIOMMUDef virDomainIOMMUDef;
 
 typedef struct _virDomainIOThreadIDDef virDomainIOThreadIDDef;
 
+typedef struct _virDomainDefaultIOThreadDef virDomainDefaultIOThreadDef;
+
 typedef struct _virDomainIdMapDef virDomainIdMapDef;
 
 typedef struct _virDomainIdMapEntry virDomainIdMapEntry;
 
 typedef struct _virDomainInputDef virDomainInputDef;
+
+typedef struct _virDomainJobObjConfig virDomainJobObjConfig;
 
 typedef struct _virDomainKeyWrapDef virDomainKeyWrapDef;
 
@@ -167,6 +169,12 @@ typedef struct _virDomainMomentObj virDomainMomentObj;
 typedef struct _virDomainMomentObjList virDomainMomentObjList;
 
 typedef struct _virDomainNVRAMDef virDomainNVRAMDef;
+
+typedef struct _virDomainNetBackend virDomainNetBackend;
+
+typedef struct _virDomainNetPortForwardRange virDomainNetPortForwardRange;
+
+typedef struct _virDomainNetPortForward virDomainNetPortForward;
 
 typedef struct _virDomainNetDef virDomainNetDef;
 
@@ -243,6 +251,8 @@ typedef struct _virDomainVirtioOptions virDomainVirtioOptions;
 typedef struct _virDomainVirtioSerialOpts virDomainVirtioSerialOpts;
 
 typedef struct _virDomainVsockDef virDomainVsockDef;
+
+typedef struct _virDomainCryptoDef virDomainCryptoDef;
 
 typedef struct _virDomainWatchdogDef virDomainWatchdogDef;
 

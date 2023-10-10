@@ -1,7 +1,7 @@
 <domain type='kvm'>
   <name>QEMUGuest1</name>
   <uuid>c7a5fdbd-edaf-9455-926a-d65c16db1809</uuid>
-  <maxMemory slots='16' unit='KiB'>1099511627776</maxMemory>
+  <maxMemory unit='KiB'>1099511627776</maxMemory>
   <memory unit='KiB'>2095104</memory>
   <currentMemory unit='KiB'>2095104</currentMemory>
   <vcpu placement='static' cpuset='0-1'>2</vcpu>
@@ -47,6 +47,7 @@
       </source>
       <target>
         <size unit='KiB'>524288</size>
+        <address base='0x140000000'/>
       </target>
       <address type='pci' domain='0x0000' bus='0x00' slot='0x05' function='0x0'/>
     </memory>

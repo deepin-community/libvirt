@@ -1,8 +1,270 @@
-libvirt (8.1.0-2) UNRELEASED; urgency=medium
+libvirt (9.8.0-1) unstable; urgency=medium
 
-  * update
+  [ Pino Toscano ]
+  * [a3a1f2e] Enable the rbd/ceph storage driver only on 64bit architectures
+    - Closes: #1053168
 
- -- Debian Libvirt Maintainers <pkg-libvirt-maintainers@lists.alioth.debian.org>  Thu, 28 Apr 2022 17:29:28 +0800
+  [ Andrea Bolognani ]
+  * [c52c885] New upstream version 9.8.0
+  * [9c190ce] patches: Add backports
+    - backport/meson-Improve-nbdkit-configurability.patch
+  * [c24237a] rules: Temporarily disable nbdkit support
+    - AppArmor support is not ready yet
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 05 Oct 2023 23:27:45 +0200
+
+libvirt (9.7.0-1) unstable; urgency=medium
+
+  * [4864e4d] New upstream version 9.7.0
+  * [c25e497] patches: Drop backports
+  * [fa6ecf6] dirs: Don't ship channels directory
+    - The sockets used to implement channels for QEMU domains are
+      ephemeral runtime data, and are now correctly created
+      under /run/libvirt instead of /var/lib/libvirt
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 13 Sep 2023 21:47:40 +0200
+
+libvirt (9.6.0-3) experimental; urgency=medium
+
+  * [e380ddb] rules: Fix handling of ARCHES_{QEMU,LXC}
+    - Deal correctly with contents, such as configuration files,
+      that are specific to some hypervisor driver
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 21 Aug 2023 21:49:04 +0200
+
+libvirt (9.6.0-2) experimental; urgency=medium
+
+  * [6456ab6] control: Drop Build-Depends on qemu-system-common
+    - No longer needed
+  * [cd2ed06] rules: Introduce ARCHES_QEMU
+    - Only build the QEMU hypervisor driver on architectures where
+      QEMU system emulator binaries are available
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 20 Aug 2023 21:00:40 +0200
+
+libvirt (9.6.0-1) unstable; urgency=medium
+
+  * [74213a2] New upstream version 9.6.0
+    - Fixes CVE-2023-3750 (Closes: #1041811)
+  * [cc3a788] control: Require AppArmor 3
+  * [54d65bd] patches: Add backports
+    - backport/src-fix-max-file-limits-in-systemd-services.patch
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 05 Aug 2023 19:01:56 +0200
+
+libvirt (9.5.0-2) unstable; urgency=medium
+
+  [ Pino Toscano ]
+  * [2adb625] Enable the glusterfs storage driver only on 64bit architectures
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 25 Jul 2023 20:04:51 +0200
+
+libvirt (9.5.0-1) unstable; urgency=medium
+
+  * [cd75481] New upstream version 9.5.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 03 Jul 2023 20:58:18 +0200
+
+libvirt (9.4.0-1) experimental; urgency=medium
+
+  * [98c5c4c] New upstream version 9.4.0
+  * [d0f1ab7] patches: Drop debian/Debianize-systemd-service-files.patch
+    - Changes to the upstream build system make these
+      Debian-specific modifications no longer necessary
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 02 Jun 2023 18:21:20 +0200
+
+libvirt (9.3.0-2) experimental; urgency=medium
+
+  * [4e3ec2a] links: Link /usr/share/doc/* to /usr/share/doc/libvirt0
+    - The documentation directory for all binary packages (except
+      for libvirt-doc) is now a symlink to that of libvirt0, which
+      means that we no longer install 20+ copies of the same files
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 21 May 2023 16:14:16 +0200
+
+libvirt (9.3.0-1) experimental; urgency=medium
+
+  * [45efa38] New upstream version 9.3.0
+    - Closes: #1024504
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 04 May 2023 22:44:31 +0200
+
+libvirt (9.2.0-2) experimental; urgency=medium
+
+  [ Andrea Bolognani ]
+  * [4d3b6ff] debconf: Add Spanish translation
+    - Thanks to Jonathan Bustillos (Closes: #986773)
+  * [5dbd337] debconf: Add Italian translation
+    - Thanks to Ceppo (Closes: #1019161)
+  * [23c7d71] debconf: Add Romanian translation
+    - Thanks to Remus-Gabriel Chelu (Closes: #1032335)
+  * [faef0ca] patches: Drop forward/Skip-vircgrouptest.patch
+    - Should no longer be needed
+
+  [ Pino Toscano ]
+  * [351123e] Limit architectures with RBD support
+    - No longer attempt to build the RBD storage driver on Linux
+      architectures where Ceph itself is not built (e.g. ppc64)
+  * [689bbe6] control: switch libc6-dev B-D to libc-dev
+    - Should make libvirt buildable on architectures that don't
+      have libc6-dev (e.g. ia64)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 11 Apr 2023 22:08:24 +0200
+
+libvirt (9.2.0-1) experimental; urgency=medium
+
+  * [62fdd34] New upstream version 9.2.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 03 Apr 2023 13:10:56 +0200
+
+libvirt (9.1.0-1) experimental; urgency=medium
+
+  * [92a1704] New upstream version 9.1.0
+  * [7c31663] patches: Re-enable passt support
+  * [85c31f2] patches: Drop backports
+  * [1268425] rules: Add missing dependencies for libvirt-clients-qemu
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 04 Mar 2023 11:10:04 +0100
+
+libvirt (9.0.0-2) unstable; urgency=medium
+
+  * [de81410] patches: Add backports
+    - backport/qemu_domain-Don-t-unref-NULL-hash-table-in-qemuDomainRefr.patch
+      - Closes: #1030671
+    - backport/qemu-Jump-to-cleanup-label-on-umount-failure.patch
+    - backport/qemu_namespace-Deal-with-nested-mounts-when-umount-ing-de.patch
+    - backport/qemuProcessRefreshDisks-Don-t-skip-filling-of-disk-inform.patch
+    - backport/qemu_extdevice-Do-cleanup-host-only-for-VIR_DOMAIN_TPM_TY.patch
+    - backport/qemu-blockjob-Handle-pending-blockjob-state-only-when-we-.patch
+    - backport/rpc-client-Don-t-check-return-value-of-virNetMessageNew.patch
+    - backport/rpc-Don-t-warn-about-max_client_requests-in-single-thread.patch
+  * [699a828] patches: Disable passt support
+    - debian/patches/debian/Disable-passt-support.patch
+      - The feature is not quite ready for prime time yet, so it will remain
+        disabled in bookworm
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 26 Feb 2023 18:18:30 +0100
+
+libvirt (9.0.0-1) unstable; urgency=medium
+
+  * [45d077a] libvirt-daemon-system: Make default files functionally empty
+    - On systems running systemd, libvirtd will now follow the upstream
+      behavior of starting on demand via socket activation and shutting down
+      automatically after having been idle for 120 seconds
+  * [40fe229] Drop obsolete package transition logic
+    - The oldest version that we expect to be upgrading from is 6.0.0-1
+  * [5bb56e9] Drop obsolete UML-related files
+    - The UML driver was dropped in version 5.0.0-1
+  * [f9f3a4d] New upstream version 9.0.0
+  * [30dad26] patches: Drop obsolete backports
+  * [157a5ec] patches: Add backports
+    - backport/apparmor-Allow-umount-dev.patch
+    - backport/qemu_interface-Fix-managed-no-case-when-creating-an-ether.patch
+  * [94f11a4] libvirt-daemon-sysv: Remove dependency on lsb-base
+    - The package is obsolete
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 28 Jan 2023 17:03:53 +0100
+
+libvirt (8.10.0-3) unstable; urgency=medium
+
+  [ Michael Biebl ]
+  * [4d6db56] Replace manual maintscript code with dh_installsystemd
+    - No longer needed now that #994204 has been addressed
+    - Closes: #1021956
+  * [91d9ac0] Drop no longer supported static priorities from dh_installinit
+
+  [ Smits Katze ]
+  * [60b2ca1] libnss-libvirt: Update apt seccomp filter
+    - Allow getdents64() in addition to getdents()
+    - Thanks to Thomas Luzat
+    - Closes: #934474
+
+  [ Andrea Bolognani ]
+  * [b9b2923] libvirt-daemon-system: Depend on polkitd instead of policykit-1
+    - Makes it possible to not install / uninstall pkexec
+    - Closes: #1025578
+  * [c62b8b2] libvirt-daemon-system: Drop polkit rules in legacy pkla format
+    - Makes it possible to not install / uninstall polkitd-pkla
+  * [8c5870d] control: Bump Standards-Version to 4.6.2
+    - No changes needed
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 04 Jan 2023 22:09:31 +0100
+
+libvirt (8.10.0-2) experimental; urgency=medium
+
+  * [145e4fe] patches: Add backports
+    - backport/docs-Fix-typo-in-virt-qemu-sev-validate-1.patch
+    - backport/tools-Fix-interpreter-for-virt-qemu-sev-validate.patch
+    - backport/tools-Fix-style-issues-in-virt-qemu-sev-validate.patch
+  * [409e40a] libvirt-clients-qemu: New binary package
+    - Contains QEMU-specific tools
+    - Depends on Python
+  * [bf99e82] libvirt-l10n: New binary package
+    - Contains translations
+    - Can be safely uninstalled to reduce disk footprint
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 12 Dec 2022 23:03:13 +0100
+
+libvirt (8.10.0-1) unstable; urgency=medium
+
+  [ Guido Günther ]
+  * [efe753f] qemu: Recommend swtpm for TPM emulation (Closes: #1009972)
+
+  [ Andrea Bolognani ]
+  * [7dc1e3c] New upstream version 8.10.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 07 Dec 2022 17:20:19 +0100
+
+libvirt (8.9.0-1) unstable; urgency=medium
+
+  * [981c332] New upstream version 8.9.0
+  * [3f29856] control: Add (build) dependency on mount
+    - Closes: #1023420
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 19 Nov 2022 23:00:34 +0100
+
+libvirt (8.5.0-2) experimental; urgency=medium
+
+  * [6c9bffb] Implement custom handling for systemd units
+    - We've already moved away from dh_installsystemd due to
+      #994204, and now we're refactoring the custom code so that
+      it's easier to understand and maintain going forward
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 21 Jul 2022 22:28:41 +0200
+
+libvirt (8.5.0-1) unstable; urgency=medium
+
+  * [74b9b5c] New upstream version 8.5.0
+  * [94a98bd] control: Fix cross building
+    - Explicitly request :native versions of several Build-Depends
+  * [417c882] control: Bump Standards-Version to 4.6.1
+    - No changes needed
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 17 Jul 2022 17:12:07 +0200
+
+libvirt (8.4.0-1) unstable; urgency=medium
+
+  * [ef2fd0c] New upstream version 8.4.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 02 Jun 2022 15:49:13 +0200
+
+libvirt (8.3.0-1) unstable; urgency=medium
+
+  * [f9dd871] New upstream version 8.3.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 15 May 2022 15:21:52 +0200
+
+libvirt (8.2.0-1) unstable; urgency=medium
+
+  * [4d84203] New upstream version 8.2.0
+    - Fixes CVE-2022-0897 (Closes: #1009075)
+  * [d1baa54] patches: Drop backports
+  * [333c80a] control: Switch from fuse to fuse3
+  * [4793ac2] libvirt-dev: Drop dependency on libxen-dev
+    - Thanks to Pino Toscano
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 20 Apr 2022 22:51:26 +0200
 
 libvirt (8.1.0-2) unstable; urgency=medium
 

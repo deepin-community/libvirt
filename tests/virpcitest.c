@@ -37,7 +37,7 @@ testVirPCIDeviceCheckDriver(virPCIDevice *dev, const char *expected)
     g_autofree char *path = NULL;
     g_autofree char *driver = NULL;
 
-    if (virPCIDeviceGetDriverPathAndName(dev, &path, &driver) < 0)
+    if (virPCIDeviceGetCurrentDriverPathAndName(dev, &path, &driver) < 0)
         return -1;
 
     if (STRNEQ_NULLABLE(driver, expected)) {
@@ -107,7 +107,7 @@ testVirPCIDeviceDetach(const void *opaque G_GNUC_UNUSED)
         if (!(dev[i] = virPCIDeviceNew(&devAddr)))
             goto cleanup;
 
-        virPCIDeviceSetStubDriver(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
+        virPCIDeviceSetStubDriverType(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
 
         if (virPCIDeviceDetach(dev[i], activeDevs, inactiveDevs) < 0)
             goto cleanup;
@@ -149,7 +149,7 @@ testVirPCIDeviceReset(const void *opaque G_GNUC_UNUSED)
         if (!(dev[i] = virPCIDeviceNew(&devAddr)))
             goto cleanup;
 
-        virPCIDeviceSetStubDriver(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
+        virPCIDeviceSetStubDriverType(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
 
         if (virPCIDeviceReset(dev[i], activeDevs, inactiveDevs) < 0)
             goto cleanup;
@@ -190,7 +190,7 @@ testVirPCIDeviceReattach(const void *opaque G_GNUC_UNUSED)
         CHECK_LIST_COUNT(activeDevs, 0);
         CHECK_LIST_COUNT(inactiveDevs, i + 1);
 
-        virPCIDeviceSetStubDriver(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
+        virPCIDeviceSetStubDriverType(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
     }
 
     CHECK_LIST_COUNT(activeDevs, 0);
@@ -249,7 +249,7 @@ testVirPCIDeviceDetachSingle(const void *opaque)
     if (!dev)
         goto cleanup;
 
-    virPCIDeviceSetStubDriver(dev, VIR_PCI_STUB_DRIVER_VFIO);
+    virPCIDeviceSetStubDriverType(dev, VIR_PCI_STUB_DRIVER_VFIO);
 
     if (virPCIDeviceDetach(dev, NULL, NULL) < 0)
         goto cleanup;
@@ -363,22 +363,10 @@ testVirPCIDeviceGetVPD(const void *opaque)
     return 0;
 }
 
-# define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
-
 static int
 mymain(void)
 {
     int ret = 0;
-    g_autofree char *fakerootdir = NULL;
-
-    fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
-
-    if (!g_mkdtemp(fakerootdir)) {
-        VIR_TEST_DEBUG("Cannot create fakerootdir");
-        abort();
-    }
-
-    g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
 
 # define DO_TEST(fnc) \
     do { \
@@ -445,9 +433,6 @@ mymain(void)
     DO_TEST_PCI_DRIVER(0, 0x0a, 3, 0, NULL);
 
     DO_TEST_PCI(testVirPCIDeviceGetVPD, 0, 0x03, 0, 0);
-
-    if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
-        virFileDeleteTree(fakerootdir);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

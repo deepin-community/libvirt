@@ -28,20 +28,17 @@
 #include "internal.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "datatypes.h"
 #include "virconf.h"
 #include "virfile.h"
 #include "viridentity.h"
 #include "virstring.h"
 #include "viralloc.h"
 #include "viruuid.h"
-#include "vircommand.h"
 #include "virsocketaddr.h"
 #include "libxl_api_wrapper.h"
 #include "libxl_domain.h"
 #include "libxl_conf.h"
 #include "libxl_utils.h"
-#include "virstoragefile.h"
 #include "virsecret.h"
 #include "cpu/cpu.h"
 #include "xen_common.h"
@@ -189,7 +186,7 @@ libxlMakeDomCreateInfo(libxl_ctx *ctx,
                                        strlen(def->seclabels[0]->label),
                                        &c_info->ssidref)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("libxenlight failed to resolve security label '%s'"),
+                           _("libxenlight failed to resolve security label '%1$s'"),
                            def->seclabels[0]->label);
         }
     }
@@ -197,7 +194,7 @@ libxlMakeDomCreateInfo(libxl_ctx *ctx,
     virUUIDFormat(def->uuid, uuidstr);
     if (libxl_uuid_from_string(&c_info->uuid, uuidstr)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("libxenlight failed to parse UUID '%s'"), uuidstr);
+                       _("libxenlight failed to parse UUID '%1$s'"), uuidstr);
         goto error;
     }
 
@@ -275,7 +272,7 @@ libxlMakeChrdevStr(virDomainChrDef *def, char **buf)
 
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unsupported chardev '%s'"), type);
+                       _("unsupported chardev '%1$s'"), type);
         return -1;
     }
 
@@ -387,14 +384,15 @@ libxlMakeDomBuildInfo(virDomainDef *def,
 
     case VIR_DOMAIN_CLOCK_OFFSET_TIMEZONE:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unsupported clock offset '%s'"),
+                       _("unsupported clock offset '%1$s'"),
                        virDomainClockOffsetTypeToString(clock.offset));
         return -1;
 
+    case VIR_DOMAIN_CLOCK_OFFSET_ABSOLUTE:
     case VIR_DOMAIN_CLOCK_OFFSET_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unexpected clock offset '%d'"), clock.offset);
+                       _("unexpected clock offset '%1$d'"), clock.offset);
         return -1;
     }
 
@@ -411,15 +409,19 @@ libxlMakeDomBuildInfo(virDomainDef *def,
             case VIR_DOMAIN_TIMER_MODE_EMULATE:
                 b_info->tsc_mode = LIBXL_TSC_MODE_ALWAYS_EMULATE;
                 break;
-            default:
+            case VIR_DOMAIN_TIMER_MODE_NONE:
+            case VIR_DOMAIN_TIMER_MODE_AUTO:
+            case VIR_DOMAIN_TIMER_MODE_SMPSAFE:
                 b_info->tsc_mode = LIBXL_TSC_MODE_DEFAULT;
+            case VIR_DOMAIN_TIMER_MODE_LAST:
+                break;
             }
             break;
 
         case VIR_DOMAIN_TIMER_NAME_HPET:
             if (!hvm) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("unsupported timer type (name) '%s'"),
+                               _("unsupported timer type (name) '%1$s'"),
                                virDomainTimerNameTypeToString(clock.timers[i]->name));
                 return -1;
             }
@@ -434,7 +436,7 @@ libxlMakeDomBuildInfo(virDomainDef *def,
         case VIR_DOMAIN_TIMER_NAME_PIT:
         case VIR_DOMAIN_TIMER_NAME_ARMVTIMER:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unsupported timer type (name) '%s'"),
+                           _("unsupported timer type (name) '%1$s'"),
                            virDomainTimerNameTypeToString(clock.timers[i]->name));
             return -1;
 
@@ -501,7 +503,7 @@ libxlMakeDomBuildInfo(virDomainDef *def,
                                            false));
                             if (libxl_cpuid_parse_config(&b_info->cpuid, xlCPU)) {
                                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                                        _("unsupported cpu feature '%s'"),
+                                        _("unsupported cpu feature '%1$s'"),
                                         def->cpu->features[i].name);
                                 return -1;
                             }
@@ -522,7 +524,7 @@ libxlMakeDomBuildInfo(virDomainDef *def,
                                            def->cpu->features[i].name, false));
                             if (libxl_cpuid_parse_config(&b_info->cpuid, xlCPU)) {
                                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                                        _("unsupported cpu feature '%s'"),
+                                        _("unsupported cpu feature '%1$s'"),
                                         def->cpu->features[i].name);
                                 return -1;
                             }
@@ -540,7 +542,7 @@ libxlMakeDomBuildInfo(virDomainDef *def,
                 libxl_defbool_set(&b_info->u.hvm.nested_hvm, hasHwVirt);
             } else {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                        _("unsupported nested HVM setting for %s machine on this Xen version"),
+                        _("unsupported nested HVM setting for %1$s machine on this Xen version"),
                         def->os.machine);
                 return -1;
             }
@@ -581,8 +583,7 @@ libxlMakeDomBuildInfo(virDomainDef *def,
 #endif
 
         /* copy SLIC table path to acpi_firmware */
-        if (def->os.slic_table)
-            b_info->u.hvm.acpi_firmware = g_strdup(def->os.slic_table);
+        b_info->u.hvm.acpi_firmware = g_strdup(def->os.slic_table);
 
         if (def->nsounds > 0) {
             /*
@@ -590,8 +591,12 @@ libxlMakeDomBuildInfo(virDomainDef *def,
              * a single device.  From the man page: soundhw=DEVICE
              */
             virDomainSoundDef *snd = def->sounds[0];
+            const char *model = virDomainSoundModelTypeToString(snd->model);
 
-            b_info->u.hvm.soundhw = g_strdup(virDomainSoundModelTypeToString(snd->model));
+            if (snd->model == VIR_DOMAIN_SOUND_MODEL_ICH6)
+                model = "hda";
+
+            b_info->u.hvm.soundhw = g_strdup(model);
         }
 
         for (i = 0; i < def->os.nBootDevs; i++) {
@@ -626,18 +631,14 @@ libxlMakeDomBuildInfo(virDomainDef *def,
         b_info->ramdisk = g_strdup(def->os.initrd);
 
         /*
-         * Currently libxl only allows specifying the type of BIOS.
-         * If automatic firmware selection is enabled or the loader
-         * type is PFLASH, we assume OVMF and set libxl_bios_type
-         * to LIBXL_BIOS_TYPE_OVMF. The path to the OVMF firmware is
-         * configured when building Xen using '--with-system-ovmf='. If
-         * not specified, LIBXL_FIRMWARE_DIR/ovmf.bin is used. In the
-         * future, Xen will support a user-specified firmware path. See
-         * https://lists.xenproject.org/archives/html/xen-devel/2016-03/msg01628.html
+         * libxl allows specifying the type of firmware and an optional path.
+         * If the path is not explicitly specified, a default path for the given
+         * firmware type is used. For EFI, it's LIBXL_FIRMWARE_DIR/ovmf.bin.
+         * Currently libxl does not support specifying nvram for EFI firmwares.
          */
         if (def->os.firmware == VIR_DOMAIN_OS_DEF_FIRMWARE_EFI) {
             if (def->os.loader == NULL)
-                def->os.loader = g_new0(virDomainLoaderDef, 1);
+                def->os.loader = virDomainLoaderDefNew();
             if (def->os.loader->path == NULL)
                 def->os.loader->path = g_strdup(cfg->firmwares[0]->name);
             if (def->os.loader->type == VIR_DOMAIN_LOADER_TYPE_NONE)
@@ -645,22 +646,36 @@ libxlMakeDomBuildInfo(virDomainDef *def,
             if (def->os.loader->readonly == VIR_TRISTATE_BOOL_ABSENT)
                 def->os.loader->readonly = VIR_TRISTATE_BOOL_YES;
             b_info->u.hvm.bios = LIBXL_BIOS_TYPE_OVMF;
+            b_info->u.hvm.system_firmware = g_strdup(def->os.loader->path);
             def->os.firmware = VIR_DOMAIN_OS_DEF_FIRMWARE_NONE;
         } else if (virDomainDefHasOldStyleUEFI(def)) {
             b_info->u.hvm.bios = LIBXL_BIOS_TYPE_OVMF;
+            b_info->u.hvm.system_firmware = g_strdup(def->os.loader->path);
+        }
+
+        if (def->os.loader) {
+            if (!def->os.loader->format)
+                def->os.loader->format = VIR_STORAGE_FILE_RAW;
+
+            if (def->os.loader->format != VIR_STORAGE_FILE_RAW) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                               _("Unsupported loader format '%1$s'"),
+                               virStorageFileFormatTypeToString(def->os.loader->format));
+                return -1;
+            }
         }
 
         if (def->emulator) {
             if (!virFileExists(def->emulator)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("emulator '%s' not found"),
+                               _("emulator '%1$s' not found"),
                                def->emulator);
                 return -1;
             }
 
             if (!virFileIsExecutable(def->emulator)) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("emulator '%s' is not executable"),
+                               _("emulator '%1$s' is not executable"),
                                def->emulator);
                 return -1;
             }
@@ -787,7 +802,7 @@ libxlMakeDomBuildInfo(virDomainDef *def,
         case VIR_DOMAIN_MEMBALLOON_MODEL_VIRTIO_TRANSITIONAL:
         case VIR_DOMAIN_MEMBALLOON_MODEL_VIRTIO_NON_TRANSITIONAL:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unsupported balloon device model '%s'"),
+                           _("unsupported balloon device model '%1$s'"),
                            virDomainMemballoonModelTypeToString(def->memballoon->model));
             return -1;
         case VIR_DOMAIN_MEMBALLOON_MODEL_NONE:
@@ -881,7 +896,7 @@ libxlMakeVnumaList(virDomainDef *def,
         bitmap = virDomainNumaGetNodeCpumask(numa, i);
         if (bitmap == NULL) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("vnuma sibling %zu missing vcpus set"), i);
+                           _("vnuma sibling %1$zu missing vcpus set"), i);
             goto cleanup;
         }
 
@@ -967,14 +982,14 @@ libxlMakeNetworkDiskSrcStr(virStorageSource *src,
     case VIR_STORAGE_NET_PROTOCOL_LAST:
     case VIR_STORAGE_NET_PROTOCOL_NONE:
         virReportError(VIR_ERR_NO_SUPPORT,
-                       _("Unsupported network block protocol '%s'"),
+                       _("Unsupported network block protocol '%1$s'"),
                        virStorageNetProtocolTypeToString(src->protocol));
         return NULL;
 
     case VIR_STORAGE_NET_PROTOCOL_RBD:
         if (strchr(src->path, ':')) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("':' not allowed in RBD source volume name '%s'"),
+                           _("':' not allowed in RBD source volume name '%1$s'"),
                            src->path);
             return NULL;
         }
@@ -1020,10 +1035,9 @@ libxlMakeNetworkDiskSrcStr(virStorageSource *src,
 static int
 libxlMakeNetworkDiskSrc(virStorageSource *src, char **srcstr)
 {
-    virConnectPtr conn = NULL;
+    g_autoptr(virConnect) conn = NULL;
     g_autofree char *base64secret = NULL;
     char *username = NULL;
-    int ret = -1;
 
     *srcstr = NULL;
     if (src->auth && src->protocol == VIR_STORAGE_NET_PROTOCOL_RBD) {
@@ -1032,16 +1046,16 @@ libxlMakeNetworkDiskSrc(virStorageSource *src, char **srcstr)
         VIR_IDENTITY_AUTORESTORE virIdentity *oldident = virIdentityElevateCurrent();
 
         if (!oldident)
-            goto cleanup;
+            return -1;
 
         username = src->auth->username;
         if (!(conn = virConnectOpen("xen:///system")))
-            goto cleanup;
+            return -1;
 
         if (virSecretGetSecretString(conn, &src->auth->seclookupdef,
                                      VIR_SECRET_USAGE_TYPE_CEPH,
                                      &secret, &secretlen) < 0)
-            goto cleanup;
+            return -1;
 
         /* RBD expects an encoded secret */
         base64secret = g_base64_encode(secret, secretlen);
@@ -1052,13 +1066,9 @@ libxlMakeNetworkDiskSrc(virStorageSource *src, char **srcstr)
     virSecureEraseString(base64secret);
 
     if (!*srcstr)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virObjectUnref(conn);
-    return ret;
+    return 0;
 }
 
 int
@@ -1066,7 +1076,7 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
 {
     const char *driver = virDomainDiskGetDriver(l_disk);
     int format = virDomainDiskGetFormat(l_disk);
-    int actual_type = virStorageSourceGetActualType(l_disk->src);
+    virStorageType actual_type = virStorageSourceGetActualType(l_disk->src);
 
     if (actual_type == VIR_STORAGE_TYPE_NETWORK) {
         if (STRNEQ_NULLABLE(driver, "qemu")) {
@@ -1107,8 +1117,7 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
                 break;
             default:
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("libxenlight does not support disk format %s "
-                                 "with disk driver %s"),
+                               _("libxenlight does not support disk format %1$s with disk driver %2$s"),
                                virStorageFileFormatTypeToString(format),
                                driver);
                 return -1;
@@ -1133,8 +1142,7 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
                 break;
             default:
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("libxenlight does not support disk format %s "
-                                 "with disk driver %s"),
+                               _("libxenlight does not support disk format %1$s with disk driver %2$s"),
                                virStorageFileFormatTypeToString(format),
                                driver);
                 return -1;
@@ -1142,8 +1150,7 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
         } else if (STREQ(driver, "file")) {
             if (format != VIR_STORAGE_FILE_RAW) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("libxenlight does not support disk format %s "
-                                 "with disk driver %s"),
+                               _("libxenlight does not support disk format %1$s with disk driver %2$s"),
                                virStorageFileFormatTypeToString(format),
                                driver);
                 return -1;
@@ -1153,8 +1160,7 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
         } else if (STREQ(driver, "phy")) {
             if (format != VIR_STORAGE_FILE_RAW) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("libxenlight does not support disk format %s "
-                                 "with disk driver %s"),
+                               _("libxenlight does not support disk format %1$s with disk driver %2$s"),
                                virStorageFileFormatTypeToString(format),
                                driver);
                 return -1;
@@ -1163,7 +1169,7 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
             x_disk->backend = LIBXL_DISK_BACKEND_PHY;
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("libxenlight does not support disk driver %s"),
+                           _("libxenlight does not support disk driver %1$s"),
                            driver);
             return -1;
         }
@@ -1191,8 +1197,7 @@ libxlMakeDisk(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
         return -1;
     }
 
-    if (l_disk->domain_name)
-        x_disk->backend_domname = g_strdup(l_disk->domain_name);
+    x_disk->backend_domname = g_strdup(l_disk->domain_name);
 
     return 0;
 }
@@ -1242,6 +1247,10 @@ libxlUpdateDiskDef(virDomainDiskDef *l_disk, libxl_device_disk *x_disk)
         driver = "phy";
         break;
     case LIBXL_DISK_BACKEND_UNKNOWN:
+#ifdef LIBXL_HAVE_DEVICE_DISK_SPECIFICATION
+    case LIBXL_DISK_BACKEND_STANDALONE:
+#endif
+    default:
         break;
     }
     if (driver)
@@ -1273,8 +1282,7 @@ libxlMakeNic(virDomainDef *def,
     if (l_nic->script && !(actual_type == VIR_DOMAIN_NET_TYPE_BRIDGE ||
                            actual_type == VIR_DOMAIN_NET_TYPE_ETHERNET)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("specifying a script is only supported with "
-                         "interface types bridge and ethernet"));
+                       _("specifying a script is only supported with interface types bridge and ethernet"));
         return -1;
     }
 
@@ -1299,8 +1307,7 @@ libxlMakeNic(virDomainDef *def,
             def->os.type == VIR_DOMAIN_OSTYPE_XENPVH) &&
             l_nic->model != VIR_DOMAIN_NET_MODEL_NETFRONT) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("only model 'netfront' is supported for "
-                             "Xen PV(H) domains"));
+                           _("only model 'netfront' is supported for Xen PV(H) domains"));
             return -1;
         }
         x_nic->model = g_strdup(virDomainNetGetModelString(l_nic));
@@ -1365,7 +1372,7 @@ libxlMakeNic(virDomainDef *def,
             break;
         case VIR_DOMAIN_NET_TYPE_NETWORK:
         {
-            if (!(conn = virConnectOpen("xen:///system")))
+            if (!(conn = virGetConnectNetwork()))
                 goto cleanup;
 
             if (!(network =
@@ -1393,9 +1400,11 @@ libxlMakeNic(virDomainDef *def,
         case VIR_DOMAIN_NET_TYPE_DIRECT:
         case VIR_DOMAIN_NET_TYPE_HOSTDEV:
         case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_NULL:
+        case VIR_DOMAIN_NET_TYPE_VDS:
         case VIR_DOMAIN_NET_TYPE_LAST:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                    _("unsupported interface type %s"),
+                    _("unsupported interface type %1$s"),
                     virDomainNetTypeToString(l_nic->type));
             goto cleanup;
     }
@@ -1537,6 +1546,7 @@ libxlMakeVfb(virPortAllocatorRange *graphicsports,
         case VIR_DOMAIN_GRAPHICS_TYPE_DESKTOP:
         case VIR_DOMAIN_GRAPHICS_TYPE_SPICE:
         case VIR_DOMAIN_GRAPHICS_TYPE_EGL_HEADLESS:
+        case VIR_DOMAIN_GRAPHICS_TYPE_DBUS:
         case VIR_DOMAIN_GRAPHICS_TYPE_LAST:
             break;
     }
@@ -1645,14 +1655,14 @@ libxlMakeBuildInfoVfb(virPortAllocatorRange *graphicsports,
 
         switch (l_vfb->data.spice.mousemode) {
             /* client mouse mode is default in xl.cfg */
-        case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_DEFAULT:
-        case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_CLIENT:
+        case VIR_DOMAIN_MOUSE_MODE_DEFAULT:
+        case VIR_DOMAIN_MOUSE_MODE_CLIENT:
             libxl_defbool_set(&b_info->u.hvm.spice.agent_mouse, true);
             break;
-        case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_SERVER:
+        case VIR_DOMAIN_MOUSE_MODE_SERVER:
             libxl_defbool_set(&b_info->u.hvm.spice.agent_mouse, false);
             break;
-        case VIR_DOMAIN_GRAPHICS_SPICE_MOUSE_MODE_LAST:
+        case VIR_DOMAIN_MOUSE_MODE_LAST:
             break;
         }
 
@@ -1713,7 +1723,7 @@ libxlGetAutoballoonConf(libxlDriverConfig *cfg,
                         0, 0, &err);
     if (!regex) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to compile regex %s"), err->message);
+                       _("Failed to compile regex %1$s"), err->message);
         return -1;
     }
 
@@ -1775,10 +1785,9 @@ libxlDriverConfigInit(libxlDriverConfig *cfg)
     uint64_t free_mem;
 
     if (g_mkdir_with_parents(cfg->logDir, 0777) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to create log dir '%s': %s"),
-                       cfg->logDir,
-                       g_strerror(errno));
+        virReportSystemError(errno,
+                             _("failed to create log dir '%1$s'"),
+                             cfg->logDir);
         return -1;
     }
 
@@ -1789,14 +1798,12 @@ libxlDriverConfigInit(libxlDriverConfig *cfg)
     }
 
     if (libxl_ctx_alloc(&cfg->ctx, LIBXL_VERSION, 0, (xentoollog_logger *)cfg->logger)) {
-        VIR_ERROR(_("cannot initialize libxenlight context, probably not "
-                    "running in a Xen Dom0, disabling driver"));
+        VIR_ERROR(_("cannot initialize libxenlight context, probably not running in a Xen Dom0, disabling driver"));
         return -1;
     }
 
     if ((cfg->verInfo = libxl_get_version_info(cfg->ctx)) == NULL) {
-        VIR_ERROR(_("cannot version information from libxenlight, "
-                    "disabling driver"));
+        VIR_ERROR(_("cannot version information from libxenlight, disabling driver"));
         return -1;
     }
     cfg->version = (cfg->verInfo->xen_version_major * 1000000) +
@@ -2182,8 +2189,7 @@ libxlMakeUSB(virDomainHostdevDef *hostdev, libxl_device_usbdev *usbdev)
     } else {
         if (virHostdevFindUSBDevice(hostdev, true, &usb) < 0) {
             virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("failed to find USB device busnum:devnum "
-                             "for %x:%x"),
+                           _("failed to find USB device busnum:devnum for %1$x:%2$x"),
                            usbsrc->vendor, usbsrc->product);
             goto cleanup;
         }
@@ -2364,9 +2370,19 @@ libxlMakeVideo(virDomainDef *def, libxl_domain_config *d_config)
             }
             break;
 
+        case VIR_DOMAIN_VIDEO_TYPE_DEFAULT:
+        case VIR_DOMAIN_VIDEO_TYPE_VMVGA:
+        case VIR_DOMAIN_VIDEO_TYPE_VBOX:
+        case VIR_DOMAIN_VIDEO_TYPE_PARALLELS:
+        case VIR_DOMAIN_VIDEO_TYPE_VIRTIO:
+        case VIR_DOMAIN_VIDEO_TYPE_GOP:
+        case VIR_DOMAIN_VIDEO_TYPE_NONE:
+        case VIR_DOMAIN_VIDEO_TYPE_BOCHS:
+        case VIR_DOMAIN_VIDEO_TYPE_RAMFB:
+        case VIR_DOMAIN_VIDEO_TYPE_LAST:
         default:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("video type %s is not supported by libxl"),
+                           _("video type %1$s is not supported by libxl"),
                            virDomainVideoTypeToString(def->videos[0]->type));
             return -1;
         }
@@ -2397,7 +2413,7 @@ libxlDriverNodeGetInfo(libxlDriverPrivate *driver, virNodeInfoPtr info)
 
     if (virStrcpyStatic(info->model, virArchToString(hostarch)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("host arch %s is too big for destination"),
+                       _("host arch %1$s is too big for destination"),
                        virArchToString(hostarch));
         goto cleanup;
     }
@@ -2482,5 +2498,5 @@ libxlCreateXMLConf(libxlDriverPrivate *driver)
     return virDomainXMLOptionNew(&libxlDomainDefParserConfig,
                                  &libxlDomainXMLPrivateDataCallbacks,
                                  &libxlDriverDomainXMLNamespace,
-                                 NULL, NULL);
+                                 NULL, NULL, NULL);
 }

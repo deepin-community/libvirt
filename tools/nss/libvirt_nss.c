@@ -53,6 +53,7 @@
 
 #define LIBVIRT_ALIGN(x) (((x) + __SIZEOF_POINTER__ - 1) & ~(__SIZEOF_POINTER__ - 1))
 #define FAMILY_ADDRESS_SIZE(family) ((family) == AF_INET6 ? 16 : 4)
+#define G_N_ELEMENTS(Array) (sizeof(Array) / sizeof(*(Array)))
 
 static int
 leaseAddressSorter(const void *a,
@@ -463,61 +464,79 @@ ns_mtab methods[] = {
 };
 
 static void
-aiforaf(const char *name, int af, struct addrinfo *pai, struct addrinfo **aip)
+aiforaf(const char *name,
+        int af,
+        struct addrinfo *pai,
+        struct addrinfo **aip)
 {
-    int ret;
     struct hostent resolved;
-    char buf[1024] = { 0 };
-    int err, herr;
-    struct addrinfo hints, *res0, *res;
+    int err;
     char **addrList;
 
-    if ((ret = NSS_NAME(gethostbyname2)(name, af, &resolved,
-                                        buf, sizeof(buf),
-                                        &err, &herr)) != NS_SUCCESS)
-        return;
+    /* Note: The do-while blocks in this function are used to scope off large
+     * stack allocated buffers, which are not needed at the same time */
+    do {
+        char buf[1024] = { 0 };
+        int herr;
+
+        if (NSS_NAME(gethostbyname2)(name, af, &resolved,
+                                     buf, sizeof(buf),
+                                     &err, &herr) != NS_SUCCESS)
+            return;
+    } while (false);
 
     addrList = resolved.h_addr_list;
     while (*addrList) {
-        union {
-            struct sockaddr sa;
-            struct sockaddr_in sin;
-            struct sockaddr_in6 sin6;
-        } sa;
-        socklen_t salen;
         void *address = *addrList;
         char host[NI_MAXHOST];
-        char port[NI_MAXSERV];
+        struct addrinfo *res0;
+        struct addrinfo *res;
 
-        memset(&sa, 0, sizeof(sa));
-        if (resolved.h_addrtype == AF_INET) {
-            sa.sin.sin_family = AF_INET;
-            memcpy(&sa.sin.sin_addr.s_addr,
-                   address,
-                   FAMILY_ADDRESS_SIZE(AF_INET));
-            salen = sizeof(sa.sin);
-        } else {
-            sa.sin6.sin6_family = AF_INET6;
-            memcpy(&sa.sin6.sin6_addr.s6_addr,
-                   address,
-                   FAMILY_ADDRESS_SIZE(AF_INET6));
-            salen = sizeof(sa.sin6);
-        }
+        do  {
+            union {
+                struct sockaddr sa;
+                struct sockaddr_in sin;
+                struct sockaddr_in6 sin6;
+            } sa = { 0 };
+            socklen_t salen;
 
-        if ((err = getnameinfo(&sa.sa, salen,
-                               host, sizeof(host),
-                               port, sizeof(port),
-                               NI_NUMERICHOST | NI_NUMERICSERV)) != 0) {
+            if (resolved.h_addrtype == AF_INET) {
+                sa.sin.sin_family = AF_INET;
+                memcpy(&sa.sin.sin_addr.s_addr,
+                       address,
+                       FAMILY_ADDRESS_SIZE(AF_INET));
+                salen = sizeof(sa.sin);
+            } else {
+                sa.sin6.sin6_family = AF_INET6;
+                memcpy(&sa.sin6.sin6_addr.s6_addr,
+                       address,
+                       FAMILY_ADDRESS_SIZE(AF_INET6));
+                salen = sizeof(sa.sin6);
+            }
+
+            err = getnameinfo(&sa.sa, salen,
+                              host, sizeof(host),
+                              NULL, 0,
+                              NI_NUMERICHOST | NI_NUMERICSERV);
+        } while (false);
+
+        if (err != 0) {
             ERROR("Cannot convert socket address to string: %s",
                   gai_strerror(err));
             continue;
         }
 
-        hints = *pai;
-        hints.ai_flags = AI_NUMERICHOST;
-        hints.ai_family = af;
+        do {
+            struct addrinfo hints;
 
-        if (getaddrinfo(host, NULL, &hints, &res0)) {
+            hints = *pai;
+            hints.ai_flags = AI_NUMERICHOST;
+            hints.ai_family = af;
+
+            err = getaddrinfo(host, NULL, &hints, &res0);
+        } while (false);
+
+        if (err != 0) {
             addrList++;
             continue;
         }
@@ -538,14 +557,13 @@ _nss_compat_getaddrinfo(void *retval,
                         void *mdata __attribute__((unused)),
                         va_list ap)
 {
-    struct addrinfo sentinel, *cur, *ai;
+    struct addrinfo sentinel = { 0 };
+    struct addrinfo *cur = &sentinel;
+    struct addrinfo *ai;
     const char *name;
 
     name  = va_arg(ap, char *);
     ai = va_arg(ap, struct addrinfo *);
-
-    memset(&sentinel, 0, sizeof(sentinel));
-    cur = &sentinel;
 
     if ((ai->ai_family == AF_UNSPEC) || (ai->ai_family == AF_INET6))
         aiforaf(name, AF_INET6, ai, &cur);
@@ -595,7 +613,7 @@ nss_module_register(const char *name __attribute__((unused)),
                     unsigned int *size,
                     nss_module_unregister_fn *unregister)
 {
-    *size = sizeof(methods) / sizeof(methods[0]);
+    *size = G_N_ELEMENTS(methods);
     *unregister = NULL;
     return methods;
 }

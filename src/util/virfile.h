@@ -61,6 +61,11 @@ static inline void virForceCloseHelper(int *fd)
     ignore_value(virFileClose(fd, VIR_FILE_CLOSE_PRESERVE_ERRNO));
 }
 
+int virCloseRange(unsigned int from, unsigned int to);
+int virCloseRangeInit(void);
+bool virCloseRangeIsSupported(void);
+int virCloseFrom(int fromfd);
+
 /* For use on normal paths; caller must check return value,
    and failure sets errno per close. */
 #define VIR_CLOSE(FD) virFileClose(&(FD), 0)
@@ -119,9 +124,9 @@ int virFileWrapperFdClose(virFileWrapperFd *dfd);
 void virFileWrapperFdFree(virFileWrapperFd *dfd);
 
 int virFileLock(int fd, bool shared, off_t start, off_t len, bool waitForLock)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;
 int virFileUnlock(int fd, off_t start, off_t len)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;
 
 typedef int (*virFileRewriteFunc)(int fd,
                                   const char *path,
@@ -188,7 +193,10 @@ int virFileIsLink(const char *linkpath)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
 char *virFindFileInPath(const char *file)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;
+char *virFindFileInPathFull(const char *file,
+                            const char *const *extraDirs)
+    G_NO_INLINE;
 
 char *virFileFindResource(const char *filename,
                           const char *builddir,
@@ -207,24 +215,26 @@ void virFileActivateDirOverrideForLib(void);
 
 off_t virFileLength(const char *path, int fd) ATTRIBUTE_NONNULL(1);
 bool virFileIsDir (const char *file) ATTRIBUTE_NONNULL(1);
-bool virFileExists(const char *file) ATTRIBUTE_NONNULL(1) G_GNUC_NO_INLINE;
+bool virFileExists(const char *file) ATTRIBUTE_NONNULL(1) G_NO_INLINE;
 bool virFileIsExecutable(const char *file) ATTRIBUTE_NONNULL(1);
 bool virFileIsRegular(const char *file) ATTRIBUTE_NONNULL(1);
 
 enum {
     VIR_FILE_SHFS_NFS = (1 << 0),
-    VIR_FILE_SHFS_GFS2 = (1 << 1),
-    VIR_FILE_SHFS_OCFS = (1 << 2),
-    VIR_FILE_SHFS_AFS = (1 << 3),
-    VIR_FILE_SHFS_SMB = (1 << 4),
-    VIR_FILE_SHFS_CIFS = (1 << 5),
+    VIR_FILE_SHFS_GFS2 = (1 << 1), /* Global File System 2 */
+    VIR_FILE_SHFS_OCFS = (1 << 2), /* Oracle Cluster FS (2) */
+    VIR_FILE_SHFS_AFS = (1 << 3), /* Andrew File System */
+    VIR_FILE_SHFS_SMB = (1 << 4), /* Server message block - windows shares */
+    VIR_FILE_SHFS_CIFS = (1 << 5), /* Common Internet File System - windows shares */
     VIR_FILE_SHFS_CEPH = (1 << 6),
-    VIR_FILE_SHFS_GPFS = (1 << 7),
-    VIR_FILE_SHFS_QB = (1 << 8),
-    VIR_FILE_SHFS_ACFS = (1 << 9),
+    VIR_FILE_SHFS_GPFS = (1 << 7), /* General Parallel File System/IBM Spectrum Scale */
+    VIR_FILE_SHFS_QB = (1 << 8), /* Quobyte shared filesystem */
+    VIR_FILE_SHFS_ACFS = (1 << 9), /* Oracle ASM Cluster File System */
+    VIR_FILE_SHFS_GLUSTERFS = (1 << 10), /* gluster's FUSE-based client */
+    VIR_FILE_SHFS_BEEGFS = (1 << 11), /* BeeGFS/fhGFS */
 };
 
-int virFileIsSharedFSType(const char *path, int fstypes) ATTRIBUTE_NONNULL(1);
+int virFileIsSharedFSType(const char *path, unsigned int fstypes) ATTRIBUTE_NONNULL(1);
 int virFileIsSharedFS(const char *path) ATTRIBUTE_NONNULL(1);
 int virFileIsClusterFS(const char *path) ATTRIBUTE_NONNULL(1);
 int virFileIsMountPoint(const char *file) ATTRIBUTE_NONNULL(1);
@@ -241,7 +251,7 @@ int virFileGetMountReverseSubtree(const char *mtabpath,
                                   size_t *nmountsret) G_GNUC_WARN_UNUSED_RESULT;
 
 char *virFileSanitizePath(const char *path);
-char *virFileCanonicalizePath(const char *path) G_GNUC_NO_INLINE;
+char *virFileCanonicalizePath(const char *path) G_NO_INLINE;
 
 enum {
     VIR_FILE_OPEN_NONE        = 0,
@@ -279,6 +289,9 @@ int virDirRead(DIR *dirp, struct dirent **ent, const char *dirname)
     ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) G_GNUC_WARN_UNUSED_RESULT;
 void virDirClose(DIR *dirp);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(DIR, virDirClose);
+int virDirIsEmpty(const char *path,
+                  bool hidden)
+    ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
 int virFileMakeParentPath(const char *path) G_GNUC_WARN_UNUSED_RESULT;
 
@@ -363,23 +376,25 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virFileWrapperFd, virFileWrapperFdFree);
 int virFileGetXAttr(const char *path,
                     const char *name,
                     char **value)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;
 
 int virFileGetXAttrQuiet(const char *path,
                          const char *name,
                          char **value)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;
 
 int virFileSetXAttr(const char *path,
                     const char *name,
                     const char *value)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;
 
 int virFileRemoveXAttr(const char *path,
                        const char *name)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;
 
 int virFileDataSync(int fd);
 
 int virFileSetCOW(const char *path,
                   virTristateBool state);
+
+off_t virFileDiskCopy(int disk_fd, const char *disk_path, int remote_fd, const char *remote_path);

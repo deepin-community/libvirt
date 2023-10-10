@@ -3,14 +3,14 @@
 set -e
 
 # summary of how this script can be called:
-#        * <postinst> `configure' <most-recently-configured-version>
-#        * <old-postinst> `abort-upgrade' <new version>
-#        * <conflictor's-postinst> `abort-remove' `in-favour' <package>
-#          <new-version>
-#        * <postinst> `abort-remove'
-#        * <deconfigured's-postinst> `abort-deconfigure' `in-favour'
-#          <failed-install-package> <version> `removing'
-#          <conflicting-package> <version>
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
@@ -85,6 +85,22 @@ finish_conffile_transfer() {
     fi
 }
 
+systemd_daemon_reload() {
+    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+    fi
+}
+
+systemd_unit_restart_if_active() {
+    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+        for unit in "$@"; do
+            if systemctl is-active -q "$unit"; then
+                deb-systemd-invoke restart "$unit" >/dev/null || true
+            fi
+        done
+    fi
+}
+
 NWFILTERS="
     allow-arp
     allow-dhcp
@@ -144,15 +160,8 @@ case "$1" in
 
         # Since we might have changed the on-disk configuration for some
         # services, restart them so that they can pick up the new settings
-        if [ -d /run/systemd/system ]; then
-            systemctl --system daemon-reload >/dev/null || true
-            if systemctl is-active -q virtnwfilterd; then
-                systemctl restart virtnwfilterd
-            fi
-            if systemctl is-active -q libvirtd; then
-                systemctl restart libvirtd
-            fi
-        fi
+        systemd_daemon_reload
+        systemd_unit_restart_if_active libvirtd.service
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

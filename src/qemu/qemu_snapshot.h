@@ -19,7 +19,6 @@
 #pragma once
 
 #include "virconftypes.h"
-#include "datatypes.h"
 #include "qemu_conf.h"
 #include "qemu_domainjob.h"
 
@@ -51,6 +50,10 @@ qemuSnapshotRevert(virDomainObj *vm,
                    unsigned int flags);
 
 int
+qemuSnapshotDiscardAllMetadata(virQEMUDriver *driver,
+                               virDomainObj *vm);
+
+int
 qemuSnapshotDelete(virDomainObj *vm,
                    virDomainSnapshotPtr snapshot,
                    unsigned int flags);
@@ -61,7 +64,7 @@ typedef struct _qemuSnapshotDiskContext qemuSnapshotDiskContext;
 qemuSnapshotDiskContext *
 qemuSnapshotDiskContextNew(size_t ndisks,
                            virDomainObj *vm,
-                           qemuDomainAsyncJob asyncJob);
+                           virDomainAsyncJob asyncJob);
 
 void
 qemuSnapshotDiskContextCleanup(qemuSnapshotDiskContext *snapctxt);

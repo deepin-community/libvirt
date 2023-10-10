@@ -6,54 +6,39 @@ Include local apparmor profile
 
 Forwarded: not-needed
 ---
- src/security/apparmor/libvirt-lxc                       | 3 +++
- src/security/apparmor/libvirt-qemu                      | 3 +++
- src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in | 1 +
- src/security/apparmor/usr.sbin.libvirtd.in              | 3 +++
- 4 files changed, 10 insertions(+)
+ src/security/apparmor/libvirt-lxc.in  | 7 +++++++
+ src/security/apparmor/libvirt-qemu.in | 7 +++++++
+ 2 files changed, 14 insertions(+)
 
-diff --git a/src/security/apparmor/libvirt-lxc b/src/security/apparmor/libvirt-lxc
-index 0c8b812..72278b5 100644
---- a/src/security/apparmor/libvirt-lxc
-+++ b/src/security/apparmor/libvirt-lxc
-@@ -116,3 +116,6 @@
-   deny /sys/fs/cgrou[^p]*{,/**} wklx,
-   deny /sys/fs/cgroup?*{,/**} wklx,
-   deny /sys/fs?*{,/**} wklx,
-+
-+  # Site-specific additions and overrides. See local/README for details.
-+  #include <local/abstractions/libvirt-lxc>
-diff --git a/src/security/apparmor/libvirt-qemu b/src/security/apparmor/libvirt-qemu
-index 250ba4e..1b0d7e3 100644
---- a/src/security/apparmor/libvirt-qemu
-+++ b/src/security/apparmor/libvirt-qemu
-@@ -252,3 +252,6 @@
-   # required for QEMU accessing UEFI nvram variables
-   owner /var/lib/libvirt/qemu/nvram/*_VARS.fd rwk,
-   owner /var/lib/libvirt/qemu/nvram/*_VARS.ms.fd rwk,
-+
-+  # Site-specific additions and overrides. See local/README for details.
-+  #include <local/abstractions/libvirt-qemu>
-diff --git a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
-index ff1d46b..5a50823 100644
---- a/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
-+++ b/src/security/apparmor/usr.lib.libvirt.virt-aa-helper.in
-@@ -71,5 +71,6 @@ profile virt-aa-helper @libexecdir@/virt-aa-helper {
-   /**.[iI][sS][oO] r,
-   /**/disk{,.*} r,
+diff --git a/src/security/apparmor/libvirt-lxc.in b/src/security/apparmor/libvirt-lxc.in
+index ffe4d8f..2973b00 100644
+--- a/src/security/apparmor/libvirt-lxc.in
++++ b/src/security/apparmor/libvirt-lxc.in
+@@ -119,4 +119,11 @@
  
-+  # Site-specific additions and overrides. See local/README for details.
-   #include <local/usr.lib.libvirt.virt-aa-helper>
- }
-diff --git a/src/security/apparmor/usr.sbin.libvirtd.in b/src/security/apparmor/usr.sbin.libvirtd.in
-index f2ab6ff..b0d6af8 100644
---- a/src/security/apparmor/usr.sbin.libvirtd.in
-+++ b/src/security/apparmor/usr.sbin.libvirtd.in
-@@ -137,4 +137,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
- 
-    /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper rmix,
-   }
+ @BEGIN_APPARMOR_3@
+   include if exists <abstractions/libvirt-lxc.d>
 +
-+  # Site-specific additions and overrides. See local/README for details.
-+  #include <local/usr.sbin.libvirtd>
- }
++  ### DEPRECATED ###
++  # Debian-specific override file
++  # Please use <abstractions/libvirt-lxc.d/...> instead
++  # Support for this override will be removed in a future release
++  ### DEPRECATED ###
++  include if exists <local/abstractions/libvirt-lxc>
+ @END_APPARMOR_3@
+diff --git a/src/security/apparmor/libvirt-qemu.in b/src/security/apparmor/libvirt-qemu.in
+index 53f45c3..b5433ea 100644
+--- a/src/security/apparmor/libvirt-qemu.in
++++ b/src/security/apparmor/libvirt-qemu.in
+@@ -274,4 +274,11 @@
+ 
+ @BEGIN_APPARMOR_3@
+   include if exists <abstractions/libvirt-qemu.d>
++
++  ### DEPRECATED ###
++  # Debian-specific override file
++  # Please use <abstractions/libvirt-qemu.d/...> instead
++  # Support for this override will be removed in a future release
++  ### DEPRECATED ###
++  include if exists <local/abstractions/libvirt-qemu>
+ @END_APPARMOR_3@

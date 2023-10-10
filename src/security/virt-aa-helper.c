@@ -96,7 +96,7 @@ vahDeinit(vahControl * ctl)
 static void
 vah_usage(void)
 {
-    printf(_("\n%s mode [options] [extra file] [< def.xml]\n\n"
+    printf(_("\n%1$s mode [options] [extra file] [< def.xml]\n\n"
             "  Modes:\n"
             "    -a | --add                     load profile\n"
             "    -c | --create                  create profile from template\n"
@@ -112,15 +112,14 @@ vah_usage(void)
             "    -F | --append-file <file>      append file to an existing profile\n"
             "\n"), progname);
 
-    puts(_("This command is intended to be used by libvirtd "
-           "and not used directly.\n"));
+    puts(_("This command is intended to be used by libvirtd and not used directly.\n"));
     return;
 }
 
 static void
 vah_error(vahControl * ctl, int doexit, const char *str)
 {
-    fprintf(stderr, _("%s: error: %s%c"), progname, str, '\n');
+    fprintf(stderr, _("%1$s: error: %2$s%3$c"), progname, str, '\n');
 
     if (doexit) {
         if (ctl != NULL)
@@ -132,13 +131,13 @@ vah_error(vahControl * ctl, int doexit, const char *str)
 static void
 vah_warning(const char *str)
 {
-    fprintf(stderr, _("%s: warning: %s%c"), progname, str, '\n');
+    fprintf(stderr, _("%1$s: warning: %2$s%3$c"), progname, str, '\n');
 }
 
 static void
 vah_info(const char *str)
 {
-    fprintf(stderr, _("%s:\n%s%c"), progname, str, '\n');
+    fprintf(stderr, _("%1$s:\n%2$s%3$c"), progname, str, '\n');
 }
 
 /*
@@ -476,11 +475,14 @@ valid_path(const char *path, const bool readonly)
         "/initrd",
         "/initrd.img",
         "/usr/share/edk2/",
-        "/usr/share/OVMF/",              /* for OVMF images */
-        "/usr/share/ovmf/",              /* for OVMF images */
-        "/usr/share/AAVMF/",             /* for AAVMF images */
-        "/usr/share/qemu-efi/",          /* for AAVMF images */
-        "/usr/share/qemu-efi-aarch64/"   /* for AAVMF images */
+        "/usr/share/OVMF/",                  /* for OVMF images */
+        "/usr/share/ovmf/",                  /* for OVMF images */
+        "/usr/share/AAVMF/",                 /* for AAVMF images */
+        "/usr/share/qemu-efi/",              /* for AAVMF images */
+        "/usr/share/qemu-efi-aarch64/",      /* for AAVMF images */
+        "/usr/share/qemu/",                  /* SUSE path for OVMF and AAVMF images */
+        "/usr/lib/u-boot/",                  /* u-boot loaders for qemu */
+        "/usr/lib/riscv64-linux-gnu/opensbi" /* RISC-V SBI implementation */
     };
     /* override the above with these */
     const char * const override[] = {
@@ -571,13 +573,8 @@ caps_mockup(vahControl * ctl, const char *xmlStr)
     g_autoptr(xmlXPathContext) ctxt = NULL;
     char *arch;
 
-    if (!(xml = virXMLParseStringCtxt(xmlStr, _("(domain_definition)"),
-                                      &ctxt))) {
-        return -1;
-    }
-
-    if (!virXMLNodeNameEqual(ctxt->node, "domain")) {
-        vah_error(NULL, 0, _("unexpected root element, expecting <domain>"));
+    if (!(xml = virXMLParse(NULL, xmlStr, _("(domain_definition)"),
+                            "domain", &ctxt, NULL, false))) {
         return -1;
     }
 
@@ -610,7 +607,8 @@ virDomainDefParserConfig virAAHelperDomainDefParserConfig = {
     .features = VIR_DOMAIN_DEF_FEATURE_MEMORY_HOTPLUG |
                 VIR_DOMAIN_DEF_FEATURE_OFFLINE_VCPUPIN |
                 VIR_DOMAIN_DEF_FEATURE_INDIVIDUAL_VCPUS |
-                VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING,
+                VIR_DOMAIN_DEF_FEATURE_NET_MODEL_STRING |
+                VIR_DOMAIN_DEF_FEATURE_DISK_FD,
 };
 
 static int
@@ -632,7 +630,7 @@ get_definition(vahControl * ctl, const char *xmlStr)
     }
 
     if (!(ctl->xmlopt = virDomainXMLOptionNew(&virAAHelperDomainDefParserConfig,
-                                              NULL, NULL, NULL, NULL))) {
+                                              NULL, NULL, NULL, NULL, NULL))) {
         vah_error(ctl, 0, _("Failed to create XML config object"));
         return -1;
     }
@@ -1006,9 +1004,10 @@ get_files(vahControl * ctl)
         if (vah_add_file(&buf, ctl->def->os.loader->path, "rk") != 0)
             goto cleanup;
 
-    if (ctl->def->os.loader && ctl->def->os.loader->nvram)
-        if (vah_add_file(&buf, ctl->def->os.loader->nvram, "rwk") != 0)
+    if (ctl->def->os.loader && ctl->def->os.loader->nvram) {
+        if (storage_source_add_files(ctl->def->os.loader->nvram, &buf, 0) < 0)
             goto cleanup;
+    }
 
     for (i = 0; i < ctl->def->ngraphics; i++) {
         virDomainGraphicsDef *graphics = ctl->def->graphics[i];
@@ -1050,6 +1049,10 @@ get_files(vahControl * ctl)
         if (ctl->def->hostdevs[i]) {
             virDomainHostdevDef *dev = ctl->def->hostdevs[i];
             virDomainHostdevSubsysUSB *usbsrc = &dev->source.subsys.u.usb;
+
+            if (dev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS)
+                continue;
+
             switch (dev->source.subsys.type) {
             case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
                 virUSBDevice *usb =
@@ -1103,6 +1106,9 @@ get_files(vahControl * ctl)
                 break;
             }
 
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+            case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
             default:
                 rc = 0;
                 break;
@@ -1147,10 +1153,23 @@ get_files(vahControl * ctl)
     }
 
     for (i = 0; i < ctl->def->nmems; i++) {
-        if (ctl->def->mems[i] &&
-                ctl->def->mems[i]->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM) {
-            if (vah_add_file(&buf, ctl->def->mems[i]->nvdimmPath, "rw") != 0)
+        virDomainMemoryDef *mem = ctl->def->mems[i];
+
+        switch (mem->model) {
+        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+            if (vah_add_file(&buf, mem->source.nvdimm.path, "rw") != 0)
                 goto cleanup;
+            break;
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+            if (vah_add_file(&buf, mem->source.virtio_pmem.path, "rw") != 0)
+                goto cleanup;
+            break;
+        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        case VIR_DOMAIN_MEMORY_MODEL_LAST:
+            break;
         }
     }
 
@@ -1211,7 +1230,7 @@ get_files(vahControl * ctl)
 
             shortName = virDomainDefGetShortName(ctl->def);
 
-            switch (ctl->def->tpms[i]->version) {
+            switch (ctl->def->tpms[i]->data.emulator.version) {
             case VIR_DOMAIN_TPM_VERSION_1_2:
                 tpmpath = "tpm1.2";
                 break;
@@ -1284,7 +1303,7 @@ get_files(vahControl * ctl)
         for (i = 0; i < ctl->def->nnets; i++) {
             virDomainNetDef *net = ctl->def->nets[i];
             if (net && virDomainNetGetModelString(net)) {
-                if (net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_QEMU)
+                if (net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_QEMU)
                     continue;
                 if (!virDomainNetIsVirtioModel(net))
                     continue;
@@ -1316,7 +1335,7 @@ get_files(vahControl * ctl)
         virBufferAddLit(&buf, "  \"/dev/nvidiactl\" rw,\n");
         virBufferAddLit(&buf, "  # Probe DRI device attributes\n");
         virBufferAddLit(&buf, "  \"/dev/dri/\" r,\n");
-        virBufferAddLit(&buf, "  \"/sys/devices/**/{uevent,vendor,device,subsystem_vendor,subsystem_device}\" r,\n");
+        virBufferAddLit(&buf, "  \"/sys/devices/**/{uevent,vendor,device,subsystem_vendor,subsystem_device,config,revision}\" r,\n");
         virBufferAddLit(&buf, "  # dri libs will trigger that, but t is not requited and DAC would deny it anyway\n");
         virBufferAddLit(&buf, "  deny \"/var/lib/libvirt/.cache/\" w,\n");
     }
@@ -1339,17 +1358,17 @@ vahParseArgv(vahControl * ctl, int argc, char **argv)
 {
     int arg, idx = 0;
     struct option opt[] = {
-        {"add", 0, 0, 'a'},
-        {"create", 0, 0, 'c'},
-        {"dryrun", 0, 0, 'd'},
-        {"delete", 0, 0, 'D'},
-        {"add-file", 0, 0, 'f'},
-        {"append-file", 0, 0, 'F'},
-        {"help", 0, 0, 'h'},
-        {"replace", 0, 0, 'r'},
-        {"remove", 0, 0, 'R'},
-        {"uuid", 1, 0, 'u'},
-        {0, 0, 0, 0}
+        { "add", 0, 0, 'a' },
+        { "create", 0, 0, 'c' },
+        { "dryrun", 0, 0, 'd' },
+        { "delete", 0, 0, 'D' },
+        { "add-file", 0, 0, 'f' },
+        { "append-file", 0, 0, 'F' },
+        { "help", 0, 0, 'h' },
+        { "replace", 0, 0, 'r' },
+        { "remove", 0, 0, 'R' },
+        { "uuid", 1, 0, 'u' },
+        { 0, 0, 0, 0 },
     };
 
     while ((arg = getopt_long(argc, argv, "acdDhrRH:b:u:p:f:F:", opt,
@@ -1433,7 +1452,8 @@ vahParseArgv(vahControl * ctl, int argc, char **argv)
 int
 main(int argc, char **argv)
 {
-    vahControl _ctl, *ctl = &_ctl;
+    vahControl _ctl = { 0 };
+    vahControl *ctl = &_ctl;
     int rc = -1;
     char *profile = NULL;
     char *include_file = NULL;
@@ -1442,7 +1462,7 @@ main(int argc, char **argv)
 
     if (virGettextInitialize() < 0 ||
         virErrorInitialize() < 0) {
-        fprintf(stderr, _("%s: initialization failed\n"), argv[0]);
+        fprintf(stderr, _("%1$s: initialization failed\n"), argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -1465,8 +1485,6 @@ main(int argc, char **argv)
         progname = argv[0];
     else
         progname++;
-
-    memset(ctl, 0, sizeof(vahControl));
 
     if (vahParseArgv(ctl, argc, argv) != 0)
         vah_error(ctl, 1, _("could not parse arguments"));
@@ -1497,7 +1515,7 @@ main(int argc, char **argv)
                 size = virFileLength(profile, -1);
                 if (size == 0) {
                         vah_warning(_("Profile of 0 size detected, will attempt to remove it"));
-                        if ((rc = parserRemove(ctl->uuid) != 0))
+                        if ((rc = parserRemove(ctl->uuid)) != 0)
                                 vah_error(ctl, 1, _("could not remove profile"));
                         unlink(profile);
                         purged = true;

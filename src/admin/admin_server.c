@@ -21,15 +21,11 @@
 #include <config.h>
 
 #include "admin_server.h"
-#include "datatypes.h"
-#include "viralloc.h"
 #include "virerror.h"
 #include "viridentity.h"
 #include "virlog.h"
 #include "rpc/virnetdaemon.h"
 #include "rpc/virnetserver.h"
-#include "virstring.h"
-#include "virthreadpool.h"
 #include "virtypedparam.h"
 
 #define VIR_FROM_THIS VIR_FROM_ADMIN
@@ -80,7 +76,7 @@ adminServerGetThreadPoolParameters(virNetServer *srv,
     size_t freeWorkers;
     size_t nPrioWorkers;
     size_t jobQueueDepth;
-    g_autoptr(virTypedParamList) paramlist = g_new0(virTypedParamList, 1);
+    g_autoptr(virTypedParamList) paramlist = virTypedParamListNew();
 
     virCheckFlags(0, -1);
 
@@ -93,31 +89,15 @@ adminServerGetThreadPoolParameters(virNetServer *srv,
         return -1;
     }
 
-    if (virTypedParamListAddUInt(paramlist, minWorkers,
-                                 "%s", VIR_THREADPOOL_WORKERS_MIN) < 0)
-        return -1;
+    virTypedParamListAddUInt(paramlist, minWorkers, VIR_THREADPOOL_WORKERS_MIN);
+    virTypedParamListAddUInt(paramlist, maxWorkers, VIR_THREADPOOL_WORKERS_MAX);
+    virTypedParamListAddUInt(paramlist, nWorkers, VIR_THREADPOOL_WORKERS_CURRENT);
+    virTypedParamListAddUInt(paramlist, freeWorkers, VIR_THREADPOOL_WORKERS_FREE);
+    virTypedParamListAddUInt(paramlist, nPrioWorkers, VIR_THREADPOOL_WORKERS_PRIORITY);
+    virTypedParamListAddUInt(paramlist, jobQueueDepth, VIR_THREADPOOL_JOB_QUEUE_DEPTH);
 
-    if (virTypedParamListAddUInt(paramlist, maxWorkers,
-                                 "%s", VIR_THREADPOOL_WORKERS_MAX) < 0)
+    if (virTypedParamListSteal(paramlist, params, nparams) < 0)
         return -1;
-
-    if (virTypedParamListAddUInt(paramlist, nWorkers,
-                                 "%s", VIR_THREADPOOL_WORKERS_CURRENT) < 0)
-        return -1;
-
-    if (virTypedParamListAddUInt(paramlist, freeWorkers,
-                                 "%s", VIR_THREADPOOL_WORKERS_FREE) < 0)
-        return -1;
-
-    if (virTypedParamListAddUInt(paramlist, nPrioWorkers,
-                                 "%s", VIR_THREADPOOL_WORKERS_PRIORITY) < 0)
-        return -1;
-
-    if (virTypedParamListAddUInt(paramlist, jobQueueDepth,
-                                 "%s", VIR_THREADPOOL_JOB_QUEUE_DEPTH) < 0)
-        return -1;
-
-    *nparams = virTypedParamListStealParams(paramlist, params);
 
     return 0;
 }
@@ -204,7 +184,7 @@ adminClientGetInfo(virNetServerClient *client,
     bool readonly;
     g_autofree char *sock_addr = NULL;
     const char *attr = NULL;
-    g_autoptr(virTypedParamList) paramlist = g_new0(virTypedParamList, 1);
+    g_autoptr(virTypedParamList) paramlist = virTypedParamListNew();
     g_autoptr(virIdentity) identity = NULL;
     int rc;
 
@@ -214,76 +194,58 @@ adminClientGetInfo(virNetServerClient *client,
                                   &sock_addr, &identity) < 0)
         return -1;
 
-    if (virTypedParamListAddBoolean(paramlist, readonly,
-                                    "%s", VIR_CLIENT_INFO_READONLY) < 0)
-        return -1;
+    virTypedParamListAddBoolean(paramlist, readonly, VIR_CLIENT_INFO_READONLY);
 
     if ((rc = virIdentityGetSASLUserName(identity, &attr)) < 0)
         return -1;
-    if (rc == 1 &&
-        virTypedParamListAddString(paramlist, attr,
-                                   "%s", VIR_CLIENT_INFO_SASL_USER_NAME) < 0)
-        return -1;
+    if (rc == 1)
+        virTypedParamListAddString(paramlist, attr, VIR_CLIENT_INFO_SASL_USER_NAME);
 
     if (!virNetServerClientIsLocal(client)) {
-        if (virTypedParamListAddString(paramlist, sock_addr,
-                                       "%s", VIR_CLIENT_INFO_SOCKET_ADDR) < 0)
-            return -1;
+        virTypedParamListAddString(paramlist, sock_addr, VIR_CLIENT_INFO_SOCKET_ADDR);
 
         if ((rc = virIdentityGetX509DName(identity, &attr)) < 0)
             return -1;
-        if (rc == 1 &&
-            virTypedParamListAddString(paramlist, attr,
-                                       "%s", VIR_CLIENT_INFO_X509_DISTINGUISHED_NAME) < 0)
-            return -1;
+        if (rc == 1)
+            virTypedParamListAddString(paramlist, attr, VIR_CLIENT_INFO_X509_DISTINGUISHED_NAME);
     } else {
         pid_t pid;
         uid_t uid;
         gid_t gid;
         if ((rc = virIdentityGetUNIXUserID(identity, &uid)) < 0)
             return -1;
-        if (rc == 1 &&
-            virTypedParamListAddInt(paramlist, uid,
-                                    "%s", VIR_CLIENT_INFO_UNIX_USER_ID) < 0)
-            return -1;
+        if (rc == 1)
+            virTypedParamListAddInt(paramlist, uid, VIR_CLIENT_INFO_UNIX_USER_ID);
 
         if ((rc = virIdentityGetUserName(identity, &attr)) < 0)
             return -1;
-        if (rc == 1 &&
-            virTypedParamListAddString(paramlist, attr,
-                                       "%s", VIR_CLIENT_INFO_UNIX_USER_NAME) < 0)
-            return -1;
+        if (rc == 1)
+            virTypedParamListAddString(paramlist, attr, VIR_CLIENT_INFO_UNIX_USER_NAME);
 
         if ((rc = virIdentityGetUNIXGroupID(identity, &gid)) < 0)
             return -1;
-        if (rc == 1 &&
-            virTypedParamListAddInt(paramlist, gid,
-                                    "%s", VIR_CLIENT_INFO_UNIX_GROUP_ID) < 0)
-            return -1;
+        if (rc == 1)
+            virTypedParamListAddInt(paramlist, gid, VIR_CLIENT_INFO_UNIX_GROUP_ID);
 
         if ((rc = virIdentityGetGroupName(identity, &attr)) < 0)
             return -1;
-        if (rc == 1 &&
-            virTypedParamListAddString(paramlist, attr,
-                                       "%s", VIR_CLIENT_INFO_UNIX_GROUP_NAME) < 0)
-            return -1;
+        if (rc == 1)
+            virTypedParamListAddString(paramlist, attr, VIR_CLIENT_INFO_UNIX_GROUP_NAME);
 
         if ((rc = virIdentityGetProcessID(identity, &pid)) < 0)
             return -1;
-        if (rc == 1 &&
-            virTypedParamListAddInt(paramlist, pid,
-                                    "%s", VIR_CLIENT_INFO_UNIX_PROCESS_ID) < 0)
-            return -1;
+        if (rc == 1)
+            virTypedParamListAddInt(paramlist, pid, VIR_CLIENT_INFO_UNIX_PROCESS_ID);
     }
 
     if ((rc = virIdentityGetSELinuxContext(identity, &attr)) < 0)
         return -1;
-    if (rc == 1 &&
-        virTypedParamListAddString(paramlist, attr,
-                                   "%s", VIR_CLIENT_INFO_SELINUX_CONTEXT) < 0)
+    if (rc == 1)
+        virTypedParamListAddString(paramlist, attr, VIR_CLIENT_INFO_SELINUX_CONTEXT);
+
+    if (virTypedParamListSteal(paramlist, params, nparams) < 0)
         return -1;
 
-    *nparams = virTypedParamListStealParams(paramlist, params);
     return 0;
 }
 
@@ -302,31 +264,17 @@ adminServerGetClientLimits(virNetServer *srv,
                            int *nparams,
                            unsigned int flags)
 {
-    g_autoptr(virTypedParamList) paramlist = g_new0(virTypedParamList, 1);
+    g_autoptr(virTypedParamList) paramlist = virTypedParamListNew();
 
     virCheckFlags(0, -1);
 
-    if (virTypedParamListAddUInt(paramlist,
-                                 virNetServerGetMaxClients(srv),
-                                 "%s", VIR_SERVER_CLIENTS_MAX) < 0)
-        return -1;
+    virTypedParamListAddUInt(paramlist, virNetServerGetMaxClients(srv), VIR_SERVER_CLIENTS_MAX);
+    virTypedParamListAddUInt(paramlist, virNetServerGetCurrentClients(srv), VIR_SERVER_CLIENTS_CURRENT);
+    virTypedParamListAddUInt(paramlist, virNetServerGetMaxUnauthClients(srv), VIR_SERVER_CLIENTS_UNAUTH_MAX);
+    virTypedParamListAddUInt(paramlist, virNetServerGetCurrentUnauthClients(srv), VIR_SERVER_CLIENTS_UNAUTH_CURRENT);
 
-    if (virTypedParamListAddUInt(paramlist,
-                                 virNetServerGetCurrentClients(srv),
-                                 "%s", VIR_SERVER_CLIENTS_CURRENT) < 0)
+    if (virTypedParamListSteal(paramlist, params, nparams) < 0)
         return -1;
-
-    if (virTypedParamListAddUInt(paramlist,
-                                 virNetServerGetMaxUnauthClients(srv),
-                                 "%s", VIR_SERVER_CLIENTS_UNAUTH_MAX) < 0)
-        return -1;
-
-    if (virTypedParamListAddUInt(paramlist,
-                                 virNetServerGetCurrentUnauthClients(srv),
-                                 "%s", VIR_SERVER_CLIENTS_UNAUTH_CURRENT) < 0)
-        return -1;
-
-    *nparams = virTypedParamListStealParams(paramlist, params);
 
     return 0;
 }

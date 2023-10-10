@@ -210,7 +210,7 @@ int virDomainNumatuneSpecifiedMaxNode(virDomainNuma *numatune);
 bool virDomainNumatuneNodesetIsAvailable(virDomainNuma *numatune,
                                          virBitmap *auto_nodeset);
 
-bool virDomainNumatuneNodeSpecified(virDomainNuma *numatune,
+bool virDomainNumatuneNodeSpecified(const virDomainNuma *numatune,
                                     int cellid);
 
 int virDomainNumaDefParseXML(virDomainNuma *def, xmlXPathContextPtr ctxt);
@@ -263,7 +263,7 @@ void virNumaDistanceFormat(virBuffer *buf,
 typedef struct _virNumaCache virNumaCache;
 struct _virNumaCache {
     unsigned int level; /* cache level */
-    unsigned int size;  /* cache size */
+    unsigned long long size;  /* cache size */
     unsigned int line;  /* line size, !!! in bytes !!! */
     virNumaCacheAssociativity associativity; /* cache associativity */
     virNumaCachePolicy policy; /* cache policy */

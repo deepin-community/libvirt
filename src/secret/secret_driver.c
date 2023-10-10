@@ -35,11 +35,9 @@
 #include "virthread.h"
 #include "viruuid.h"
 #include "virerror.h"
-#include "virfile.h"
 #include "viridentity.h"
 #include "virpidfile.h"
 #include "configmake.h"
-#include "virstring.h"
 #include "viraccessapicheck.h"
 #include "secret_event.h"
 #include "virutil.h"
@@ -68,6 +66,10 @@ struct _virSecretDriverState {
 
     /* Immutable pointer, self-locking APIs */
     virObjectEventState *secretEventState;
+
+    /* Immutable pointers. Caller must provide locking */
+    virStateInhibitCallback inhibitCallback;
+    void *inhibitOpaque;
 };
 
 static virSecretDriverState *driver;
@@ -81,10 +83,27 @@ secretObjFromSecret(virSecretPtr secret)
     virUUIDFormat(secret->uuid, uuidstr);
     if (!(obj = virSecretObjListFindByUUID(driver->secrets, uuidstr))) {
         virReportError(VIR_ERR_NO_SECRET,
-                       _("no secret with matching uuid '%s'"), uuidstr);
+                       _("no secret with matching uuid '%1$s'"), uuidstr);
         return NULL;
     }
     return obj;
+}
+
+
+static bool
+secretNumOfEphemeralSecretsHelper(virConnectPtr conn G_GNUC_UNUSED,
+                                  virSecretDef *def)
+{
+    return def->isephemeral;
+}
+
+
+static int
+secretNumOfEphemeralSecrets(void)
+{
+    return virSecretObjListNumOfSecrets(driver->secrets,
+                                        secretNumOfEphemeralSecretsHelper,
+                                        NULL);
 }
 
 
@@ -145,7 +164,7 @@ secretLookupByUUID(virConnectPtr conn,
     virUUIDFormat(uuid, uuidstr);
     if (!(obj = virSecretObjListFindByUUID(driver->secrets, uuidstr))) {
         virReportError(VIR_ERR_NO_SECRET,
-                       _("no secret with matching uuid '%s'"), uuidstr);
+                       _("no secret with matching uuid '%1$s'"), uuidstr);
         goto cleanup;
     }
 
@@ -176,7 +195,7 @@ secretLookupByUsage(virConnectPtr conn,
     if (!(obj = virSecretObjListFindByUsage(driver->secrets,
                                             usageType, usageID))) {
         virReportError(VIR_ERR_NO_SECRET,
-                       _("no secret with matching usage '%s'"), usageID);
+                       _("no secret with matching usage '%1$s'"), usageID);
         goto cleanup;
     }
 
@@ -209,7 +228,7 @@ secretDefineXML(virConnectPtr conn,
 
     virCheckFlags(VIR_SECRET_DEFINE_VALIDATE, NULL);
 
-    if (!(def = virSecretDefParseString(xml, flags)))
+    if (!(def = virSecretDefParse(xml, NULL, flags)))
         return NULL;
 
     if (virSecretDefineXMLEnsureACL(conn, def) < 0)
@@ -268,6 +287,10 @@ secretDefineXML(virConnectPtr conn,
  cleanup:
     virSecretDefFree(def);
     virSecretObjEndAPI(&obj);
+
+    if (secretNumOfEphemeralSecrets() > 0)
+        driver->inhibitCallback(true, driver->inhibitOpaque);
+
     virObjectEventStateQueue(driver->secretEventState, event);
 
     return ret;
@@ -426,6 +449,10 @@ secretUndefine(virSecretPtr secret)
 
  cleanup:
     virSecretObjEndAPI(&obj);
+
+    if (secretNumOfEphemeralSecrets() == 0)
+        driver->inhibitCallback(false, driver->inhibitOpaque);
+
     virObjectEventStateQueue(driver->secretEventState, event);
 
     return ret;
@@ -464,8 +491,9 @@ secretStateCleanup(void)
 static int
 secretStateInitialize(bool privileged,
                       const char *root,
-                      virStateInhibitCallback callback G_GNUC_UNUSED,
-                      void *opaque G_GNUC_UNUSED)
+                      bool monolithic G_GNUC_UNUSED,
+                      virStateInhibitCallback callback,
+                      void *opaque)
 {
     VIR_LOCK_GUARD lock = virLockGuardLock(&mutex);
 
@@ -474,6 +502,8 @@ secretStateInitialize(bool privileged,
     driver->lockFD = -1;
     driver->secretEventState = virObjectEventStateNew();
     driver->privileged = privileged;
+    driver->inhibitCallback = callback;
+    driver->inhibitOpaque = opaque;
 
     if (root) {
         driver->embeddedRoot = g_strdup(root);
@@ -494,19 +524,19 @@ secretStateInitialize(bool privileged,
     }
 
     if (g_mkdir_with_parents(driver->configDir, S_IRWXU) < 0) {
-        virReportSystemError(errno, _("cannot create config directory '%s'"),
+        virReportSystemError(errno, _("cannot create config directory '%1$s'"),
                              driver->configDir);
         goto error;
     }
 
     if (g_mkdir_with_parents(driver->stateDir, S_IRWXU) < 0) {
-        virReportSystemError(errno, _("cannot create state directory '%s'"),
+        virReportSystemError(errno, _("cannot create state directory '%1$s'"),
                              driver->stateDir);
         goto error;
     }
 
     if ((driver->lockFD =
-         virPidFileAcquire(driver->stateDir, "driver", false, getpid())) < 0)
+         virPidFileAcquire(driver->stateDir, "driver", getpid())) < 0)
         goto error;
 
     if (!(driver->secrets = virSecretObjListNew()))
@@ -564,8 +594,7 @@ secretConnectOpen(virConnectPtr conn,
 
         if (STRNEQ(root, driver->embeddedRoot)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Cannot open embedded driver at path '%s', "
-                             "already open with path '%s'"),
+                           _("Cannot open embedded driver at path '%1$s', already open with path '%2$s'"),
                            root, driver->embeddedRoot);
             return VIR_DRV_OPEN_ERROR;
         }

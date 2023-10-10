@@ -9,7 +9,6 @@
 # include "internal.h"
 # include "viralloc.h"
 # include "vmx/vmx.h"
-# include "virstring.h"
 
 # define VIR_FROM_THIS VIR_FROM_VMWARE
 
@@ -225,6 +224,9 @@ mymain(void)
     DO_TEST("ethernet-vpx", "ethernet-vpx", 4);
     DO_TEST("ethernet-other", "ethernet-other", 4);
     DO_TEST("ethernet-mac-type", "ethernet-mac-type", 4);
+
+    DO_TEST("ethernet-null", "ethernet-null", 4);
+    DO_TEST("ethernet-vds", "ethernet-vds", 4);
 
     DO_TEST("serial-file", "serial-file", 4);
     DO_TEST("serial-device", "serial-device", 4);

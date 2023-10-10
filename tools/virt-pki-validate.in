@@ -2,7 +2,7 @@
 #
 # This shell script checks the TLS certificates and options needed
 # for the secure client/server support of libvirt as documented at
-# https://libvirt.org/remote.html#Remote_certificates
+# https://libvirt.org/kbase/tlscerts.html
 #
 # Copyright (C) 2009-2013 Red Hat, Inc.
 #
@@ -73,6 +73,7 @@ echo Found "$CERTOOL"
 #
 SYSCONFDIR="@sysconfdir@"
 PKI="$SYSCONFDIR/pki"
+INITCONFDIR="@initconfdir@"
 if [ ! -d "$PKI" ]
 then
     echo the $PKI directory is missing, it is usually
@@ -166,7 +167,7 @@ if [ ! -f "$CA/cacert.pem" ]
 then
     echo the CA certificate $CA/cacert.pem is missing while it
     echo should be installed on both client and servers
-    echo "see https://libvirt.org/remote.html#Remote_TLS_CA"
+    echo "see https://libvirt.org/kbase/tlscerts.html#setting-up-a-certificate-authority-ca"
     echo on how to install it
     exit 1
 fi
@@ -186,7 +187,7 @@ if [ "$ORG" = "" ]
 then
     echo the CA certificate $CA/cacert.pem does not define the organization
     echo it should probably regenerated
-    echo "see https://libvirt.org/remote.html#Remote_TLS_CA"
+    echo "see https://libvirt.org/kbase/tlscerts.html#setting-up-a-certificate-authority-ca"
     echo on how to regenerate it
     exit 1
 fi
@@ -234,7 +235,7 @@ then
 else
     echo Did not find "$LIBVIRT/clientcert.pem" client certificate
     echo The machine cannot act as a client
-    echo "see https://libvirt.org/remote.html#Remote_TLS_client_certificates"
+    echo "see https://libvirt.org/kbase/tlscerts.html#issuing-client-certificates"
     echo on how to regenerate it
     CLIENT=0
 fi
@@ -287,31 +288,31 @@ then
 else
     echo Did not find $LIBVIRT/servercert.pem server certificate
     echo The machine cannot act as a server
-    echo "see https://libvirt.org/remote.html#Remote_TLS_server_certificates"
+    echo "see https://libvirt.org/kbase/tlscerts.html#issuing-server-certificates"
     echo on how to regenerate it
     SERVER=0
 fi
 
 if [ "$SERVER" = "1" ]
 then
-    if [ -r "$SYSCONFDIR"/sysconfig/libvirtd ]
+    if [ -r "$INITCONFDIR"/libvirtd ]
     then
-        if grep "^LIBVIRTD_ARGS.*--listen" "$SYSCONFDIR"/sysconfig/libvirtd \
+        if grep "^LIBVIRTD_ARGS.*--listen" "$INITCONFDIR"/libvirtd \
             >/dev/null 2>&1
         then
             :
         else
-            echo Make sure "$SYSCONFDIR"/sysconfig/libvirtd is setup to listen to
+            echo Make sure "$INITCONFDIR"/libvirtd is setup to listen to
             echo TCP/IP connections and restart the libvirtd service
         fi
     fi
-    if [ -r "$SYSCONFDIR"/sysconfig/iptables ]
+    if [ -r "$INITCONFDIR"/iptables ]
     then
-        if grep "$PORT" "$SYSCONFDIR"/sysconfig/iptables >/dev/null 2>&1
+        if grep "$PORT" "$INITCONFDIR"/iptables >/dev/null 2>&1
         then
             :
         else
-            echo Make sure "$SYSCONFDIR"/sysconfig/iptables is setup to allow
+            echo Make sure "$INITCONFDIR"/iptables is setup to allow
             echo incoming TCP/IP connections on port $PORT and
             echo restart the iptables service
         fi

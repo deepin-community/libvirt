@@ -23,8 +23,6 @@
 
 #include "viralloc.h"
 #include "virerror.h"
-#include "virstring.h"
-#include "virfile.h"
 #include "virnetdevmacvlan.h"
 #include "virnetworkportdef.h"
 #include "network_conf.h"
@@ -104,7 +102,7 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
     }
     if (virUUIDParse(uuid, def->uuid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse UUID '%s'"), uuid);
+                       _("Unable to parse UUID '%1$s'"), uuid);
         return NULL;
     }
 
@@ -125,7 +123,7 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
 
     if (virUUIDParse(uuid, def->owneruuid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse UUID '%s'"), uuid);
+                       _("Unable to parse UUID '%1$s'"), uuid);
         return NULL;
     }
 
@@ -145,7 +143,7 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
     }
     if (virMacAddrParse(mac, &def->mac) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse MAC '%s'"), mac);
+                       _("Unable to parse MAC '%1$s'"), mac);
         return NULL;
     }
 
@@ -198,8 +196,8 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
             (def->plug.bridge.macTableManager =
              virNetworkBridgeMACTableManagerTypeFromString(macmgr)) <= 0) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("Invalid macTableManager setting '%s' "
-                             "in network port"), macmgr);
+                           _("Invalid macTableManager setting '%1$s' in network port"),
+                           macmgr);
             return NULL;
         }
         break;
@@ -215,7 +213,7 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
             (def->plug.direct.mode =
              virNetDevMacVLanModeTypeFromString(mode)) < 0) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("Invalid mode setting '%s' in network port"), mode);
+                           _("Invalid mode setting '%1$s' in network port"), mode);
             return NULL;
         }
         break;
@@ -254,56 +252,19 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
 
 
 virNetworkPortDef *
-virNetworkPortDefParseNode(xmlDocPtr xml,
-                           xmlNodePtr root)
-{
-    g_autoptr(xmlXPathContext) ctxt = NULL;
-
-    if (STRNEQ((const char *)root->name, "networkport")) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       "%s",
-                       _("unknown root element for network port"));
-        return NULL;
-    }
-
-    if (!(ctxt = virXMLXPathContextNew(xml)))
-        return NULL;
-
-    ctxt->node = root;
-    return virNetworkPortDefParseXML(ctxt);
-}
-
-
-static virNetworkPortDef *
 virNetworkPortDefParse(const char *xmlStr,
                        const char *filename,
                        unsigned int flags)
 {
-    virNetworkPortDef *def = NULL;
     g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    bool validate = flags & VIR_NETWORK_PORT_CREATE_VALIDATE;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(networkport_definition)"),
-                           "networkport.rng",
-                           flags & VIR_NETWORK_PORT_CREATE_VALIDATE))) {
-        def = virNetworkPortDefParseNode(xml, xmlDocGetRootElement(xml));
-    }
+    if (!(xml = virXMLParse(filename, xmlStr, _("(networkport_definition)"),
+                            "networkport", &ctxt, "networkport.rng", validate)))
+        return NULL;
 
-    return def;
-}
-
-
-virNetworkPortDef *
-virNetworkPortDefParseString(const char *xmlStr,
-                             unsigned int flags)
-{
-    return virNetworkPortDefParse(xmlStr, NULL, flags);
-}
-
-
-virNetworkPortDef *
-virNetworkPortDefParseFile(const char *filename)
-{
-    return virNetworkPortDefParse(NULL, filename, 0);
+    return virNetworkPortDefParseXML(ctxt);
 }
 
 
@@ -384,8 +345,11 @@ virNetworkPortDefFormatBuf(virBuffer *buf,
             break;
 
         case VIR_NETWORK_PORT_PLUG_TYPE_HOSTDEV_PCI:
-            virBufferAsprintf(buf, " managed='%s'>\n",
-                              def->plug.hostdevpci.managed ? "yes" : "no");
+            if (def->plug.hostdevpci.managed) {
+                virBufferAsprintf(buf, " managed='%s'",
+                                  virTristateBoolTypeToString(def->plug.hostdevpci.managed));
+            }
+            virBufferAddLit(buf, ">\n");
             virBufferAdjustIndent(buf, 2);
             if (def->plug.hostdevpci.driver)
                 virBufferEscapeString(buf, "<driver name='%s'/>\n",
@@ -451,22 +415,18 @@ virNetworkPortDefDeleteStatus(virNetworkPortDef *def,
                               const char *dir)
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
-    char *path;
-    int ret = -1;
+    g_autofree char *path = NULL;
 
     virUUIDFormat(def->uuid, uuidstr);
 
     if (!(path = virNetworkPortDefConfigFile(dir, uuidstr)))
-        goto cleanup;
+        return -1;
 
     if (unlink(path) < 0 && errno != ENOENT) {
         virReportSystemError(errno,
-                             _("Unable to delete %s"), path);
-        goto cleanup;
+                             _("Unable to delete %1$s"), path);
+        return -1;
     }
 
-    ret = 0;
- cleanup:
-    VIR_FREE(path);
-    return ret;
+    return 0;
 }

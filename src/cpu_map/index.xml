@@ -56,6 +56,7 @@
     <include filename='x86_Icelake-Server-noTSX.xml'/>
     <include filename='x86_Cooperlake.xml'/>
     <include filename='x86_Snowridge.xml'/>
+    <include filename='x86_SapphireRapids.xml'/>
 
     <!-- AMD CPUs -->
     <include filename='x86_athlon.xml'/>
@@ -69,6 +70,7 @@
     <include filename='x86_EPYC-IBPB.xml'/>
     <include filename='x86_EPYC-Rome.xml'/>
     <include filename='x86_EPYC-Milan.xml'/>
+    <include filename='x86_EPYC-Genoa.xml'/>
 
     <!-- Hygon CPU models -->
     <include filename='x86_Dhyana.xml'/>
@@ -82,6 +84,7 @@
     <include filename='ppc64_POWER7.xml'/>
     <include filename='ppc64_POWER8.xml'/>
     <include filename='ppc64_POWER9.xml'/>
+    <include filename='ppc64_POWER10.xml'/>
 
     <!-- Freescale-based CPU models -->
     <include filename='ppc64_POWERPC_e5500.xml'/>
@@ -96,12 +99,18 @@
     <include filename='arm_cortex-a53.xml'/>
     <include filename='arm_cortex-a57.xml'/>
     <include filename='arm_cortex-a72.xml'/>
+    <include filename='arm_Neoverse-N1.xml'/>
+    <include filename='arm_Neoverse-N2.xml'/>
+    <include filename='arm_Neoverse-V1.xml'/>
 
     <!-- Qualcomm-based CPU models -->
     <include filename='arm_Falkor.xml'/>
 
     <!-- Cavium-based CPU models -->
     <include filename='arm_ThunderX299xx.xml'/>
+
+    <!-- Fujitsu-based CPU models -->
+    <include filename='arm_a64fx.xml'/>
 
     <!-- Hisilicon-based CPU models -->
     <include filename='arm_Kunpeng-920.xml'/>

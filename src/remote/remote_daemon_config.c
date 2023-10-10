@@ -31,7 +31,6 @@
 #include "remote_protocol.h"
 #include "remote_driver.h"
 #include "util/virnetdevopenvswitch.h"
-#include "virstring.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_CONF
@@ -63,7 +62,7 @@ remoteConfigGetAuth(virConf *conf,
         *auth = VIR_NET_SERVER_SERVICE_AUTH_POLKIT;
     } else {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("%s: %s: unsupported auth %s"),
+                       _("%1$s: %2$s: unsupported auth %3$s"),
                        filename, key, authstr);
         VIR_FREE(authstr);
         return -1;
@@ -73,7 +72,7 @@ remoteConfigGetAuth(virConf *conf,
     return 0;
 }
 
-int
+void
 daemonConfigFilePath(bool privileged, char **configfile)
 {
     if (privileged) {
@@ -85,8 +84,6 @@ daemonConfigFilePath(bool privileged, char **configfile)
 
         *configfile = g_strdup_printf("%s/%s.conf", configdir, DAEMON_NAME);
     }
-
-    return 0;
 }
 
 struct daemonConfig*
@@ -309,7 +306,7 @@ daemonConfigLoadOptions(struct daemonConfig *data,
         return -1;
     } else if (rc > 0 && data->tcp_min_ssf < SSF_WARNING_LEVEL) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("minimum SSF levels lower than %d are not supported"),
+                       _("minimum SSF levels lower than %1$d are not supported"),
                        SSF_WARNING_LEVEL);
         return -1;
     }

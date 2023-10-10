@@ -22,7 +22,6 @@
 
 #include "security_stack.h"
 
-#include "virerror.h"
 #include "viralloc.h"
 #include "virlog.h"
 
@@ -459,6 +458,7 @@ virSecurityStackSetProcessLabel(virSecurityManager *mgr,
 static int
 virSecurityStackSetChildProcessLabel(virSecurityManager *mgr,
                                      virDomainDef *vm,
+                                     bool useBinarySpecificLabel,
                                      virCommand *cmd)
 {
     virSecurityStackData *priv = virSecurityManagerGetPrivateData(mgr);
@@ -466,8 +466,10 @@ virSecurityStackSetChildProcessLabel(virSecurityManager *mgr,
     int rc = 0;
 
     for (; item; item = item->next) {
-        if (virSecurityManagerSetChildProcessLabel(item->securityManager, vm, cmd) < 0)
+        if (virSecurityManagerSetChildProcessLabel(item->securityManager, vm,
+                                                   useBinarySpecificLabel, cmd) < 0) {
             rc = -1;
+        }
     }
 
     return rc;
@@ -917,14 +919,15 @@ virSecurityStackDomainRestoreChardevLabel(virSecurityManager *mgr,
 
 static int
 virSecurityStackSetTPMLabels(virSecurityManager *mgr,
-                             virDomainDef *vm)
+                             virDomainDef *vm,
+                             bool setTPMStateLabel)
 {
     virSecurityStackData *priv = virSecurityManagerGetPrivateData(mgr);
     virSecurityStackItem *item = priv->itemsHead;
 
     for (; item; item = item->next) {
         if (virSecurityManagerSetTPMLabels(item->securityManager,
-                                           vm) < 0)
+                                           vm, setTPMStateLabel) < 0)
             goto rollback;
     }
 
@@ -933,7 +936,7 @@ virSecurityStackSetTPMLabels(virSecurityManager *mgr,
  rollback:
     for (item = item->prev; item; item = item->prev) {
         if (virSecurityManagerRestoreTPMLabels(item->securityManager,
-                                               vm) < 0) {
+                                               vm, setTPMStateLabel) < 0) {
             VIR_WARN("Unable to restore TPM label after failed set label "
                      "call virDriver=%s driver=%s domain=%s",
                      virSecurityManagerGetVirtDriver(mgr),
@@ -947,7 +950,8 @@ virSecurityStackSetTPMLabels(virSecurityManager *mgr,
 
 static int
 virSecurityStackRestoreTPMLabels(virSecurityManager *mgr,
-                                 virDomainDef *vm)
+                                 virDomainDef *vm,
+                                 bool restoreTPMStateLabel)
 {
     virSecurityStackData *priv = virSecurityManagerGetPrivateData(mgr);
     virSecurityStackItem *item = priv->itemsHead;
@@ -955,7 +959,7 @@ virSecurityStackRestoreTPMLabels(virSecurityManager *mgr,
 
     for (; item; item = item->next) {
         if (virSecurityManagerRestoreTPMLabels(item->securityManager,
-                                               vm) < 0)
+                                               vm, restoreTPMStateLabel) < 0)
             rc = -1;
     }
 

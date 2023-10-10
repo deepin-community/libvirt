@@ -1,8 +1,8 @@
 project(
   'libvirt', 'c',
-  version: '8.1.0',
+  version: '9.8.0',
   license: 'LGPLv2+',
-  meson_version: '>= 0.54.0',
+  meson_version: '>= 0.56.0',
   default_options: [
     'buildtype=debugoptimized',
     'b_pie=true',
@@ -11,6 +11,9 @@ project(
   ],
 )
 
+if meson.version().version_compare('>=0.64.0')
+  fs = import('fs')
+endif
 
 # figure out if we are building from git
 
@@ -21,13 +24,18 @@ if git and not get_option('no_git')
 endif
 
 
+# detect operating system
+
+os_release = run_command('grep', '-E', '^ID(_LIKE)*=', '/etc/os-release', check: false).stdout()
+
+
 # prepare build configuration data
 
 conf = configuration_data()
 
 conf.set('_GNU_SOURCE', 1)
-conf.set_quoted('abs_top_builddir', meson.build_root())
-conf.set_quoted('abs_top_srcdir', meson.source_root())
+conf.set_quoted('abs_top_builddir', meson.project_build_root())
+conf.set_quoted('abs_top_srcdir', meson.project_source_root())
 conf.set_quoted('PACKAGE', meson.project_name())
 conf.set_quoted('PACKAGE_NAME', meson.project_name())
 conf.set_quoted('PACKAGE_VERSION', meson.project_version())
@@ -71,6 +79,20 @@ endif
 runstatedir = get_option('runstatedir')
 if runstatedir == ''
   runstatedir = localstatedir / 'run'
+endif
+
+initconfdir = get_option('initconfdir')
+if initconfdir == ''
+  if (os_release.contains('alpine') or
+      os_release.contains('arch') or
+      os_release.contains('gentoo'))
+    initconfdir = sysconfdir / 'conf.d'
+  # Ubuntu has ID_LIKE=debian
+  elif os_release.contains('debian')
+    initconfdir = sysconfdir / 'default'
+  else
+    initconfdir = sysconfdir / 'sysconfig'
+  endif
 endif
 
 bindir = prefix / get_option('bindir')
@@ -225,8 +247,17 @@ alloc_max = run_command(
   check: true,
 )
 
+stack_frame_size = 2048
+
+# clang without optimization enlarges stack frames in certain corner cases
+if cc.get_id() == 'clang' and get_option('optimization') == '0'
+    stack_frame_size = 4096
+endif
+
 # sanitizer instrumentation may enlarge stack frames
-stack_frame_size = get_option('b_sanitize') == 'none' ? 4096 : 32768
+if get_option('b_sanitize') != 'none'
+  stack_frame_size = 32768
+endif
 
 # array_bounds=2 check triggers false positive on some GCC
 # versions when using sanitizers. Seen on Fedora 34 with
@@ -404,6 +435,26 @@ cc_flags += [
   '-Wwrite-strings',
 ]
 
+if cc.get_id() == 'clang'
+    # Stop CLang from doing inter-procedural analysis of calls
+    # between functions in the same compilation unit. Such an
+    # optimization has been know to break the test suite by
+    # making assumptions that a return value is a constant.
+    # This makes it impossible to mock certain functions with
+    # replacement definitions via LD_PRELOAD that have different
+    # semantics.
+    #
+    # This is a bit of a big hammer, but alternatives don't work:
+    #
+    #  - 'weak' attribute - weak symbols get dropped from
+    #    when the .a libs are combined into the .so
+    #    see commit 407a281a8e2b6c5078ba1148535663ea64fd9314
+    #
+    #  - 'noipa' attribute - only available with GCC currently
+    #    https://reviews.llvm.org/D101011
+    cc_flags += [ '-fsemantic-interposition' ]
+endif
+
 supported_cc_flags = []
 if get_option('warning_level') == '2'
   supported_cc_flags = cc.get_supported_arguments(cc_flags)
@@ -510,15 +561,11 @@ libvirt_no_indirect = cc.get_supported_link_arguments([
 
 if host_machine.system() == 'windows'
   version_script_flags = '-Wl,'
+elif host_machine.system() == 'darwin'
+  # macOS libraries don't support symbol versioning
+  version_script_flags = ''
 else
-  test_file = '@0@/src/libvirt_qemu.syms'.format(meson.source_root())
-  if cc.has_link_argument('-Wl,--version-script=@0@'.format(test_file))
-    version_script_flags = '-Wl,--version-script='
-  elif cc.has_link_argument('-Wl,-M,')
-    version_script_flags = '-Wl,-M,'
-  else
-    error('No supported version script link argument found.')
-  endif
+  version_script_flags = '-Wl,--version-script='
 endif
 
 libvirt_flat_namespace = []
@@ -536,6 +583,7 @@ libvirt_export_dynamic = cc.first_supported_link_argument([
 
 functions = [
   'elf_aux_info',
+  'explicit_bzero',
   'fallocate',
   'getauxval',
   'getegid',
@@ -556,7 +604,6 @@ functions = [
   'prlimit',
   'sched_setscheduler',
   'setgroups',
-  'setns',
   'setrlimit',
   'symlink',
   'sysctlbyname',
@@ -596,7 +643,6 @@ headers = [
   'ifaddrs.h',
   'libtasn1.h',
   'linux/kvm.h',
-  'linux/magic.h',
   'mntent.h',
   'net/ethernet.h',
   'net/if.h',
@@ -613,34 +659,21 @@ headers = [
   'xlocale.h',
 ]
 
-if host_machine.system() == 'linux'
-  # check for DEVLINK_CMD_ESWITCH_GET
-  headers += 'linux/devlink.h'
-endif
-
 if host_machine.system() == 'freebsd'
   headers += 'libutil.h'
 endif
 
 foreach name : headers
-  if cc.has_header(name)
+  if cc.check_header(name)
     conf.set('WITH_@0@'.format(name.underscorify().to_upper()), 1)
   endif
 endforeach
 
-# check for kernel headers required by src/util/virnetdevbridge.c
+# check for kernel header required by src/util/virnetdevbridge.c
 if host_machine.system() == 'linux'
-  required_headers = [
-    'linux/param.h',
-    'linux/sockios.h',
-    'linux/if_bridge.h',
-    'linux/if_tun.h',
-  ]
-  foreach name : required_headers
-    if not cc.has_header(name)
-      error('You must install kernel-headers in order to compile libvirt with QEMU or LXC support')
-    endif
-  endforeach
+  if not cc.check_header('linux/sockios.h')
+    error('You must install kernel-headers in order to compile libvirt with QEMU or LXC support')
+  endif
 endif
 
 
@@ -649,20 +682,6 @@ endif
 symbols = [
   # Check whether endian provides handy macros.
   [ 'endian.h', 'htole64' ],
-
-  [ 'linux/ethtool.h', 'ETH_FLAG_TXVLAN' ],
-  [ 'linux/ethtool.h', 'ETH_FLAG_NTUPLE' ],
-  [ 'linux/ethtool.h', 'ETH_FLAG_RXHASH' ],
-  [ 'linux/ethtool.h', 'ETH_FLAG_LRO' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GGSO' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GGRO' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GFLAGS' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GFEATURES' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_SCOALESCE' ],
-  [ 'linux/ethtool.h', 'ETHTOOL_GCOALESCE' ],
-
-  # GET_VLAN_VID_CMD is required for virNetDevGetVLanID
-  [ 'linux/if_vlan.h', 'GET_VLAN_VID_CMD' ],
 
   [ 'unistd.h', 'SEEK_HOLE' ],
 
@@ -674,18 +693,8 @@ symbols = [
 
 if host_machine.system() == 'linux'
   symbols += [
-    # check for DEVLINK_CMD_ESWITCH_GET
-    # Assume DEVLINK_ESWITCH_MODE_SWITCHDEV is also available, as it was
-    # introudced in kernel 4.8 along with the original spelling of this
-    # constant (DEVLINK_CMD_ESWITCH_MODE_GET, not supported by libvirt).
-    [ 'linux/devlink.h', 'DEVLINK_CMD_ESWITCH_GET' ],
-
-    # check for VHOST_VSOCK_SET_GUEST_CID
-    [ 'linux/vhost.h', 'VHOST_VSOCK_SET_GUEST_CID' ],
-
-    # Check if we have new enough kernel to support BPF devices for cgroups v2
-    [ 'linux/bpf.h', 'BPF_PROG_QUERY' ],
-    [ 'linux/bpf.h', 'BPF_CGROUP_DEVICE' ],
+    # process management
+    [ 'sys/syscall.h', 'SYS_pidfd_open' ],
   ]
 endif
 
@@ -771,11 +780,15 @@ conf.set('SIZEOF_LONG', cc.sizeof('long'))
 
 # Where we look for daemons and admin binaries during configure
 
-libvirt_sbin_path = [
-  '/sbin',
-  '/usr/sbin',
-  '/usr/local/sbin',
-]
+libvirt_sbin_path = []
+
+if host_machine.system() != 'windows'
+  libvirt_sbin_path += [
+    '/sbin',
+    '/usr/sbin',
+    '/usr/local/sbin',
+  ]
+endif
 
 
 # required programs check
@@ -798,14 +811,14 @@ endif
 foreach name : required_programs
   prog = find_program(name, dirs: libvirt_sbin_path)
   varname = name.underscorify()
-  conf.set_quoted(varname.to_upper(), prog.path())
+  conf.set_quoted(varname.to_upper(), prog.full_path())
   set_variable('@0@_prog'.format(varname), prog)
 endforeach
 
 foreach item : required_programs_groups
   prog = find_program(item.get('prog'), dirs: libvirt_sbin_path)
   varname = item.get('name').underscorify()
-  conf.set_quoted(varname.to_upper(), prog.path())
+  conf.set_quoted(varname.to_upper(), prog.full_path())
   set_variable('@0@_prog'.format(varname), prog)
 endforeach
 
@@ -824,6 +837,7 @@ optional_programs = [
   'mm-ctl',
   'modprobe',
   'ovs-vsctl',
+  'passt',
   'pdwtags',
   'rmmod',
   'scrub',
@@ -835,7 +849,7 @@ foreach name : optional_programs
   prog = find_program(name, required: false, dirs: libvirt_sbin_path)
   varname = name.underscorify()
   if prog.found()
-    prog_path = prog.path()
+    prog_path = prog.full_path()
   else
     prog_path = name
   endif
@@ -873,8 +887,7 @@ endif
 
 # generic build dependencies
 
-# FIXME rewrite to use dependency()
-acl_dep = cc.find_library('acl', required: false)
+acl_dep = dependency('libacl', required: false)
 if acl_dep.found()
   conf.set('WITH_LIBACL', 1)
 endif
@@ -882,6 +895,9 @@ endif
 apparmor_dep = dependency('libapparmor', required: get_option('apparmor'))
 if apparmor_dep.found()
   conf.set('WITH_APPARMOR', 1)
+  if apparmor_dep.version().version_compare('>=3.0.0')
+    conf.set('WITH_APPARMOR_3', 1)
+  endif
   conf.set_quoted('APPARMOR_DIR', sysconfdir / 'apparmor.d')
   conf.set_quoted('APPARMOR_PROFILES_PATH', '/sys/kernel/security/apparmor/profiles')
 endif
@@ -941,16 +957,22 @@ endif
 dlopen_use = host_machine.system() != 'windows'
 dlopen_dep = cc.find_library('dl', required: dlopen_use)
 if dlopen_dep.found()
-  if not cc.has_header('dlfcn.h')
+  if not cc.check_header('dlfcn.h')
     error('Unable to find dlfcn.h')
   endif
   conf.set('WITH_DLFCN_H', 1)
 endif
 
-fuse_version = '2.8.6'
-fuse_dep = dependency('fuse', version: '>=' + fuse_version, required: get_option('fuse'))
+fuse_version = '3.1.0'
+fuse_dep = dependency('fuse3', version: '>=' + fuse_version, required: false)
 if fuse_dep.found()
-  conf.set('WITH_FUSE', 1)
+  conf.set('WITH_FUSE', 3)
+else
+  fuse_version = '2.8.6'
+  fuse_dep = dependency('fuse', version: '>=' + fuse_version, required: get_option('fuse'))
+  if fuse_dep.found()
+    conf.set('WITH_FUSE', 1)
+  endif
 endif
 
 glib_version = '2.56.0'
@@ -976,7 +998,7 @@ conf.set('GLIB_VERSION_MAX_ALLOWED', glib_version_str)
 glusterfs_version = '3.4.1'
 glusterfs_dep = dependency('glusterfs-api', version: '>=' + glusterfs_version, required: get_option('glusterfs'))
 
-gnutls_version = '3.2.0'
+gnutls_version = '3.6.0'
 gnutls_dep = dependency('gnutls', version: '>=' + gnutls_version)
 
 # Check for BSD kvm (kernel memory interface)
@@ -988,6 +1010,12 @@ endif
 
 libiscsi_version = '1.18.0'
 libiscsi_dep = dependency('libiscsi', version: '>=' + libiscsi_version, required: get_option('libiscsi'))
+
+libnbd_version = '1.0'
+libnbd_dep = dependency('libnbd', version: '>=' + libnbd_version, required: get_option('libnbd'))
+if libnbd_dep.found()
+  conf.set('WITH_LIBNBD', 1)
+endif
 
 libnl_version = '3.0'
 if not get_option('libnl').disabled() and host_machine.system() == 'linux'
@@ -1007,7 +1035,7 @@ else
 endif
 
 libparted_version = '1.8.0'
-libparted_dep = dependency('libparted', version: '>=' + libparted_version, required: false)
+libparted_dep = dependency('libparted', version: '>=' + libparted_version, required: get_option('storage_disk'))
 
 libpcap_version = '1.5.0'
 if not get_option('libpcap').disabled()
@@ -1019,24 +1047,11 @@ else
   libpcap_dep = dependency('', required: false)
 endif
 
-libssh_version = '0.7'
+libssh_version = '0.8.1'
 if conf.has('WITH_REMOTE')
   libssh_dep = dependency('libssh', version: '>=' + libssh_version, required: get_option('libssh'))
   if libssh_dep.found()
     conf.set('WITH_LIBSSH', 1)
-
-    # Check if new functions exists, if not redefine them with old deprecated ones.
-    # List of [ new_function, deprecated_function ].
-    functions = [
-      [ 'ssh_get_server_publickey', 'ssh_get_publickey' ],
-      [ 'ssh_session_is_known_server', 'ssh_is_server_known' ],
-      [ 'ssh_session_update_known_hosts', 'ssh_write_knownhost' ],
-    ]
-    foreach name : functions
-      if not cc.has_function(name[0], dependencies: libssh_dep)
-        conf.set(name[0], name[1])
-      endif
-    endforeach
   endif
 else
   libssh_dep = dependency('', required: false)
@@ -1080,7 +1095,7 @@ if not get_option('nls').disabled()
     error('gettext() is required to build libvirt')
   endif
 
-  if cc.has_header('libintl.h')
+  if cc.check_header('libintl.h')
     conf.set('WITH_LIBINTL_H', 1)
   elif get_option('nls').enabled()
     error('libintl.h is required to build libvirt')
@@ -1106,10 +1121,12 @@ else
   intl_dep = dependency('', required: false)
 endif
 
-# FIXME rewrite to use dependency() once we can use 2.0.14
-numactl_dep = cc.find_library('numa', required: get_option('numactl'))
+numactl_dep = dependency('numa', required: get_option('numactl'))
 if numactl_dep.found()
   conf.set('WITH_NUMACTL', 1)
+  if cc.has_function('numa_set_preferred_many', dependencies: numactl_dep)
+    conf.set('WITH_NUMACTL_SET_PREFERRED_MANY', 1)
+  endif
 endif
 
 openwsman_version = '2.6.3'
@@ -1121,8 +1138,8 @@ parallels_sdk_dep = dependency('parallels-sdk', version: '>=' + parallels_sdk_ve
 pciaccess_version = '0.10.0'
 pciaccess_dep = dependency('pciaccess', version: '>=' + pciaccess_version, required: get_option('pciaccess'))
 
-rbd_dep = cc.find_library('rbd', required: false)
-rados_dep = cc.find_library('rados', required: false)
+rbd_dep = cc.find_library('rbd', required: get_option('storage_rbd'))
+rados_dep = cc.find_library('rados', required: get_option('storage_rbd'))
 if rbd_dep.found() and not cc.has_function('rbd_get_features', dependencies: rbd_dep)
   rbd_dep = dependency('', required: false)
 endif
@@ -1184,6 +1201,8 @@ if not get_option('sanlock').disabled()
       conf.set('WITH_SANLOCK_STRERROR', 1)
     endif
   endif
+else
+  sanlock_dep = dependency('', required: false)
 endif
 
 sasl_version = '2.1.26'
@@ -1274,10 +1293,10 @@ endif
 if wireshark_dep.found()
   wireshark_plugindir = get_option('wireshark_plugindir')
   if wireshark_plugindir == ''
-    wireshark_plugindir = wireshark_dep.get_pkgconfig_variable('plugindir')
+    wireshark_plugindir = wireshark_dep.get_variable(pkgconfig : 'plugindir')
   endif
 
-  wireshark_prefix = wireshark_dep.get_pkgconfig_variable('prefix')
+  wireshark_prefix = wireshark_dep.get_variable(pkgconfig : 'prefix')
   if wireshark_prefix == ''
     # If wireshark's prefix cannot be retrieved from pkg-config,
     # this is our best bet.
@@ -1300,7 +1319,7 @@ if wireshark_dep.found()
 
   # Wireshark is installing ws_version.h since v2.9.0, but some distributions
   # are not shipping it.
-  if cc.has_header('wireshark/ws_version.h')
+  if cc.check_header('wireshark/ws_version.h')
     conf.set('WITH_WS_VERSION', 1)
   endif
 endif
@@ -1325,7 +1344,7 @@ if yajl_dep.found()
   #
   # [1] https://github.com/Homebrew/homebrew-core/pull/74516
   if host_machine.system() != 'linux'
-    yajl_includedir = yajl_dep.get_pkgconfig_variable('includedir')
+    yajl_includedir = yajl_dep.get_variable(pkgconfig : 'includedir')
     if yajl_includedir.contains('include/yajl')
       rc = run_command(
         'python3', '-c',
@@ -1358,8 +1377,8 @@ endif
 if bash_completion_dep.found()
   bash_completion_dir = get_option('bash_completion_dir')
   if bash_completion_dir == ''
-    bash_completion_dir = bash_completion_dep.get_pkgconfig_variable('completionsdir')
-    bash_completion_prefix = bash_completion_dep.get_pkgconfig_variable('prefix')
+    bash_completion_dir = bash_completion_dep.get_variable(pkgconfig : 'completionsdir')
+    bash_completion_prefix = bash_completion_dep.get_variable(pkgconfig : 'prefix')
     rc = run_command(
       'python3', '-c',
       'print("@0@".replace("@1@", "@2@"))'.format(
@@ -1453,9 +1472,9 @@ if not get_option('driver_bhyve').disabled() and host_machine.system() == 'freeb
 
   if bhyve_prog.found() and bhyvectl_prog.found() and bhyveload_prog.found()
     conf.set('WITH_BHYVE', 1)
-    conf.set_quoted('BHYVE', bhyve_prog.path())
-    conf.set_quoted('BHYVECTL', bhyvectl_prog.path())
-    conf.set_quoted('BHYVELOAD', bhyveload_prog.path())
+    conf.set_quoted('BHYVE', bhyve_prog.full_path())
+    conf.set_quoted('BHYVECTL', bhyvectl_prog.full_path())
+    conf.set_quoted('BHYVELOAD', bhyveload_prog.full_path())
   endif
 elif get_option('driver_bhyve').enabled()
   error('The bhyve driver cannot be enabled')
@@ -1485,8 +1504,8 @@ if not get_option('driver_libxl').disabled() and conf.has('WITH_LIBVIRTD')
   libxl_dep = dependency('xenlight', version: '>=' + libxl_version, required: get_option('driver_libxl'))
 
   if libxl_dep.found()
-    libxl_firmware_dir = libxl_dep.get_pkgconfig_variable('xenfirmwaredir')
-    libxl_execbin = libxl_dep.get_pkgconfig_variable('libexec_bin')
+    libxl_firmware_dir = libxl_dep.get_variable(pkgconfig : 'xenfirmwaredir', default_value: '')
+    libxl_execbin = libxl_dep.get_variable(pkgconfig : 'libexec_bin', default_value: '')
     if libxl_firmware_dir != ''
       conf.set_quoted('LIBXL_FIRMWARE_DIR', libxl_firmware_dir)
     endif
@@ -1495,7 +1514,7 @@ if not get_option('driver_libxl').disabled() and conf.has('WITH_LIBVIRTD')
     endif
 
     # If building with libxl, use the libxl utility header and lib too
-    if cc.has_header('libxlutil.h')
+    if cc.check_header('libxlutil.h')
       conf.set('WITH_LIBXLUTIL_H', 1)
     endif
     xl_util_dep = dependency('xlutil')
@@ -1533,34 +1552,7 @@ elif get_option('driver_libxl').enabled()
 endif
 
 if not get_option('driver_lxc').disabled() and host_machine.system() == 'linux' and conf.has('WITH_LIBVIRTD')
-  lxc_support_code = '''
-#include <sched.h>
-#include <linux/loop.h>
-#include <sys/epoll.h>
-
-void main(void) {
-    unshare(!(LO_FLAGS_AUTOCLEAR + EPOLL_CLOEXEC));
-}
-  '''
-  if cc.compiles(lxc_support_code, name: 'lxc support', args: '-D_GNU_SOURCE')
-    conf.set('WITH_LXC', 1)
-    conf.set('WITH_DECL_LO_FLAGS_AUTOCLEAR', 1)
-  elif get_option('driver_lxc').enabled()
-    error('Required kernel features for LXC were not found')
-  endif
-
-  lxc_get_free_code = '''
-#include <sched.h>
-#include <linux/loop.h>
-#include <sys/epoll.h>
-
-void main(void) {
-    unshare(!(LOOP_CTL_GET_FREE));
-}
-  '''
-  if cc.compiles(lxc_get_free_code)
-    conf.set('WITH_DECL_LOOP_CTL_GET_FREE', 1)
-  endif
+  conf.set('WITH_LXC', 1)
 elif get_option('driver_lxc').enabled()
   error('linux and remote_driver are required for LXC')
 endif
@@ -1665,24 +1657,20 @@ if not get_option('driver_qemu').disabled()
         qemu_user = 'root'
         qemu_group = 'wheel'
       else
-        os_release = run_command('grep', '^ID=', '/etc/os-release', check: false).stdout()
-        if os_release.contains('arch')
-          qemu_user = 'nobody'
-          qemu_group = 'nobody'
-        elif (os_release.contains('centos') or
-              os_release.contains('fedora') or
-              os_release.contains('gentoo') or
-              os_release.contains('rhel') or
-              os_release.contains('sles') or
-              os_release.contains('suse'))
+        # RHEL and CentOS both have ID_LIKE=fedora, SLES has ID_LIKE=suse
+        if (os_release.contains('fedora') or
+            os_release.contains('gentoo') or
+            os_release.contains('suse'))
           qemu_user = 'qemu'
           qemu_group = 'qemu'
-        elif os_release.contains('debian')
-          qemu_user = 'libvirt-qemu'
-          qemu_group = 'libvirt-qemu'
+        # Ubuntu has ID_LIKE=debian so we need to handle it first
         elif os_release.contains('ubuntu')
           qemu_user = 'libvirt-qemu'
           qemu_group = 'kvm'
+        elif (os_release.contains('arch') or
+              os_release.contains('debian'))
+          qemu_user = 'libvirt-qemu'
+          qemu_group = 'libvirt-qemu'
         else
           qemu_user = 'root'
           qemu_group = 'root'
@@ -1692,53 +1680,17 @@ if not get_option('driver_qemu').disabled()
     conf.set_quoted('QEMU_USER', qemu_user)
     conf.set_quoted('QEMU_GROUP', qemu_group)
 
-    qemu_bridge_prog = find_program(
-      'qemu-bridge-helper',
-      dirs: [ '/usr/libexec', '/usr/lib/qemu', '/usr/lib' ],
-      required: false
-    )
-    if qemu_bridge_prog.found()
-      qemu_bridge_path = qemu_bridge_prog.path()
-    else
-      qemu_bridge_path = '/usr/libexec/qemu-bridge-helper'
-    endif
-    conf.set_quoted('QEMU_BRIDGE_HELPER', qemu_bridge_path)
-
-    qemu_pr_prog = find_program(
-      'qemu-pr-helper',
-      dirs: [ '/usr/bin', '/usr/libexec' ],
-      required: false
-    )
-    if qemu_pr_prog.found()
-      qemu_pr_path = qemu_pr_prog.path()
-    else
-      qemu_pr_path = '/usr/bin/qemu-pr-helper'
-    endif
-    conf.set_quoted('QEMU_PR_HELPER', qemu_pr_path)
-
     qemu_slirp_prog = find_program(
       'slirp-helper',
       dirs: [ '/usr/bin', '/usr/libexec' ],
       required: false
     )
     if qemu_slirp_prog.found()
-      qemu_slirp_path = qemu_slirp_prog.path()
+      qemu_slirp_path = qemu_slirp_prog.full_path()
     else
       qemu_slirp_path = '/usr/bin/slirp-helper'
     endif
     conf.set_quoted('QEMU_SLIRP_HELPER', qemu_slirp_path)
-
-    qemu_dbus_daemon_prog = find_program(
-      'dbus-daemon',
-      dirs: [ '/usr/bin', '/usr/libexec' ],
-      required: false
-    )
-    if qemu_dbus_daemon_prog.found()
-      qemu_dbus_daemon_path = qemu_dbus_daemon_prog.path()
-    else
-      qemu_dbus_daemon_path = '/usr/bin/dbus-daemon'
-    endif
-    conf.set_quoted('QEMU_DBUS_DAEMON', qemu_dbus_daemon_path)
   endif
 endif
 
@@ -1808,7 +1760,7 @@ if conf.has('WITH_LIBVIRTD')
       fs_enable = false
     endif
 
-    if fs_enable and not cc.has_header('mntent.h')
+    if fs_enable and not cc.check_header('mntent.h')
       if get_option('storage_fs').enabled()
         error('<mntent.h> is required for the FS storage driver')
       else
@@ -1830,14 +1782,14 @@ if conf.has('WITH_LIBVIRTD')
       use_storage = true
 
       conf.set('WITH_STORAGE_FS', 1)
-      conf.set_quoted('MOUNT', mount_prog.path())
-      conf.set_quoted('UMOUNT', umount_prog.path())
-      conf.set_quoted('MKFS', mkfs_prog.path())
+      conf.set_quoted('MOUNT', mount_prog.full_path())
+      conf.set_quoted('UMOUNT', umount_prog.full_path())
+      conf.set_quoted('MKFS', mkfs_prog.full_path())
 
       showmount_prog = find_program('showmount', required: false, dirs: libvirt_sbin_path)
       showmount_path = ''
       if showmount_prog.found()
-        showmount_path = showmount_prog.path()
+        showmount_path = showmount_prog.full_path()
       endif
       conf.set_quoted('SHOWMOUNT', showmount_path)
     endif
@@ -1887,7 +1839,7 @@ if conf.has('WITH_LIBVIRTD')
       conf.set('WITH_STORAGE_LVM', 1)
 
       foreach name : lvm_progs
-        conf.set_quoted(name.to_upper(), get_variable('@0@_prog'.format(name)).path())
+        conf.set_quoted(name.to_upper(), get_variable('@0@_prog'.format(name)).full_path())
       endforeach
     endif
   endif
@@ -1909,16 +1861,6 @@ if conf.has('WITH_LIBVIRTD')
   if not get_option('storage_scsi').disabled() and host_machine.system() == 'linux'
     use_storage = true
     conf.set('WITH_STORAGE_SCSI', 1)
-  endif
-
-  if not get_option('storage_sheepdog').disabled()
-    sheepdogcli_prog = find_program('dog', required: get_option('storage_sheepdog'), dirs: libvirt_sbin_path)
-
-    if sheepdogcli_prog.found()
-      use_storage = true
-      conf.set('WITH_STORAGE_SHEEPDOG', 1)
-      conf.set_quoted('SHEEPDOGCLI', sheepdogcli_prog.path())
-    endif
   endif
 
   if not get_option('storage_vstorage').disabled()
@@ -2025,7 +1967,7 @@ if not get_option('nss').disabled()
     endif
   endif
 
-  if use_nss and not cc.has_header('nss.h')
+  if use_nss and not cc.check_header('nss.h')
     if get_option('nss').enabled()
       error('Can\'t build nss plugin without nss.h')
     else
@@ -2051,7 +1993,7 @@ if not get_option('numad').disabled() and numactl_dep.found()
   numad_prog = find_program('numad', required: get_option('numad'), dirs: libvirt_sbin_path)
   if numad_prog.found()
     conf.set('WITH_NUMAD', 1)
-    conf.set_quoted('NUMAD', numad_prog.path())
+    conf.set_quoted('NUMAD', numad_prog.full_path())
   endif
 elif get_option('numad').enabled()
   error('You must have numactl enabled for numad support.')
@@ -2082,6 +2024,9 @@ endif
 
 conf.set_quoted('TLS_PRIORITY', get_option('tls_priority'))
 
+if conf.has('WITH_DECL_SYS_PIDFD_OPEN')
+  conf.set('WITH_NBDKIT', 1)
+endif
 
 # Various definitions
 
@@ -2094,6 +2039,7 @@ runutf8 = [ 'LC_ALL=', 'LANG=C', 'LC_CTYPE=en_US.UTF-8' ]
 
 top_inc_dir = include_directories('.')
 
+keycodemapdb = subproject('keycodemapdb')
 
 # include remaining subdirs
 
@@ -2105,8 +2051,18 @@ subdir('src')
 
 subdir('tools')
 
-build_tests = not get_option('tests').disabled()
-if build_tests
+build_tests = [ not get_option('tests').disabled() ]
+if build_tests[0] and \
+   cc.get_id() == 'clang' and \
+   not supported_cc_flags.contains('-fsemantic-interposition') \
+   and get_option('optimization') != '0'
+   # If CLang doesn't support -fsemantic-interposition then our
+   # mocking doesn't work. The best we can do is to not run the
+   # test suite.
+   build_tests = [ false, '!!! Forcibly disabling tests because CLang lacks -fsemantic-interposition. Update CLang or disable optimization !!!' ]
+endif
+
+if build_tests[0]
   subdir('tests')
 endif
 
@@ -2130,14 +2086,15 @@ pkgconfig_files = [
   'libvirt-admin.pc.in',
 ]
 
-pkgconfig_conf = configuration_data()
-pkgconfig_conf.set('VERSION', meson.project_version())
-pkgconfig_conf.set('datadir', datadir)
-pkgconfig_conf.set('datarootdir', datadir)
-pkgconfig_conf.set('exec_prefix', prefix)
-pkgconfig_conf.set('includedir', includedir)
-pkgconfig_conf.set('libdir', libdir)
-pkgconfig_conf.set('prefix', prefix)
+pkgconfig_conf = configuration_data({
+  'VERSION': meson.project_version(),
+  'datadir': datadir,
+  'datarootdir': datadir,
+  'exec_prefix': prefix,
+  'includedir': includedir,
+  'libdir': libdir,
+  'prefix': prefix,
+})
 
 pkgconfig_dir = libdir / 'pkgconfig'
 
@@ -2155,28 +2112,23 @@ endforeach
 # generate dist files
 
 if git
-  spec_files = [
-    'libvirt.spec.in',
-    'mingw-libvirt.spec.in',
-  ]
+  spec_conf = configuration_data({
+    'VERSION': meson.project_version(),
+  })
 
-  spec_conf = configuration_data()
-  spec_conf.set('VERSION', meson.project_version())
+  configure_file(
+    input: 'libvirt.spec.in',
+    output: '@BASENAME@',
+    configuration: spec_conf,
+  )
 
-  foreach file : spec_files
-    configure_file(
-      input: file,
-      output: '@BASENAME@',
-      configuration: spec_conf,
-    )
-  endforeach
-
-  authors = run_command(python3_prog, meson_gen_authors_prog.path(),
+  authors = run_command(python3_prog, meson_gen_authors_prog.full_path(),
                         env: runutf8, check: true)
   authors_file = 'AUTHORS.rst.in'
 
-  authors_conf = configuration_data()
-  authors_conf.set('contributorslist', authors.stdout())
+  authors_conf = configuration_data({
+    'contributorslist': authors.stdout(),
+  })
 
   configure_file(
     input: authors_file,
@@ -2192,8 +2144,8 @@ if git
 
   foreach file : dist_files
     meson.add_dist_script(
-      meson_python_prog.path(), python3_prog.path(), meson_dist_prog.path(),
-      meson.build_root(), file
+      meson_python_prog.full_path(), python3_prog.full_path(), meson_dist_prog.full_path(),
+      meson.project_build_root(), file
     )
   endforeach
 endif
@@ -2204,34 +2156,17 @@ configure_file(output: 'meson-config.h', configuration: conf)
 
 
 # generate run helper
-run_conf = configuration_data()
-run_conf.set('abs_builddir', meson.build_root())
-run_conf.set('abs_top_builddir', meson.build_root())
+run_conf = configuration_data({
+  'abs_builddir': meson.project_build_root(),
+  'abs_top_builddir': meson.project_build_root(),
+})
+
 configure_file(
   input: 'run.in',
   output: '@BASENAME@',
   configuration: run_conf,
 )
 run_command('chmod', 'a+x', meson.current_build_dir() / 'run', check: true)
-
-
-# generate developer tooling files
-tooling_files = [
-  '.color_coded.in',
-  '.ycm_extra_conf.py.in',
-]
-
-tooling_conf = configuration_data()
-tooling_conf.set('abs_top_builddir', meson.build_root())
-tooling_conf.set('abs_top_srcdir', meson.source_root())
-
-foreach file : tooling_files
-  configure_file(
-    input: file,
-    output: '@BASENAME@',
-    configuration: tooling_conf,
-  )
-endforeach
 
 
 # print configuration summary
@@ -2267,7 +2202,6 @@ storagedriver_summary = {
   'mpath': conf.has('WITH_STORAGE_MPATH'),
   'Disk': conf.has('WITH_STORAGE_DISK'),
   'RBD': conf.has('WITH_STORAGE_RBD'),
-  'Sheepdog': conf.has('WITH_STORAGE_SHEEPDOG'),
   'Gluster': conf.has('WITH_STORAGE_GLUSTER'),
   'ZFS': conf.has('WITH_STORAGE_ZFS'),
   'Virtuozzo storage': conf.has('WITH_STORAGE_VSTORAGE'),
@@ -2300,13 +2234,14 @@ libs_summary = {
   'glusterfs': glusterfs_dep.found(),
   'libiscsi': libiscsi_dep.found(),
   'libkvm': libkvm_dep.found(),
+  'libnbd': libnbd_dep.found(),
   'libnl': libnl_dep.found(),
   'libparted': libparted_dep.found(),
   'libpcap': libpcap_dep.found(),
   'libssh': libssh_dep.found(),
   'libssh2': libssh2_dep.found(),
   'libutil': libutil_dep.found(),
-  'netcf': conf.has('WITH_NETCF'),
+  'netcf': netcf_dep.found(),
   'NLS': have_gnu_gettext_tools,
   'numactl': numactl_dep.found(),
   'openwsman': openwsman_dep.found(),
@@ -2315,7 +2250,7 @@ libs_summary = {
   'polkit': conf.has('WITH_POLKIT'),
   'rbd': rbd_dep.found(),
   'readline': readline_dep.found(),
-  'sanlock': conf.has('WITH_SANLOCK'),
+  'sanlock': sanlock_dep.found(),
   'sasl': sasl_dep.found(),
   'selinux': selinux_dep.found(),
   'udev': udev_dep.found(),
@@ -2350,6 +2285,7 @@ misc_summary = {
   'firewalld-zone': conf.has('WITH_FIREWALLD_ZONE'),
   'nss': conf.has('WITH_NSS'),
   'numad': conf.has('WITH_NUMAD'),
+  'nbdkit': conf.has('WITH_NBDKIT'),
   'Init script': init_script,
   'Char device locks': chrdev_lock_files,
   'Loader/NVRAM': loader_res,

@@ -53,17 +53,6 @@ static virMutex virNodeSuspendMutex = VIR_MUTEX_INITIALIZER;
 
 static bool aboutToSuspend;
 
-static void virNodeSuspendLock(void)
-{
-    virMutexLock(&virNodeSuspendMutex);
-}
-
-static void virNodeSuspendUnlock(void)
-{
-    virMutexUnlock(&virNodeSuspendMutex);
-}
-
-
 /**
  * virNodeSuspendSetNodeWakeup:
  * @alarmTime: time in seconds from now, at which the RTC alarm has to be set.
@@ -77,7 +66,7 @@ static int virNodeSuspendSetNodeWakeup(unsigned long long alarmTime)
 
     if (alarmTime < MIN_TIME_REQ_FOR_SUSPEND) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Suspend duration is too short, must be at least %u seconds"),
+                       _("Suspend duration is too short, must be at least %1$u seconds"),
                        MIN_TIME_REQ_FOR_SUSPEND);
         return -1;
     }
@@ -116,9 +105,9 @@ static void virNodeSuspendHelper(void *cmdString)
      * Now that we have resumed from suspend or the suspend failed,
      * reset 'aboutToSuspend' flag.
      */
-    virNodeSuspendLock();
-    aboutToSuspend = false;
-    virNodeSuspendUnlock();
+    VIR_WITH_MUTEX_LOCK_GUARD(&virNodeSuspendMutex) {
+        aboutToSuspend = false;
+    }
 }
 
 /**
@@ -154,8 +143,8 @@ int virNodeSuspend(unsigned int target,
 {
     static virThread thread;
     const char *cmdString = NULL;
-    int ret = -1;
     unsigned int supported;
+    VIR_LOCK_GUARD lock = { NULL };
 
     virCheckFlags(0, -1);
 
@@ -166,13 +155,13 @@ int virNodeSuspend(unsigned int target,
      * Ensure that we are the only ones trying to suspend.
      * Fail if somebody has already initiated a suspend.
      */
-    virNodeSuspendLock();
+    lock = virLockGuardLock(&virNodeSuspendMutex);
 
     if (aboutToSuspend) {
         /* A suspend operation is already in progress */
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("Suspend operation already in progress"));
-        goto cleanup;
+        return -1;
     }
 
     /* Check if the host supports the requested suspend target */
@@ -180,7 +169,7 @@ int virNodeSuspend(unsigned int target,
     case VIR_NODE_SUSPEND_TARGET_MEM:
         if (!(supported & (1 << VIR_NODE_SUSPEND_TARGET_MEM))) {
             virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s", _("Suspend-to-RAM"));
-            goto cleanup;
+            return -1;
         }
         cmdString = "pm-suspend";
         break;
@@ -188,7 +177,7 @@ int virNodeSuspend(unsigned int target,
     case VIR_NODE_SUSPEND_TARGET_DISK:
         if (!(supported & (1 << VIR_NODE_SUSPEND_TARGET_DISK))) {
             virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s", _("Suspend-to-Disk"));
-            goto cleanup;
+            return -1;
         }
         cmdString = "pm-hibernate";
         break;
@@ -196,19 +185,19 @@ int virNodeSuspend(unsigned int target,
     case VIR_NODE_SUSPEND_TARGET_HYBRID:
         if (!(supported & (1 << VIR_NODE_SUSPEND_TARGET_HYBRID))) {
             virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s", _("Hybrid-Suspend"));
-            goto cleanup;
+            return -1;
         }
         cmdString = "pm-suspend-hybrid";
         break;
 
     default:
         virReportError(VIR_ERR_INVALID_ARG, "%s", _("Invalid suspend target"));
-        goto cleanup;
+        return -1;
     }
 
     /* Just set the RTC alarm. Don't suspend yet. */
     if (virNodeSuspendSetNodeWakeup(duration) < 0)
-        goto cleanup;
+        return -1;
 
     if (virThreadCreateFull(&thread, false,
                             virNodeSuspendHelper,
@@ -217,14 +206,11 @@ int virNodeSuspend(unsigned int target,
                             (void *)cmdString) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Failed to create thread to suspend the host"));
-        goto cleanup;
+        return -1;
     }
 
     aboutToSuspend = true;
-    ret = 0;
- cleanup:
-    virNodeSuspendUnlock();
-    return ret;
+    return 0;
 }
 
 #ifdef WITH_PM_UTILS
@@ -263,6 +249,7 @@ virNodeSuspendSupportsTargetPMUtils(unsigned int target, bool *supported)
     * (i.e., the PM capability is supported)
     */
     *supported = (status == 0);
+    VIR_DEBUG("Node suspend pm-utils target %d: %d", target, *supported);
 
     return 0;
 }
@@ -271,6 +258,7 @@ static int
 virNodeSuspendSupportsTargetPMUtils(unsigned int target G_GNUC_UNUSED,
                                     bool *supported G_GNUC_UNUSED)
 {
+    VIR_DEBUG("Node suspend pm-utils target %d: unsupported platform", target);
     return -2;
 }
 #endif /* ! WITH_PM_UTILS */
@@ -296,6 +284,7 @@ virNodeSuspendSupportsTargetSystemd(unsigned int target, bool *supported)
         return ret;
     }
 
+    VIR_DEBUG("Node suspend systemd target %d: %d", target, ret);
     return ret;
 }
 
@@ -348,11 +337,10 @@ virNodeSuspendSupportsTarget(unsigned int target, bool *supported)
 int
 virNodeSuspendGetTargetMask(unsigned int *bitmask)
 {
-    int ret = -1;
+    VIR_LOCK_GUARD lock = virLockGuardLock(&virNodeSuspendMutex);
 
     *bitmask = 0;
 
-    virNodeSuspendLock();
     /* Get the power management capabilities supported by the host */
     if (!nodeSuspendTargetMaskInit) {
         bool supported;
@@ -360,19 +348,19 @@ virNodeSuspendGetTargetMask(unsigned int *bitmask)
 
         /* Check support for Suspend-to-RAM (S3) */
         if (virNodeSuspendSupportsTarget(VIR_NODE_SUSPEND_TARGET_MEM, &supported) < 0)
-            goto cleanup;
+            return -1;
         if (supported)
             nodeSuspendTargetMask |= (1 << VIR_NODE_SUSPEND_TARGET_MEM);
 
         /* Check support for Suspend-to-Disk (S4) */
         if (virNodeSuspendSupportsTarget(VIR_NODE_SUSPEND_TARGET_DISK, &supported) < 0)
-            goto cleanup;
+            return -1;
         if (supported)
             nodeSuspendTargetMask |= (1 << VIR_NODE_SUSPEND_TARGET_DISK);
 
         /* Check support for Hybrid-Suspend */
         if (virNodeSuspendSupportsTarget(VIR_NODE_SUSPEND_TARGET_HYBRID, &supported) < 0)
-            goto cleanup;
+            return -1;
         if (supported)
             nodeSuspendTargetMask |= (1 << VIR_NODE_SUSPEND_TARGET_HYBRID);
 
@@ -380,8 +368,5 @@ virNodeSuspendGetTargetMask(unsigned int *bitmask)
     }
 
     *bitmask = nodeSuspendTargetMask;
-    ret = 0;
- cleanup:
-    virNodeSuspendUnlock();
-    return ret;
+    return 0;
 }

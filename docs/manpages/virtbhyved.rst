@@ -30,8 +30,8 @@ This daemon runs on virtualization hosts to provide management for bhyve virtual
 machines.
 
 The ``virtbhyved`` daemon only listens for requests on a local Unix domain
-socket. Remote off-host access and backwards compatibility with legacy
-clients expecting ``libvirtd`` is provided by the ``virtproxy`` daemon.
+socket. Remote access via TLS/TCP and backwards compatibility with legacy
+clients expecting ``libvirtd`` is provided by the ``virtproxyd`` daemon.
 
 Restarting ``virtbhyved`` does not interrupt running guests. Guests continue to
 operate and changes in their state will generally be picked up automatically
@@ -60,8 +60,8 @@ Use this name for the PID file, overriding the default value.
 
 ``-t``, ``--timeout *SECONDS*``
 
-Exit after timeout period (in seconds), provided there are neither any client
-connections nor any running domains.
+Exit after timeout period (in seconds), provided there are no client
+connections.
 
 ``-v``, ``--verbose``
 
@@ -189,5 +189,5 @@ SEE ALSO
 ========
 
 virsh(1), libvirtd(8),
-`https://www.libvirt.org/daemons.html <https://www.libvirt.org/daemons.html>`_,
-`https://www.libvirt.org/drvbhyve.html <https://www.libvirt.org/drvbhyve.html>`_
+`https://libvirt.org/daemons.html <https://libvirt.org/daemons.html>`_,
+`https://libvirt.org/drvbhyve.html <https://libvirt.org/drvbhyve.html>`_

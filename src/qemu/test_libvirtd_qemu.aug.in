@@ -47,8 +47,8 @@ module Test_libvirtd_qemu =
 { "security_driver" = "selinux" }
 { "security_default_confined" = "1" }
 { "security_require_confined" = "1" }
-{ "user" = "root" }
-{ "group" = "root" }
+{ "user" = "@QEMU_USER@" }
+{ "group" = "@QEMU_GROUP@" }
 { "dynamic_ownership" = "1" }
 { "remember_owner" = "1" }
 { "cgroup_controllers"
@@ -75,7 +75,7 @@ module Test_libvirtd_qemu =
 { "auto_dump_bypass_cache" = "0" }
 { "auto_start_bypass_cache" = "0" }
 { "hugetlbfs_mount" = "/dev/hugepages" }
-{ "bridge_helper" = "/usr/libexec/qemu-bridge-helper" }
+{ "bridge_helper" = "qemu-bridge-helper" }
 { "set_process_name" = "1" }
 { "max_processes" = "0" }
 { "max_files" = "0" }
@@ -107,12 +107,13 @@ module Test_libvirtd_qemu =
     { "1" = "mount" }
 }
 { "memory_backing_dir" = "/var/lib/libvirt/qemu/ram" }
-{ "pr_helper" = "/usr/bin/qemu-pr-helper" }
+{ "pr_helper" = "qemu-pr-helper" }
 { "slirp_helper" = "/usr/bin/slirp-helper" }
-{ "dbus_daemon" = "/usr/bin/dbus-daemon" }
+{ "dbus_daemon" = "dbus-daemon" }
 { "swtpm_user" = "tss" }
 { "swtpm_group" = "tss" }
 { "capability_filters"
     { "1" = "capname" }
 }
 { "deprecation_behavior" = "none" }
+{ "sched_core" = "none" }

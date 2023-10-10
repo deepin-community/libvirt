@@ -8,7 +8,6 @@ After=network.target
 After=dbus.service
 After=iscsid.service
 After=apparmor.service
-After=local-fs.target
 After=remote-fs.target
 Documentation=man:virtstoraged(8)
 Documentation=https://libvirt.org
@@ -16,7 +15,7 @@ Documentation=https://libvirt.org
 [Service]
 Type=notify
 Environment=VIRTSTORAGED_ARGS="--timeout 120"
-EnvironmentFile=-@sysconfdir@/sysconfig/virtstoraged
+EnvironmentFile=-@initconfdir@/virtstoraged
 ExecStart=@sbindir@/virtstoraged $VIRTSTORAGED_ARGS
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure

@@ -34,7 +34,6 @@
 #include "lock_protocol.h"
 #include "configmake.h"
 #include "virstoragefile.h"
-#include "virstring.h"
 #include "virutil.h"
 
 #include "lock_driver_lockd.h"
@@ -86,7 +85,7 @@ static int virLockManagerLockDaemonLoadConfig(const char *configFile)
     if (access(configFile, R_OK) == -1) {
         if (errno != ENOENT) {
             virReportSystemError(errno,
-                                 _("Unable to access config file %s"),
+                                 _("Unable to access config file %1$s"),
                                  configFile);
             return -1;
         }
@@ -139,9 +138,7 @@ virLockManagerLockDaemonConnectionRegister(virLockManager *lock,
                                            int *counter)
 {
     virLockManagerLockDaemonPrivate *priv = lock->privateData;
-    virLockSpaceProtocolRegisterArgs args;
-
-    memset(&args, 0, sizeof(args));
+    virLockSpaceProtocolRegisterArgs args = { 0 };
 
     args.flags = 0;
     memcpy(args.owner.uuid, priv->uuid, VIR_UUID_BUFLEN);
@@ -168,9 +165,7 @@ virLockManagerLockDaemonConnectionRestrict(virLockManager *lock G_GNUC_UNUSED,
                                            virNetClientProgram *program,
                                            int *counter)
 {
-    virLockSpaceProtocolRestrictArgs args;
-
-    memset(&args, 0, sizeof(args));
+    virLockSpaceProtocolRestrictArgs args = { 0 };
 
     args.flags = 0;
 
@@ -191,8 +186,8 @@ static virNetClient *virLockManagerLockDaemonConnectionNew(bool privileged,
                                                              virNetClientProgram **prog)
 {
     virNetClient *client = NULL;
-    char *lockdpath;
-    char *daemonPath = NULL;
+    g_autofree char *lockdpath = NULL;
+    g_autofree char *daemonPath = NULL;
 
     *prog = NULL;
 
@@ -221,14 +216,9 @@ static virNetClient *virLockManagerLockDaemonConnectionNew(bool privileged,
     if (virNetClientAddProgram(client, *prog) < 0)
         goto error;
 
-    VIR_FREE(daemonPath);
-    VIR_FREE(lockdpath);
-
     return client;
 
  error:
-    VIR_FREE(daemonPath);
-    VIR_FREE(lockdpath);
     virNetClientClose(client);
     virObjectUnref(client);
     virObjectUnref(*prog);
@@ -265,11 +255,10 @@ static int virLockManagerLockDaemonSetupLockspace(const char *path)
 {
     virNetClient *client;
     virNetClientProgram *program = NULL;
-    virLockSpaceProtocolCreateLockSpaceArgs args;
+    virLockSpaceProtocolCreateLockSpaceArgs args = { 0 };
     int rv = -1;
     int counter = 0;
 
-    memset(&args, 0, sizeof(args));
     args.path = (char*)path;
 
     if (!(client = virLockManagerLockDaemonConnectionNew(geteuid() == 0, &program)))
@@ -406,7 +395,7 @@ static int virLockManagerLockDaemonNew(virLockManager *lock,
                 /* ignored */
             } else {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Unexpected parameter %s for object"),
+                               _("Unexpected parameter %1$s for object"),
                                params[i].key);
                 goto cleanup;
             }
@@ -432,7 +421,7 @@ static int virLockManagerLockDaemonNew(virLockManager *lock,
 
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unknown lock manager object type %d"),
+                       _("Unknown lock manager object type %1$d"),
                        type);
         goto cleanup;
     }
@@ -504,7 +493,7 @@ static int
 virLockManagerGetLVMKey(const char *path,
                         char **key G_GNUC_UNUSED)
 {
-    virReportSystemError(ENOSYS, _("Unable to get LVM key for %s"), path);
+    virReportSystemError(ENOSYS, _("Unable to get LVM key for %1$s"), path);
     return -1;
 }
 #endif
@@ -518,10 +507,9 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
                                                unsigned int flags)
 {
     virLockManagerLockDaemonPrivate *priv = lock->privateData;
-    char *newName = NULL;
-    char *newLockspace = NULL;
+    g_autofree char *newName = NULL;
+    g_autofree char *newLockspace = NULL;
     bool autoCreate = false;
-    int ret = -1;
 
     virCheckFlags(VIR_LOCK_MANAGER_RESOURCE_READONLY |
                   VIR_LOCK_MANAGER_RESOURCE_SHARED, -1);
@@ -534,7 +522,7 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
         if (params || nparams) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Unexpected parameters for disk resource"));
-            goto cleanup;
+            return -1;
         }
         if (!driver->autoDiskLease) {
             if (!(flags & (VIR_LOCK_MANAGER_RESOURCE_SHARED |
@@ -550,7 +538,7 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
             driver->lvmLockSpaceDir) {
             VIR_DEBUG("Trying to find an LVM UUID for %s", name);
             if (virLockManagerGetLVMKey(name, &newName) < 0)
-                goto cleanup;
+                return -1;
 
             if (newName) {
                 VIR_DEBUG("Got an LVM UUID %s for %s", newName, name);
@@ -566,7 +554,7 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
             driver->scsiLockSpaceDir) {
             VIR_DEBUG("Trying to find an SCSI ID for %s", name);
             if (virStorageFileGetSCSIKey(name, &newName, false) < 0)
-                goto cleanup;
+                return -1;
 
             if (newName) {
                 VIR_DEBUG("Got an SCSI ID %s for %s", newName, name);
@@ -581,7 +569,7 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
         if (driver->fileLockSpaceDir) {
             newLockspace = g_strdup(driver->fileLockSpaceDir);
             if (virCryptoHashString(VIR_CRYPTO_HASH_SHA256, name, &newName) < 0)
-                goto cleanup;
+                return -1;
             autoCreate = true;
             VIR_DEBUG("Using indirect lease %s for %s", newName, name);
         } else {
@@ -600,7 +588,7 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
                 if (params[i].value.ul != 0) {
                     virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                    _("Offset must be zero for this lock manager"));
-                    goto cleanup;
+                    return -1;
                 }
             } else if (STREQ(params[i].key, "lockspace")) {
                 lockspace = params[i].value.str;
@@ -608,15 +596,15 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
                 path = params[i].value.str;
             } else {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Unexpected parameter %s for lease resource"),
+                               _("Unexpected parameter %1$s for lease resource"),
                                params[i].key);
-                goto cleanup;
+                return -1;
             }
         }
         if (!path || !lockspace) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Missing path or lockspace for lease resource"));
-            goto cleanup;
+            return -1;
         }
         newLockspace = g_strdup_printf("%s/%s", path, lockspace);
         newName = g_strdup(name);
@@ -624,9 +612,9 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
     }   break;
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unknown lock manager object type %d"),
+                       _("Unknown lock manager object type %1$d"),
                        type);
-        goto cleanup;
+        return -1;
     }
 
     VIR_EXPAND_N(priv->resources, priv->nresources, 1);
@@ -641,11 +629,7 @@ static int virLockManagerLockDaemonAddResource(virLockManager *lock,
         priv->resources[priv->nresources-1].flags |=
             VIR_LOCK_SPACE_PROTOCOL_ACQUIRE_RESOURCE_AUTOCREATE;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(newLockspace);
-    VIR_FREE(newName);
-    return ret;
+    return 0;
 }
 
 
@@ -682,9 +666,7 @@ static int virLockManagerLockDaemonAcquire(virLockManager *lock,
     if (!(flags & VIR_LOCK_MANAGER_ACQUIRE_REGISTER_ONLY)) {
         size_t i;
         for (i = 0; i < priv->nresources; i++) {
-            virLockSpaceProtocolAcquireResourceArgs args;
-
-            memset(&args, 0, sizeof(args));
+            virLockSpaceProtocolAcquireResourceArgs args = { 0 };
 
             args.path = priv->resources[i].lockspace;
             args.name = priv->resources[i].name;
@@ -737,9 +719,7 @@ static int virLockManagerLockDaemonRelease(virLockManager *lock,
         goto cleanup;
 
     for (i = 0; i < priv->nresources; i++) {
-        virLockSpaceProtocolReleaseResourceArgs args;
-
-        memset(&args, 0, sizeof(args));
+        virLockSpaceProtocolReleaseResourceArgs args = { 0 };
 
         if (priv->resources[i].lockspace)
             args.path = priv->resources[i].lockspace;

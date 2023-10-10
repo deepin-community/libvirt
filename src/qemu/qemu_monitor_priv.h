@@ -57,7 +57,6 @@ struct _qemuMonitor {
     char *domainName;
 
     qemuMonitorCallbacks *cb;
-    void *callbackOpaque;
 
     /* If there's a command being processed this will be
      * non-NULL */
@@ -91,6 +90,8 @@ struct _qemuMonitor {
 
     /* true if qemu no longer wants 'props' sub-object of object-add */
     bool objectAddNoWrap;
+    /* query-named-block-nodes supports the 'flat' option */
+    bool queryNamedBlockNodesFlat;
 };
 
 
@@ -102,4 +103,4 @@ qemuMonitorIOWriteWithFD(qemuMonitor *mon,
                          const char *data,
                          size_t len,
                          int fd)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;

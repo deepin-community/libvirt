@@ -21,8 +21,6 @@
 #include "testutils.h"
 #include "testutilsqemu.h"
 #include "testutilsqemuschema.h"
-#include "virstoragefile.h"
-#include "virstring.h"
 #include "virlog.h"
 #include "qemu/qemu_block.h"
 #include "qemu/qemu_qapi.h"
@@ -30,8 +28,6 @@
 #include "qemu/qemu_backup.h"
 #include "qemu/qemu_checkpoint.h"
 #include "qemu/qemu_validate.h"
-
-#include "qemu/qemu_command.h"
 
 #define LIBVIRT_SNAPSHOT_CONF_PRIV_H_ALLOW
 #include "conf/snapshot_conf_priv.h"
@@ -241,10 +237,12 @@ testQemuDiskXMLToJSONFakeSecrets(virStorageSource *src)
     }
 
     if (src->encryption) {
-        srcpriv->encinfo = g_new0(qemuDomainSecretInfo, 1);
+        srcpriv->encinfo = g_new0(qemuDomainSecretInfo *, 1);
+        srcpriv->encinfo[0] = g_new0(qemuDomainSecretInfo, 1);
 
-        srcpriv->encinfo->alias = g_strdup_printf("%s-encalias",
-                                                  NULLSTR(src->nodeformat));
+        srcpriv->encinfo[0]->alias = g_strdup_printf("%s-encalias",
+                                                     NULLSTR(src->nodeformat));
+        srcpriv->enccount = 1;
     }
 
     return 0;
@@ -298,7 +296,7 @@ testQemuDiskXMLToProps(const void *opaque)
         if (testQemuDiskXMLToJSONFakeSecrets(n) < 0)
             return -1;
 
-        if (qemuDomainValidateStorageSource(n, data->qemuCaps, false) < 0)
+        if (qemuDomainValidateStorageSource(n, data->qemuCaps) < 0)
             return -1;
 
         qemuDomainPrepareDiskSourceData(disk, n);
@@ -523,7 +521,7 @@ testQemuImageCreate(const void *opaque)
     src->capacity = UINT_MAX * 2ULL;
     src->physical = UINT_MAX + 1ULL;
 
-    if (qemuDomainValidateStorageSource(src, data->qemuCaps, false) < 0)
+    if (qemuDomainValidateStorageSource(src, data->qemuCaps) < 0)
         return -1;
 
     if (qemuBlockStorageSourceCreateGetStorageProps(src, &protocolprops) < 0)

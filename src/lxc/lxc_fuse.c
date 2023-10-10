@@ -25,21 +25,48 @@
 #include <mntent.h>
 #include <unistd.h>
 
+#if WITH_FUSE
+# if WITH_FUSE == 3
+#  define FUSE_USE_VERSION 31
+# else
+#  define FUSE_USE_VERSION 26
+# endif
+# include <fuse.h>
+# if FUSE_USE_VERSION >= 31
+#  include <fuse_lowlevel.h>
+# endif
+#endif
+
 #include "lxc_fuse.h"
 #include "lxc_cgroup.h"
+#include "lxc_conf.h"
 #include "virerror.h"
 #include "virfile.h"
 #include "virbuffer.h"
-#include "virstring.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
 #if WITH_FUSE
 
+struct virLXCFuse {
+    virDomainDef *def;
+    virThread thread;
+    char *mountpoint;
+    struct fuse *fuse;
+# if FUSE_USE_VERSION < 31
+    struct fuse_chan *ch;
+# else
+    struct fuse_session *sess;
+# endif
+    virMutex lock;
+};
+
 static const char *fuse_meminfo_path = "/meminfo";
 
-static int lxcProcGetattr(const char *path, struct stat *stbuf)
+static int
+lxcProcGetattrImpl(const char *path,
+                   struct stat *stbuf)
 {
     g_autofree char *mempath = NULL;
     struct stat sb;
@@ -73,10 +100,46 @@ static int lxcProcGetattr(const char *path, struct stat *stbuf)
     return 0;
 }
 
-static int lxcProcReaddir(const char *path, void *buf,
-                          fuse_fill_dir_t filler,
-                          off_t offset G_GNUC_UNUSED,
-                          struct fuse_file_info *fi G_GNUC_UNUSED)
+# if FUSE_USE_VERSION >= 31
+static int
+lxcProcGetattr(const char *path,
+               struct stat *stbuf,
+               struct fuse_file_info *fi G_GNUC_UNUSED)
+{
+    return lxcProcGetattrImpl(path, stbuf);
+}
+# else
+static int lxcProcGetattr(const char *path, struct stat *stbuf)
+{
+    return lxcProcGetattrImpl(path, stbuf);
+}
+# endif
+
+# if FUSE_USE_VERSION >= 31
+static int
+lxcProcReaddir(const char *path,
+               void *buf,
+               fuse_fill_dir_t filler,
+               off_t offset G_GNUC_UNUSED,
+               struct fuse_file_info *fi G_GNUC_UNUSED,
+               enum fuse_readdir_flags unused_flags G_GNUC_UNUSED)
+{
+    if (STRNEQ(path, "/"))
+        return -ENOENT;
+
+    filler(buf, ".", NULL, 0, 0);
+    filler(buf, "..", NULL, 0, 0);
+    filler(buf, fuse_meminfo_path + 1, NULL, 0, 0);
+
+    return 0;
+}
+# else
+static int
+lxcProcReaddir(const char *path,
+               void *buf,
+               fuse_fill_dir_t filler,
+               off_t offset G_GNUC_UNUSED,
+               struct fuse_file_info *fi G_GNUC_UNUSED)
 {
     if (STRNEQ(path, "/"))
         return -ENOENT;
@@ -87,22 +150,29 @@ static int lxcProcReaddir(const char *path, void *buf,
 
     return 0;
 }
+# endif
 
-static int lxcProcOpen(const char *path G_GNUC_UNUSED,
-                       struct fuse_file_info *fi G_GNUC_UNUSED)
+static int
+lxcProcOpen(const char *path,
+            struct fuse_file_info *fi)
 {
     if (STRNEQ(path, fuse_meminfo_path))
         return -ENOENT;
 
-    if ((fi->flags & 3) != O_RDONLY)
+    if ((fi->flags & O_ACCMODE) != O_RDONLY)
         return -EACCES;
 
+    fi->direct_io = 1;
     return 0;
 }
 
-static int lxcProcHostRead(char *path, char *buf, size_t size, off_t offset)
+static int
+lxcProcHostRead(char *path,
+                char *buf,
+                size_t size,
+                off_t offset)
 {
-    int fd;
+    VIR_AUTOCLOSE fd = -1;
     int res;
 
     fd = open(path, O_RDONLY);
@@ -112,41 +182,37 @@ static int lxcProcHostRead(char *path, char *buf, size_t size, off_t offset)
     if ((res = pread(fd, buf, size, offset)) < 0)
         res = -errno;
 
-    VIR_FORCE_CLOSE(fd);
     return res;
 }
 
-static int lxcProcReadMeminfo(char *hostpath, virDomainDef *def,
-                              char *buf, size_t size, off_t offset)
+static int
+lxcProcReadMeminfo(char *hostpath,
+                   virDomainDef *def,
+                   char *buf,
+                   size_t size,
+                   off_t offset)
 {
     int res;
-    FILE *fd = NULL;
+    g_autoptr(FILE) fp = NULL;
     g_autofree char *line = NULL;
     size_t n;
     struct virLXCMeminfo meminfo;
     g_auto(virBuffer) buffer = VIR_BUFFER_INITIALIZER;
-    virBuffer *new_meminfo = &buffer;
+    const char *new_meminfo = NULL;
 
     if (virLXCCgroupGetMeminfo(&meminfo) < 0) {
         virErrorSetErrnoFromLastError();
         return -errno;
     }
 
-    fd = fopen(hostpath, "r");
-    if (fd == NULL) {
-        virReportSystemError(errno, _("Cannot open %s"), hostpath);
-        res = -errno;
-        goto cleanup;
-    }
-
-    if (fseek(fd, offset, SEEK_SET) < 0) {
-        virReportSystemError(errno, "%s", _("fseek failed"));
-        res = -errno;
-        goto cleanup;
+    fp = fopen(hostpath, "r");
+    if (fp == NULL) {
+        virReportSystemError(errno, _("Cannot open %1$s"), hostpath);
+        return -errno;
     }
 
     res = -1;
-    while (getline(&line, &n, fd) > 0) {
+    while (getline(&line, &n, fp) > 0) {
         char *ptr = strchr(line, ':');
         if (!ptr)
             continue;
@@ -155,12 +221,12 @@ static int lxcProcReadMeminfo(char *hostpath, virDomainDef *def,
         if (STREQ(line, "MemTotal") &&
             (virMemoryLimitIsSet(def->mem.hard_limit) ||
              virDomainDefGetMemoryTotal(def))) {
-            virBufferAsprintf(new_meminfo, "MemTotal:       %8llu kB\n",
+            virBufferAsprintf(&buffer, "MemTotal:       %8llu kB\n",
                               meminfo.memtotal);
         } else if (STREQ(line, "MemFree") &&
                    (virMemoryLimitIsSet(def->mem.hard_limit) ||
                     virDomainDefGetMemoryTotal(def))) {
-            virBufferAsprintf(new_meminfo, "MemFree:        %8llu kB\n",
+            virBufferAsprintf(&buffer, "MemFree:        %8llu kB\n",
                               (meminfo.memtotal - meminfo.memusage));
         } else if (STREQ(line, "MemAvailable") &&
                    (virMemoryLimitIsSet(def->mem.hard_limit) ||
@@ -168,70 +234,77 @@ static int lxcProcReadMeminfo(char *hostpath, virDomainDef *def,
             /* MemAvailable is actually MemFree + SRReclaimable +
                some other bits, but MemFree is the closest approximation
                we have */
-            virBufferAsprintf(new_meminfo, "MemAvailable:   %8llu kB\n",
+            virBufferAsprintf(&buffer, "MemAvailable:   %8llu kB\n",
                               (meminfo.memtotal - meminfo.memusage));
         } else if (STREQ(line, "Buffers")) {
-            virBufferAsprintf(new_meminfo, "Buffers:        %8d kB\n", 0);
+            virBufferAsprintf(&buffer, "Buffers:        %8d kB\n", 0);
         } else if (STREQ(line, "Cached")) {
-            virBufferAsprintf(new_meminfo, "Cached:         %8llu kB\n",
+            virBufferAsprintf(&buffer, "Cached:         %8llu kB\n",
                               meminfo.cached);
         } else if (STREQ(line, "Active")) {
-            virBufferAsprintf(new_meminfo, "Active:         %8llu kB\n",
+            virBufferAsprintf(&buffer, "Active:         %8llu kB\n",
                               (meminfo.active_anon + meminfo.active_file));
         } else if (STREQ(line, "Inactive")) {
-            virBufferAsprintf(new_meminfo, "Inactive:       %8llu kB\n",
+            virBufferAsprintf(&buffer, "Inactive:       %8llu kB\n",
                               (meminfo.inactive_anon + meminfo.inactive_file));
         } else if (STREQ(line, "Active(anon)")) {
-            virBufferAsprintf(new_meminfo, "Active(anon):   %8llu kB\n",
+            virBufferAsprintf(&buffer, "Active(anon):   %8llu kB\n",
                               meminfo.active_anon);
         } else if (STREQ(line, "Inactive(anon)")) {
-            virBufferAsprintf(new_meminfo, "Inactive(anon): %8llu kB\n",
+            virBufferAsprintf(&buffer, "Inactive(anon): %8llu kB\n",
                               meminfo.inactive_anon);
         } else if (STREQ(line, "Active(file)")) {
-            virBufferAsprintf(new_meminfo, "Active(file):   %8llu kB\n",
+            virBufferAsprintf(&buffer, "Active(file):   %8llu kB\n",
                               meminfo.active_file);
         } else if (STREQ(line, "Inactive(file)")) {
-            virBufferAsprintf(new_meminfo, "Inactive(file): %8llu kB\n",
+            virBufferAsprintf(&buffer, "Inactive(file): %8llu kB\n",
                               meminfo.inactive_file);
         } else if (STREQ(line, "Unevictable")) {
-            virBufferAsprintf(new_meminfo, "Unevictable:    %8llu kB\n",
+            virBufferAsprintf(&buffer, "Unevictable:    %8llu kB\n",
                               meminfo.unevictable);
         } else if (STREQ(line, "SwapTotal") &&
                    virMemoryLimitIsSet(def->mem.swap_hard_limit)) {
-            virBufferAsprintf(new_meminfo, "SwapTotal:      %8llu kB\n",
+            virBufferAsprintf(&buffer, "SwapTotal:      %8llu kB\n",
                               (meminfo.swaptotal - meminfo.memtotal));
         } else if (STREQ(line, "SwapFree") &&
                    virMemoryLimitIsSet(def->mem.swap_hard_limit)) {
-            virBufferAsprintf(new_meminfo, "SwapFree:       %8llu kB\n",
+            virBufferAsprintf(&buffer, "SwapFree:       %8llu kB\n",
                               (meminfo.swaptotal - meminfo.memtotal -
                                meminfo.swapusage + meminfo.memusage));
         } else if (STREQ(line, "Slab")) {
-            virBufferAsprintf(new_meminfo, "Slab:           %8d kB\n", 0);
+            virBufferAsprintf(&buffer, "Slab:           %8d kB\n", 0);
         } else if (STREQ(line, "SReclaimable")) {
-            virBufferAsprintf(new_meminfo, "SReclaimable:   %8d kB\n", 0);
+            virBufferAsprintf(&buffer, "SReclaimable:   %8d kB\n", 0);
         } else if (STREQ(line, "SUnreclaim")) {
-            virBufferAsprintf(new_meminfo, "SUnreclaim:     %8d kB\n", 0);
+            virBufferAsprintf(&buffer, "SUnreclaim:     %8d kB\n", 0);
         } else {
             *ptr = ':';
-            virBufferAdd(new_meminfo, line, -1);
+            virBufferAdd(&buffer, line, -1);
         }
 
     }
-    res = strlen(virBufferCurrentContent(new_meminfo));
+
+    new_meminfo = virBufferCurrentContent(&buffer);
+    res = virBufferUse(&buffer);
+
+    if (offset > res)
+        return 0;
+
+    res -= offset;
+
     if (res > size)
         res = size;
-    memcpy(buf, virBufferCurrentContent(new_meminfo), res);
+    memcpy(buf, new_meminfo + offset, res);
 
- cleanup:
-    VIR_FORCE_FCLOSE(fd);
     return res;
 }
 
-static int lxcProcRead(const char *path G_GNUC_UNUSED,
-                       char *buf G_GNUC_UNUSED,
-                       size_t size G_GNUC_UNUSED,
-                       off_t offset G_GNUC_UNUSED,
-                       struct fuse_file_info *fi G_GNUC_UNUSED)
+static int
+lxcProcRead(const char *path,
+            char *buf,
+            size_t size,
+            off_t offset,
+            struct fuse_file_info *fi G_GNUC_UNUSED)
 {
     int res = -ENOENT;
     g_autofree char *hostpath = NULL;
@@ -258,15 +331,21 @@ static struct fuse_operations lxcProcOper = {
     .read    = lxcProcRead,
 };
 
-static void lxcFuseDestroy(struct virLXCFuse *fuse)
+static void
+lxcFuseDestroy(struct virLXCFuse *fuse)
 {
     VIR_LOCK_GUARD lock = virLockGuardLock(&fuse->lock);
 
+# if FUSE_USE_VERSION >= 31
+    fuse_unmount(fuse->fuse);
+# else
     fuse_unmount(fuse->mountpoint, fuse->ch);
+# endif
     g_clear_pointer(&fuse->fuse, fuse_destroy);
 }
 
-static void lxcFuseRun(void *opaque)
+static void
+lxcFuseRun(void *opaque)
 {
     struct virLXCFuse *fuse = opaque;
 
@@ -277,57 +356,82 @@ static void lxcFuseRun(void *opaque)
     lxcFuseDestroy(fuse);
 }
 
-int lxcSetupFuse(struct virLXCFuse **f, virDomainDef *def)
+int
+lxcSetupFuse(struct virLXCFuse **f,
+             virDomainDef *def)
 {
     int ret = -1;
     struct fuse_args args = FUSE_ARGS_INIT(0, NULL);
-    struct virLXCFuse *fuse = g_new0(virLXCFuse, 1);
+    g_autofree struct virLXCFuse *fuse = g_new0(virLXCFuse, 1);
 
     fuse->def = def;
 
     if (virMutexInit(&fuse->lock) < 0)
-        goto cleanup2;
+        return -1;
 
     fuse->mountpoint = g_strdup_printf("%s/%s.fuse/", LXC_STATE_DIR, def->name);
 
     if (g_mkdir_with_parents(fuse->mountpoint, 0777) < 0) {
-        virReportSystemError(errno, _("Cannot create %s"),
+        virReportSystemError(errno, _("Cannot create %1$s"),
                              fuse->mountpoint);
-        goto cleanup1;
+        goto error;
     }
 
     /* process name is libvirt_lxc */
     if (fuse_opt_add_arg(&args, "libvirt_lxc") == -1 ||
-        fuse_opt_add_arg(&args, "-odirect_io") == -1 ||
         fuse_opt_add_arg(&args, "-oallow_other") == -1 ||
         fuse_opt_add_arg(&args, "-ofsname=libvirt") == -1)
-        goto cleanup1;
+        goto error;
 
+# if FUSE_USE_VERSION >= 31
+    fuse->fuse = fuse_new(&args, &lxcProcOper, sizeof(lxcProcOper), fuse->def);
+    if (fuse->fuse == NULL)
+        goto error;
+
+    if (fuse_mount(fuse->fuse, fuse->mountpoint) < 0)
+        goto error;
+
+    fuse->sess = fuse_get_session(fuse->fuse);
+
+    if (virSetInherit(fuse_session_fd(fuse->sess), false) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Cannot disable close-on-exec flag"));
+        goto error;
+    }
+
+# else
     fuse->ch = fuse_mount(fuse->mountpoint, &args);
     if (fuse->ch == NULL)
-        goto cleanup1;
+        goto error;
 
     fuse->fuse = fuse_new(fuse->ch, &args, &lxcProcOper,
                           sizeof(lxcProcOper), fuse->def);
     if (fuse->fuse == NULL) {
-        fuse_unmount(fuse->mountpoint, fuse->ch);
-        goto cleanup1;
+        goto error;
     }
+# endif
 
+    *f = g_steal_pointer(&fuse);
     ret = 0;
  cleanup:
     fuse_opt_free_args(&args);
-    *f = fuse;
     return ret;
- cleanup1:
+
+ error:
+# if FUSE_USE_VERSION < 31
+    if (fuse->ch)
+        fuse_unmount(fuse->mountpoint, fuse->ch);
+# else
+    fuse_unmount(fuse->fuse);
+    fuse_destroy(fuse->fuse);
+# endif
     g_free(fuse->mountpoint);
     virMutexDestroy(&fuse->lock);
- cleanup2:
-    g_free(fuse);
     goto cleanup;
 }
 
-int lxcStartFuse(struct virLXCFuse *fuse)
+int
+lxcStartFuse(struct virLXCFuse *fuse)
 {
     if (virThreadCreateFull(&fuse->thread, false, lxcFuseRun,
                             "lxc-fuse", false, (void *)fuse) < 0) {
@@ -338,7 +442,8 @@ int lxcStartFuse(struct virLXCFuse *fuse)
     return 0;
 }
 
-void lxcFreeFuse(struct virLXCFuse **f)
+void
+lxcFreeFuse(struct virLXCFuse **f)
 {
     struct virLXCFuse *fuse = *f;
     /* lxcFuseRun thread create success */
@@ -355,18 +460,21 @@ void lxcFreeFuse(struct virLXCFuse **f)
     }
 }
 #else
-int lxcSetupFuse(struct virLXCFuse **f G_GNUC_UNUSED,
-                  virDomainDef *def G_GNUC_UNUSED)
+int
+lxcSetupFuse(struct virLXCFuse **f G_GNUC_UNUSED,
+             virDomainDef *def G_GNUC_UNUSED)
 {
     return 0;
 }
 
-int lxcStartFuse(struct virLXCFuse *f G_GNUC_UNUSED)
+int
+lxcStartFuse(struct virLXCFuse *f G_GNUC_UNUSED)
 {
     return 0;
 }
 
-void lxcFreeFuse(struct virLXCFuse **f G_GNUC_UNUSED)
+void
+lxcFreeFuse(struct virLXCFuse **f G_GNUC_UNUSED)
 {
 }
 #endif

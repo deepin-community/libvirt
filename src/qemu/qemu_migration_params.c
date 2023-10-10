@@ -23,12 +23,10 @@
 
 #include "virlog.h"
 #include "virerror.h"
-#include "viralloc.h"
 #include "virstring.h"
 
 #include "qemu_alias.h"
 #include "qemu_hotplug.h"
-#include "qemu_migration.h"
 #include "qemu_migration_params.h"
 #define LIBVIRT_QEMU_MIGRATION_PARAMSPRIV_H_ALLOW
 #include "qemu_migration_paramspriv.h"
@@ -73,6 +71,8 @@ struct _qemuMigrationParams {
 typedef enum {
     QEMU_MIGRATION_COMPRESS_XBZRLE = 0,
     QEMU_MIGRATION_COMPRESS_MT,
+    QEMU_MIGRATION_COMPRESS_ZLIB,
+    QEMU_MIGRATION_COMPRESS_ZSTD,
 
     QEMU_MIGRATION_COMPRESS_LAST
 } qemuMigrationCompressMethod;
@@ -81,6 +81,8 @@ VIR_ENUM_IMPL(qemuMigrationCompressMethod,
               QEMU_MIGRATION_COMPRESS_LAST,
               "xbzrle",
               "mt",
+              "zlib",
+              "zstd",
 );
 
 VIR_ENUM_IMPL(qemuMigrationCapability,
@@ -96,6 +98,7 @@ VIR_ENUM_IMPL(qemuMigrationCapability,
               "multifd",
               "dirty-bitmaps",
               "return-path",
+              "zero-copy-send",
 );
 
 
@@ -115,6 +118,9 @@ VIR_ENUM_IMPL(qemuMigrationParam,
               "xbzrle-cache-size",
               "max-postcopy-bandwidth",
               "multifd-channels",
+              "multifd-compression",
+              "multifd-zlib-level",
+              "multifd-zstd-level",
 );
 
 typedef struct _qemuMigrationParamsAlwaysOnItem qemuMigrationParamsAlwaysOnItem;
@@ -137,6 +143,12 @@ struct _qemuMigrationParamsTPMapItem {
     unsigned int unit;
     qemuMigrationParam param;
     int party; /* bit-wise OR of qemuMigrationParty */
+};
+
+typedef struct _qemuMigrationParamInfoItem qemuMigrationParamInfoItem;
+struct _qemuMigrationParamInfoItem {
+    qemuMigrationParamType type;
+    bool applyOnPostcopyResume;
 };
 
 /* Migration capabilities which should always be enabled as long as they
@@ -177,6 +189,11 @@ static const qemuMigrationParamsFlagMapItem qemuMigrationParamsFlagMap[] = {
      VIR_MIGRATE_TUNNELLED,
      QEMU_MIGRATION_CAP_RETURN_PATH,
      QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
+
+    {QEMU_MIGRATION_FLAG_REQUIRED,
+     VIR_MIGRATE_ZEROCOPY,
+     QEMU_MIGRATION_CAP_ZERO_COPY_SEND,
+     QEMU_MIGRATION_SOURCE},
 };
 
 /* Translation from VIR_MIGRATE_PARAM_* typed parameters to
@@ -215,27 +232,71 @@ static const qemuMigrationParamsTPMapItem qemuMigrationParamsTPMap[] = {
      .param = QEMU_MIGRATION_PARAM_MULTIFD_CHANNELS,
      .party = QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
 
+    {.typedParam = VIR_MIGRATE_PARAM_COMPRESSION_ZLIB_LEVEL,
+     .param = QEMU_MIGRATION_PARAM_MULTIFD_ZLIB_LEVEL,
+     .party = QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
+
+    {.typedParam = VIR_MIGRATE_PARAM_COMPRESSION_ZSTD_LEVEL,
+     .param = QEMU_MIGRATION_PARAM_MULTIFD_ZSTD_LEVEL,
+     .party = QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
+
     {.typedParam = VIR_MIGRATE_PARAM_TLS_DESTINATION,
      .param = QEMU_MIGRATION_PARAM_TLS_HOSTNAME,
      .party = QEMU_MIGRATION_SOURCE},
 };
 
-static const qemuMigrationParamType qemuMigrationParamTypes[] = {
-    [QEMU_MIGRATION_PARAM_COMPRESS_LEVEL] = QEMU_MIGRATION_PARAM_TYPE_INT,
-    [QEMU_MIGRATION_PARAM_COMPRESS_THREADS] = QEMU_MIGRATION_PARAM_TYPE_INT,
-    [QEMU_MIGRATION_PARAM_DECOMPRESS_THREADS] = QEMU_MIGRATION_PARAM_TYPE_INT,
-    [QEMU_MIGRATION_PARAM_THROTTLE_INITIAL] = QEMU_MIGRATION_PARAM_TYPE_INT,
-    [QEMU_MIGRATION_PARAM_THROTTLE_INCREMENT] = QEMU_MIGRATION_PARAM_TYPE_INT,
-    [QEMU_MIGRATION_PARAM_TLS_CREDS] = QEMU_MIGRATION_PARAM_TYPE_STRING,
-    [QEMU_MIGRATION_PARAM_TLS_HOSTNAME] = QEMU_MIGRATION_PARAM_TYPE_STRING,
-    [QEMU_MIGRATION_PARAM_MAX_BANDWIDTH] = QEMU_MIGRATION_PARAM_TYPE_ULL,
-    [QEMU_MIGRATION_PARAM_DOWNTIME_LIMIT] = QEMU_MIGRATION_PARAM_TYPE_ULL,
-    [QEMU_MIGRATION_PARAM_BLOCK_INCREMENTAL] = QEMU_MIGRATION_PARAM_TYPE_BOOL,
-    [QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE] = QEMU_MIGRATION_PARAM_TYPE_ULL,
-    [QEMU_MIGRATION_PARAM_MAX_POSTCOPY_BANDWIDTH] = QEMU_MIGRATION_PARAM_TYPE_ULL,
-    [QEMU_MIGRATION_PARAM_MULTIFD_CHANNELS] = QEMU_MIGRATION_PARAM_TYPE_INT,
+static const qemuMigrationParamInfoItem qemuMigrationParamInfo[] = {
+    [QEMU_MIGRATION_PARAM_COMPRESS_LEVEL] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_INT,
+    },
+    [QEMU_MIGRATION_PARAM_COMPRESS_THREADS] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_INT,
+    },
+    [QEMU_MIGRATION_PARAM_DECOMPRESS_THREADS] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_INT,
+    },
+    [QEMU_MIGRATION_PARAM_THROTTLE_INITIAL] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_INT,
+    },
+    [QEMU_MIGRATION_PARAM_THROTTLE_INCREMENT] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_INT,
+    },
+    [QEMU_MIGRATION_PARAM_TLS_CREDS] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_STRING,
+    },
+    [QEMU_MIGRATION_PARAM_TLS_HOSTNAME] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_STRING,
+    },
+    [QEMU_MIGRATION_PARAM_MAX_BANDWIDTH] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_ULL,
+    },
+    [QEMU_MIGRATION_PARAM_DOWNTIME_LIMIT] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_ULL,
+    },
+    [QEMU_MIGRATION_PARAM_BLOCK_INCREMENTAL] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_BOOL,
+    },
+    [QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_ULL,
+    },
+    [QEMU_MIGRATION_PARAM_MAX_POSTCOPY_BANDWIDTH] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_ULL,
+        .applyOnPostcopyResume = true,
+    },
+    [QEMU_MIGRATION_PARAM_MULTIFD_CHANNELS] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_INT,
+    },
+    [QEMU_MIGRATION_PARAM_MULTIFD_COMPRESSION] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_STRING,
+    },
+    [QEMU_MIGRATION_PARAM_MULTIFD_ZLIB_LEVEL] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_INT,
+    },
+    [QEMU_MIGRATION_PARAM_MULTIFD_ZSTD_LEVEL] = {
+        .type = QEMU_MIGRATION_PARAM_TYPE_INT,
+    },
 };
-G_STATIC_ASSERT(G_N_ELEMENTS(qemuMigrationParamTypes) == QEMU_MIGRATION_PARAM_LAST);
+G_STATIC_ASSERT(G_N_ELEMENTS(qemuMigrationParamInfo) == QEMU_MIGRATION_PARAM_LAST);
 
 
 virBitmap *
@@ -277,7 +338,7 @@ qemuMigrationParamsFree(qemuMigrationParams *migParams)
         return;
 
     for (i = 0; i < QEMU_MIGRATION_PARAM_LAST; i++) {
-        if (qemuMigrationParamTypes[i] == QEMU_MIGRATION_PARAM_TYPE_STRING)
+        if (qemuMigrationParamInfo[i].type == QEMU_MIGRATION_PARAM_TYPE_STRING)
             g_free(migParams->params[i].value.s);
     }
 
@@ -291,9 +352,9 @@ static int
 qemuMigrationParamsCheckType(qemuMigrationParam param,
                              qemuMigrationParamType type)
 {
-    if (qemuMigrationParamTypes[param] != type) {
+    if (qemuMigrationParamInfo[param].type != type) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Type mismatch for '%s' migration parameter"),
+                       _("Type mismatch for '%1$s' migration parameter"),
                        qemuMigrationParamTypeToString(param));
         return -1;
     }
@@ -326,7 +387,7 @@ qemuMigrationParamsGetTPInt(qemuMigrationParams *migParams,
         unsigned int max = UINT_MAX / unit;
         if (migParams->params[param].value.i > max) {
             virReportError(VIR_ERR_OVERFLOW,
-                           _("migration parameter '%s' must be less than %u"),
+                           _("migration parameter '%1$s' must be less than %2$u"),
                            name, max + 1);
             return -1;
         }
@@ -387,7 +448,7 @@ qemuMigrationParamsGetTPULL(qemuMigrationParams *migParams,
         unsigned long long max = ULLONG_MAX / unit;
         if (migParams->params[param].value.ull > max) {
             virReportError(VIR_ERR_OVERFLOW,
-                           _("migration parameter '%s' must be less than %llu"),
+                           _("migration parameter '%1$s' must be less than %2$llu"),
                            name, max + 1);
             return -1;
         }
@@ -472,12 +533,11 @@ qemuMigrationParamsSetTPString(qemuMigrationParams *migParams,
 static int
 qemuMigrationParamsSetCompression(virTypedParameterPtr params,
                                   int nparams,
-                                  unsigned long flags,
+                                  unsigned int flags,
                                   qemuMigrationParams *migParams)
 {
     size_t i;
     int method;
-    qemuMigrationCapability cap;
 
     for (i = 0; i < nparams; i++) {
         if (STRNEQ(params[i].field, VIR_MIGRATE_PARAM_COMPRESSION))
@@ -486,15 +546,39 @@ qemuMigrationParamsSetCompression(virTypedParameterPtr params,
         method = qemuMigrationCompressMethodTypeFromString(params[i].value.s);
         if (method < 0) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Unsupported compression method '%s'"),
+                           _("Unsupported compression method '%1$s'"),
                            params[i].value.s);
             return -1;
         }
 
         if (migParams->compMethods & (1ULL << method)) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Compression method '%s' is specified twice"),
+                           _("Compression method '%1$s' is specified twice"),
                            params[i].value.s);
+            return -1;
+        }
+
+        if ((method == QEMU_MIGRATION_COMPRESS_MT ||
+             method == QEMU_MIGRATION_COMPRESS_XBZRLE) &&
+            flags & VIR_MIGRATE_PARALLEL) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("Compression method '%1$s' isn't supported with parallel migration"),
+                           params[i].value.s);
+            return -1;
+        }
+
+        if ((method == QEMU_MIGRATION_COMPRESS_ZLIB ||
+             method == QEMU_MIGRATION_COMPRESS_ZSTD) &&
+            !(flags & VIR_MIGRATE_PARALLEL)) {
+            virReportError(VIR_ERR_INVALID_ARG,
+                           _("Compression method '%1$s' is only supported with parallel migration"),
+                           params[i].value.s);
+            return -1;
+        }
+
+        if (migParams->params[QEMU_MIGRATION_PARAM_MULTIFD_COMPRESSION].set) {
+            virReportError(VIR_ERR_INVALID_ARG, "%s",
+                           _("Only one compression method could be specified with parallel compression"));
             return -1;
         }
 
@@ -502,18 +586,23 @@ qemuMigrationParamsSetCompression(virTypedParameterPtr params,
 
         switch ((qemuMigrationCompressMethod) method) {
         case QEMU_MIGRATION_COMPRESS_XBZRLE:
-            cap = QEMU_MIGRATION_CAP_XBZRLE;
+            ignore_value(virBitmapSetBit(migParams->caps, QEMU_MIGRATION_CAP_XBZRLE));
             break;
 
         case QEMU_MIGRATION_COMPRESS_MT:
-            cap = QEMU_MIGRATION_CAP_COMPRESS;
+            ignore_value(virBitmapSetBit(migParams->caps, QEMU_MIGRATION_CAP_COMPRESS));
+            break;
+
+        case QEMU_MIGRATION_COMPRESS_ZLIB:
+        case QEMU_MIGRATION_COMPRESS_ZSTD:
+            migParams->params[QEMU_MIGRATION_PARAM_MULTIFD_COMPRESSION].value.s = g_strdup(params[i].value.s);
+            migParams->params[QEMU_MIGRATION_PARAM_MULTIFD_COMPRESSION].set = true;
             break;
 
         case QEMU_MIGRATION_COMPRESS_LAST:
         default:
-            continue;
+            break;
         }
-        ignore_value(virBitmapSetBit(migParams->caps, cap));
     }
 
     if ((migParams->params[QEMU_MIGRATION_PARAM_COMPRESS_LEVEL].set ||
@@ -532,7 +621,27 @@ qemuMigrationParamsSetCompression(virTypedParameterPtr params,
         return -1;
     }
 
+    if (migParams->params[QEMU_MIGRATION_PARAM_MULTIFD_ZLIB_LEVEL].set &&
+        !(migParams->compMethods & (1ULL << QEMU_MIGRATION_COMPRESS_ZLIB))) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Turn zlib compression on to tune it"));
+        return -1;
+    }
+
+    if (migParams->params[QEMU_MIGRATION_PARAM_MULTIFD_ZSTD_LEVEL].set &&
+        !(migParams->compMethods & (1ULL << QEMU_MIGRATION_COMPRESS_ZSTD))) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("Turn zstd compression on to tune it"));
+        return -1;
+    }
+
     if (!migParams->compMethods && (flags & VIR_MIGRATE_COMPRESSED)) {
+        if (flags & VIR_MIGRATE_PARALLEL) {
+            virReportError(VIR_ERR_INVALID_ARG, "%s",
+                           _("No compression algorithm selected for parallel migration"));
+            return -1;
+        }
+
         migParams->compMethods = 1ULL << QEMU_MIGRATION_COMPRESS_XBZRLE;
         ignore_value(virBitmapSetBit(migParams->caps,
                                      QEMU_MIGRATION_CAP_XBZRLE));
@@ -559,7 +668,7 @@ qemuMigrationParamsSetBlockDirtyBitmapMapping(qemuMigrationParams *migParams,
 qemuMigrationParams *
 qemuMigrationParamsFromFlags(virTypedParameterPtr params,
                              int nparams,
-                             unsigned long flags,
+                             unsigned int flags,
                              qemuMigrationParty party)
 {
     g_autoptr(qemuMigrationParams) migParams = NULL;
@@ -591,7 +700,7 @@ qemuMigrationParamsFromFlags(virTypedParameterPtr params,
         VIR_DEBUG("Setting migration parameter '%s' from '%s'",
                   qemuMigrationParamTypeToString(item->param), item->typedParam);
 
-        switch (qemuMigrationParamTypes[item->param]) {
+        switch (qemuMigrationParamInfo[item->param].type) {
         case QEMU_MIGRATION_PARAM_TYPE_INT:
             if (qemuMigrationParamsGetTPInt(migParams, item->param, params,
                                             nparams, item->typedParam,
@@ -644,7 +753,7 @@ qemuMigrationParamsDump(qemuMigrationParams *migParams,
                         virTypedParameterPtr *params,
                         int *nparams,
                         int *maxparams,
-                        unsigned long *flags)
+                        unsigned int *flags)
 {
     size_t i;
 
@@ -667,7 +776,7 @@ qemuMigrationParamsDump(qemuMigrationParams *migParams,
         if (!(item->party & QEMU_MIGRATION_DESTINATION))
             continue;
 
-        switch (qemuMigrationParamTypes[item->param]) {
+        switch (qemuMigrationParamInfo[item->param].type) {
         case QEMU_MIGRATION_PARAM_TYPE_INT:
             if (qemuMigrationParamsSetTPInt(migParams, item->param,
                                             params, nparams, maxparams,
@@ -717,7 +826,7 @@ qemuMigrationParamsFromJSON(virJSONValue *params)
         name = qemuMigrationParamTypeToString(i);
         pv = &migParams->params[i];
 
-        switch (qemuMigrationParamTypes[i]) {
+        switch (qemuMigrationParamInfo[i].type) {
         case QEMU_MIGRATION_PARAM_TYPE_INT:
             if (virJSONValueObjectGetNumberInt(params, name, &pv->value.i) == 0)
                 pv->set = true;
@@ -747,7 +856,8 @@ qemuMigrationParamsFromJSON(virJSONValue *params)
 
 
 virJSONValue *
-qemuMigrationParamsToJSON(qemuMigrationParams *migParams)
+qemuMigrationParamsToJSON(qemuMigrationParams *migParams,
+                          bool postcopyResume)
 {
     g_autoptr(virJSONValue) params = virJSONValueNewObject();
     size_t i;
@@ -760,7 +870,10 @@ qemuMigrationParamsToJSON(qemuMigrationParams *migParams)
         if (!pv->set)
             continue;
 
-        switch (qemuMigrationParamTypes[i]) {
+        if (postcopyResume && !qemuMigrationParamInfo[i].applyOnPostcopyResume)
+            continue;
+
+        switch (qemuMigrationParamInfo[i].type) {
         case QEMU_MIGRATION_PARAM_TYPE_INT:
             rc = virJSONValueObjectAppendNumberInt(params, name, pv->value.i);
             break;
@@ -823,76 +936,91 @@ qemuMigrationCapsToJSON(virBitmap *caps,
 }
 
 
+static int
+qemuMigrationParamsApplyCaps(virDomainObj *vm,
+                             virBitmap *states)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virJSONValue) json = NULL;
+
+    if (!(json = qemuMigrationCapsToJSON(priv->migrationCaps, states)))
+        return -1;
+
+    if (virJSONValueArraySize(json) > 0 &&
+        qemuMonitorSetMigrationCapabilities(priv->mon, &json) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+qemuMigrationParamsApplyValues(virDomainObj *vm,
+                               qemuMigrationParams *params,
+                               bool postcopyResume)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+    g_autoptr(virJSONValue) json = NULL;
+
+    if (!(json = qemuMigrationParamsToJSON(params, postcopyResume)))
+        return -1;
+
+    if (virJSONValueObjectKeysNumber(json) > 0 &&
+        qemuMonitorSetMigrationParams(priv->mon, &json) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 /**
  * qemuMigrationParamsApply
  * @driver: qemu driver
  * @vm: domain object
  * @asyncJob: migration job
  * @migParams: migration parameters to send to QEMU
+ * @apiFlags: migration flags, some of them may affect which parameters are applied
  *
- * Send all parameters stored in @migParams to QEMU.
+ * Send parameters stored in @migParams to QEMU. If @apiFlags is non-zero, some
+ * parameters that do not make sense for the enabled flags will be ignored.
+ * VIR_MIGRATE_POSTCOPY_RESUME is the only flag checked currently.
  *
  * Returns 0 on success, -1 on failure.
  */
 int
-qemuMigrationParamsApply(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuMigrationParamsApply(virDomainObj *vm,
                          int asyncJob,
-                         qemuMigrationParams *migParams)
+                         qemuMigrationParams *migParams,
+                         unsigned int apiFlags)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
-    bool xbzrleCacheSize_old = false;
-    g_autoptr(virJSONValue) params = NULL;
-    g_autoptr(virJSONValue) caps = NULL;
-    qemuMigrationParam xbzrle = QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE;
+    bool postcopyResume = !!(apiFlags & VIR_MIGRATE_POSTCOPY_RESUME);
     int ret = -1;
 
-    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
+    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         return -1;
 
-    if (asyncJob == QEMU_ASYNC_JOB_NONE) {
-        if (!virBitmapIsAllClear(migParams->caps)) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Migration capabilities can only be set by "
-                             "a migration job"));
+    /* Changing capabilities is only allowed before migration starts, we need
+     * to skip them when resuming post-copy migration.
+     */
+    if (!postcopyResume) {
+        if (asyncJob == VIR_ASYNC_JOB_NONE) {
+            if (!virBitmapIsAllClear(migParams->caps)) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("Migration capabilities can only be set by a migration job"));
+                goto cleanup;
+            }
+        } else if (qemuMigrationParamsApplyCaps(vm, migParams->caps) < 0) {
             goto cleanup;
         }
-    } else {
-        if (!(caps = qemuMigrationCapsToJSON(priv->migrationCaps, migParams->caps)))
-            goto cleanup;
-
-        if (virJSONValueArraySize(caps) > 0 &&
-            qemuMonitorSetMigrationCapabilities(priv->mon, &caps) < 0)
-            goto cleanup;
     }
 
-    /* If QEMU is too old to support xbzrle-cache-size migration parameter,
-     * we need to set it via migrate-set-cache-size and tell
-     * qemuMonitorSetMigrationParams to ignore this parameter.
-     */
-    if (migParams->params[xbzrle].set &&
-        !virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_PARAM_XBZRLE_CACHE_SIZE)) {
-        if (qemuMonitorSetMigrationCacheSize(priv->mon,
-                                             migParams->params[xbzrle].value.ull) < 0)
-            goto cleanup;
-        xbzrleCacheSize_old = true;
-        migParams->params[xbzrle].set = false;
-    }
-
-    if (!(params = qemuMigrationParamsToJSON(migParams)))
-        goto cleanup;
-
-    if (virJSONValueObjectKeysNumber(params) > 0 &&
-        qemuMonitorSetMigrationParams(priv->mon, &params) < 0)
+    if (qemuMigrationParamsApplyValues(vm, migParams, postcopyResume) < 0)
         goto cleanup;
 
     ret = 0;
 
  cleanup:
-    qemuDomainObjExitMonitor(driver, vm);
-
-    if (xbzrleCacheSize_old)
-        migParams->params[xbzrle].set = true;
+    qemuDomainObjExitMonitor(vm);
 
     return ret;
 }
@@ -948,7 +1076,7 @@ qemuMigrationParamsEnableTLS(virQEMUDriver *driver,
                              qemuMigrationParams *migParams)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
-    qemuDomainJobPrivate *jobPriv = priv->job.privateData;
+    qemuDomainJobPrivate *jobPriv = vm->job->privateData;
     g_autoptr(virJSONValue) tlsProps = NULL;
     g_autoptr(virJSONValue) secProps = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
@@ -962,8 +1090,7 @@ qemuMigrationParamsEnableTLS(virQEMUDriver *driver,
 
     if (!jobPriv->migParams->params[QEMU_MIGRATION_PARAM_TLS_CREDS].set) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                       _("TLS migration is not supported with this "
-                         "QEMU binary"));
+                       _("TLS migration is not supported with this QEMU binary"));
         return -1;
     }
 
@@ -989,9 +1116,9 @@ qemuMigrationParamsEnableTLS(virQEMUDriver *driver,
      * This should prevent any issues just in case some cleanup wasn't
      * properly completed (both src and dst use the same alias) or
      * some other error path between now and perform . */
-    qemuDomainDelTLSObjects(driver, vm, asyncJob, secAlias, *tlsAlias);
+    qemuDomainDelTLSObjects(vm, asyncJob, secAlias, *tlsAlias);
 
-    if (qemuDomainAddTLSObjects(driver, vm, asyncJob, &secProps, &tlsProps) < 0)
+    if (qemuDomainAddTLSObjects(vm, asyncJob, &secProps, &tlsProps) < 0)
         return -1;
 
     if (qemuMigrationParamsSetString(migParams,
@@ -1023,8 +1150,7 @@ int
 qemuMigrationParamsDisableTLS(virDomainObj *vm,
                               qemuMigrationParams *migParams)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
-    qemuDomainJobPrivate *jobPriv = priv->job.privateData;
+    qemuDomainJobPrivate *jobPriv = vm->job->privateData;
 
     if (!jobPriv->migParams->params[QEMU_MIGRATION_PARAM_TLS_CREDS].set)
         return 0;
@@ -1058,11 +1184,10 @@ qemuMigrationParamsTLSHostnameIsSet(qemuMigrationParams *migParams)
  * security objects and free the secinfo
  */
 static void
-qemuMigrationParamsResetTLS(virQEMUDriver *driver,
-                            virDomainObj *vm,
+qemuMigrationParamsResetTLS(virDomainObj *vm,
                             int asyncJob,
                             qemuMigrationParams *origParams,
-                            unsigned long apiFlags)
+                            unsigned int apiFlags)
 {
     g_autofree char *tlsAlias = NULL;
     g_autofree char *secAlias = NULL;
@@ -1074,16 +1199,15 @@ qemuMigrationParamsResetTLS(virQEMUDriver *driver,
         return;
 
     tlsAlias = qemuAliasTLSObjFromSrcAlias(QEMU_MIGRATION_TLS_ALIAS_BASE);
-    secAlias = qemuAliasForSecret(QEMU_MIGRATION_TLS_ALIAS_BASE, NULL);
+    secAlias = qemuAliasForSecret(QEMU_MIGRATION_TLS_ALIAS_BASE, NULL, 0);
 
-    qemuDomainDelTLSObjects(driver, vm, asyncJob, secAlias, tlsAlias);
+    qemuDomainDelTLSObjects(vm, asyncJob, secAlias, tlsAlias);
     g_clear_pointer(&QEMU_DOMAIN_PRIVATE(vm)->migSecinfo, qemuDomainSecretInfoFree);
 }
 
 
 int
-qemuMigrationParamsFetch(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuMigrationParamsFetch(virDomainObj *vm,
                          int asyncJob,
                          qemuMigrationParams **migParams)
 {
@@ -1093,12 +1217,12 @@ qemuMigrationParamsFetch(virQEMUDriver *driver,
 
     *migParams = NULL;
 
-    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
+    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         return -1;
 
     rc = qemuMonitorGetMigrationParams(priv->mon, &jsonParams);
 
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
     if (rc < 0)
         return -1;
 
@@ -1148,24 +1272,22 @@ qemuMigrationParamsGetULL(qemuMigrationParams *migParams,
  * qemuMigrationParamsCheck:
  *
  * Check supported migration parameters and keep their original values in
- * qemuDomainJobObj so that we can properly reset them at the end of migration.
+ * virDomainJobObj so that we can properly reset them at the end of migration.
  * Reports an error if any of the currently used capabilities in @migParams
  * are unsupported by QEMU.
  */
 int
-qemuMigrationParamsCheck(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuMigrationParamsCheck(virDomainObj *vm,
                          int asyncJob,
                          qemuMigrationParams *migParams,
                          virBitmap *remoteCaps)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
-    qemuDomainJobPrivate *jobPriv = priv->job.privateData;
+    qemuDomainJobPrivate *jobPriv = vm->job->privateData;
     qemuMigrationCapability cap;
     qemuMigrationParty party;
     size_t i;
 
-    if (asyncJob == QEMU_ASYNC_JOB_MIGRATION_OUT)
+    if (asyncJob == VIR_ASYNC_JOB_MIGRATION_OUT)
         party = QEMU_MIGRATION_SOURCE;
     else
         party = QEMU_MIGRATION_DESTINATION;
@@ -1177,7 +1299,7 @@ qemuMigrationParamsCheck(virQEMUDriver *driver,
 
         if (state && !qemuMigrationCapsGet(vm, cap)) {
             virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
-                           _("Migration option '%s' is not supported by QEMU binary"),
+                           _("Migration option '%1$s' is not supported by QEMU binary"),
                            qemuMigrationCapabilityTypeToString(cap));
             return -1;
         }
@@ -1214,7 +1336,7 @@ qemuMigrationParamsCheck(virQEMUDriver *driver,
      * to ask QEMU for their current settings.
      */
 
-    return qemuMigrationParamsFetch(driver, vm, asyncJob, &jobPriv->migParams);
+    return qemuMigrationParamsFetch(vm, asyncJob, &jobPriv->migParams);
 }
 
 
@@ -1225,27 +1347,38 @@ qemuMigrationParamsCheck(virQEMUDriver *driver,
  * migration (save, managedsave, snapshots, dump) will not try to use them.
  */
 void
-qemuMigrationParamsReset(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuMigrationParamsReset(virDomainObj *vm,
                          int asyncJob,
                          qemuMigrationParams *origParams,
-                         unsigned long apiFlags)
+                         unsigned int apiFlags)
 {
     virErrorPtr err;
+    g_autoptr(virBitmap) clearCaps = NULL;
+    int rc;
 
     virErrorPreserveLast(&err);
 
-    VIR_DEBUG("Resetting migration parameters %p, flags 0x%lx",
+    VIR_DEBUG("Resetting migration parameters %p, flags 0x%x",
               origParams, apiFlags);
 
     if (!virDomainObjIsActive(vm) || !origParams)
         goto cleanup;
 
-    if (qemuMigrationParamsApply(driver, vm, asyncJob, origParams) < 0)
+    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         goto cleanup;
 
-    qemuMigrationParamsResetTLS(driver, vm, asyncJob, origParams, apiFlags);
-    /* We don't reset 'block-bitmap-mapping' as it can't be unset */
+    clearCaps = virBitmapNew(0);
+
+    rc = 0;
+    if (qemuMigrationParamsApplyCaps(vm, clearCaps) < 0 ||
+        qemuMigrationParamsApplyValues(vm, origParams, false) < 0)
+        rc = -1;
+
+    qemuDomainObjExitMonitor(vm);
+    if (rc < 0)
+        goto cleanup;
+
+    qemuMigrationParamsResetTLS(vm, asyncJob, origParams, apiFlags);
 
  cleanup:
     virErrorRestore(&err);
@@ -1271,7 +1404,7 @@ qemuMigrationParamsFormat(virBuffer *buf,
         virBufferAsprintf(buf, "<param name='%s' ",
                           qemuMigrationParamTypeToString(i));
 
-        switch (qemuMigrationParamTypes[i]) {
+        switch (qemuMigrationParamInfo[i].type) {
         case QEMU_MIGRATION_PARAM_TYPE_INT:
             virBufferAsprintf(buf, "value='%d'", pv->value.i);
             break;
@@ -1335,20 +1468,20 @@ qemuMigrationParamsParse(xmlXPathContextPtr ctxt,
 
         if ((param = qemuMigrationParamTypeFromString(name)) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unknown migration parameter '%s'"), name);
+                           _("unknown migration parameter '%1$s'"), name);
             return -1;
         }
         pv = &params->params[param];
 
         if (!(value = virXMLPropString(nodes[i], "value"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("missing value for migration parameter '%s'"),
+                           _("missing value for migration parameter '%1$s'"),
                            name);
             return -1;
         }
 
         rc = 0;
-        switch (qemuMigrationParamTypes[param]) {
+        switch (qemuMigrationParamInfo[param].type) {
         case QEMU_MIGRATION_PARAM_TYPE_INT:
             rc = virStrToLong_i(value, NULL, 10, &pv->value.i);
             break;
@@ -1368,7 +1501,7 @@ qemuMigrationParamsParse(xmlXPathContextPtr ctxt,
 
         if (rc < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("invalid value '%s' for migration parameter '%s'"),
+                           _("invalid value '%1$s' for migration parameter '%2$s'"),
                            value, name);
             return -1;
         }
@@ -1383,23 +1516,22 @@ qemuMigrationParamsParse(xmlXPathContextPtr ctxt,
 
 
 int
-qemuMigrationCapsCheck(virQEMUDriver *driver,
-                       virDomainObj *vm,
-                       int asyncJob)
+qemuMigrationCapsCheck(virDomainObj *vm,
+                       int asyncJob,
+                       bool reconnect)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
-    g_autoptr(virBitmap) migEvent = NULL;
     g_autoptr(virJSONValue) json = NULL;
     g_auto(GStrv) caps = NULL;
     char **capStr;
     int rc;
 
-    if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
+    if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
         return -1;
 
     rc = qemuMonitorGetMigrationCapabilities(priv->mon, &caps);
 
-    qemuDomainObjExitMonitor(driver, vm);
+    qemuDomainObjExitMonitor(vm);
     if (rc < 0)
         return -1;
 
@@ -1419,26 +1551,23 @@ qemuMigrationCapsCheck(virQEMUDriver *driver,
         }
     }
 
-    if (virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_MIGRATION_EVENT)) {
-        migEvent = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
+    if (!reconnect) {
+        g_autoptr(virBitmap) migEvent = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
 
         ignore_value(virBitmapSetBit(migEvent, QEMU_MIGRATION_CAP_EVENTS));
 
         if (!(json = qemuMigrationCapsToJSON(migEvent, migEvent)))
             return -1;
 
-        if (qemuDomainObjEnterMonitorAsync(driver, vm, asyncJob) < 0)
+        if (qemuDomainObjEnterMonitorAsync(vm, asyncJob) < 0)
             return -1;
 
         rc = qemuMonitorSetMigrationCapabilities(priv->mon, &json);
 
-        qemuDomainObjExitMonitor(driver, vm);
+        qemuDomainObjExitMonitor(vm);
 
-        if (rc < 0) {
-            virResetLastError();
-            VIR_DEBUG("Cannot enable migration events; clearing capability");
-            virQEMUCapsClear(priv->qemuCaps, QEMU_CAPS_MIGRATION_EVENT);
-        }
+        if (rc < 0)
+            return -1;
     }
 
     /* Migration events capability must always be enabled, clearing it from
@@ -1463,4 +1592,21 @@ qemuMigrationCapsGet(virDomainObj *vm,
         ignore_value(virBitmapGetBit(priv->migrationCaps, cap, &enabled));
 
     return enabled;
+}
+
+
+/**
+ * qemuMigrationParamsGetTLSHostname:
+ * @migParams: Migration params object
+ *
+ * Fetches the value of the QEMU_MIGRATION_PARAM_TLS_HOSTNAME parameter which is
+ * passed from the user as VIR_MIGRATE_PARAM_TLS_DESTINATION
+ */
+const char *
+qemuMigrationParamsGetTLSHostname(qemuMigrationParams *migParams)
+{
+    if (!migParams->params[QEMU_MIGRATION_PARAM_TLS_HOSTNAME].set)
+        return NULL;
+
+    return migParams->params[QEMU_MIGRATION_PARAM_TLS_HOSTNAME].value.s;
 }

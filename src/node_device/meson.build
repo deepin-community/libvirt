@@ -54,8 +54,6 @@ if conf.has('WITH_NODE_DEVICES')
     'service': 'virtnodedevd',
     'service_in': files('virtnodedevd.service.in'),
     'name': 'Libvirt nodedev',
-    'sockprefix': 'virtnodedevd',
-    'sockets': [ 'main', 'ro', 'admin' ],
   }
 
   openrc_init_files += {

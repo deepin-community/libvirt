@@ -23,12 +23,7 @@
 
 #include "testutils.h"
 #include "virnettlshelpers.h"
-#include "virerror.h"
-#include "viralloc.h"
 #include "virlog.h"
-#include "virfile.h"
-#include "vircommand.h"
-#include "virsocket.h"
 
 #if !defined WIN32 && WITH_LIBTASN1_H && LIBGNUTLS_VERSION_NUMBER >= 0x020600
 
@@ -632,7 +627,7 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virrandom"))
+VIR_TEST_MAIN(mymain);
 
 #else
 

@@ -21,8 +21,6 @@
 #pragma once
 
 #include "qemu_conf.h"
-#include "domain_conf.h"
-#include "security/security_manager.h"
 
 int qemuSecuritySetAllLabel(virQEMUDriver *driver,
                             virDomainObj *vm,
@@ -87,22 +85,13 @@ int qemuSecurityRestoreNetdevLabel(virQEMUDriver *driver,
                                    virDomainObj *vm,
                                    virDomainNetDef *net);
 
-int qemuSecurityStartVhostUserGPU(virQEMUDriver *driver,
-                                  virDomainObj *vm,
-                                  virCommand *cmd,
-                                  int *exitstatus,
-                                  int *cmdret);
+int qemuSecuritySetTPMLabels(virQEMUDriver *driver,
+                             virDomainObj *vm,
+                             bool setTPMStateLabel);
 
-int qemuSecurityStartTPMEmulator(virQEMUDriver *driver,
+int qemuSecurityRestoreTPMLabels(virQEMUDriver *driver,
                                  virDomainObj *vm,
-                                 virCommand *cmd,
-                                 uid_t uid,
-                                 gid_t gid,
-                                 int *exitstatus,
-                                 int *cmdret);
-
-void qemuSecurityCleanupTPMEmulator(virQEMUDriver *driver,
-                                    virDomainObj *vm);
+                                 bool restoreTPMStateLabel);
 
 int qemuSecuritySetSavedStateLabel(virQEMUDriver *driver,
                                    virDomainObj *vm,
@@ -126,8 +115,8 @@ int qemuSecurityCommandRun(virQEMUDriver *driver,
                            virCommand *cmd,
                            uid_t uid,
                            gid_t gid,
-                           int *exitstatus,
-                           int *cmdret);
+                           bool useBinarySpecificLabel,
+                           int *exitstatus);
 
 /* Please note that for these APIs there is no wrapper yet. Do NOT blindly add
  * new APIs here. If an API can touch a file add a proper wrapper instead.

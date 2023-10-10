@@ -28,7 +28,6 @@
 #include "internal.h"
 #include "testutils.h"
 #include "virnetworkportdef.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -39,7 +38,7 @@ testCompareXMLToXMLFiles(const char *expected)
     g_autofree char *actual = NULL;
     g_autoptr(virNetworkPortDef) dev = NULL;
 
-    if (!(dev = virNetworkPortDefParseFile(expected)))
+    if (!(dev = virNetworkPortDefParse(NULL, expected, 0)))
         return -1;
 
     if (!(actual = virNetworkPortDefFormat(dev)))
@@ -85,6 +84,7 @@ mymain(void)
     DO_TEST("plug-bridge-mactbl");
     DO_TEST("plug-direct");
     DO_TEST("plug-hostdev-pci");
+    DO_TEST("plug-hostdev-pci-unmanaged");
     DO_TEST("plug-network");
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

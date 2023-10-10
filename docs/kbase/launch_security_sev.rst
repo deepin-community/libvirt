@@ -154,7 +154,7 @@ VM Configuration
 ================
 
 SEV is enabled in the XML by specifying the
-`<launchSecurity> <https://libvirt.org/formatdomain.html#launchSecurity>`__
+`<launchSecurity> <https://libvirt.org/formatdomain.html#launch-security>`__
 element. However, specifying ``launchSecurity`` isn't enough to boot an
 SEV VM. Further configuration requirements are discussed below.
 
@@ -203,6 +203,20 @@ libvirt to the correct OVMF binary.
    <os>
      <type arch='x86_64' machine='pc-q35-3.0'>hvm</type>
      <loader readonly='yes' type='pflash'>/usr/share/edk2/ovmf/OVMF_CODE.fd</loader>
+   </os>
+   ...
+
+If intending to attest the boot measurement, it is required to use a
+firmware binary that is stateless, as persistent NVRAM can undermine
+the trust of the secure guest. This is achieved by telling libvirt
+that a stateless binary is required
+
+::
+
+   ...
+   <os type='efi'>
+     <type arch='x86_64' machine='q35'>hvm</type>
+     <loader stateless='yes'/>
    </os>
    ...
 
@@ -295,7 +309,9 @@ In order to make virtio devices work, we need to use
 ``<driver iommu='on'/>`` inside the given device XML element in order
 to enable DMA API in the virtio driver.
 
-::
+Starting with QEMU 6.0.0 QEMU will set this for us by default. For earlier
+versions though, you will need to explicitly enable this in the device XML as
+follows::
 
    # virsh edit <domain>
    <domain>
@@ -362,7 +378,7 @@ Checking SEV from within the guest
 ==================================
 
 After making the necessary adjustments discussed in
-`Configuration <#Configuration>`__, the VM should now boot successfully
+`VM Configuration`_, the VM should now boot successfully
 with SEV enabled. You can then verify that the guest has SEV enabled by
 running:
 
@@ -370,6 +386,98 @@ running:
 
    # dmesg | grep -i sev
    AMD Secure Encrypted Virtualization (SEV) active
+
+Guest attestation for SEV/SEV-ES from a trusted host
+====================================================
+
+Before a confidential guest is used, it may be desirable to attest the boot
+measurement. To be trustworthy the attestation process needs to be performed
+from a machine that is already trusted. This would typically be a physical
+machine that the guest owner controls, or could be a previously launched
+confidential guest that has already itself been attested. Most notably, it is
+**not** possible to securely attest a guest from the hypervisor host itself,
+as the goal of the attestation process is to detect whether the hypervisor is
+malicious.
+
+Performing an attestation requires that the ``<launchSecurity>`` element is
+configured with a guest owner Diffie-Hellman (DH) certificate, and a session
+data blob. These must be unique for every guest launch attempt. Any reuse will
+open avenues of attack for the hypervisor to fake the measurement. Unique data
+can be generated using the `sevctl <https://github.com/virtee/sevctl>`_ tool.
+
+First of all the Platform Diffie-Hellman key (PDH) for the hypervisor host
+needs to be obtained. The PDH is used to negotiate a master secret between
+the SEV firmware and external entities.
+
+The admin of the hypervisor can extract the PDH using::
+
+  $ sevctl export --full ${hostname}.pdh
+
+Upon receiving the PDH associated with the hypervisor, the guest owner should
+validate its integrity::
+
+  $ sevctl verify --sev ${hostname}.pdh
+  PDH EP384 D256 008cec87d6bd9df67a35e7d6057a933463cd8a02440f60c5df150821b5662ee0
+   ⬑ PEK EP384 E256 431ba88424378200d58b6fb5db9657268c599b1be25f8047ac2e2981eff667e6
+     •⬑ OCA EP384 E256 b4f1d0a2144186d1aa9c63f19039834e729f508000aa05a76ba044f8e1419765
+      ⬑ CEK EP384 E256 22c27ee3c1c33287db24d3c06869a5ae933eb44148fdb70838019e267077c6b8
+         ⬑ ASK R4096 R384 d8cd9d1798c311c96e009a91552f17b4ddc4886a064ec933697734965b9ab29db803c79604e2725658f0861bfaf09ad4
+           •⬑ ARK R4096 R384 3d2c1157c29ef7bd4207fc0c8b08db080e579ceba267f8c93bec8dce73f5a5e2e60d959ac37ea82176c1a0c61ae203ed
+
+   • = self signed, ⬑ = signs, •̷ = invalid self sign, ⬑̸ = invalid signs
+
+Assuming this is successful, it is now possible to generate a unique launch
+data for the guest boot attempt::
+
+  $ sevctl session --name ${myvmname} ${hostname}.pdh ${policy}
+
+This will generate four files
+
+ * ``${myvmname}_tik.bin``
+ * ``${myvmname}_tek.bin``
+ * ``${myvmname}_godh.bin``
+ * ``${myvmname}_session.bin``
+
+The ``tik.bin`` and ``tek.bin`` files will be needed to perform the boot
+attestation, and must be kept somewhere secure, away from the hypervisor
+host.
+
+The ``godh.bin`` file contents should be copied into the ``<dhCert>`` field
+in the ``<launchSecurity>`` configuration, while the ``session.bin`` file
+contents should be copied into the ``<session>`` field.
+
+When launching the guest, it should be set to remain in the paused state with
+no vCPUs running::
+
+  $ virsh start --paused ${myvmname}
+
+With it launched, it is possible to query the launch measurement::
+
+  $ virsh domlaunchsecinfo ${myvmname}
+  sev-measurement: LMnv8i8N2QejezMPkscShF0cyPYCslgUoCxGWRqQuyt0Q0aUjVkH/T6NcmkwZkWp
+  sev-api-major  : 0
+  sev-api-minor  : 24
+  sev-build-id   : 15
+  sev-policy     : 3
+
+The techniques required to validate the measurement reported are beyond the
+scope of this document. Fortunately, libvirt provides a tool that can be used
+to perform this validation::
+
+  $ virt-qemu-sev-validate \
+      --measurement LMnv8i8N2QejezMPkscShF0cyPYCslgUoCxGWRqQuyt0Q0aUjVkH/T6NcmkwZkWp \
+      --api-major 0 \
+      --api-minor 24 \
+      --build-id 15 \
+      --policy 3 \
+      --firmware /path/to/OVMF.sev.fd \
+      --tik ${myvmname}_tik.bin \
+      --tek ${myvmname}_tek.bin
+  OK: Looks good to me
+
+The `man page <../manpages/virt-qemu-sev-validate.html>`__ for
+``virt-qemu-sev-validate`` outlines a great many other ways to invoke this
+tool.
 
 Limitations
 ===========

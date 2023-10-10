@@ -30,8 +30,6 @@
 #include "virlog.h"
 #include "virfile.h"
 #include "virstring.h"
-#include "virtypedparam.h"
-#include "viralloc.h"
 
 VIR_LOG_INIT("util.perf");
 
@@ -205,7 +203,7 @@ virPerfEventEnable(virPerf *perf,
                    virPerfEventType type,
                    pid_t pid)
 {
-    struct perf_event_attr attr;
+    struct perf_event_attr attr = { 0 };
     struct virPerfEvent *event = &(perf->events[type]);
     struct virPerfEventAttr *event_attr = &attrs[type];
 
@@ -216,7 +214,7 @@ virPerfEventEnable(virPerf *perf,
                                       type == VIR_PERF_EVENT_MBMT ||
                                       type == VIR_PERF_EVENT_MBML)) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
-                       _("unable to enable host cpu perf event for %s"),
+                       _("unable to enable host cpu perf event for %1$s"),
                        virPerfEventTypeToString(type));
         return -1;
     }
@@ -235,7 +233,6 @@ virPerfEventEnable(virPerf *perf,
         }
     }
 
-    memset(&attr, 0, sizeof(attr));
     attr.size = sizeof(attr);
     attr.inherit = 1;
     attr.disabled = 1;
@@ -246,14 +243,14 @@ virPerfEventEnable(virPerf *perf,
     event->fd = syscall(__NR_perf_event_open, &attr, pid, -1, -1, 0);
     if (event->fd < 0) {
         virReportSystemError(errno,
-                             _("unable to open host cpu perf event for %s"),
+                             _("unable to open host cpu perf event for %1$s"),
                              virPerfEventTypeToString(type));
         goto error;
     }
 
     if (ioctl(event->fd, PERF_EVENT_IOC_ENABLE) < 0) {
         virReportSystemError(errno,
-                             _("unable to enable host cpu perf event for %s"),
+                             _("unable to enable host cpu perf event for %1$s"),
                              virPerfEventTypeToString(type));
         goto error;
     }
@@ -277,7 +274,7 @@ virPerfEventDisable(virPerf *perf,
 
     if (ioctl(event->fd, PERF_EVENT_IOC_DISABLE) < 0) {
         virReportSystemError(errno,
-                             _("unable to disable host cpu perf event for %s"),
+                             _("unable to disable host cpu perf event for %1$s"),
                              virPerfEventTypeToString(type));
         return -1;
     }

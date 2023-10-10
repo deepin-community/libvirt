@@ -20,8 +20,6 @@
 #include <config.h>
 
 #include "security_nop.h"
-#include "virstring.h"
-#include "virerror.h"
 
 #define VIR_FROM_THIS VIR_FROM_SECURITY
 
@@ -154,6 +152,7 @@ virSecurityDomainSetProcessLabelNop(virSecurityManager *mgr G_GNUC_UNUSED,
 static int
 virSecurityDomainSetChildProcessLabelNop(virSecurityManager *mgr G_GNUC_UNUSED,
                                          virDomainDef *vm G_GNUC_UNUSED,
+                                         bool useBinarySpecificLabel G_GNUC_UNUSED,
                                          virCommand *cmd G_GNUC_UNUSED)
 {
     return 0;

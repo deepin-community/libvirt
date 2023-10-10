@@ -1,0 +1,48 @@
+LC_ALL=C \
+PATH=/bin \
+HOME=/var/lib/libvirt/qemu/domain--1-QEMUGuest1 \
+USER=test \
+LOGNAME=test \
+XDG_DATA_HOME=/var/lib/libvirt/qemu/domain--1-QEMUGuest1/.local/share \
+XDG_CACHE_HOME=/var/lib/libvirt/qemu/domain--1-QEMUGuest1/.cache \
+XDG_CONFIG_HOME=/var/lib/libvirt/qemu/domain--1-QEMUGuest1/.config \
+/usr/bin/qemu-system-s390x \
+-name guest=QEMUGuest1,debug-threads=on \
+-S \
+-object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/var/lib/libvirt/qemu/domain--1-QEMUGuest1/master-key.aes"}' \
+-machine s390-ccw-virtio,usb=off,dump-guest-core=off,memory-backend=s390.ram \
+-accel tcg \
+-cpu qemu \
+-m size=219136k \
+-object '{"qom-type":"memory-backend-ram","id":"s390.ram","size":224395264}' \
+-overcommit mem-lock=off \
+-smp 1,sockets=1,cores=1,threads=1 \
+-uuid c7a5fdbd-edaf-9455-926a-d65c16db1809 \
+-display none \
+-no-user-config \
+-nodefaults \
+-chardev socket,id=charmonitor,fd=1729,server=on,wait=off \
+-mon chardev=charmonitor,id=monitor,mode=control \
+-rtc base=utc \
+-no-shutdown \
+-boot strict=on \
+-audiodev '{"id":"audio1","driver":"none"}' \
+-device '{"driver":"zpci","uid":35,"fid":63,"target":"hostdev0","id":"zpci35"}' \
+-device '{"driver":"vfio-pci","host":"0001:00:00.0","id":"hostdev0","bus":"pci.0","addr":"0x3"}' \
+-device '{"driver":"zpci","uid":53,"fid":104,"target":"hostdev1","id":"zpci53"}' \
+-device '{"driver":"vfio-pci","host":"0002:00:00.0","id":"hostdev1","bus":"pci.0","addr":"0x1"}' \
+-device '{"driver":"zpci","uid":1,"fid":1,"target":"hostdev2","id":"zpci1"}' \
+-device '{"driver":"vfio-pci","host":"0003:00:00.0","id":"hostdev2","bus":"pci.0","addr":"0x2"}' \
+-device '{"driver":"zpci","uid":2,"fid":2,"target":"hostdev3","id":"zpci2"}' \
+-device '{"driver":"vfio-pci","host":"0004:00:00.0","id":"hostdev3","bus":"pci.0","addr":"0x5"}' \
+-device '{"driver":"zpci","uid":83,"fid":0,"target":"hostdev4","id":"zpci83"}' \
+-device '{"driver":"vfio-pci","host":"0005:00:00.0","id":"hostdev4","bus":"pci.0","addr":"0x7"}' \
+-device '{"driver":"zpci","uid":3,"fid":114,"target":"hostdev5","id":"zpci3"}' \
+-device '{"driver":"vfio-pci","host":"0006:00:00.0","id":"hostdev5","bus":"pci.0","addr":"0x9"}' \
+-device '{"driver":"zpci","uid":23,"fid":3,"target":"hostdev6","id":"zpci23"}' \
+-device '{"driver":"vfio-pci","host":"0007:00:00.0","id":"hostdev6","bus":"pci.0","addr":"0x4"}' \
+-device '{"driver":"zpci","uid":4,"fid":40,"target":"hostdev7","id":"zpci4"}' \
+-device '{"driver":"vfio-pci","host":"0008:00:00.0","id":"hostdev7","bus":"pci.0","addr":"0x6"}' \
+-device '{"driver":"virtio-balloon-ccw","id":"balloon0","devno":"fe.0.0000"}' \
+-sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
+-msg timestamp=on

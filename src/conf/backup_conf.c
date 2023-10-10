@@ -21,16 +21,13 @@
 #include "configmake.h"
 #include "internal.h"
 #include "virbuffer.h"
-#include "datatypes.h"
 #include "domain_conf.h"
 #include "virlog.h"
 #include "viralloc.h"
 #include "backup_conf.h"
 #include "storage_source_conf.h"
-#include "virfile.h"
 #include "virerror.h"
 #include "virxml.h"
-#include "virstring.h"
 #include "virhash.h"
 #include "virenum.h"
 
@@ -162,7 +159,7 @@ virDomainBackupDiskDefParseXML(xmlNodePtr node,
     if (def->store->type != VIR_STORAGE_TYPE_FILE &&
         def->store->type != VIR_STORAGE_TYPE_BLOCK) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("unsupported disk backup type '%s'"), type);
+                       _("unsupported disk backup type '%1$s'"), type);
         return -1;
     }
 
@@ -193,10 +190,10 @@ virDomainBackupDefParsePrivate(virDomainBackupDef *def,
 }
 
 
-static virDomainBackupDef *
-virDomainBackupDefParse(xmlXPathContextPtr ctxt,
-                        virDomainXMLOption *xmlopt,
-                        unsigned int flags)
+virDomainBackupDef *
+virDomainBackupDefParseXML(xmlXPathContextPtr ctxt,
+                           virDomainXMLOption *xmlopt,
+                           unsigned int flags)
 {
     g_autoptr(virDomainBackupDef) def = NULL;
     g_autofree xmlNodePtr *nodes = NULL;
@@ -213,7 +210,7 @@ virDomainBackupDefParse(xmlXPathContextPtr ctxt,
     if ((mode = virXMLPropString(ctxt->node, "mode"))) {
         if ((def->type = virDomainBackupTypeFromString(mode)) <= 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unknown backup mode '%s'"), mode);
+                           _("unknown backup mode '%1$s'"), mode);
             return NULL;
         }
     }
@@ -243,7 +240,7 @@ virDomainBackupDefParse(xmlXPathContextPtr ctxt,
         if (def->server->transport == VIR_STORAGE_NET_HOST_TRANS_UNIX &&
             !g_path_is_absolute(def->server->socket)) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("backup socket path '%s' must be absolute"),
+                           _("backup socket path '%1$s' must be absolute"),
                            def->server->socket);
             return NULL;
         }
@@ -277,40 +274,20 @@ virDomainBackupDefParseString(const char *xmlStr,
                               virDomainXMLOption *xmlopt,
                               unsigned int flags)
 {
-    virDomainBackupDef *ret = NULL;
     g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
     int keepBlanksDefault = xmlKeepBlanksDefault(0);
+    bool validate = !(flags & VIR_DOMAIN_BACKUP_PARSE_INTERNAL);
 
-    if ((xml = virXMLParse(NULL, xmlStr, _("(domain_backup)"), "domainbackup.rng",
-                           !(flags & VIR_DOMAIN_BACKUP_PARSE_INTERNAL)))) {
-        xmlKeepBlanksDefault(keepBlanksDefault);
-        ret = virDomainBackupDefParseNode(xml, xmlDocGetRootElement(xml),
-                                          xmlopt, flags);
-    }
+    xml = virXMLParse(NULL, xmlStr, _("(domain_backup)"),
+                      "domainbackup", &ctxt, "domainbackup.rng", validate);
+
     xmlKeepBlanksDefault(keepBlanksDefault);
 
-    return ret;
-}
-
-
-virDomainBackupDef *
-virDomainBackupDefParseNode(xmlDocPtr xml,
-                            xmlNodePtr root,
-                            virDomainXMLOption *xmlopt,
-                            unsigned int flags)
-{
-    g_autoptr(xmlXPathContext) ctxt = NULL;
-
-    if (!virXMLNodeNameEqual(root, "domainbackup")) {
-        virReportError(VIR_ERR_XML_ERROR, "%s", _("domainbackup"));
-        return NULL;
-    }
-
-    if (!(ctxt = virXMLXPathContextNew(xml)))
+    if (!xml)
         return NULL;
 
-    ctxt->node = root;
-    return virDomainBackupDefParse(ctxt, xmlopt, flags);
+    return virDomainBackupDefParseXML(ctxt, xmlopt, flags);
 }
 
 
@@ -442,20 +419,25 @@ virDomainBackupDefAssignStore(virDomainBackupDiskDef *disk,
     if (virStorageSourceIsEmpty(src)) {
         if (disk->store) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("disk '%s' has no media"), disk->name);
+                           _("disk '%1$s' has no media"), disk->name);
             return -1;
         }
-    } else if (!disk->store) {
-        if (virStorageSourceGetActualType(src) == VIR_STORAGE_TYPE_FILE) {
-            disk->store = virStorageSourceNew();
-            disk->store->type = VIR_STORAGE_TYPE_FILE;
-            disk->store->path = g_strdup_printf("%s.%s", src->path, suffix);
-        } else {
+    }
+
+    if (!disk->store ||
+        virStorageSourceIsEmpty(disk->store)) {
+        if (virStorageSourceGetActualType(src) != VIR_STORAGE_TYPE_FILE) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("refusing to generate file name for disk '%s'"),
+                           _("refusing to generate file name for disk '%1$s'"),
                            disk->name);
             return -1;
         }
+
+        if (!disk->store)
+            disk->store = virStorageSourceNew();
+
+        disk->store->type = VIR_STORAGE_TYPE_FILE;
+        disk->store->path = g_strdup_printf("%s.%s", src->path, suffix);
     }
 
     return 0;
@@ -486,13 +468,13 @@ virDomainBackupAlignDisks(virDomainBackupDef *def,
 
         if (!(domdisk = virDomainDiskByTarget(dom, backupdisk->name))) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("no disk named '%s'"), backupdisk->name);
+                           _("no disk named '%1$s'"), backupdisk->name);
             return -1;
         }
 
         if (virHashAddEntry(disks, backupdisk->name, NULL) < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("disk '%s' specified twice"),
+                           _("disk '%1$s' specified twice"),
                            backupdisk->name);
             return -1;
         }
@@ -501,7 +483,7 @@ virDomainBackupAlignDisks(virDomainBackupDef *def,
             !backupdisk->incremental &&
             !def->incremental) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("'incremental' backup mode of disk '%s' requires setting 'incremental' field for disk or backup"),
+                           _("'incremental' backup mode of disk '%1$s' requires setting 'incremental' field for disk or backup"),
                            backupdisk->name);
             return -1;
         }

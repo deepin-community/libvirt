@@ -49,6 +49,7 @@ struct _virNetMessage {
 
 virNetMessage *virNetMessageNew(bool tracked);
 
+void virNetMessageClearFDs(virNetMessage *msg);
 void virNetMessageClearPayload(virNetMessage *msg);
 
 void virNetMessageClear(virNetMessage *);
@@ -83,8 +84,6 @@ int virNetMessageDecodeNumFDs(virNetMessage *msg);
 int virNetMessageEncodePayloadRaw(virNetMessage *msg,
                                   const char *buf,
                                   size_t len)
-    ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
-int virNetMessageEncodePayloadEmpty(virNetMessage *msg)
     ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
 void virNetMessageSaveError(struct virNetMessageError *rerr)

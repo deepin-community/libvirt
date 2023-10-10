@@ -21,13 +21,9 @@
 #include <config.h>
 
 #include "viraccessdriverpolkit.h"
-#include "viralloc.h"
-#include "vircommand.h"
 #include "virlog.h"
-#include "virprocess.h"
 #include "virerror.h"
 #include "virpolkit.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_ACCESS
 
@@ -79,7 +75,7 @@ virAccessDriverPolkitGetCaller(const char *actionid,
 
     if (!identity) {
         virAccessError(VIR_ERR_ACCESS_DENIED,
-                       _("Policy kit denied action %s from <anonymous>"),
+                       _("Policy kit denied action %1$s from <anonymous>"),
                        actionid);
         return -1;
     }

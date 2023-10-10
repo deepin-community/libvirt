@@ -1,4 +1,5 @@
 .. role:: since
+.. role:: removed
 
 ==================================
 Storage pool and volume XML format
@@ -17,8 +18,9 @@ volume size, or placement.
 The top level tag for a storage pool document is 'pool'. It has a single
 attribute ``type``, which is one of ``dir``, ``fs``, ``netfs``, ``disk``,
 ``iscsi``, ``logical``, ``scsi`` (all :since:`since 0.4.1` ), ``mpath`` (
-:since:`since 0.7.1` ), ``rbd`` ( :since:`since 0.9.13` ), ``sheepdog`` (
-:since:`since 0.10.0` ), ``gluster`` ( :since:`since 1.2.0` ), ``zfs`` (
+:since:`since 0.7.1` ), ``rbd`` ( :since:`since 0.9.13` ),
+``sheepdog`` (:since:`since 0.10.0`, :removed:`removed in 8.8.0` ),
+``gluster`` ( :since:`since 1.2.0` ), ``zfs`` (
 :since:`since 1.2.8` ), ``vstorage`` ( :since:`since 3.1.0` ), or
 ``iscsi-direct`` ( :since:`since 4.7.0` ). This corresponds to the storage
 backend drivers listed further along in this document.
@@ -350,7 +352,7 @@ following child elements:
 ``protocol``
    For a ``netfs`` Storage Pool provide a mechanism to define which NFS protocol
    version number will be used to contact the server's NFS service. The
-   attribute ``ver`` accepts an unsigned integer as the version number to use.
+   attribute ``ver`` accepts the version number to use.
    :since:`Since 5.1.0`
 ``vendor``
    Provides optional information about the vendor of the storage device. This
@@ -470,9 +472,9 @@ option in libvirt, and thus should never be used in production.
    options for the mount command via the "-o" option for the ``fs`` or ``netfs``
    type storage pools. In order to designate that the Storage Pool will be using
    the mechanism, the ``pool`` element must be modified to provide the XML
-   namespace attribute syntax as follows:
+   namespace attribute syntax as follows::
 
-   xmlns:fs='http://libvirt.org/schemas/storagepool/fs/1.0'
+      xmlns:fs='http://libvirt.org/schemas/storagepool/fs/1.0'
 
    The ``fs:mount_opts`` defines the mount options by specifying multiple
    ``fs:option`` subelements with the attribute ``name`` specifying the mount

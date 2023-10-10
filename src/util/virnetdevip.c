@@ -84,7 +84,7 @@ virNetDevCreateNetlinkAddressMessage(int messageType,
                                      virSocketAddr *peer)
 {
     struct nl_msg *nlmsg = NULL;
-    struct ifaddrmsg ifa;
+    struct ifaddrmsg ifa = { 0 };
     unsigned int ifindex;
     void *addrData = NULL;
     void *peerData = NULL;
@@ -109,8 +109,6 @@ virNetDevCreateNetlinkAddressMessage(int messageType,
 
     nlmsg = virNetlinkMsgNew(messageType,
                              NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL);
-
-    memset(&ifa, 0, sizeof(ifa));
 
     ifa.ifa_prefixlen = prefix;
     ifa.ifa_family = VIR_SOCKET_ADDR_FAMILY(addr);
@@ -181,7 +179,7 @@ virNetDevIPAddrAdd(const char *ifname,
 
         if (virSocketAddrBroadcastByPrefix(addr, prefix, broadcast) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Failed to determine broadcast address for '%s/%d'"),
+                           _("Failed to determine broadcast address for '%1$s/%2$d'"),
                            ipStr, prefix);
             return -1;
         }
@@ -206,7 +204,7 @@ virNetDevIPAddrAdd(const char *ifname,
 
     if (virNetlinkGetErrorCode(resp, recvbuflen) < 0) {
         virReportError(VIR_ERR_SYSTEM_ERROR,
-                       _("Failed to add IP address %s/%d%s%s%s%s to %s"),
+                       _("Failed to add IP address %1$s/%2$d%3$s%4$s%5$s%6$s to %7$s"),
                        ipStr, prefix,
                        peerStr ? " peer " : "", peerStr ? peerStr : "",
                        bcastStr ? " bcast " : "", bcastStr ? bcastStr : "",
@@ -248,7 +246,7 @@ virNetDevIPAddrDel(const char *ifname,
 
     if (virNetlinkGetErrorCode(resp, recvbuflen) < 0) {
         virReportError(VIR_ERR_SYSTEM_ERROR,
-                       _("Error removing IP address from %s"), ifname);
+                       _("Error removing IP address from %1$s"), ifname);
         return -1;
     }
 
@@ -277,7 +275,7 @@ virNetDevIPRouteAdd(const char *ifname,
 {
     unsigned int recvbuflen;
     unsigned int ifindex;
-    struct rtmsg rtmsg;
+    struct rtmsg rtmsg = { 0 };
     void *gatewayData = NULL;
     void *addrData = NULL;
     size_t addrDataLen;
@@ -323,8 +321,6 @@ virNetDevIPRouteAdd(const char *ifname,
     nlmsg = virNetlinkMsgNew(RTM_NEWROUTE,
                              NLM_F_REQUEST | NLM_F_CREATE | NLM_F_EXCL);
 
-    memset(&rtmsg, 0, sizeof(rtmsg));
-
     rtmsg.rtm_family = VIR_SOCKET_ADDR_FAMILY(gateway);
     rtmsg.rtm_table = RT_TABLE_MAIN;
     rtmsg.rtm_scope = RT_SCOPE_UNIVERSE;
@@ -352,7 +348,7 @@ virNetDevIPRouteAdd(const char *ifname,
         return -1;
 
     if ((errCode = virNetlinkGetErrorCode(resp, recvbuflen)) < 0) {
-        virReportSystemError(errCode, _("Error adding route to %s"), ifname);
+        virReportSystemError(errCode, _("Error adding route to %1$s"), ifname);
         return -1;
     }
 
@@ -529,7 +525,7 @@ virNetDevIPCheckIPv6Forwarding(void)
     char *cur;
     g_autofree char *buf = NULL;
     /* lines are 150 chars */
-    enum {MAX_ROUTE_SIZE = 150*100000};
+    enum {MAX_ROUTE_SIZE = 150*1000000};
 
     /* This is /proc/sys/net/ipv6/conf/all/accept_ra */
     int all_accept_ra = virNetDevIPGetAcceptRA(NULL);
@@ -538,8 +534,8 @@ virNetDevIPCheckIPv6Forwarding(void)
     if ((len = virFileReadAll(PROC_NET_IPV6_ROUTE,
                               MAX_ROUTE_SIZE, &buf)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to read %s "
-                         "for ipv6 forwarding checks"), PROC_NET_IPV6_ROUTE);
+                       _("Unable to read %1$s for ipv6 forwarding checks"),
+                       PROC_NET_IPV6_ROUTE);
         return false;
     }
 
@@ -592,10 +588,8 @@ virNetDevIPCheckIPv6Forwarding(void)
              */
             if (ret == 1 || (ret == 0 && all_accept_ra == 1)) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Check the host setup: interface %s has kernel "
-                                 "autoconfigured IPv6 routes and enabling forwarding "
-                                 " without accept_ra set to 2 will cause the kernel "
-                                 "to flush them, breaking networking."), iface_val);
+                               _("Check the host setup: interface %1$s has kernel autoconfigured IPv6 routes and enabling forwarding without accept_ra set to 2 will cause the kernel to flush them, breaking networking."),
+                               iface_val);
                 return false;
             }
         }
@@ -638,7 +632,7 @@ virNetDevGetIPv4AddressIoctl(const char *ifname,
 
     if (ioctl(fd, SIOCGIFADDR, (char *)&ifr) < 0) {
         virReportSystemError(errno,
-                             _("Unable to get IPv4 address for interface %s via ioctl"),
+                             _("Unable to get IPv4 address for interface %1$s via ioctl"),
                              ifname);
         goto cleanup;
     }
@@ -684,7 +678,7 @@ virNetDevGetifaddrsAddress(const char *ifname,
 
     if (getifaddrs(&ifap) < 0) {
         virReportSystemError(errno,
-                             _("Could not get interface list for '%s'"),
+                             _("Could not get interface list for '%1$s'"),
                              ifname);
         return -1;
     }
@@ -714,7 +708,7 @@ virNetDevGetifaddrsAddress(const char *ifname,
     }
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("no IP address found for interface '%s'"),
+                   _("no IP address found for interface '%1$s'"),
                    ifname);
  cleanup:
     freeifaddrs(ifap);
@@ -875,7 +869,7 @@ virNetDevIPInfoAddToDev(const char *ifname,
                                                NULL, ip->prefix)) < 0) {
             ipStr = virSocketAddrFormat(&ip->address);
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Failed to determine prefix for IP address '%s'"),
+                           _("Failed to determine prefix for IP address '%1$s'"),
                            NULLSTR(ipStr));
             return -1;
         }
@@ -890,7 +884,7 @@ virNetDevIPInfoAddToDev(const char *ifname,
         if ((prefix = virNetDevIPRouteGetPrefix(route)) < 0) {
             ipStr = virSocketAddrFormat(&route->address);
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Failed to determine prefix for route with destination '%s'"),
+                           _("Failed to determine prefix for route with destination '%1$s'"),
                            NULLSTR(ipStr));
             return -1;
         }

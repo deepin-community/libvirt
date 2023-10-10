@@ -7,7 +7,6 @@
 # include <unistd.h>
 
 # include "internal.h"
-# include "viralloc.h"
 # include "vmx/vmx.h"
 # include "esx/esx_util.h"
 # include "esx/esx_vi_types.h"
@@ -51,19 +50,15 @@ testParseDatastorePath(const void *data G_GNUC_UNUSED)
         if (paths[i].result < 0)
             continue;
 
-        if (STRNEQ(paths[i].datastoreName, datastoreName)) {
-            virTestDifference(stderr, paths[i].datastoreName, datastoreName);
+        if (virTestCompareToString(paths[i].datastoreName, datastoreName) < 0) {
             return -1;
         }
 
-        if (STRNEQ(paths[i].directoryName, directoryName)) {
-            virTestDifference(stderr, paths[i].directoryName, directoryName);
+        if (virTestCompareToString(paths[i].directoryName, directoryName) < 0) {
             return -1;
         }
 
-        if (STRNEQ(paths[i].directoryAndFileName, directoryAndFileName)) {
-            virTestDifference(stderr, paths[i].directoryAndFileName,
-                              directoryAndFileName);
+        if (virTestCompareToString(paths[i].directoryAndFileName, directoryAndFileName) < 0) {
             return -1;
         }
     }

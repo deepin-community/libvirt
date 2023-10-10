@@ -171,7 +171,7 @@ virStorageBackendLogicalParseVolExtents(virStorageVolDef *vol,
     re = g_regex_new(regex, 0, 0, &err);
     if (!re) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to compile regex %s"), err->message);
+                       _("Failed to compile regex %1$s"), err->message);
         return -1;
     }
 
@@ -186,10 +186,8 @@ virStorageBackendLogicalParseVolExtents(virStorageVolDef *vol,
      */
     for (i = 0; i < nextents; i++) {
         g_autofree char *offset_str = NULL;
-        virStorageVolSourceExtent extent;
+        virStorageVolSourceExtent extent = { 0 };
         size_t j = (i * 2) + 1;
-
-        memset(&extent, 0, sizeof(extent));
 
         offset_str = g_match_info_fetch(info, j + 1);
 
@@ -503,13 +501,12 @@ static char *
 virStorageBackendLogicalFindPoolSources(const char *srcSpec G_GNUC_UNUSED,
                                         unsigned int flags)
 {
-    virStoragePoolSourceList sourceList;
+    virStoragePoolSourceList sourceList = { 0 };
     size_t i;
     char *retval = NULL;
 
     virCheckFlags(0, NULL);
 
-    memset(&sourceList, 0, sizeof(sourceList));
     sourceList.type = VIR_STORAGE_POOL_LOGICAL;
 
     if (virStorageBackendLogicalGetPoolSources(&sourceList) < 0)
@@ -549,13 +546,12 @@ static bool
 virStorageBackendLogicalMatchPoolSource(virStoragePoolObj *pool)
 {
     virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
-    virStoragePoolSourceList sourceList;
+    virStoragePoolSourceList sourceList = { 0 };
     virStoragePoolSource *thisSource = NULL;
     size_t i, j;
     int matchcount = 0;
     bool ret = false;
 
-    memset(&sourceList, 0, sizeof(sourceList));
     sourceList.type = VIR_STORAGE_POOL_LOGICAL;
 
     if (virStorageBackendLogicalGetPoolSources(&sourceList) < 0)
@@ -570,7 +566,7 @@ virStorageBackendLogicalMatchPoolSource(virStoragePoolObj *pool)
 
     if (i == sourceList.nsources) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("cannot find logical volume group name '%s'"),
+                       _("cannot find logical volume group name '%1$s'"),
                        def->source.name);
         goto cleanup;
     }
@@ -600,8 +596,8 @@ virStorageBackendLogicalMatchPoolSource(virStoragePoolObj *pool)
      */
     if (matchcount == 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("cannot find any matching source devices for logical "
-                         "volume group '%s'"), def->source.name);
+                       _("cannot find any matching source devices for logical volume group '%1$s'"),
+                       def->source.name);
         goto cleanup;
     }
 
@@ -628,13 +624,7 @@ static int
 virStorageBackendLogicalCheckPool(virStoragePoolObj *pool,
                                   bool *isActive)
 {
-    virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
-
-    /* If we can find the target.path as well as ensure that the
-     * pool's def source
-     */
-    *isActive = virFileExists(def->target.path) &&
-                virStorageBackendLogicalMatchPoolSource(pool);
+    *isActive = virStorageBackendLogicalMatchPoolSource(pool);
     return 0;
 }
 
@@ -894,7 +884,7 @@ virStorageBackendLogicalCreateVol(virStoragePoolObj *pool,
     if (geteuid() == 0) {
         if (fchown(fd, vol->target.perms->uid, vol->target.perms->gid) < 0) {
             virReportSystemError(errno,
-                                 _("cannot set file owner '%s'"),
+                                 _("cannot set file owner '%1$s'"),
                                  vol->target.path);
             goto error;
         }
@@ -903,14 +893,14 @@ virStorageBackendLogicalCreateVol(virStoragePoolObj *pool,
                     VIR_STORAGE_DEFAULT_VOL_PERM_MODE :
                     vol->target.perms->mode)) < 0) {
         virReportSystemError(errno,
-                             _("cannot set file mode '%s'"),
+                             _("cannot set file mode '%1$s'"),
                              vol->target.path);
         goto error;
     }
 
     if (VIR_CLOSE(fd) < 0) {
         virReportSystemError(errno,
-                             _("cannot close file '%s'"),
+                             _("cannot close file '%1$s'"),
                              vol->target.path);
         goto error;
     }
@@ -918,7 +908,7 @@ virStorageBackendLogicalCreateVol(virStoragePoolObj *pool,
     /* Fill in data about this new vol */
     if (virStorageBackendLogicalFindLVs(pool, vol) < 0) {
         virReportSystemError(errno,
-                             _("cannot find newly created volume '%s'"),
+                             _("cannot find newly created volume '%1$s'"),
                              vol->target.path);
         goto error;
     }
@@ -969,8 +959,7 @@ virStorageBackendLogicalVolWipe(virStoragePoolObj *pool,
      * unsupported.
      */
     virReportError(VIR_ERR_NO_SUPPORT,
-                   _("logical volume '%s' is sparse, volume wipe "
-                     "not supported"),
+                   _("logical volume '%1$s' is sparse, volume wipe not supported"),
                    vol->target.path);
     return -1;
 }

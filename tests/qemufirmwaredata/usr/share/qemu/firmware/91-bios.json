@@ -1,0 +1,32 @@
+{
+    "description": "SeaBIOS",
+    "interface-types": [
+        "bios"
+    ],
+    "mapping": {
+        "device": "memory",
+        "filename": "/usr/share/seabios/bios-256k.bin"
+    },
+    "targets": [
+        {
+            "architecture": "i386",
+            "machines": [
+                "pc-i440fx-*",
+                "pc-q35-*"
+            ]
+        },
+        {
+            "architecture": "x86_64",
+            "machines": [
+                "pc-i440fx-*",
+                "pc-q35-*"
+            ]
+        }
+    ],
+    "features": [
+        "acpi-s3",
+        "acpi-s4"
+    ],
+    "tags": [
+    ]
+}

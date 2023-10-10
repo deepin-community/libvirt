@@ -235,7 +235,7 @@ esxVI_CURL_Perform(esxVI_CURL *curl, const char *url)
 
     if (errorCode != CURLE_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("curl_easy_perform() returned an error: %s (%d) : %s"),
+                       _("curl_easy_perform() returned an error: %1$s (%2$d) : %3$s"),
                        curl_easy_strerror(errorCode), errorCode, curl->error);
         return -1;
     }
@@ -245,16 +245,15 @@ esxVI_CURL_Perform(esxVI_CURL *curl, const char *url)
 
     if (errorCode != CURLE_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("curl_easy_getinfo(CURLINFO_RESPONSE_CODE) returned an "
-                         "error: %s (%d) : %s"), curl_easy_strerror(errorCode),
+                       _("curl_easy_getinfo(CURLINFO_RESPONSE_CODE) returned an error: %1$s (%2$d) : %3$s"),
+                       curl_easy_strerror(errorCode),
                        errorCode, curl->error);
         return -1;
     }
 
     if (responseCode < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("curl_easy_getinfo(CURLINFO_RESPONSE_CODE) returned a "
-                         "negative response code"));
+                       _("curl_easy_getinfo(CURLINFO_RESPONSE_CODE) returned a negative response code"));
         return -1;
     }
 
@@ -264,13 +263,13 @@ esxVI_CURL_Perform(esxVI_CURL *curl, const char *url)
 
         if (errorCode != CURLE_OK) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("curl_easy_getinfo(CURLINFO_REDIRECT_URL) returned "
-                             "an error: %s (%d) : %s"),
+                           _("curl_easy_getinfo(CURLINFO_REDIRECT_URL) returned an error: %1$s (%2$d) : %3$s"),
                            curl_easy_strerror(errorCode),
                            errorCode, curl->error);
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("The server redirects from '%s' to '%s'"), url,
+                           _("The server redirects from '%1$s' to '%2$s'"),
+                           url,
                            redirectUrl);
         }
 
@@ -380,23 +379,21 @@ esxVI_CURL_Download(esxVI_CURL *curl, const char *url, char **content,
         range = g_strdup_printf("%llu-", offset);
     }
 
-    virMutexLock(&curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&curl->lock) {
+        curl_easy_setopt(curl->handle, CURLOPT_URL, url);
+        curl_easy_setopt(curl->handle, CURLOPT_RANGE, range);
+        curl_easy_setopt(curl->handle, CURLOPT_WRITEDATA, &buffer);
+        curl_easy_setopt(curl->handle, CURLOPT_UPLOAD, 0);
+        curl_easy_setopt(curl->handle, CURLOPT_HTTPGET, 1);
 
-    curl_easy_setopt(curl->handle, CURLOPT_URL, url);
-    curl_easy_setopt(curl->handle, CURLOPT_RANGE, range);
-    curl_easy_setopt(curl->handle, CURLOPT_WRITEDATA, &buffer);
-    curl_easy_setopt(curl->handle, CURLOPT_UPLOAD, 0);
-    curl_easy_setopt(curl->handle, CURLOPT_HTTPGET, 1);
-
-    responseCode = esxVI_CURL_Perform(curl, url);
-
-    virMutexUnlock(&curl->lock);
+        responseCode = esxVI_CURL_Perform(curl, url);
+    }
 
     if (responseCode < 0) {
         return -1;
     } else if (responseCode != 200 && responseCode != 206) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("HTTP response code %d for download from '%s'"),
+                       _("HTTP response code %1$d for download from '%2$s'"),
                        responseCode, url);
         return -1;
     }
@@ -422,23 +419,21 @@ esxVI_CURL_Upload(esxVI_CURL *curl, const char *url, const char *content)
         return -1;
     }
 
-    virMutexLock(&curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&curl->lock) {
+        curl_easy_setopt(curl->handle, CURLOPT_URL, url);
+        curl_easy_setopt(curl->handle, CURLOPT_RANGE, NULL);
+        curl_easy_setopt(curl->handle, CURLOPT_READDATA, &content);
+        curl_easy_setopt(curl->handle, CURLOPT_UPLOAD, 1);
+        curl_easy_setopt(curl->handle, CURLOPT_INFILESIZE, strlen(content));
 
-    curl_easy_setopt(curl->handle, CURLOPT_URL, url);
-    curl_easy_setopt(curl->handle, CURLOPT_RANGE, NULL);
-    curl_easy_setopt(curl->handle, CURLOPT_READDATA, &content);
-    curl_easy_setopt(curl->handle, CURLOPT_UPLOAD, 1);
-    curl_easy_setopt(curl->handle, CURLOPT_INFILESIZE, strlen(content));
-
-    responseCode = esxVI_CURL_Perform(curl, url);
-
-    virMutexUnlock(&curl->lock);
+        responseCode = esxVI_CURL_Perform(curl, url);
+    }
 
     if (responseCode < 0) {
         return -1;
     } else if (responseCode != 200 && responseCode != 201) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("HTTP response code %d for upload to '%s'"),
+                       _("HTTP response code %1$d for upload to '%2$s'"),
                        responseCode, url);
         return -1;
     }
@@ -473,7 +468,7 @@ esxVI_SharedCURL_Lock(CURL *handle G_GNUC_UNUSED, curl_lock_data data,
         break;
 
       default:
-        VIR_ERROR(_("Trying to lock unknown SharedCURL lock %d"), (int)data);
+        VIR_ERROR(_("Trying to lock unknown SharedCURL lock %1$d"), (int)data);
         return;
     }
 
@@ -501,7 +496,7 @@ esxVI_SharedCURL_Unlock(CURL *handle G_GNUC_UNUSED, curl_lock_data data,
         break;
 
       default:
-        VIR_ERROR(_("Trying to unlock unknown SharedCURL lock %d"), (int)data);
+        VIR_ERROR(_("Trying to unlock unknown SharedCURL lock %1$d"), (int)data);
         return;
     }
 
@@ -574,14 +569,12 @@ esxVI_SharedCURL_Add(esxVI_SharedCURL *shared, esxVI_CURL *curl)
         }
     }
 
-    virMutexLock(&curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&curl->lock) {
+        curl_easy_setopt(curl->handle, CURLOPT_SHARE, shared->handle);
 
-    curl_easy_setopt(curl->handle, CURLOPT_SHARE, shared->handle);
-
-    curl->shared = shared;
-    ++shared->count;
-
-    virMutexUnlock(&curl->lock);
+        curl->shared = shared;
+        ++shared->count;
+    }
 
     return 0;
 }
@@ -606,14 +599,12 @@ esxVI_SharedCURL_Remove(esxVI_SharedCURL *shared, esxVI_CURL *curl)
         return -1;
     }
 
-    virMutexLock(&curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&curl->lock) {
+        curl_easy_setopt(curl->handle, CURLOPT_SHARE, NULL);
 
-    curl_easy_setopt(curl->handle, CURLOPT_SHARE, NULL);
-
-    curl->shared = NULL;
-    --shared->count;
-
-    virMutexUnlock(&curl->lock);
+        curl->shared = NULL;
+        --shared->count;
+    }
 
     return 0;
 }
@@ -667,14 +658,12 @@ esxVI_MultiCURL_Add(esxVI_MultiCURL *multi, esxVI_CURL *curl)
 
     }
 
-    virMutexLock(&curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&curl->lock) {
+        curl_multi_add_handle(multi->handle, curl->handle);
 
-    curl_multi_add_handle(multi->handle, curl->handle);
-
-    curl->multi = multi;
-    ++multi->count;
-
-    virMutexUnlock(&curl->lock);
+        curl->multi = multi;
+        ++multi->count;
+    }
 
     return 0;
 }
@@ -684,15 +673,13 @@ esxVI_MultiCURL_Remove(esxVI_MultiCURL *multi, esxVI_CURL *curl)
 {
     if (!curl->handle) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot remove uninitialized CURL handle from a "
-                         "multi handle"));
+                       _("Cannot remove uninitialized CURL handle from a multi handle"));
         return -1;
     }
 
     if (!curl->multi) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Cannot remove CURL handle from a multi handle when it "
-                         "wasn't added before"));
+                       _("Cannot remove CURL handle from a multi handle when it wasn't added before"));
         return -1;
     }
 
@@ -701,14 +688,12 @@ esxVI_MultiCURL_Remove(esxVI_MultiCURL *multi, esxVI_CURL *curl)
         return -1;
     }
 
-    virMutexLock(&curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&curl->lock) {
+        curl_multi_remove_handle(multi->handle, curl->handle);
 
-    curl_multi_remove_handle(multi->handle, curl->handle);
-
-    curl->multi = NULL;
-    --multi->count;
-
-    virMutexUnlock(&curl->lock);
+        curl->multi = NULL;
+        --multi->count;
+    }
 
     return 0;
 }
@@ -729,7 +714,7 @@ esxVI_MultiCURL_Wait(esxVI_MultiCURL *multi, int *runningHandles)
 
     if (errorCode != CURLM_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not wait for transfer: %s (%d)"),
+                       _("Could not wait for transfer: %1$s (%2$d)"),
                        curl_multi_strerror(errorCode), errorCode);
         return -1;
     }
@@ -748,7 +733,7 @@ esxVI_MultiCURL_Perform(esxVI_MultiCURL *multi, int *runningHandles)
 
     if (errorCode != CURLM_OK) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not transfer data: %s (%d)"),
+                       _("Could not transfer data: %1$s (%2$d)"),
                        curl_multi_strerror(errorCode), errorCode);
         return -1;
     }
@@ -863,22 +848,22 @@ esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
     if (STRNEQ(ctx->service->about->apiType, "HostAgent") &&
         STRNEQ(ctx->service->about->apiType, "VirtualCenter")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Expecting VI API type 'HostAgent' or 'VirtualCenter' "
-                         "but found '%s'"), ctx->service->about->apiType);
+                       _("Expecting VI API type 'HostAgent' or 'VirtualCenter' but found '%1$s'"),
+                       ctx->service->about->apiType);
         return -1;
     }
 
     if (virStringParseVersion(&ctx->apiVersion,
                               ctx->service->about->apiVersion, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not parse VI API version '%s'"),
+                       _("Could not parse VI API version '%1$s'"),
                        ctx->service->about->apiVersion);
         return -1;
     }
 
     if (ctx->apiVersion < 1000000 * 2 + 1000 * 5 /* 2.5 */) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Minimum supported %s version is %s but found version '%s'"),
+                       _("Minimum supported %1$s version is %2$s but found version '%3$s'"),
                        "VI API", "2.5", ctx->service->about->apiVersion);
         return -1;
     }
@@ -886,7 +871,7 @@ esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
     if (virStringParseVersion(&ctx->productVersion,
                               ctx->service->about->version, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not parse product version '%s'"),
+                       _("Could not parse product version '%1$s'"),
                        ctx->service->about->version);
         return -1;
     }
@@ -894,7 +879,7 @@ esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
     if (STREQ(ctx->service->about->productLineId, "gsx")) {
         if (ctx->productVersion < 1000000 * 2 + 1000 * 0 /* 2.0 */) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Minimum supported %s version is %s but found version '%s'"),
+                           _("Minimum supported %1$s version is %2$s but found version '%3$s'"),
                            esxVI_ProductLineToDisplayName(esxVI_ProductLine_GSX),
                            "2.0", ctx->service->about->version);
             return -1;
@@ -905,7 +890,7 @@ esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
                STREQ(ctx->service->about->productLineId, "embeddedEsx")) {
         if (ctx->productVersion < 1000000 * 3 + 1000 * 5 /* 3.5 */) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Minimum supported %s version is %s but found version '%s'"),
+                           _("Minimum supported %1$s version is %2$s but found version '%3$s'"),
                            esxVI_ProductLineToDisplayName(esxVI_ProductLine_ESX),
                            "3.5", ctx->service->about->version);
             return -1;
@@ -915,7 +900,7 @@ esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
     } else if (STREQ(ctx->service->about->productLineId, "vpx")) {
         if (ctx->productVersion < 1000000 * 2 + 1000 * 5 /* 2.5 */) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Minimum supported %s version is %s but found version '%s'"),
+                           _("Minimum supported %1$s version is %2$s but found version '%3$s'"),
                            esxVI_ProductLineToDisplayName(esxVI_ProductLine_VPX),
                            "2.5", ctx->service->about->version);
             return -1;
@@ -924,8 +909,7 @@ esxVI_Context_Connect(esxVI_Context *ctx, const char *url,
         ctx->productLine = esxVI_ProductLine_VPX;
     } else {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Expecting product 'gsx' or 'esx' or 'embeddedEsx' "
-                         "or 'vpx' but found '%s'"),
+                       _("Expecting product 'gsx' or 'esx' or 'embeddedEsx' or 'vpx' but found '%1$s'"),
                        ctx->service->about->productLineId);
         return -1;
     }
@@ -1012,7 +996,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
 
     if (!item) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Path '%s' does not specify a datacenter"), path);
+                       _("Path '%1$s' does not specify a datacenter"), path);
         goto cleanup;
     }
 
@@ -1053,7 +1037,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
 
     if (!ctx->datacenter) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find datacenter specified in '%s'"), path);
+                       _("Could not find datacenter specified in '%1$s'"), path);
         goto cleanup;
     }
 
@@ -1062,7 +1046,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
     /* Lookup (Cluster)ComputeResource */
     if (!item) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Path '%s' does not specify a compute resource"), path);
+                       _("Path '%1$s' does not specify a compute resource"), path);
         goto cleanup;
     }
 
@@ -1107,7 +1091,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
 
     if (!ctx->computeResource) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find compute resource specified in '%s'"),
+                       _("Could not find compute resource specified in '%1$s'"),
                        path);
         goto cleanup;
     }
@@ -1125,7 +1109,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
               "ClusterComputeResource")) {
         if (!item) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Path '%s' does not specify a host system"), path);
+                           _("Path '%1$s' does not specify a host system"), path);
             goto cleanup;
         }
 
@@ -1136,7 +1120,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
 
     if (item) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Path '%s' ends with an excess item"), path);
+                       _("Path '%1$s' ends with an excess item"), path);
         goto cleanup;
     }
 
@@ -1151,7 +1135,7 @@ esxVI_Context_LookupManagedObjectsByPath(esxVI_Context *ctx, const char *path)
 
     if (!ctx->hostSystem) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find host system specified in '%s'"), path);
+                       _("Could not find host system specified in '%1$s'"), path);
         goto cleanup;
     }
 
@@ -1232,18 +1216,16 @@ esxVI_Context_Execute(esxVI_Context *ctx, const char *methodName,
     if (esxVI_Response_Alloc(response) < 0)
         return -1;
 
-    virMutexLock(&ctx->curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&ctx->curl->lock) {
+        curl_easy_setopt(ctx->curl->handle, CURLOPT_URL, ctx->url);
+        curl_easy_setopt(ctx->curl->handle, CURLOPT_RANGE, NULL);
+        curl_easy_setopt(ctx->curl->handle, CURLOPT_WRITEDATA, &buffer);
+        curl_easy_setopt(ctx->curl->handle, CURLOPT_UPLOAD, 0);
+        curl_easy_setopt(ctx->curl->handle, CURLOPT_POSTFIELDS, request);
+        curl_easy_setopt(ctx->curl->handle, CURLOPT_POSTFIELDSIZE, strlen(request));
 
-    curl_easy_setopt(ctx->curl->handle, CURLOPT_URL, ctx->url);
-    curl_easy_setopt(ctx->curl->handle, CURLOPT_RANGE, NULL);
-    curl_easy_setopt(ctx->curl->handle, CURLOPT_WRITEDATA, &buffer);
-    curl_easy_setopt(ctx->curl->handle, CURLOPT_UPLOAD, 0);
-    curl_easy_setopt(ctx->curl->handle, CURLOPT_POSTFIELDS, request);
-    curl_easy_setopt(ctx->curl->handle, CURLOPT_POSTFIELDSIZE, strlen(request));
-
-    (*response)->responseCode = esxVI_CURL_Perform(ctx->curl, ctx->url);
-
-    virMutexUnlock(&ctx->curl->lock);
+        (*response)->responseCode = esxVI_CURL_Perform(ctx->curl, ctx->url);
+    }
 
     if ((*response)->responseCode < 0)
         goto cleanup;
@@ -1269,23 +1251,21 @@ esxVI_Context_Execute(esxVI_Context *ctx, const char *methodName,
 
             if (!(*response)->node) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("HTTP response code %d for call to '%s'. "
-                                 "Fault is unknown, XPath evaluation failed"),
+                               _("HTTP response code %1$d for call to '%2$s'. Fault is unknown, XPath evaluation failed"),
                                (*response)->responseCode, methodName);
                 goto cleanup;
             }
 
             if (esxVI_Fault_Deserialize((*response)->node, &fault) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("HTTP response code %d for call to '%s'. "
-                                 "Fault is unknown, deserialization failed"),
+                               _("HTTP response code %1$d for call to '%2$s'. Fault is unknown, deserialization failed"),
                                (*response)->responseCode, methodName);
                 goto cleanup;
             }
 
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("HTTP response code %d for call to '%s'. "
-                             "Fault: %s - %s"), (*response)->responseCode,
+                           _("HTTP response code %1$d for call to '%2$s'. Fault: %3$s - %4$s"),
+                           (*response)->responseCode,
                            methodName, fault->faultcode, fault->faultstring);
 
             /* FIXME: Dump raw response until detail part gets deserialized */
@@ -1302,8 +1282,8 @@ esxVI_Context_Execute(esxVI_Context *ctx, const char *methodName,
 
             if (!responseNode) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("XPath evaluation of response for call to '%s' "
-                                 "failed"), methodName);
+                               _("XPath evaluation of response for call to '%1$s' failed"),
+                               methodName);
                 goto cleanup;
             }
 
@@ -1314,13 +1294,13 @@ esxVI_Context_Execute(esxVI_Context *ctx, const char *methodName,
               case esxVI_Occurrence_RequiredItem:
                 if (!(*response)->node) {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("Call to '%s' returned an empty result, "
-                                     "expecting a non-empty result"), methodName);
+                                   _("Call to '%1$s' returned an empty result, expecting a non-empty result"),
+                                   methodName);
                     goto cleanup;
                 } else if ((*response)->node->next) {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("Call to '%s' returned a list, expecting "
-                                     "exactly one item"), methodName);
+                                   _("Call to '%1$s' returned a list, expecting exactly one item"),
+                                   methodName);
                     goto cleanup;
                 }
 
@@ -1329,8 +1309,8 @@ esxVI_Context_Execute(esxVI_Context *ctx, const char *methodName,
               case esxVI_Occurrence_RequiredList:
                 if (!(*response)->node) {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("Call to '%s' returned an empty result, "
-                                     "expecting a non-empty result"), methodName);
+                                   _("Call to '%1$s' returned an empty result, expecting a non-empty result"),
+                                   methodName);
                     goto cleanup;
                 }
 
@@ -1340,8 +1320,8 @@ esxVI_Context_Execute(esxVI_Context *ctx, const char *methodName,
                 if ((*response)->node &&
                     (*response)->node->next) {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("Call to '%s' returned a list, expecting "
-                                     "exactly one item"), methodName);
+                                   _("Call to '%1$s' returned a list, expecting exactly one item"),
+                                   methodName);
                     goto cleanup;
                 }
 
@@ -1354,8 +1334,8 @@ esxVI_Context_Execute(esxVI_Context *ctx, const char *methodName,
               case esxVI_Occurrence_None:
                 if ((*response)->node) {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("Call to '%s' returned something, expecting "
-                                     "an empty result"), methodName);
+                                   _("Call to '%1$s' returned something, expecting an empty result"),
+                                   methodName);
                     goto cleanup;
                 }
 
@@ -1369,7 +1349,7 @@ esxVI_Context_Execute(esxVI_Context *ctx, const char *methodName,
         }
     } else {
         virReportError(VIR_ERR_HTTP_ERROR,
-                       _("HTTP response code %d for call to '%s'"),
+                       _("HTTP response code %1$d for call to '%2$s'"),
                        (*response)->responseCode, methodName);
         goto cleanup;
     }
@@ -1423,7 +1403,7 @@ esxVI_Enumeration_CastFromAnyType(const esxVI_Enumeration *enumeration,
 
     if (anyType->type != enumeration->type) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Expecting type '%s' but found '%s'"),
+                       _("Expecting type '%1$s' but found '%2$s'"),
                        esxVI_Type_ToString(enumeration->type),
                        esxVI_AnyType_TypeToString(anyType));
         return -1;
@@ -1437,7 +1417,7 @@ esxVI_Enumeration_CastFromAnyType(const esxVI_Enumeration *enumeration,
     }
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Unknown value '%s' for %s"), anyType->value,
+                   _("Unknown value '%1$s' for %2$s"), anyType->value,
                    esxVI_Type_ToString(enumeration->type));
 
     return -1;
@@ -1508,7 +1488,7 @@ esxVI_Enumeration_Deserialize(const esxVI_Enumeration *enumeration,
     }
 
     if (result < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, _("Unknown value '%s' for %s"),
+        virReportError(VIR_ERR_INTERNAL_ERROR, _("Unknown value '%1$s' for %2$s"),
                        name, esxVI_Type_ToString(enumeration->type));
     }
 
@@ -1594,7 +1574,7 @@ esxVI_List_CastFromAnyType(esxVI_AnyType *anyType, esxVI_List **list,
 
     if (! STRPREFIX(anyType->other, "ArrayOf")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Expecting type to begin with 'ArrayOf' but found '%s'"),
+                       _("Expecting type to begin with 'ArrayOf' but found '%1$s'"),
                        anyType->other);
         return -1;
     }
@@ -1603,7 +1583,7 @@ esxVI_List_CastFromAnyType(esxVI_AnyType *anyType, esxVI_List **list,
          childNode = childNode->next) {
         if (childNode->type != XML_ELEMENT_NODE) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Wrong XML element type %d"), childNode->type);
+                           _("Wrong XML element type %1$d"), childNode->type);
             goto cleanup;
         }
 
@@ -1672,7 +1652,7 @@ esxVI_List_Deserialize(xmlNodePtr node, esxVI_List **list,
     for (; node; node = node->next) {
         if (node->type != XML_ELEMENT_NODE) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Wrong XML element type %d"), node->type);
+                           _("Wrong XML element type %1$d"), node->type);
             goto failure;
         }
 
@@ -1872,13 +1852,14 @@ esxVI_EnsureSession(esxVI_Context *ctx)
     esxVI_DynamicProperty *dynamicProperty = NULL;
     esxVI_UserSession *currentSession = NULL;
     g_autofree char *escapedPassword = NULL;
+    VIR_LOCK_GUARD lock = { NULL };
 
     if (!ctx->sessionLock) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid call, no mutex"));
         return -1;
     }
 
-    virMutexLock(ctx->sessionLock);
+    lock = virLockGuardLock(ctx->sessionLock);
 
     if (!ctx->session) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Invalid call, no session"));
@@ -1925,16 +1906,13 @@ esxVI_EnsureSession(esxVI_Context *ctx)
         }
     } else if (STRNEQ(ctx->session->key, currentSession->key)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Key of the current session differs from the key at "
-                         "last login"));
+                       _("Key of the current session differs from the key at last login"));
         goto cleanup;
     }
 
     result = 0;
 
  cleanup:
-    virMutexUnlock(ctx->sessionLock);
-
     esxVI_String_Free(&propertyNameList);
     esxVI_ObjectContent_Free(&sessionManager);
     esxVI_UserSession_Free(&currentSession);
@@ -1975,7 +1953,7 @@ esxVI_LookupObjectContentByType(esxVI_Context *ctx,
                 objectSpec->selectSet = ctx->selectSet_folderToChildEntity;
             } else {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Invalid lookup of '%s' from '%s'"),
+                               _("Invalid lookup of '%1$s' from '%2$s'"),
                                type, root->type);
                 goto cleanup;
             }
@@ -1987,7 +1965,7 @@ esxVI_LookupObjectContentByType(esxVI_Context *ctx,
                 objectSpec->selectSet = ctx->selectSet_computeResourceToParentToParent;
             } else {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Invalid lookup of '%s' from '%s'"),
+                               _("Invalid lookup of '%1$s' from '%2$s'"),
                                type, root->type);
                 goto cleanup;
             }
@@ -2001,7 +1979,7 @@ esxVI_LookupObjectContentByType(esxVI_Context *ctx,
                 objectSpec->selectSet = ctx->selectSet_hostSystemToDatastore;
             } else {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Invalid lookup of '%s' from '%s'"),
+                               _("Invalid lookup of '%1$s' from '%2$s'"),
                                type, root->type);
                 goto cleanup;
             }
@@ -2010,13 +1988,13 @@ esxVI_LookupObjectContentByType(esxVI_Context *ctx,
                 objectSpec->selectSet = ctx->selectSet_datacenterToNetwork;
             } else {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Invalid lookup of '%s' from '%s'"),
+                               _("Invalid lookup of '%1$s' from '%2$s'"),
                                type, root->type);
                 goto cleanup;
             }
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Invalid lookup from '%s'"), root->type);
+                           _("Invalid lookup from '%1$s'"), root->type);
             goto cleanup;
         }
     }
@@ -2056,13 +2034,13 @@ esxVI_LookupObjectContentByType(esxVI_Context *ctx,
 
           case esxVI_Occurrence_RequiredItem:
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not lookup '%s' from '%s'"),
+                           _("Could not lookup '%1$s' from '%2$s'"),
                            type, root->type);
             break;
 
           case esxVI_Occurrence_RequiredList:
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not lookup '%s' list from '%s'"),
+                           _("Could not lookup '%1$s' list from '%2$s'"),
                            type, root->type);
             break;
 
@@ -2121,8 +2099,8 @@ esxVI_GetManagedEntityStatus(esxVI_ObjectContent *objectContent,
     }
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Missing '%s' property while looking for "
-                     "ManagedEntityStatus"), propertyName);
+                   _("Missing '%1$s' property while looking for ManagedEntityStatus"),
+                   propertyName);
 
     return -1;
 }
@@ -2216,7 +2194,7 @@ esxVI_GetBoolean(esxVI_ObjectContent *objectContent, const char *propertyName,
     if (*value == esxVI_Boolean_Undefined &&
         occurrence == esxVI_Occurrence_RequiredItem) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Missing '%s' property"), propertyName);
+                       _("Missing '%1$s' property"), propertyName);
         return -1;
     }
 
@@ -2245,7 +2223,7 @@ esxVI_GetInt(esxVI_ObjectContent *objectContent, const char *propertyName,
 
     if (!(*value) && occurrence == esxVI_Occurrence_RequiredItem) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Missing '%s' property"), propertyName);
+                       _("Missing '%1$s' property"), propertyName);
         return -1;
     }
 
@@ -2274,7 +2252,7 @@ esxVI_GetLong(esxVI_ObjectContent *objectContent, const char *propertyName,
 
     if (!(*value) && occurrence == esxVI_Occurrence_RequiredItem) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Missing '%s' property"), propertyName);
+                       _("Missing '%1$s' property"), propertyName);
         return -1;
     }
 
@@ -2307,7 +2285,7 @@ esxVI_GetStringValue(esxVI_ObjectContent *objectContent,
 
     if (!(*value) && occurrence == esxVI_Occurrence_RequiredItem) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Missing '%s' property"), propertyName);
+                       _("Missing '%1$s' property"), propertyName);
         return -1;
     }
 
@@ -2340,7 +2318,7 @@ esxVI_GetManagedObjectReference(esxVI_ObjectContent *objectContent,
 
     if (!(*value) && occurrence == esxVI_Occurrence_RequiredItem) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Missing '%s' property"), propertyName);
+                       _("Missing '%1$s' property"), propertyName);
         return -1;
     }
 
@@ -2419,7 +2397,7 @@ esxVI_GetVirtualMachineIdentity(esxVI_ObjectContent *virtualMachine,
         if (esxUtil_ParseVirtualMachineIDString
               (virtualMachine->obj->value, id) < 0 || *id <= 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not parse positive integer from '%s'"),
+                           _("Could not parse positive integer from '%1$s'"),
                            virtualMachine->obj->value);
             goto failure;
         }
@@ -2488,7 +2466,7 @@ esxVI_GetVirtualMachineIdentity(esxVI_ObjectContent *virtualMachine,
 
             if (virUUIDParse(uuid_string, uuid) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Could not parse UUID from string '%s'"),
+                               _("Could not parse UUID from string '%1$s'"),
                                uuid_string);
                 goto failure;
             }
@@ -2617,7 +2595,7 @@ esxVI_GetSnapshotTreeByName
         return 0;
     } else {
         virReportError(VIR_ERR_NO_DOMAIN_SNAPSHOT,
-                       _("Could not find snapshot with name '%s'"), name);
+                       _("Could not find snapshot with name '%1$s'"), name);
 
         return -1;
     }
@@ -2649,7 +2627,7 @@ esxVI_GetSnapshotTreeBySnapshot
     }
 
     virReportError(VIR_ERR_NO_DOMAIN_SNAPSHOT,
-                   _("Could not find domain snapshot with internal name '%s'"),
+                   _("Could not find domain snapshot with internal name '%1$s'"),
                    snapshot->value);
 
     return -1;
@@ -2712,7 +2690,7 @@ esxVI_LookupVirtualMachineByUuid(esxVI_Context *ctx, const unsigned char *uuid,
             goto cleanup;
         } else {
             virReportError(VIR_ERR_NO_DOMAIN,
-                           _("Could not find domain with UUID '%s'"),
+                           _("Could not find domain with UUID '%1$s'"),
                            uuid_string);
             goto cleanup;
         }
@@ -2776,7 +2754,7 @@ esxVI_LookupVirtualMachineByName(esxVI_Context *ctx, const char *name,
 
     if (!(*virtualMachine) && occurrence != esxVI_Occurrence_OptionalItem) {
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("Could not find domain with name '%s'"), name);
+                       _("Could not find domain with name '%1$s'"), name);
         goto cleanup;
     }
 
@@ -2903,7 +2881,7 @@ esxVI_LookupDatastoreByName(esxVI_Context *ctx, const char *name,
 
     if (!(*datastore) && occurrence != esxVI_Occurrence_OptionalItem) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find datastore with name '%s'"), name);
+                       _("Could not find datastore with name '%1$s'"), name);
         goto cleanup;
     }
 
@@ -2985,7 +2963,7 @@ esxVI_LookupDatastoreByAbsolutePath(esxVI_Context *ctx,
 
     if (!(*datastore) && occurrence != esxVI_Occurrence_OptionalItem) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find datastore containing absolute path '%s'"),
+                       _("Could not find datastore containing absolute path '%1$s'"),
                        absolutePath);
         goto cleanup;
     }
@@ -3394,7 +3372,7 @@ esxVI_LookupFileInfoByDatastorePath(esxVI_Context *ctx,
         if (directoryAndFileName[length] != '/' ||
             directoryAndFileName[length + 1] == '\0') {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Datastore path '%s' doesn't reference a file"),
+                           _("Datastore path '%1$s' doesn't reference a file"),
                            datastorePath);
             goto cleanup;
         }
@@ -3481,7 +3459,7 @@ esxVI_LookupFileInfoByDatastorePath(esxVI_Context *ctx,
 
     if (taskInfoState != esxVI_TaskInfoState_Success) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not search in datastore '%s': %s"),
+                       _("Could not search in datastore '%1$s': %2$s"),
                        datastoreName, taskInfoErrorMessage);
         goto cleanup;
     }
@@ -3500,7 +3478,7 @@ esxVI_LookupFileInfoByDatastorePath(esxVI_Context *ctx,
             goto cleanup;
         } else {
             virReportError(VIR_ERR_NO_STORAGE_VOL,
-                           _("No storage volume with key or path '%s'"),
+                           _("No storage volume with key or path '%1$s'"),
                            datastorePath);
             goto cleanup;
         }
@@ -3619,7 +3597,7 @@ esxVI_LookupDatastoreContentByDatastoreName
 
     if (taskInfoState != esxVI_TaskInfoState_Success) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not search in datastore '%s': %s"),
+                       _("Could not search in datastore '%1$s': %2$s"),
                        datastoreName, taskInfoErrorMessage);
         goto cleanup;
     }
@@ -3868,7 +3846,7 @@ esxVI_LookupPhysicalNicByName(esxVI_Context *ctx, const char *name,
 
     if (!(*physicalNic) && occurrence != esxVI_Occurrence_OptionalItem) {
         virReportError(VIR_ERR_NO_INTERFACE,
-                       _("Could not find physical NIC with name '%s'"), name);
+                       _("Could not find physical NIC with name '%1$s'"), name);
         goto cleanup;
     }
 
@@ -3912,7 +3890,7 @@ esxVI_LookupPhysicalNicByMACAddress(esxVI_Context *ctx, const char *mac,
 
     if (!(*physicalNic) && occurrence != esxVI_Occurrence_OptionalItem) {
         virReportError(VIR_ERR_NO_INTERFACE,
-                       _("Could not find physical NIC with MAC address '%s'"), mac);
+                       _("Could not find physical NIC with MAC address '%1$s'"), mac);
         goto cleanup;
     }
 
@@ -4000,7 +3978,7 @@ esxVI_LookupHostVirtualSwitchByName(esxVI_Context *ctx, const char *name,
     if (!(*hostVirtualSwitch) &&
         occurrence != esxVI_Occurrence_OptionalItem) {
         virReportError(VIR_ERR_NO_NETWORK,
-                       _("Could not find HostVirtualSwitch with name '%s'"),
+                       _("Could not find HostVirtualSwitch with name '%1$s'"),
                        name);
         goto cleanup;
     }
@@ -4113,17 +4091,15 @@ esxVI_HandleVirtualMachineQuestion
     if (autoAnswer) {
         if (!possibleAnswers) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Pending question blocks virtual machine execution, "
-                             "question is '%s', no possible answers"),
+                           _("Pending question blocks virtual machine execution, question is '%1$s', no possible answers"),
                            questionInfo->text);
 
             *blocked = true;
             return -1;
         } else if (!answerChoice) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Pending question blocks virtual machine execution, "
-                             "question is '%s', possible answers are %s, but no "
-                             "default answer is specified"), questionInfo->text,
+                           _("Pending question blocks virtual machine execution, question is '%1$s', possible answers are %2$s, but no default answer is specified"),
+                           questionInfo->text,
                            possibleAnswers);
 
             *blocked = true;
@@ -4142,13 +4118,11 @@ esxVI_HandleVirtualMachineQuestion
     } else {
         if (possibleAnswers) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Pending question blocks virtual machine execution, "
-                             "question is '%s', possible answers are %s"),
+                           _("Pending question blocks virtual machine execution, question is '%1$s', possible answers are %2$s"),
                            questionInfo->text, possibleAnswers);
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Pending question blocks virtual machine execution, "
-                             "question is '%s', no possible answers"),
+                           _("Pending question blocks virtual machine execution, question is '%1$s', no possible answers"),
                            questionInfo->text);
         }
 
@@ -4242,13 +4216,10 @@ esxVI_WaitForTaskCompletion(esxVI_Context *ctx,
 
                 if (taskInfo->cancelable == esxVI_Boolean_True) {
                     if (esxVI_CancelTask(ctx, task) < 0 && blocked) {
-                        VIR_ERROR(_("Cancelable task is blocked by an "
-                                     "unanswered question but cancellation "
-                                     "failed"));
+                        VIR_ERROR(_("Cancelable task is blocked by an unanswered question but cancellation failed"));
                     }
                 } else if (blocked) {
-                    VIR_ERROR(_("Non-cancelable task is blocked by an "
-                                 "unanswered question"));
+                    VIR_ERROR(_("Non-cancelable task is blocked by an unanswered question"));
                 }
 
                 /* FIXME: Enable error reporting here again */
@@ -4363,7 +4334,7 @@ esxVI_ParseHostCpuIdInfo(esxVI_ParsedHostCpuIdInfo *parsedHostCpuIdInfo,
     for (r = 0; r < 4; ++r) {
         if (strlen(input[r]) != expectedLength) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("HostCpuIdInfo register '%s' has an unexpected length"),
+                           _("HostCpuIdInfo register '%1$s' has an unexpected length"),
                            name[r]);
             return -1;
         }
@@ -4377,7 +4348,7 @@ esxVI_ParseHostCpuIdInfo(esxVI_ParsedHostCpuIdInfo *parsedHostCpuIdInfo,
 
             if (i + 4 < expectedLength && input[r][i + 4] != ':') {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("HostCpuIdInfo register '%s' has an unexpected format"),
+                               _("HostCpuIdInfo register '%1$s' has an unexpected format"),
                                name[r]);
                 return -1;
             }
@@ -4514,7 +4485,7 @@ esxVI_LookupHostInternetScsiHbaStaticTargetByName
     if (!candidate) {
         if (occurrence == esxVI_Occurrence_RequiredItem) {
             virReportError(VIR_ERR_NO_STORAGE_POOL,
-                           _("Could not find storage pool with name: %s"), name);
+                           _("Could not find storage pool with name: %1$s"), name);
         }
 
         goto cleanup;
@@ -4954,7 +4925,7 @@ esxVI_LookupManagedObjectHelper(esxVI_Context *ctx,
 
     if (!esxVI_String_ListContainsValue(propertyNameList, "name")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Missing 'name' property in %s lookup"), type);
+                       _("Missing 'name' property in %1$s lookup"), type);
         goto cleanup;
     }
 
@@ -4993,10 +4964,10 @@ esxVI_LookupManagedObjectHelper(esxVI_Context *ctx,
         if (occurrence != esxVI_Occurrence_OptionalItem) {
             if (name) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Could not find %s with name '%s'"), type, name);
+                               _("Could not find %1$s with name '%2$s'"), type, name);
             } else {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Could not find %s"), type);
+                               _("Could not find %1$s"), type);
             }
 
             goto cleanup;

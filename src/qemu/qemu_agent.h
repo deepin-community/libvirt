@@ -38,8 +38,7 @@ struct _qemuAgentCallbacks {
 qemuAgent *qemuAgentOpen(virDomainObj *vm,
                            const virDomainChrSourceDef *config,
                            GMainContext *context,
-                           qemuAgentCallbacks *cb,
-                           bool singleSync);
+                           qemuAgentCallbacks *cb);
 
 void qemuAgentClose(qemuAgent *mon);
 
@@ -72,7 +71,7 @@ struct _qemuAgentDiskAddress {
     unsigned int target;
     unsigned int unit;
     char *devnode;
-    virDomainDeviceCCWAddress *ccw_addr;
+    virCCWDeviceAddress *ccw_addr;
 };
 void qemuAgentDiskAddressFree(qemuAgentDiskAddress *addr);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuAgentDiskAddress, qemuAgentDiskAddressFree);

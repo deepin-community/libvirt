@@ -23,14 +23,10 @@
 #include "virstoragefile.h"
 
 #include "viralloc.h"
-#include "viruuid.h"
 #include "virerror.h"
 #include "virlog.h"
 #include "vircommand.h"
-#include "virhash.h"
 #include "virstring.h"
-#include "virbuffer.h"
-#include "virsecret.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -94,7 +90,7 @@ int virStorageFileGetSCSIKey(const char *path,
                              bool ignoreError)
 {
     if (!ignoreError)
-        virReportSystemError(ENOSYS, _("Unable to get SCSI key for %s"), path);
+        virReportSystemError(ENOSYS, _("Unable to get SCSI key for %1$s"), path);
     return -1;
 }
 #endif

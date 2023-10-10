@@ -91,7 +91,7 @@ NOTES
 =====
 
 The ``virt-admin`` supports both the monolithic ``libvirtd`` daemon and the
-`modular daemons <https://www.libvirt.org/daemons.html#modular-driver-daemons>`__
+`modular daemons <https://libvirt.org/daemons.html#modular-driver-daemons>`__
 whichever is in use by your system. The connection *URI* used with
 ``-c/--connect`` or the `connect`_ command is based on the name of the
 controlled daemon e.g.: ``virtqemud:///system``, ``libvirtd:///system``.
@@ -312,6 +312,18 @@ To define multiple outputs at once they need to be delimited by spaces:
 ::
 
    $ virt-admin daemon-log-outputs "4:stderr 2:syslog:<msg_ident>"
+
+daemon-timeout
+--------------
+
+**Syntax:**
+
+::
+
+   daemon-timeout --timeout NUM
+
+Sets the daemon timeout to the value of '--timeout' argument. Use ``--timeout 0``
+to disable auto-shutdown of the daemon.
 
 
 SERVER COMMANDS

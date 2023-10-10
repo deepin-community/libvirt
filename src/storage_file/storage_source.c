@@ -32,11 +32,9 @@
 #include "viralloc.h"
 #include "virerror.h"
 #include "virfile.h"
-#include "virhash.h"
 #include "virlog.h"
 #include "virobject.h"
 #include "virstoragefile.h"
-#include "virstring.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
@@ -161,7 +159,7 @@ virStorageSourceGetMetadataFromFD(const char *path,
 
     if (fstat(fd, &sb) < 0) {
         virReportSystemError(errno,
-                             _("cannot stat file '%s'"), path);
+                             _("cannot stat file '%1$s'"), path);
         return NULL;
     }
 
@@ -177,12 +175,12 @@ virStorageSourceGetMetadataFromFD(const char *path,
     }
 
     if (lseek(fd, 0, SEEK_SET) == (off_t)-1) {
-        virReportSystemError(errno, _("cannot seek to start of '%s'"), meta->path);
+        virReportSystemError(errno, _("cannot seek to start of '%1$s'"), meta->path);
         return NULL;
     }
 
     if ((len = virFileReadHeaderFD(fd, len, &buf)) < 0) {
-        virReportSystemError(errno, _("cannot read header '%s'"), meta->path);
+        virReportSystemError(errno, _("cannot read header '%1$s'"), meta->path);
         return NULL;
     }
 
@@ -245,7 +243,7 @@ virStorageSourceChainLookup(virStorageSource *chain,
             idx != 0 &&
             STRNEQ(diskTarget, target)) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("requested target '%s' does not match target '%s'"),
+                           _("requested target '%1$s' does not match target '%2$s'"),
                            target, diskTarget);
             return NULL;
         }
@@ -303,24 +301,64 @@ virStorageSourceChainLookup(virStorageSource *chain,
  error:
     if (idx) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("could not find backing store index '%u' in chain for '%s'"),
+                       _("could not find backing store index '%1$u' in chain for '%2$s'"),
                        idx, NULLSTR(start));
     } else if (name) {
         if (startFrom)
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("could not find image '%s' beneath '%s' in chain for '%s'"),
+                           _("could not find image '%1$s' beneath '%2$s' in chain for '%3$s'"),
                            name, NULLSTR(startFrom->path), NULLSTR(start));
         else
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("could not find image '%s' in chain for '%s'"),
+                           _("could not find image '%1$s' in chain for '%2$s'"),
                            name, NULLSTR(start));
     } else {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("could not find base image in chain for '%s'"),
+                       _("could not find base image in chain for '%1$s'"),
                        NULLSTR(start));
     }
     *parent = NULL;
     return NULL;
+}
+
+
+/**
+ * virStorageSourceChainLookupBySource:
+ * @chain: chain top to look in
+ * @base: storage source to look for in @chain
+ * @parent: Filled with parent virStorageSource of the returned value if non-NULL.
+ *
+ * Looks up a storage source definition corresponding to @base in @chain.
+ *
+ * Returns virStorageSource within chain or NULL if not found.
+ */
+virStorageSource *
+virStorageSourceChainLookupBySource(virStorageSource *chain,
+                                    virStorageSource *base,
+                                    virStorageSource **parent)
+{
+    virStorageSource *prev = NULL;
+
+    if (parent)
+        *parent = NULL;
+
+    while (virStorageSourceIsBacking(chain)) {
+        if (virStorageSourceIsSameLocation(chain, base))
+            break;
+
+        prev = chain;
+        chain = chain->backingStore;
+    }
+
+    if (!virStorageSourceIsBacking(chain)) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("could not find base disk source in disk source chain"));
+        return NULL;
+    }
+
+    if (parent)
+        *parent = prev;
+    return chain;
 }
 
 
@@ -545,6 +583,7 @@ virStorageSourceUpdatePhysicalSize(virStorageSource *src,
     case VIR_STORAGE_TYPE_VOLUME:
     case VIR_STORAGE_TYPE_NVME:
     case VIR_STORAGE_TYPE_VHOST_USER:
+    case VIR_STORAGE_TYPE_VHOST_VDPA:
     case VIR_STORAGE_TYPE_NONE:
     case VIR_STORAGE_TYPE_LAST:
         return -1;
@@ -607,7 +646,7 @@ virStorageSourceUpdateBackingSizes(virStorageSource *src,
          */
         if ((end = lseek(fd, 0, SEEK_END)) == (off_t)-1) {
             virReportSystemError(errno,
-                                 _("failed to seek to end of %s"), src->path);
+                                 _("failed to seek to end of %1$s"), src->path);
             return -1;
         }
         src->physical = end;
@@ -641,7 +680,7 @@ virStorageSourceUpdateCapacity(virStorageSource *src,
      * physical size.  */
     if (format == VIR_STORAGE_FILE_NONE) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("no disk format for %s was specified"),
+                       _("no disk format for %1$s was specified"),
                        src->path);
         return -1;
     }
@@ -724,8 +763,7 @@ virStorageSourceGetRelativeBackingPath(virStorageSource *top,
 
     if (next != base) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to resolve relative backing name: "
-                         "base image is not in backing chain"));
+                       _("failed to resolve relative backing name: base image is not in backing chain"));
         return -1;
     }
 
@@ -807,7 +845,7 @@ static int
 virStorageSourceGetBackendForSupportCheck(const virStorageSource *src,
                                           virStorageFileBackend **backend)
 {
-    int actualType;
+    virStorageType actualType;
 
 
     if (!src) {
@@ -944,7 +982,7 @@ int
 virStorageSourceInitAs(virStorageSource *src,
                        uid_t uid, gid_t gid)
 {
-    int actualType = virStorageSourceGetActualType(src);
+    virStorageType actualType = virStorageSourceGetActualType(src);
     virStorageDriverData *drv = g_new0(virStorageDriverData, 1);
 
     src->drv = drv;
@@ -1231,24 +1269,21 @@ virStorageSourceReportBrokenChain(int errcode,
 
         if (src == parent) {
             virReportSystemError(errcode,
-                                 _("Cannot access storage file '%s' "
-                                   "(as uid:%u, gid:%u)"),
+                                 _("Cannot access storage file '%1$s' (as uid:%2$u, gid:%3$u)"),
                                  src->path, access_user, access_group);
         } else {
             virReportSystemError(errcode,
-                                 _("Cannot access backing file '%s' "
-                                   "of storage file '%s' (as uid:%u, gid:%u)"),
+                                 _("Cannot access backing file '%1$s' of storage file '%2$s' (as uid:%3$u, gid:%4$u)"),
                                  src->path, parent->path, access_user, access_group);
         }
     } else {
         if (src == parent) {
             virReportSystemError(errcode,
-                                 _("Cannot access storage file '%s'"),
+                                 _("Cannot access storage file '%1$s'"),
                                  src->path);
         } else {
             virReportSystemError(errcode,
-                                 _("Cannot access backing file '%s' "
-                                   "of storage file '%s'"),
+                                 _("Cannot access backing file '%1$s' of storage file '%2$s'"),
                                  src->path, parent->path);
         }
     }
@@ -1265,6 +1300,21 @@ virStorageSourceGetMetadataRecurseReadHeader(virStorageSource *src,
 {
     int ret = -1;
     ssize_t len;
+
+    if (virStorageSourceIsFD(src)) {
+        if (!src->fdtuple) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("fd passed image source not initialized"));
+            return -1;
+        }
+
+        if ((len = virFileReadHeaderFD(src->fdtuple->fds[0],
+                                       VIR_STORAGE_MAX_HEADER, buf)) < 0)
+            return -1;
+
+        *headerLen = len;
+        return 0;
+    }
 
     if (virStorageSourceInitAs(src, uid, gid) < 0)
         return -1;
@@ -1307,7 +1357,7 @@ virStorageSourceGetMetadataRecurse(virStorageSource *src,
 
     if (depth > max_depth) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("backing store for %s is self-referential or too deeply nested"),
+                       _("backing store for %1$s is self-referential or too deeply nested"),
                        NULLSTR(src->path));
         return -1;
     }
@@ -1358,8 +1408,7 @@ virStorageSourceGetMetadataRecurse(virStorageSource *src,
 
             if (rv == -2) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
-                               _("format of backing image '%s' of image '%s' was not specified in the image metadata "
-                                 "(See https://libvirt.org/kbase/backing_chains.html for troubleshooting)"),
+                               _("format of backing image '%1$s' of image '%2$s' was not specified in the image metadata (See https://libvirt.org/kbase/backing_chains.html for troubleshooting)"),
                                src->backingStoreRaw, NULLSTR(src->path));
             }
 
@@ -1371,6 +1420,7 @@ virStorageSourceGetMetadataRecurse(virStorageSource *src,
     } else {
         /* add terminator */
         src->backingStore = virStorageSourceNew();
+        src->backingStore->detected = true;
     }
 
     return 0;

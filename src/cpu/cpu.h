@@ -20,7 +20,6 @@
 
 #pragma once
 
-#include "virerror.h"
 #include "datatypes.h"
 #include "virarch.h"
 #include "domain_capabilities.h"
@@ -106,6 +105,9 @@ typedef virCPUData *
 typedef int
 (*virCPUArchGetModels)(char ***models);
 
+typedef const char *
+(*virCPUArchGetVendorForModel)(const char *model);
+
 typedef int
 (*virCPUArchTranslate)(virCPUDef *cpu,
                        virDomainCapsCPUModels *models);
@@ -151,6 +153,7 @@ struct cpuArchDriver {
     virCPUArchDataFormat dataFormat;
     virCPUArchDataParse dataParse;
     virCPUArchGetModels getModels;
+    virCPUArchGetVendorForModel getVendorForModel;
     virCPUArchTranslate translate;
     virCPUArchConvertLegacy convertLegacy;
     virCPUArchExpandFeatures expandFeatures;
@@ -213,7 +216,7 @@ virCPUGetHost(virArch arch,
               virDomainCapsCPUModels *models);
 
 virCPUDef *
-virCPUProbeHost(virArch arch) G_GNUC_NO_INLINE;
+virCPUProbeHost(virArch arch) G_NO_INLINE;
 
 virCPUDef *
 virCPUBaseline(virArch arch,
@@ -262,6 +265,10 @@ virCPUModelIsAllowed(const char *model,
 
 int
 virCPUGetModels(virArch arch, char ***models);
+
+const char *
+virCPUGetVendorForModel(virArch arch,
+                        const char *model);
 
 int
 virCPUTranslate(virArch arch,

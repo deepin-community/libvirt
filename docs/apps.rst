@@ -70,6 +70,9 @@ virsh
    Virt-Lightning uses libvirt, cloud-init and libguestfs to allow
    anyone to quickly start a new VM. Very much like a container CLI, but
    with a virtual machine.
+`vms <https://github.com/cbosdo/vms>`__
+   vms is a tool wrapping around the libvirt API to manage multiple virtual
+   machines at once with name patterns.
 
 Configuration Management
 ------------------------
@@ -143,30 +146,22 @@ Desktop applications
    or text console associated with a virtual machine or container.
 `qt-remote-viewer <https://f1ash.github.io/qt-virt-manager/#virtual-machines-viewer>`__
    The Qt VNC/SPICE viewer for access to remote desktops or VMs.
+`GNOME Boxes <https://gnomeboxes.org/>`__
+   A GNOME application to access virtual machines.
 
 Infrastructure as a Service (IaaS)
 ----------------------------------
 
-`Cracow Cloud One <http://cc1.ifj.edu.pl>`__
-   The CC1 system provides a complete solution for Private Cloud
-   Computing. An intuitive web access interface with an administration
-   module and simple installation procedure make it easy to benefit from
-   private Cloud Computing technology.
 `Eucalyptus <https://github.com/eucalyptus/eucalyptus>`__
    Eucalyptus is an on-premise Infrastructure as a Service cloud
    software platform that is open source and AWS-compatible. Eucalyptus
    uses libvirt virtualization API to directly interact with Xen and KVM
    hypervisors.
-`Nimbus <http://www.nimbusproject.org>`__
+`Nimbus <https://www.nimbusproject.org/>`__
    Nimbus is an open-source toolkit focused on providing
    Infrastructure-as-a-Service (IaaS) capabilities to the scientific
    community. It uses libvirt for communication with all KVM and Xen
    virtual machines.
-`Snooze <http://snooze.inria.fr>`__
-   Snooze is an open-source scalable, autonomic, and energy-efficient
-   virtual machine (VM) management framework for private clouds. It
-   integrates libvirt for VM monitoring, live migration, and life-cycle
-   management.
 `OpenStack <https://www.openstack.org>`__
    OpenStack is a "cloud operating system" usable for both public and
    private clouds. Its various parts take care of compute, storage and
@@ -210,7 +205,7 @@ Libraries
 `Ruby Libvirt Object bindings <https://github.com/ohadlevy/virt#readme>`__
    Allows using simple ruby objects to manipulate hypervisors, guests,
    storage, network etc. It is based on top of the `native ruby
-   bindings <https://libvirt.org/ruby>`__.
+   bindings <https://ruby.libvirt.org/>`__.
 
 LiveCD / Appliances
 -------------------
@@ -232,14 +227,14 @@ Monitoring
    for each guest without installing collectd on the guest systems. For
    a full description, please refer to the libvirt section in the
    collectd.conf(5) manual page.
-`Host sFlow <https://www.sflow.net/>`__
+`Host sFlow <https://sflow.net/>`__
    Host sFlow is a lightweight agent running on KVM hypervisors that
    links to libvirt library and exports standardized cpu, memory,
    network and disk metrics for all virtual machines.
 `Munin <https://honk.sigxcpu.org/projects/libvirt/#munin>`__
    The plugins provided by Guido Günther allow to monitor various things
    like network and block I/O with
-   `Munin <http://munin.projects.linpro.no/>`__.
+   `Munin <https://munin-monitoring.org/>`__.
 `Nagios-virt <https://people.redhat.com/rjones/nagios-virt/>`__
    Nagios-virt is a configuration tool to add monitoring of your
    virtualised domains to `Nagios <https://www.nagios.org/>`__. You can
@@ -255,12 +250,6 @@ Monitoring
 
 Provisioning
 ------------
-
-`Tivoli Provisioning Manager <https://www.ibm.com/developerworks/community/wikis/home?lang=en#!/wiki/Tivoli+Provisioning+Manager>`__
-   Part of the IBM Tivoli family, Tivoli Provisioning Manager (TPM) is
-   an IT lifecycle automation product. It `uses
-   libvirt <http://publib.boulder.ibm.com/infocenter/tivihelp/v38r1/index.jsp?topic=/com.ibm.tivoli.tpm.apk.doc/libvirt_package.html>`__
-   for communication with virtualization hosts and guest domains.
 
 `Foreman <https://theforeman.org>`__
    Foreman is an open source web based application aimed to be a Single
@@ -331,6 +320,18 @@ Web applications
       Secrets
    -  Create and launch VMs
    -  Configure VMs with easy panels or go pro and edit the VM's XML
+`Cockpit <https://cockpit-project.org/>`__
+   Cockpit is a web-based graphical interface for servers. With
+   `cockpit-machines <https://github.com/cockpit-project/cockpit-machines>`__
+   it can create and manage virtual machines via libvirt.
+
+Backup
+------
+
+`virtnbdbackup <https://github.com/abbbi/virtnbdbackup>`__
+   Backup utility for libvirt, using the latest changed block tracking features:
+   Create online, thin provisioned full and incremental or differential backups
+   of your kvm/qemu virtual machines.
 
 Other
 -----

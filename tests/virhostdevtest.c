@@ -123,26 +123,26 @@ myInit(void)
     size_t i;
 
     for (i = 0; i < nhostdevs; i++) {
-        virDomainHostdevSubsys subsys;
+        virDomainHostdevSubsys *subsys;
         hostdevs[i] = virDomainHostdevDefNew();
         if (!hostdevs[i])
             goto cleanup;
         hostdevs[i]->mode = VIR_DOMAIN_HOSTDEV_MODE_SUBSYS;
-        subsys.type = VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI;
-        subsys.u.pci.addr.domain = 0;
-        subsys.u.pci.addr.bus = 0;
-        subsys.u.pci.addr.slot = i + 1;
-        subsys.u.pci.addr.function = 0;
-        subsys.u.pci.backend = VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO;
-        hostdevs[i]->source.subsys = subsys;
+        subsys = &hostdevs[i]->source.subsys;
+        subsys->type = VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI;
+        subsys->u.pci.addr.domain = 0;
+        subsys->u.pci.addr.bus = 0;
+        subsys->u.pci.addr.slot = i + 1;
+        subsys->u.pci.addr.function = 0;
+        subsys->u.pci.backend = VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO;
     }
 
     for (i = 0; i < nhostdevs; i++) {
-        virDomainHostdevSubsys subsys = hostdevs[i]->source.subsys;
-        if (!(dev[i] = virPCIDeviceNew(&subsys.u.pci.addr)))
+        virDomainHostdevSubsys *subsys = &hostdevs[i]->source.subsys;
+        if (!(dev[i] = virPCIDeviceNew(&subsys->u.pci.addr)))
             goto cleanup;
 
-        virPCIDeviceSetStubDriver(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
+        virPCIDeviceSetStubDriverType(dev[i], VIR_PCI_STUB_DRIVER_VFIO);
     }
 
     for (i = 0; i < ndisks; i++) {
@@ -584,22 +584,10 @@ testNVMeDiskRoundtrip(const void *opaque G_GNUC_UNUSED)
 }
 
 
-# define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
-
 static int
 mymain(void)
 {
     int ret = 0;
-    g_autofree char *fakerootdir = NULL;
-
-    fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
-
-    if (!g_mkdtemp(fakerootdir)) {
-        fprintf(stderr, "Cannot create fakerootdir");
-        abort();
-    }
-
-    g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
 
 # define DO_TEST(fnc) \
     do { \
@@ -609,7 +597,6 @@ mymain(void)
 
     if (myInit() < 0) {
         fprintf(stderr, "Init data structures failed.");
-        virFileDeleteTree(fakerootdir);
         return EXIT_FAILURE;
     }
 
@@ -621,9 +608,6 @@ mymain(void)
     DO_TEST(testNVMeDiskRoundtrip);
 
     myCleanup();
-
-    if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
-        virFileDeleteTree(fakerootdir);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

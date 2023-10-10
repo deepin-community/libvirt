@@ -25,14 +25,14 @@
 #include <libxml/xpath.h>
 
 #include "internal.h"
-#include "virthread.h"
 #include "virbuffer.h"
+#include "virccw.h"
 #include "virpci.h"
 #include "virnetdev.h"
 #include "virenum.h"
 
 typedef enum {
-    VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE,
+    VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE = 0,
     VIR_DOMAIN_DEVICE_ADDRESS_TYPE_PCI,
     VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE,
     VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_SERIAL,
@@ -67,18 +67,6 @@ struct _virDomainDeviceVirtioSerialAddress {
     unsigned int controller;
     unsigned int bus;
     unsigned int port;
-};
-
-#define VIR_DOMAIN_DEVICE_CCW_MAX_CSSID    254
-#define VIR_DOMAIN_DEVICE_CCW_MAX_SSID       3
-#define VIR_DOMAIN_DEVICE_CCW_MAX_DEVNO  65535
-
-typedef struct _virDomainDeviceCCWAddress virDomainDeviceCCWAddress;
-struct _virDomainDeviceCCWAddress {
-    unsigned int cssid;
-    unsigned int ssid;
-    unsigned int devno;
-    bool         assigned;
 };
 
 typedef struct _virDomainDeviceCcidAddress virDomainDeviceCcidAddress;
@@ -128,7 +116,7 @@ struct _virDomainDeviceDimmAddress {
 typedef struct _virDomainDeviceInfo virDomainDeviceInfo;
 struct _virDomainDeviceInfo {
     char *alias;
-    int type; /* virDomainDeviceAddressType */
+    virDomainDeviceAddressType type;
     union {
         virPCIDeviceAddress pci;
         virDomainDeviceDriveAddress drive;
@@ -136,7 +124,7 @@ struct _virDomainDeviceInfo {
         virDomainDeviceCcidAddress ccid;
         virDomainDeviceUSBAddress usb;
         virDomainDeviceSpaprVioAddress spaprvio;
-        virDomainDeviceCCWAddress ccw;
+        virCCWDeviceAddress ccw;
         virDomainDeviceISAAddress isa;
         virDomainDeviceDimmAddress dimm;
     } addr;
@@ -204,12 +192,8 @@ void virPCIDeviceAddressFormat(virBuffer *buf,
                                virPCIDeviceAddress addr,
                                bool includeTypeInAddr);
 
-bool virDomainDeviceCCWAddressIsValid(virDomainDeviceCCWAddress *addr);
-int virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
-                                      virDomainDeviceCCWAddress *addr);
-bool virDomainDeviceCCWAddressEqual(virDomainDeviceCCWAddress *addr1,
-                                    virDomainDeviceCCWAddress *addr2);
-#define VIR_CCW_DEVICE_ADDRESS_FMT "%x.%x.%04x"
+int virCCWDeviceAddressParseXML(xmlNodePtr node,
+                                virCCWDeviceAddress *addr);
 
 int virDomainDeviceDriveAddressParseXML(xmlNodePtr node,
                                         virDomainDeviceDriveAddress *addr);

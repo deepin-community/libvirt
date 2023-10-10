@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include "domain_conf.h"
-
 #include "qemu_capabilities.h"
 #include "qemu_domain.h"
 #include "qemu_domain_address.h"
@@ -35,8 +33,7 @@ void qemuAssignDeviceControllerAlias(virDomainDef *domainDef,
                                      virDomainControllerDef *controller);
 
 int qemuAssignDeviceDiskAlias(virDomainDef *def,
-                              virDomainDiskDef *disk,
-                              virQEMUCaps *qemuCaps);
+                              virDomainDiskDef *disk);
 
 void qemuAssignDeviceHostdevAlias(virDomainDef *def,
                                   char **alias,
@@ -58,14 +55,16 @@ void qemuAssignDeviceRNGAlias(virDomainDef *def,
                               virDomainRNGDef *rng);
 
 int qemuAssignDeviceMemoryAlias(virDomainDef *def,
-                                virDomainMemoryDef *mems,
-                                bool oldAlias);
+                                virDomainMemoryDef *mems);
 
 void qemuAssignDeviceShmemAlias(virDomainDef *def,
                                 virDomainShmemDef *shmem,
                                 int idx);
 
-void qemuAssignDeviceWatchdogAlias(virDomainWatchdogDef *watchdog);
+void
+qemuAssignDeviceWatchdogAlias(virDomainDef *def,
+                              virDomainWatchdogDef *watchdog,
+                              int idx);
 
 void qemuAssignDeviceInputAlias(virDomainDef *def,
                                 virDomainInputDef *input,
@@ -73,7 +72,7 @@ void qemuAssignDeviceInputAlias(virDomainDef *def,
 
 void qemuAssignDeviceVsockAlias(virDomainVsockDef *vsock);
 
-int qemuAssignDeviceAliases(virDomainDef *def, virQEMUCaps *qemuCaps);
+int qemuAssignDeviceAliases(virDomainDef *def);
 
 int qemuDomainDeviceAliasIndex(const virDomainDeviceInfo *info,
                                const char *prefix);
@@ -87,7 +86,8 @@ char *qemuAliasFromHostdev(const virDomainHostdevDef *hostdev);
 char *qemuDomainGetMasterKeyAlias(void);
 
 char *qemuAliasForSecret(const char *parentalias,
-                         const char *obj);
+                         const char *obj,
+                         size_t secret_idx);
 
 char *qemuAliasTLSObjFromSrcAlias(const char *srcAlias)
     ATTRIBUTE_NONNULL(1);

@@ -166,7 +166,7 @@ virDomainCgroupSetupDomainBlkioParameters(virCgroup *cgroup,
                     }
                 }
             } else {
-                virReportError(VIR_ERR_INVALID_ARG, _("Unknown blkio parameter %s"),
+                virReportError(VIR_ERR_INVALID_ARG, _("Unknown blkio parameter %1$s"),
                                param->field);
                 ret = -1;
                 virBlkioDeviceArrayClear(devices, ndevices);
@@ -233,8 +233,7 @@ virDomainCgroupSetMemoryLimitParameters(virCgroup *cgroup,
 
         if (mem_limit > swap_limit) {
             virReportError(VIR_ERR_INVALID_ARG, "%s",
-                           _("memory hard_limit tunable value must be lower "
-                             "than or equal to swap_hard_limit"));
+                           _("memory hard_limit tunable value must be lower than or equal to swap_hard_limit"));
             return -1;
         }
     }
@@ -370,7 +369,7 @@ virDomainCgroupInitCgroup(const char *prefix,
 
     if (!g_path_is_absolute(vm->def->resource->partition)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Resource partition '%s' must start with '/'"),
+                       _("Resource partition '%1$s' must start with '/'"),
                        vm->def->resource->partition);
         return -1;
     }
@@ -485,7 +484,7 @@ virDomainCgroupConnectCgroup(const char *prefix,
                              bool privileged,
                              char *machineName)
 {
-    if (privileged)
+    if (!privileged)
         return 0;
 
     if (!virCgroupAvailable())
@@ -517,7 +516,7 @@ virDomainCgroupSetupCgroup(const char *prefix,
                            bool privileged,
                            char *machineName)
 {
-    if (!vm->pid) {
+    if (vm->pid == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Cannot setup cgroups until process is started"));
         return -1;
@@ -572,13 +571,10 @@ virDomainCgroupSetupCpusetCpus(virCgroup *cgroup,
 
 int
 virDomainCgroupSetupGlobalCpuCgroup(virDomainObj *vm,
-                                    virCgroup *cgroup,
-                                    virBitmap *autoNodeset)
+                                    virCgroup *cgroup)
 {
     unsigned long long period = vm->def->cputune.global_period;
     long long quota = vm->def->cputune.global_quota;
-    g_autofree char *mem_mask = NULL;
-    virDomainNumatuneMemMode mem_mode;
 
     if ((period || quota) &&
         !virCgroupHasController(cgroup, VIR_CGROUP_CONTROLLER_CPU)) {
@@ -587,26 +583,8 @@ virDomainCgroupSetupGlobalCpuCgroup(virDomainObj *vm,
         return -1;
     }
 
-    /*
-     * If CPU cgroup controller is not initialized here, then we need
-     * neither period nor quota settings.  And if CPUSET controller is
-     * not initialized either, then there's nothing to do anyway.
-     */
-    if (!virCgroupHasController(cgroup, VIR_CGROUP_CONTROLLER_CPU) &&
-        !virCgroupHasController(cgroup, VIR_CGROUP_CONTROLLER_CPUSET))
-        return 0;
-
-
-    if (virDomainNumatuneGetMode(vm->def->numa, -1, &mem_mode) == 0 &&
-        mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT &&
-        virDomainNumatuneMaybeFormatNodeset(vm->def->numa,
-                                            autoNodeset, &mem_mask, -1) < 0)
+    if (virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
         return -1;
-
-    if (period || quota) {
-        if (virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
-            return -1;
-    }
 
     return 0;
 }

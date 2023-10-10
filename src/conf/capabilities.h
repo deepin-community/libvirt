@@ -23,10 +23,8 @@
 
 #include "internal.h"
 #include "virconftypes.h"
-#include "virbuffer.h"
 #include "cpu_conf.h"
 #include "virarch.h"
-#include "virmacaddr.h"
 #include "virobject.h"
 #include "virresctrl.h"
 
@@ -138,6 +136,9 @@ struct _virCapsHostCacheBank {
     size_t ncontrols;
     virResctrlInfoPerCache **controls;
 };
+
+void virCapsHostCacheBankFree(virCapsHostCacheBank *ptr);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCapsHostCacheBank, virCapsHostCacheBankFree);
 
 struct _virCapsHostCache {
     size_t nbanks;
@@ -260,10 +261,7 @@ virCapabilitiesHostNUMAAddCell(virCapsHostNUMA *caps,
 
 virCapsGuestMachine **
 virCapabilitiesAllocMachines(const char *const *names,
-                             int nnames);
-void
-virCapabilitiesFreeMachines(virCapsGuestMachine **machines,
-                            int nmachines);
+                             int *nnames);
 
 void
 virCapabilitiesFreeGuest(virCapsGuest *guest);

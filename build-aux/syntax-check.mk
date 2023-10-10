@@ -2,8 +2,12 @@
 # Rules for running syntax-check, derived from gnulib's
 # maint.mk
 #
+# Specifically, all shared code should match gnulib commit
+#
+#   dd2503c8e73621e919e8e214a29c495ac89d8a92 (2022-05-21)
+#
 # Copyright (C) 2008-2019 Red Hat, Inc.
-# Copyright (C) 2003-2019 Free Software Foundation, Inc.
+# Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,98 +23,19 @@
 # along with this program.  If not, see
 # <http://www.gnu.org/licenses/>.
 
-# This is reported not to work with make-3.79.1
-# ME := $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))
-ME := build-aux/syntax-check.mk
 
-# These variables ought to be defined through the configure.ac section
-# of the module description. But some packages import this file directly,
-# ignoring the module description.
-AWK ?= awk
+all:
+	@echo "Do not call this file directly, use 'meson test' instead" >&2; \
+	exit 1
 
-# Helper variables.
-_empty =
-_sp = $(_empty) $(_empty)
 
-# _equal,S1,S2
-# ------------
-# If S1 == S2, return S1, otherwise the empty string.
-_equal = $(and $(findstring $(1),$(2)),$(findstring $(2),$(1)))
-
-VC_LIST = cd $(top_srcdir); git ls-tree -r 'HEAD:' | \
-          sed -n "s|^100[^	]*.||p"
-
-# You can override this variable in syntax-check.mk to set your own regexp
-# matching files to ignore.
-VC_LIST_ALWAYS_EXCLUDE_REGEX ?= ^$$
-
-# This is to preprocess robustly the output of $(VC_LIST), so that even
-# when $(top_srcdir) is a pathological name like "....", the leading sed command
-# removes only the intended prefix.
-_dot_escaped_srcdir = $(subst .,\.,$(top_srcdir))
-_dot_escaped_builddir = $(subst .,\.,$(top_builddir))
-
-# Post-process $(VC_LIST) output, prepending $(top_srcdir)/, but only
-# when $(top_srcdir) is not ".".
-ifeq ($(top_srcdir),.)
-  _prepend_srcdir_prefix =
-else
-  _prepend_srcdir_prefix = | $(SED) 's|^|$(top_srcdir)/|'
-endif
-
-# In order to be able to consistently filter "."-relative names,
-# (i.e., with no $(top_srcdir) prefix), this definition is careful to
-# remove any $(top_srcdir) prefix, and to restore what it removes.
-_sc_excl = \
-  $(or $(exclude_file_name_regexp--$@),^$$)
-VC_LIST_EXCEPT = \
-  $(VC_LIST) | $(GREP) -Ev -e '($(VC_LIST_ALWAYS_EXCLUDE_REGEX)|$(_sc_excl))' \
-	$(_prepend_srcdir_prefix)
-
-# Prevent programs like 'sort' from considering distinct strings to be equal.
-# Doing it here saves us from having to set LC_ALL elsewhere in this file.
-export LC_ALL = C
-
-## --------------- ##
-## Sanity checks.  ##
-## --------------- ##
-
-_cfg_mk := $(wildcard $(top_srcdir)/build-aux/syntax-check.mk)
-
-# Collect the names of rules starting with 'sc_'.
-syntax-check-rules := $(sort $(shell $(SED) -n \
-   's/^\(sc_[a-zA-Z0-9_-]*\):.*/\1/p' $(top_srcdir)/$(ME) $(_cfg_mk)))
-.PHONY: $(syntax-check-rules)
-
-# Arrange to print the name of each syntax-checking rule just before running it.
-$(syntax-check-rules): %: %.m
-sc_m_rules_ = $(patsubst %, %.m, $(syntax-check-rules))
-.PHONY: $(sc_m_rules_)
-$(sc_m_rules_):
-	@echo $(patsubst sc_%.m, %, $@)
-	@date +%s.%N > .sc-start-$(basename $@)
-
-# Compute and print the elapsed time for each syntax-check rule.
-sc_z_rules_ = $(patsubst %, %.z, $(syntax-check-rules))
-.PHONY: $(sc_z_rules_)
-$(sc_z_rules_): %.z: %
-	@end=$$(date +%s.%N);						\
-	start=$$(cat .sc-start-$*);					\
-	rm -f .sc-start-$*;						\
-	$(AWK) -v s=$$start -v e=$$end					\
-	  'END {printf "%.2f $(patsubst sc_%,%,$*)\n", e - s}' < /dev/null
-
-# The patsubst here is to replace each sc_% rule with its sc_%.z wrapper
-# that computes and prints elapsed time.
-local-check :=								\
-  $(patsubst sc_%, sc_%.z,						\
-    $(filter-out $(local-checks-to-skip), $(syntax-check-rules)))
-
-syntax-check: $(local-check)
+## ----- ##
+## Rules ##
+## ----- ##
 
 # Files that should never cause syntax check failures.
 VC_LIST_ALWAYS_EXCLUDE_REGEX = \
-  (^(docs/(news(-[0-9]*)?\.html\.in|.*\.patch))|\.(po|fig|gif|ico|png))$$
+  \.(po|ico|png)$$
 
 # Avoid uses of write(2).  Either switch to streams (fwrite), or use
 # the safewrite wrapper.
@@ -145,7 +70,7 @@ sc_flags_usage:
 	    $(top_srcdir)/include/libvirt/libvirt-lxc.h \
 	    $(top_srcdir)/include/libvirt/libvirt-admin.h \
 	  | $(GREP) -c '\(long\|unsigned\) flags')" != 4 && \
-	  { echo '$(ME): new API should use "unsigned int flags"' 1>&2; \
+	  { echo 'new API should use "unsigned int flags"' 1>&2; \
 	    exit 1; } || :
 	@prohibit=' flags G_GNUC_UNUSED' \
 	exclude='virSecurityDomainImageLabelFlags' \
@@ -278,6 +203,7 @@ sc_prohibit_readlink:
 
 sc_prohibit_gethostname:
 	@prohibit='gethostname *\(' \
+	in_vc_files='\.[ch]$$' \
 	halt='use virGetHostname, not gethostname' \
 	  $(_sc_search_regexp)
 
@@ -417,18 +343,6 @@ sc_avoid_g_gnuc_unused_in_header:
 	halt='use G_GNUC_UNUSED in .c rather than .h files' \
 	  $(_sc_search_regexp)
 
-sc_prohibit_attribute_macros:
-	@prohibit='ATTRIBUTE_(UNUSED|NORETURN|SENTINEL|RETURN_CHECK|NOINLINE|FMT_PRINTF|FALLTHROUGH)' \
-	in_vc_files='\.[ch]$$' \
-	halt='use GLib macros: G_GNUC_<ATTRIBUTE_SUFFIX> for most' \
-	  $(_sc_search_regexp)
-
-sc_prohibit_non_glib_macros:
-	@prohibit='ARRAY_CARDINALITY' \
-	in_vc_files='\.[ch]$$' \
-	halt='use GLib macros: G_N_ELEMENTS' \
-	  $(_sc_search_regexp)
-
 sc_prohibit_int_index:
 	@prohibit='\<(int|unsigned)\s*\*?index\>(\s|,|;)' \
 	halt='use different name than 'index' for declaration' \
@@ -474,6 +388,7 @@ msg_gen_function += lxcError
 msg_gen_function += regerror
 msg_gen_function += vah_error
 msg_gen_function += vah_warning
+msg_gen_function += vboxReportError
 msg_gen_function += virGenericReportError
 msg_gen_function += virRaiseError
 msg_gen_function += virReportError
@@ -508,7 +423,7 @@ sc_libvirt_unmarked_diagnostics:
 		$(GREP) -A1 -nE '\<$(func_re) *\(.*,$$' /dev/null; } \
 	   | $(SED) -E 's/_\("([^\"]|\\.)+"//;s/"%s"//' \
 	   | $(GREP) '"' && \
-	  { echo '$(ME): found unmarked diagnostic(s)' 1>&2; \
+	  { echo 'found unmarked diagnostic(s)' 1>&2; \
 	    exit 1; } || :
 
 # Like the above, but prohibit a newline at the end of a diagnostic.
@@ -522,8 +437,16 @@ sc_prohibit_newline_at_end_of_diagnostic:
 	@$(VC_LIST_EXCEPT) | xargs $(GREP) -A2 -nE \
 	    '\<$(func_re) *\(' /dev/null \
 	    | $(GREP) '\\n"' \
-	  && { echo '$(ME): newline at end of message(s)' 1>&2; \
+	  && { echo 'newline at end of message(s)' 1>&2; \
 	    exit 1; } || :
+
+# Disallow translated messages on multiple lines, except when
+# they end with '\n'.
+sc_prohibit_error_message_on_multiple_lines:
+	@prohibit='[^N]_\(".*"$$' \
+    exclude='\\n"$$' \
+	halt='found error message on multiple lines' \
+	$(_sc_search_regexp)
 
 # Look for diagnostics that lack a % in the format string, except that we
 # allow VIR_ERROR to do this, and ignore functions that take a single
@@ -537,8 +460,13 @@ sc_prohibit_diagnostic_without_format:
 		-e '/(vah_(error|warning))/d' \
 		-e '/\<$(func_re) *\([^"]*"([^%"]|"\n[^"]*")*"[,)]/p' \
            | $(GREP) -vE 'VIR_ERROR' && \
-	  { echo '$(ME): found diagnostic without %' 1>&2; \
+	  { echo 'found diagnostic without %' 1>&2; \
 	    exit 1; } || :
+
+sc_require_permutable_format_in_translation:
+	@prohibit='\<N?_ *\("[^"]*%[^%$$ ]*[a-zA-Z][^"]*"' \
+	halt='non-permutable format string(s)' \
+	  $(_sc_search_regexp)
 
 # The strings "" and "%s" should never be marked for translation.
 # Files under tests/ and examples/ should not be translated.
@@ -557,17 +485,17 @@ sc_require_whitespace_in_translation:
 	@$(VC_LIST_EXCEPT) | xargs $(GREP) -n -A1 '"$$' /dev/null \
 	   | $(SED) -ne ':l; /"$$/ {N;b l;}; s/"\n[^"]*"/""/g; s/\\n/ /g' \
 		-e '/_(.*[^\ ]""[^\ ]/p' | $(GREP) . && \
-	  { echo '$(ME): missing whitespace at line split' 1>&2; \
+	  { echo 'missing whitespace at line split' 1>&2; \
 	    exit 1; } || :
 
 # Enforce recommended preprocessor indentation style.
 sc_preprocessor_indentation:
 	@if cppi --version >/dev/null 2>&1; then \
 	  $(VC_LIST_EXCEPT) | $(GREP) -E '\.[ch](\.in)?$$' | xargs cppi -a -c \
-	    || { echo '$(ME): incorrect preprocessor indentation' 1>&2; \
+	    || { echo 'incorrect preprocessor indentation' 1>&2; \
 		exit 1; }; \
 	else \
-	  echo '$(ME): skipping test $@: cppi not installed' 1>&2; \
+	  echo 'skipping test $@: cppi not installed' 1>&2; \
 	fi
 
 # Enforce similar spec file indentation style, by running cppi on a
@@ -581,10 +509,10 @@ sc_spec_indentation:
 		-e 's|^\( *[^#/ ]\)|// \1|; s|^\( */[^/]\)|// \1|' $$f \
 	    | cppi -a -c 2>&1 | $(SED) "s|standard input|$$f|"; \
 	  done | { if $(GREP) . >&2; then false; else :; fi; } \
-	    || { echo '$(ME): incorrect preprocessor indentation' 1>&2; \
+	    || { echo 'incorrect preprocessor indentation' 1>&2; \
 		exit 1; }; \
 	else \
-	  echo '$(ME): skipping test $@: cppi not installed' 1>&2; \
+	  echo 'skipping test $@: cppi not installed' 1>&2; \
 	fi
 
 
@@ -643,8 +571,13 @@ sc_require_enum_last_marker:
 	     -e '/VIR_ENUM_IMPL[^,]*,[^,]*,[^,]*[^_,][^L,][^A,][^S,][^T,],/p' \
 	     -e '/VIR_ENUM_IMPL[^,]*,[^,]\{0,4\},/p' \
 	   | $(GREP) . && \
-	  { echo '$(ME): enum impl needs _LAST marker on second line' 1>&2; \
+	  { echo 'enum impl needs _LAST marker on second line' 1>&2; \
 	    exit 1; } || :
+
+sc_prohibit_python_without_env:
+	@prohibit='#!/usr/.*/py''thon' \
+	 halt='always call python via /usr/bin/env' \
+	   $(_sc_search_regexp)
 
 # We're intentionally ignoring a few warnings
 #
@@ -665,7 +598,7 @@ sc_flake8:
 		ALL_PY=$$(printf "%s\n%s" "$$DOT_PY" "$$BANG_PY" | sort -u); \
 		echo "$$ALL_PY" | xargs $(FLAKE8) --ignore $(FLAKE8_IGNORE) --show-source; \
 	else \
-		echo '$(ME): skipping test $@: flake8 not installed' 1>&2; \
+		echo 'skipping test $@: flake8 not installed' 1>&2; \
 	fi
 
 # mymain() in test files should use return, not exit, for nicer output
@@ -694,7 +627,7 @@ sc_prohibit_include_public_headers_brackets:
 # <config.h> is only needed in .c files; .h files do not need it since
 # .c files must include config.h before any other .h.
 sc_prohibit_config_h_in_headers:
-	@prohibit='^# *include\>.*config\.h' \
+	@prohibit='^# *include *[<"]config\.h' \
 	in_vc_files='\.h$$' \
 	halt='headers should not include <config.h>' \
 	  $(_sc_search_regexp)
@@ -727,7 +660,7 @@ sc_prohibit_wrong_filename_in_comment:
 	  if (fail == 1) { \
 	    exit 1; \
 	  } \
-	}' || { echo '$(ME): The file name in comments must match the' \
+	}' || { echo 'The file name in comments must match the' \
 	    'actual file name' 1>&2; exit 1; }
 
 sc_prohibit_virConnectOpen_in_virsh:
@@ -762,18 +695,18 @@ sc_curly_braces_style:
 	@if $(VC_LIST_EXCEPT) | $(GREP) '\.[ch]$$' | xargs $(GREP) -nHP \
 '^\s*(?!([a-zA-Z_]*for_?each[a-zA-Z_]*) ?\()([_a-zA-Z0-9]+( [_a-zA-Z0-9]+)* ?\()?(\*?[_a-zA-Z0-9]+(,? \*?[_a-zA-Z0-9\[\]]+)+|void)\) ?\{' \
 	/dev/null; then \
-	  echo '$(ME): Non-K&R style used for curly braces around' \
+	  echo 'Non-K&R style used for curly braces around' \
 	    'function body' 1>&2; exit 1; \
 	fi; \
 	if $(VC_LIST_EXCEPT) | $(GREP) '\.[ch]$$' | xargs \
 	    $(GREP) -A1 -En ' ((if|for|while|switch) \(|(else|do)\b)[^{]*$$' \
 	    /dev/null | $(GREP) '^[^ ]*- *{'; then \
-	  echo '$(ME): Use hanging braces for compound statements' 1>&2; exit 1; \
+	  echo 'Use hanging braces for compound statements' 1>&2; exit 1; \
 	fi
 
 sc_prohibit_windows_special_chars_in_filename:
 	@$(VC_LIST_EXCEPT) | $(GREP) '[:*?"<>|]' && \
-	{ echo '$(ME): Windows special chars in filename not allowed' 1>&2; echo exit 1; } || :
+	{ echo 'Windows special chars in filename not allowed' 1>&2; echo exit 1; } || :
 
 sc_prohibit_mixed_case_abbreviations:
 	@prohibit='Pci|Usb|Scsi|Vpd' \
@@ -793,7 +726,7 @@ sc_prohibit_empty_first_line:
 	FNR == 1 { maybe_fail = $$0 == ""; } \
 	FNR == 2 { if (maybe_fail == 1) { print FILENAME ":1:"; fail=1; } } \
 	END { if (fail == 1) { \
-	  print "$(ME): Prohibited empty first line" > "/dev/stderr"; \
+	  print "Prohibited empty first line" > "/dev/stderr"; \
 	} exit fail; }'
 
 sc_prohibit_paren_brace:
@@ -840,7 +773,7 @@ sc_prohibit_virSecurityManager:
 	@$(VC_LIST_EXCEPT) | $(GREP) 'src/qemu/' | \
 		$(GREP) -v 'src/qemu/qemu_security' | \
 		xargs $(GREP) -Pn 'virSecurityManager\S*\(' /dev/null && \
-		{ echo '$(ME): prefer qemuSecurity wrappers' 1>&2; exit 1; } || :
+		{ echo 'prefer qemuSecurity wrappers' 1>&2; exit 1; } || :
 
 sc_prohibit_pthread_create:
 	@prohibit='\bpthread_create\b' \
@@ -900,31 +833,14 @@ http_sites += example.org
 http_sites += herp.derp
 
 # HTTP-only sites
-http_sites += 0pointer.de
 http_sites += mah.everybody.org
-http_sites += mingw.org
-http_sites += munin.projects.linpro.no
-http_sites += netcat.sourceforge.net
-http_sites += snooze.inria.fr
-http_sites += www.nimbusproject.org
-http_sites += www.odin.com
-http_sites += www.sflow.net
-http_sites += xmlsoft.org
 http_sites += etallen.com
 
-# dead sites
+# HTTP-only dead sites accessed via archive.org
 http_sites += blog.lystor.org.ua
 http_sites += blog.mes-stats.fr
-http_sites += cc1.ifj.edu.pl
 http_sites += www.javvin.com
-
-# 404 links
-http_sites += publib.boulder.ibm.com
 http_sites += kerneltrap.org
-http_sites += valloric.github.io
-http_sites += www.microsoft.com
-http_sites += xenbits.xen.org
-http_sites += lovezutto.googlepages.com
 
 http_re= ($(subst $(space),|,$(http_sites)))
 
@@ -943,7 +859,6 @@ sc_prohibit_author:
 # or tabs (at least one of them) right before the trailing backslash
 sc_prohibit_backslash_alignment:
 	@prohibit='(  |	)\\$$' \
-	in_vc_files='*\.([chx]|am|mk)$$' \
 	halt='Do not attempt to right-align backslashes' \
 	  $(_sc_search_regexp)
 
@@ -979,166 +894,29 @@ sc_prohibit_dirent_d_type:
 	halt='do not use the d_type field in "struct dirent"' \
 	  $(_sc_search_regexp)
 
-
-# _sc_search_regexp
-#
-# This macro searches for a given construct in the selected files and
-# then takes some action.
-#
-# Parameters (shell variables):
-#
-#  prohibit | require
-#
-#     Regular expression (ERE) denoting either a forbidden construct
-#     or a required construct.  Those arguments are exclusive.
-#
-#  exclude
-#
-#     Regular expression (ERE) denoting lines to ignore that matched
-#     a prohibit construct.  For example, this can be used to exclude
-#     comments that mention why the nearby code uses an alternative
-#     construct instead of the simpler prohibited construct.
-#
-#  in_vc_files | in_files
-#
-#     grep-E-style regexp selecting the files to check.  For in_vc_files,
-#     the regexp is used to select matching files from the list of all
-#     version-controlled files; for in_files, it's from the names printed
-#     by "find $(top_srcdir)".  When neither is specified, use all files that
-#     are under version control.
-#
-#  containing | non_containing
-#
-#     Select the files (non) containing strings matching this regexp.
-#     If both arguments are specified then CONTAINING takes
-#     precedence.
-#
-#  with_grep_options
-#
-#     Extra options for grep.
-#
-#  ignore_case
-#
-#     Ignore case.
-#
-#  halt
-#
-#     Message to display before to halting execution.
-#
-# Finally, you may exempt files based on an ERE matching file names.
-# For example, to exempt from the sc_space_tab check all files with the
-# .diff suffix, set this Make variable:
-#
-# exclude_file_name_regexp--sc_space_tab = \.diff$
-#
-# Note that while this functionality is mostly inherited via VC_LIST_EXCEPT,
-# when filtering by name via in_files, we explicitly filter out matching
-# names here as well.
-
-# Initialize each, so that envvar settings cannot interfere.
-export require =
-export prohibit =
-export exclude =
-export in_vc_files =
-export in_files =
-export containing =
-export non_containing =
-export halt =
-export with_grep_options =
-
-# By default, _sc_search_regexp does not ignore case.
-export ignore_case =
-_ignore_case = $$(test -n "$$ignore_case" && printf %s -i || :)
-
-define _sc_say_and_exit
-   dummy=; : so we do not need a semicolon before each use;		\
-   { printf '%s\n' "$(ME): $$msg" 1>&2; exit 1; };
-endef
-
-define _sc_search_regexp
-   dummy=; : so we do not need a semicolon before each use;		\
-									\
-   : Check arguments;							\
-   test -n "$$prohibit" && test -n "$$require"				\
-     && { msg='Cannot specify both prohibit and require'		\
-          $(_sc_say_and_exit) } || :;					\
-   test -z "$$prohibit" && test -z "$$require"				\
-     && { msg='Should specify either prohibit or require'		\
-          $(_sc_say_and_exit) } || :;					\
-   test -z "$$prohibit" && test -n "$$exclude"				\
-     && { msg='Use of exclude requires a prohibit pattern'		\
-          $(_sc_say_and_exit) } || :;					\
-   test -n "$$in_vc_files" && test -n "$$in_files"			\
-     && { msg='Cannot specify both in_vc_files and in_files'		\
-          $(_sc_say_and_exit) } || :;					\
-   test "x$$halt" != x							\
-     || { msg='halt not defined' $(_sc_say_and_exit) };			\
-									\
-   : Filter by file name;						\
-   if test -n "$$in_files"; then					\
-     files=$$(find $(top_srcdir) | $(GREP) -E "$$in_files"			\
-              | $(GREP) -Ev '$(_sc_excl)');				\
-   else									\
-     files=$$($(VC_LIST_EXCEPT));					\
-     if test -n "$$in_vc_files"; then					\
-       files=$$(echo "$$files" | $(GREP) -E "$$in_vc_files");		\
-     fi;								\
-   fi;									\
-									\
-   : Filter by content;							\
-   test -n "$$files"							\
-     && test -n "$$containing"						\
-     && { files=$$(echo "$$files" | xargs $(GREP) -l "$$containing"); }	\
-     || :;								\
-   test -n "$$files"							\
-     && test -n "$$non_containing"					\
-     && { files=$$(echo "$$files" | xargs $(GREP) -vl "$$non_containing"); } \
-     || :;								\
-									\
-   : Check for the construct;						\
-   if test -n "$$files"; then						\
-     if test -n "$$prohibit"; then					\
-       echo "$$files"							\
-         | xargs $(GREP) $$with_grep_options $(_ignore_case) -nE	\
-		"$$prohibit" /dev/null					\
-         | $(GREP) -vE "$${exclude:-^$$}"				\
-         && { msg="$$halt" $(_sc_say_and_exit) }			\
-         || :;								\
-     else								\
-       echo "$$files"							\
-         | xargs							\
-             $(GREP) $$with_grep_options $(_ignore_case) -LE "$$require" \
-         | $(GREP) .							\
-         && { msg="$$halt" $(_sc_say_and_exit) }			\
-         || :;								\
-     fi									\
-   else :;								\
-   fi || :;
-endef
-
 sc_cast_of_argument_to_free:
-	@prohibit='\<free *\( *\(' halt="don't cast free argument"	\
+	@prohibit='\<free *\( *\(' halt="don't cast free argument" \
 	  $(_sc_search_regexp)
 
 sc_cast_of_x_alloc_return_value:
-	@prohibit='\*\) *x(m|c|re)alloc\>'				\
-	halt="don't cast x*alloc return value"				\
+	@prohibit='\*\) *x(m|c|re)alloc\>' \
+	halt="don't cast x*alloc return value" \
 	  $(_sc_search_regexp)
 
 # Use STREQ rather than comparing strcmp == 0, or != 0.
 sp_ = strcmp *\(.+\)
 sc_prohibit_strcmp:
-	@prohibit='! *strcmp *\(|\<$(sp_) *[!=]=|[!=]= *$(sp_)'		\
-	exclude='# *define STRN?EQ\('					\
-	halt='replace strcmp calls above with STREQ/STRNEQ'		\
+	@prohibit='! *strcmp *\(|\<$(sp_) *[!=]=|[!=]= *$(sp_)' \
+	exclude='# *define STRN?EQ\(' \
+	halt='replace strcmp calls above with STREQ/STRNEQ' \
 	  $(_sc_search_regexp)
 
 # Really.  You don't want to use this function.
 # It may fail to NUL-terminate the destination,
 # and always NUL-pads out to the specified length.
 sc_prohibit_strncpy:
-	@prohibit='\<strncpy *\('					\
-	halt='do not use strncpy, period'				\
+	@prohibit='\<strncpy *\(' \
+	halt='do not use strncpy, period' \
 	  $(_sc_search_regexp)
 
 # Pass EXIT_*, not number, to usage, exit, and error (when exiting)
@@ -1152,34 +930,34 @@ sc_prohibit_strncpy:
 #  | xargs --no-run-if-empty \
 #      perl -pi -e 's/(^|[^.])\b(exit ?)\(0\)/$1$2(EXIT_SUCCESS)/'
 sc_prohibit_magic_number_exit:
-	@prohibit='(^|[^.])\<(usage|exit|error) ?\(-?[0-9]+[,)]'	\
-	exclude='exit \(77\)|error ?\(((0|77),|[^,]*)'			\
-	halt='use EXIT_* values rather than magic number'		\
+	@prohibit='(^|[^.])\<(usage|exit|error) ?\(-?[0-9]+[,)]' \
+	exclude='exit \(77\)|error ?\(((0|77),|[^,]*)' \
+	halt='use EXIT_* values rather than magic number' \
 	  $(_sc_search_regexp)
 
 # "FATAL:" should be fully upper-cased in error messages
 # "WARNING:" should be fully upper-cased, or fully lower-cased
 sc_error_message_warn_fatal:
-	@$(VC_LIST_EXCEPT)						\
-	  | xargs $(GREP) -nEA2 '[^rp]error *\(' /dev/null		\
-	  | $(GREP) -E '"Warning|"Fatal|"fatal'				\
-	  && { echo '$(ME): use FATAL, WARNING or warning' 1>&2;	\
-	       exit 1; }						\
+	@$(VC_LIST_EXCEPT) \
+	  | xargs $(GREP) -nEA2 '[^rp]error *\(' /dev/null \
+	  | $(GREP) -E '"Warning|"Fatal|"fatal' \
+	  && { echo 'use FATAL, WARNING or warning' 1>&2; \
+	       exit 1; } \
 	  || :
 
 # Error messages should not end with a period
 sc_error_message_period:
-	@$(VC_LIST_EXCEPT)						\
-	  | xargs $(GREP) -nEA2 '[^rp]error *\(' /dev/null		\
-	  | $(GREP) -E '[^."]\."'					\
-	  && { echo '$(ME): found error message ending in period' 1>&2;	\
-	       exit 1; }						\
+	@$(VC_LIST_EXCEPT) \
+	  | xargs $(GREP) -nEA2 '[^rp]error *\(' /dev/null \
+	  | $(GREP) -E '[^."]\."' \
+	  && { echo 'found error message ending in period' 1>&2; \
+	       exit 1; } \
 	  || :
 
 # Don't use cpp tests of this symbol.  All code assumes config.h is included.
 sc_prohibit_have_config_h:
-	@prohibit='^# *if.*HAVE''_CONFIG_H'				\
-	halt='found use of HAVE''_CONFIG_H; remove'			\
+	@prohibit='^# *if.*HAVE''_CONFIG_H' \
+	halt='found use of HAVE''_CONFIG_H; remove' \
 	  $(_sc_search_regexp)
 
 # Nearly all .c files must include <config.h>.  However, we also permit this
@@ -1187,49 +965,49 @@ sc_prohibit_have_config_h:
 # config_h_header must be suitable for grep -E.
 config_h_header ?= <config\.h>
 sc_require_config_h:
-	@require='^# *include $(config_h_header)'			\
-	in_vc_files='\.c$$'						\
-	halt='the above files do not include <config.h>'		\
+	@require='^# *include $(config_h_header)' \
+	in_vc_files='\.c$$' \
+	halt='the above files do not include <config.h>' \
 	  $(_sc_search_regexp)
 
 # Print each file name for which the first #include does not match
 # $(config_h_header).  Like grep -m 1, this only looks at the first match.
-perl_config_h_first_ =							\
-  -e 'BEGIN {$$ret = 0}'						\
-  -e 'if (/^\# *include\b/) {'						\
-  -e '  if (not m{^\# *include $(config_h_header)}) {'			\
-  -e '    print "$$ARGV\n";'						\
-  -e '    $$ret = 1;'							\
-  -e '  }'								\
-  -e '  \# Move on to next file after first include'			\
-  -e '  close ARGV;'							\
-  -e '}'								\
+perl_config_h_first_ = \
+  -e 'BEGIN {$$ret = 0}' \
+  -e 'if (/^\# *include\b/) {' \
+  -e '  if (not m{^\# *include $(config_h_header)}) {' \
+  -e '    print "$$ARGV\n";' \
+  -e '    $$ret = 1;' \
+  -e '  }' \
+  -e '  \# Move on to next file after first include' \
+  -e '  close ARGV;' \
+  -e '}' \
   -e 'END {exit $$ret}'
 
 # You must include <config.h> before including any other header file.
 # This can possibly be via a package-specific header, if given by syntax-check.mk.
 sc_require_config_h_first:
-	@if $(VC_LIST_EXCEPT) | $(GREP) '\.c$$' > /dev/null; then	\
-	  files=$$($(VC_LIST_EXCEPT) | $(GREP) '\.c$$') &&		\
-	  perl -n $(perl_config_h_first_) $$files ||			\
-	    { echo '$(ME): the above files include some other header'	\
-		'before <config.h>' 1>&2; exit 1; } || :;		\
-	else :;								\
+	@if $(VC_LIST_EXCEPT) | $(GREP) '\.c$$' > /dev/null; then \
+	  files=$$($(VC_LIST_EXCEPT) | $(GREP) '\.c$$') && \
+	  perl -n $(perl_config_h_first_) $$files || \
+	    { echo 'the above files include some other header' \
+		'before <config.h>' 1>&2; exit 1; } || :; \
+	else :; \
 	fi
 
 # To use this "command" macro, you must first define two shell variables:
 # h: the header name, with no enclosing <> or ""
 # re: a regular expression that matches IFF something provided by $h is used.
 define _sc_header_without_use
-  dummy=; : so we do not need a semicolon before each use;		\
-  h_esc=`echo '[<"]'"$$h"'[">]'|$(SED) 's/\./\\\\./g'`;			\
-  if $(VC_LIST_EXCEPT) | $(GREP) '\.c$$' > /dev/null; then		\
-    files=$$($(GREP) -l '^# *include '"$$h_esc"				\
-	     $$($(VC_LIST_EXCEPT) | $(GREP) '\.c$$')) &&		\
-    $(GREP) -LE "$$re" $$files | $(GREP) . &&				\
-      { echo "$(ME): the above files include $$h but don't use it"	\
-	1>&2; exit 1; } || :;						\
-  else :;								\
+  dummy=; : so we do not need a semicolon before each use; \
+  h_esc=`echo '[<"]'"$$h"'[">]'|$(SED) 's/\./\\\\./g'`; \
+  if $(VC_LIST_EXCEPT) | $(GREP) '\.c$$' > /dev/null; then \
+    files=$$($(GREP) -l '^# *include '"$$h_esc" \
+	     $$($(VC_LIST_EXCEPT) | $(GREP) '\.c$$')) && \
+    $(GREP) -LE "$$re" $$files | $(GREP) . && \
+      { echo "the above files include $$h but don't use it" \
+	1>&2; exit 1; } || :; \
+  else :; \
   fi
 endef
 
@@ -1251,41 +1029,41 @@ _sig_functions = \
   sigrelse sigset sigsuspend sigtimedwait sigwait sigwaitinfo
 _sig_function_re = $(subst $(_sp),|,$(strip $(_sig_functions)))
 # The following were extracted from "man signal.h" manually.
-_sig_types_and_consts =							\
-  MINSIGSTKSZ SA_NOCLDSTOP SA_NOCLDWAIT SA_NODEFER SA_ONSTACK		\
-  SA_RESETHAND SA_RESTART SA_SIGINFO SIGEV_NONE SIGEV_SIGNAL		\
-  SIGEV_THREAD SIGSTKSZ SIG_BLOCK SIG_SETMASK SIG_UNBLOCK SS_DISABLE	\
-  SS_ONSTACK mcontext_t pid_t sig_atomic_t sigevent siginfo_t sigset_t	\
+_sig_types_and_consts = \
+  MINSIGSTKSZ SA_NOCLDSTOP SA_NOCLDWAIT SA_NODEFER SA_ONSTACK \
+  SA_RESETHAND SA_RESTART SA_SIGINFO SIGEV_NONE SIGEV_SIGNAL \
+  SIGEV_THREAD SIGSTKSZ SIG_BLOCK SIG_SETMASK SIG_UNBLOCK SS_DISABLE \
+  SS_ONSTACK mcontext_t pid_t sig_atomic_t sigevent siginfo_t sigset_t \
   sigstack sigval stack_t ucontext_t
 # generated via this:
 # perl -lne '/^#ifdef (SIG\w+)/ and print $1' lib/sig2str.c|sort -u|fmt -70
-_sig_names =								\
-  SIGABRT SIGALRM SIGALRM1 SIGBUS SIGCANCEL SIGCHLD SIGCLD SIGCONT	\
-  SIGDANGER SIGDIL SIGEMT SIGFPE SIGFREEZE SIGGRANT SIGHUP SIGILL	\
-  SIGINFO SIGINT SIGIO SIGIOT SIGKAP SIGKILL SIGKILLTHR SIGLOST SIGLWP	\
-  SIGMIGRATE SIGMSG SIGPHONE SIGPIPE SIGPOLL SIGPRE SIGPROF SIGPWR	\
-  SIGQUIT SIGRETRACT SIGSAK SIGSEGV SIGSOUND SIGSTKFLT SIGSTOP SIGSYS	\
-  SIGTERM SIGTHAW SIGTRAP SIGTSTP SIGTTIN SIGTTOU SIGURG SIGUSR1	\
-  SIGUSR2 SIGVIRT SIGVTALRM SIGWAITING SIGWINCH SIGWIND SIGWINDOW	\
+_sig_names = \
+  SIGABRT SIGALRM SIGALRM1 SIGBUS SIGCANCEL SIGCHLD SIGCLD SIGCONT \
+  SIGDANGER SIGDIL SIGEMT SIGFPE SIGFREEZE SIGGRANT SIGHUP SIGILL \
+  SIGINFO SIGINT SIGIO SIGIOT SIGKAP SIGKILL SIGKILLTHR SIGLOST SIGLWP \
+  SIGMIGRATE SIGMSG SIGPHONE SIGPIPE SIGPOLL SIGPRE SIGPROF SIGPWR \
+  SIGQUIT SIGRETRACT SIGSAK SIGSEGV SIGSOUND SIGSTKFLT SIGSTOP SIGSYS \
+  SIGTERM SIGTHAW SIGTRAP SIGTSTP SIGTTIN SIGTTOU SIGURG SIGUSR1 \
+  SIGUSR2 SIGVIRT SIGVTALRM SIGWAITING SIGWINCH SIGWIND SIGWINDOW \
   SIGXCPU SIGXFSZ
 _sig_syms_re = $(subst $(_sp),|,$(strip $(_sig_names) $(_sig_types_and_consts)))
 
 # Prohibit the inclusion of signal.h without an actual use.
 sc_prohibit_signal_without_use:
-	@h='signal.h'							\
-	re='\<($(_sig_function_re)) *\(|\<($(_sig_syms_re))\>'		\
+	@h='signal.h' \
+	re='\<($(_sig_function_re)) *\(|\<($(_sig_syms_re))\>' \
 	  $(_sc_header_without_use)
 
 # Don't include stdio--.h unless you use one of its functions.
 sc_prohibit_stdio--_without_use:
-	@h='stdio--.h' re='\<((f(re)?|p)open|tmpfile) *\('		\
+	@h='stdio--.h' re='\<((f(re)?|p)open|tmpfile) *\(' \
 	  $(_sc_header_without_use)
 
 _stddef_syms_re = NULL|offsetof|ptrdiff_t|size_t|wchar_t
 # Prohibit the inclusion of stddef.h without an actual use.
 sc_prohibit_stddef_without_use:
-	@h='stddef.h'							\
-	re='\<($(_stddef_syms_re))\>'					\
+	@h='stddef.h' \
+	re='\<($(_stddef_syms_re))\>' \
 	  $(_sc_header_without_use)
 
 _de1 = dirfd|(close|(fd)?open|read|rewind|seek|tell)dir(64)?(_r)?
@@ -1294,23 +1072,14 @@ _de3 = MAXNAMLEN|DIR|ino_t|d_ino|d_fileno|d_namlen
 _dirent_syms_re = $(_de1)|$(_de2)|$(_de3)
 # Prohibit the inclusion of dirent.h without an actual use.
 sc_prohibit_dirent_without_use:
-	@h='dirent.h'							\
-	re='\<($(_dirent_syms_re))\>'					\
+	@h='dirent.h' \
+	re='\<($(_dirent_syms_re))\>' \
 	  $(_sc_header_without_use)
 
-# Ensure that each .c file containing a "main" function also
-# calls bindtextdomain.
-sc_bindtextdomain:
-	@require='bindtextdomain *\('					\
-	in_vc_files='\.c$$'						\
-	containing='\<main *('						\
-	halt='the above files do not call bindtextdomain'		\
-	  $(_sc_search_regexp)
-
 sc_trailing_blank:
-	@prohibit='[	 ]$$'						\
-	halt='found trailing blank(s)'					\
-	exclude='^Binary file .* matches$$'				\
+	@prohibit='[	 ]$$' \
+	halt='found trailing blank(s)' \
+	exclude='^Binary file .* matches$$' \
 	  $(_sc_search_regexp)
 
 
@@ -1322,23 +1091,28 @@ _gl_translatable_diag_func_re ?= error
 # This won't find any for which error's format string is on a separate line.
 sc_unmarked_diagnostics:
 	@prohibit='\<$(_gl_translatable_diag_func_re) *\([^"]*"[^"]*[a-z]{3}' \
-	exclude='(_|ngettext ?)\('					\
-	halt='found unmarked diagnostic(s)'				\
+	exclude='(_|ngettext ?)\(' \
+	halt='found unmarked diagnostic(s)' \
 	  $(_sc_search_regexp)
 
 
 sc_prohibit_defined_have_decl_tests:
-	@prohibit='(#[	 ]*ifn?def|\<defined)\>[	 (]+WITH_DECL_'	\
-	halt='WITH_DECL macros are always defined'			\
+	@prohibit='(#[	 ]*ifn?def|\<defined)\>[	 (]+WITH_DECL_' \
+	halt='WITH_DECL macros are always defined' \
 	  $(_sc_search_regexp)
-
-# ==================================================================
 
 # Prohibit checked in backup files.
 sc_prohibit_backup_files:
-	@$(VC_LIST) | $(GREP) '~$$' &&					\
-	  { echo '$(ME): found version controlled backup file' 1>&2;	\
+	@$(VC_LIST_EXCEPT) | $(GREP) '~$$' && \
+	  { echo 'found version controlled backup file' 1>&2; \
 	    exit 1; } || :
+
+# prohibit remote references to local file in RST files
+sc_avoid_remote_reference_to_local_file:
+	@prohibit='<#' \
+	in_vc_files='\.rst$$' \
+	halt='use local reference within a file' \
+	  $(_sc_search_regexp)
 
 # This Perl code is slightly obfuscated.  Not only is each "$" doubled
 # because it's in a Makefile, but the $$c's are comments;  we cannot
@@ -1363,47 +1137,47 @@ sc_prohibit_backup_files:
 # Use this if you want to remove trailing empty lines from selected files:
 #   perl -pi -0777 -e 's/\n\n+$/\n/' files...
 #
-require_exactly_one_NL_at_EOF_ =					\
-  foreach my $$f (@ARGV)						\
-    {									\
-      open F, "<", $$f or (warn "failed to open $$f: $$!\n"), next;	\
-      my $$p = sysseek (F, -2, 2);					\
+require_exactly_one_NL_at_EOF_ = \
+  foreach my $$f (@ARGV) \
+    { \
+      open F, "<", $$f or (warn "failed to open $$f: $$!\n"), next; \
+      my $$p = sysseek (F, -2, 2); \
       my $$c = "seek failure probably means file has < 2 bytes; ignore"; \
-      my $$last_two_bytes;						\
-      defined $$p and $$p = sysread F, $$last_two_bytes, 2;		\
-      close F;								\
-      $$c = "ignore read failure";					\
-      $$p && ($$last_two_bytes eq "\n\n"				\
-              || substr ($$last_two_bytes,1) ne "\n")			\
-          and (print $$f), $$fail=1;					\
-    }									\
+      my $$last_two_bytes; \
+      defined $$p and $$p = sysread F, $$last_two_bytes, 2; \
+      close F; \
+      $$c = "ignore read failure"; \
+      $$p && ($$last_two_bytes eq "\n\n" \
+              || substr ($$last_two_bytes,1) ne "\n") \
+          and (print $$f), $$fail=1; \
+    } \
   END { exit defined $$fail }
 sc_prohibit_empty_lines_at_EOF:
-	@$(VC_LIST_EXCEPT)						\
-	  | xargs perl -le '$(require_exactly_one_NL_at_EOF_)'		\
-	  || { echo '$(ME): empty line(s) or no newline at EOF' 1>&2;	\
-	       exit 1; }						\
+	@$(VC_LIST_EXCEPT) \
+	  | xargs perl -le '$(require_exactly_one_NL_at_EOF_)' \
+	  || { echo 'empty line(s) or no newline at EOF' 1>&2; \
+	       exit 1; } \
 	  || :
 
 
 # Perl block to convert a match to FILE_NAME:LINENO:TEST,
 # that is shared by two definitions below.
-perl_filename_lineno_text_ =						\
-    -e '  {'								\
-    -e '    $$n = ($$` =~ tr/\n/\n/ + 1);'				\
-    -e '    ($$v = $$&) =~ s/\n/\\n/g;'					\
-    -e '    print "$$ARGV:$$n:$$v\n";'					\
+perl_filename_lineno_text_ = \
+    -e '  {' \
+    -e '    $$n = ($$` =~ tr/\n/\n/ + 1);' \
+    -e '    ($$v = $$&) =~ s/\n/\\n/g;' \
+    -e '    print "$$ARGV:$$n:$$v\n";' \
     -e '  }'
 
 prohibit_doubled_words_ = \
-    the then in an on if is it but for or at and do to
+    the then in an on if is it but for or at and do to can
 # expand the regex before running the check to avoid using expensive captures
 prohibit_doubled_word_expanded_ = \
     $(join $(prohibit_doubled_words_),$(addprefix \s+,$(prohibit_doubled_words_)))
 prohibit_doubled_word_RE_ ?= \
     /\b(?:$(subst $(_sp),|,$(prohibit_doubled_word_expanded_)))\b/gims
-prohibit_doubled_word_ =						\
-    -e 'while ($(prohibit_doubled_word_RE_))'				\
+prohibit_doubled_word_ = \
+    -e 'while ($(prohibit_doubled_word_RE_))' \
     $(perl_filename_lineno_text_)
 
 # Define this to a regular expression that matches
@@ -1412,49 +1186,40 @@ prohibit_doubled_word_ =						\
 ignore_doubled_word_match_RE_ ?= ^$$
 
 sc_prohibit_doubled_word:
-	@$(VC_LIST_EXCEPT)						\
-	  | xargs perl -n -0777 $(prohibit_doubled_word_)		\
-	  | $(GREP) -vE '$(ignore_doubled_word_match_RE_)'		\
-	  | $(GREP) .							\
-	  && { echo '$(ME): doubled words' 1>&2; exit 1; }		\
+	@$(VC_LIST_EXCEPT) \
+	  | xargs perl -n -0777 $(prohibit_doubled_word_) \
+	  | $(GREP) -vE '$(ignore_doubled_word_match_RE_)' \
+	  | $(GREP) . \
+	  && { echo 'doubled words' 1>&2; exit 1; } \
 	  || :
 
 # Except for shell files and for loops, double semicolon is probably a mistake
 sc_prohibit_double_semicolon:
-	@prohibit='; *;[	{} \]*(/[/*]|$$)'			\
-	in_vc_files='\.[chly]$$'					\
-	exclude='\bfor *\(.*\)'						\
-	halt="Double semicolon detected"				\
-	  $(_sc_search_regexp)
-
-_ptm1 = use "test C1 && test C2", not "test C1 -''a C2"
-_ptm2 = use "test C1 || test C2", not "test C1 -''o C2"
-# Using test's -a and -o operators is not portable.
-# We prefer test over [, since the latter is spelled [[ in configure.ac.
-sc_prohibit_test_minus_ao:
-	@prohibit='(\<test| \[+) .+ -[ao] '				\
-	halt='$(_ptm1); $(_ptm2)'					\
+	@prohibit='; *;[	{} \]*(/[/*]|$$)' \
+	in_vc_files='\.[chly]$$' \
+	exclude='\bfor *\(.*\)' \
+	halt="Double semicolon detected" \
 	  $(_sc_search_regexp)
 
 # Avoid a test bashism.
 sc_prohibit_test_double_equal:
-	@prohibit='(\<test| \[+) .+ == '				\
-	containing='#! */bin/[a-z]*sh'					\
-	halt='use "test x = x", not "test x =''= x"'			\
+	@prohibit='(\<test| \[+) .+ == ' \
+	containing='#! */bin/[a-z]*sh' \
+	halt='use "test x = x", not "test x =''= x"' \
 	  $(_sc_search_regexp)
 
 
 # Warn about "c0nst struct Foo const foo[]",
 # but not about "char const *const foo" or "#define const const".
 sc_redundant_const:
-	@prohibit='\bconst\b[[:space:][:alnum:]]{2,}\bconst\b'		\
-	halt='redundant "const" in declarations'			\
+	@prohibit='\bconst\b[[:space:][:alnum:]]{2,}\bconst\b' \
+	halt='redundant "const" in declarations' \
 	  $(_sc_search_regexp)
 
 sc_const_long_option:
-	@prohibit='^ *static.*struct option '				\
-	exclude='const struct option|struct option const'		\
-	halt='add "const" to the above declarations'			\
+	@prohibit='^ *static.*struct option ' \
+	exclude='const struct option|struct option const' \
+	halt='add "const" to the above declarations' \
 	  $(_sc_search_regexp)
 
 fix_po_file_diag = \
@@ -1462,25 +1227,25 @@ fix_po_file_diag = \
 apply the above patch\n'
 
 # Generate a list of files in which to search for translatable strings.
-perl_translatable_files_list_ =						\
-  -e 'foreach $$file (@ARGV) {'						\
-  -e '	\# Consider only file extensions with one or two letters'	\
-  -e '	$$file =~ /\...?$$/ or next;'					\
-  -e '	\# Ignore mk files'						\
-  -e '	$$file =~ /\.mk$$/ and next;'					\
-  -e '	\# Ignore a .c or .h file with a corresponding .l or .y file'	\
-  -e '	$$file =~ /(.+)\.[ch]$$/ && (-e "$${1}.l" || -e "$${1}.y")'	\
-  -e '	  and next;'							\
-  -e '	\# Skip unreadable files'					\
-  -e '	-r $$file or next;'						\
-  -e '	print "$$file ";'						\
+perl_translatable_files_list_ = \
+  -e 'foreach $$file (@ARGV) {' \
+  -e '	\# Consider only file extensions with one or two letters' \
+  -e '	$$file =~ /\...?$$/ or next;' \
+  -e '	\# Ignore mk files' \
+  -e '	$$file =~ /\.mk$$/ and next;' \
+  -e '	\# Ignore a .c or .h file with a corresponding .l or .y file' \
+  -e '	$$file =~ /(.+)\.[ch]$$/ && (-e "$${1}.l" || -e "$${1}.y")' \
+  -e '	  and next;' \
+  -e '	\# Skip unreadable files' \
+  -e '	-r $$file or next;' \
+  -e '	print "$$file ";' \
   -e '}'
 
 # Verify that all source files using _() (more specifically, files that
-# match $(_gl_translatable_string_re)) are listed in po/POTFILES.in.
-po_file ?= $(top_srcdir)/po/POTFILES.in
+# match $(_gl_translatable_string_re)) are listed in po/POTFILES.
+po_file ?= $(top_srcdir)/po/POTFILES
 
-# List of additional files that we want to pick up in our POTFILES.in
+# List of additional files that we want to pick up in our POTFILES
 # This is all generated files for RPC code.
 generated_files = \
   $(top_builddir)/src/*.[ch] \
@@ -1490,18 +1255,17 @@ _gl_translatable_string_re ?= \b(N?_|gettext *)\([^)"]*("|$$)
 
 # sc_po_check can fail if generated files are not built first
 sc_po_check:
-	@if test -f $(po_file); then					\
-	  $(GREP) -E -v '^(#|$$)' $(po_file)				\
-	    | $(GREP) -v '^src/false\.c$$' | sort > $@-1;		\
-	  { $(VC_LIST_EXCEPT); echo $(generated_files); }		\
-	    | xargs perl $(perl_translatable_files_list_)		\
-	    | xargs $(GREP) -E -l '$(_gl_translatable_string_re)'	\
-	    | $(SED) 's|^$(_dot_escaped_builddir)/|@BUILDDIR@|'		\
-	    | $(SED) 's|^$(_dot_escaped_srcdir)/|@SRCDIR@|'		\
-	    | sort -u > $@-2;						\
-	  diff -u -L $(po_file) -L $(po_file) $@-1 $@-2			\
-	    || { printf '$(ME): '$(fix_po_file_diag) 1>&2; exit 1; };	\
-	  rm -f $@-1 $@-2;						\
+	@if test -f $(po_file); then \
+	  $(GREP) -E -v '^(#|$$)' $(po_file) | sort > $@-1; \
+	  { $(VC_LIST_EXCEPT); echo $(generated_files); } \
+	    | xargs perl $(perl_translatable_files_list_) \
+	    | xargs $(GREP) -E -l '$(_gl_translatable_string_re)' \
+	    | $(SED) 's|^$(_dot_escaped_builddir)/||' \
+	    | $(SED) 's|^$(_dot_escaped_srcdir)/||' \
+	    | sort -u > $@-2; \
+	  diff -u -L $(po_file) -L $(po_file) $@-1 $@-2 \
+	    || { printf $(fix_po_file_diag) 1>&2; exit 1; }; \
+	  rm -f $@-1 $@-2; \
 	fi
 
 # #if WITH_... will evaluate to false for any non numeric string.
@@ -1509,17 +1273,17 @@ sc_po_check:
 # tests many undefined macros, and so we can't enable that option.
 # So at least preclude common boolean strings as macro values.
 sc_Wundef_boolean:
-	@prohibit='^#define.*(yes|no|true|false)$$'			\
-	in_files='$(CONFIG_INCLUDE)'					\
-	halt='Use 0 or 1 for macro values'				\
+	@prohibit='^#define.*(yes|no|true|false)$$' \
+	in_files='$(CONFIG_INCLUDE)' \
+	halt='Use 0 or 1 for macro values' \
 	  $(_sc_search_regexp)
 
 # Even if you use pathmax.h to guarantee that PATH_MAX is defined, it might
 # not be constant, or might overflow a stack.  In general, use PATH_MAX as
 # a limit, not an array or alloca size.
 sc_prohibit_path_max_allocation:
-	@prohibit='(\balloca *\([^)]*|\[[^]]*)\bPATH_MAX'		\
-	halt='Avoid stack allocations of size PATH_MAX'			\
+	@prohibit='(\balloca *\([^)]*|\[[^]]*)\bPATH_MAX' \
+	halt='Avoid stack allocations of size PATH_MAX' \
 	  $(_sc_search_regexp)
 
 ifneq ($(_gl-Makefile),)
@@ -1546,10 +1310,10 @@ sc_prohibit-duplicate-header:
 sc_spacing-check:
 	$(AM_V_GEN)$(VC_LIST_EXCEPT) | $(GREP) '\.c$$' | xargs \
 	$(PERL) $(top_srcdir)/build-aux/check-spacing.pl || \
-	  { echo '$(ME): incorrect formatting' 1>&2; exit 1; }
+	  { echo 'incorrect formatting' 1>&2; exit 1; }
 
 sc_mock-noinline:
-	$(AM_V_GEN)$(VC_LIST_EXCEPT) | $(GREP) '\.[ch]$$' | $(RUNUTF8) xargs \
+	$(AM_V_GEN)$(VC_LIST_EXCEPT) | $(GREP) '\.[ch]$$' | $(RUNUTF8) \
 	$(PYTHON) $(top_srcdir)/scripts/mock-noinline.py
 
 sc_header-ifdef:
@@ -1561,23 +1325,25 @@ sc_group-qemu-caps:
 		--check --prefix $(top_srcdir)/
 
 sc_prohibit_enum_impl_with_vir_prefix_in_virsh:
-	@prohibit='VIR_ENUM_(IMPL|DECL)\(vir[^s]'			\
-	in_vc_files='tools/virsh.*\.[ch]$$'					\
-	halt='avoid "vir" prefix for enums in virsh'				\
+	@prohibit='VIR_ENUM_(IMPL|DECL)\(vir[^s]' \
+	in_vc_files='tools/virsh.*\.[ch]$$' \
+	halt='avoid "vir" prefix for enums in virsh' \
 	  $(_sc_search_regexp)
 
 
-# List all syntax-check exemptions:
-exclude_file_name_regexp--sc_avoid_strcase = ^tools/vsh\.h$$
+## ---------- ##
+## Exceptions ##
+## ---------- ##
+
+exclude_file_name_regexp--sc_avoid_strcase = ^tools/(vsh\.h|nss/libvirt_nss_(leases|macs)\.c)$$
 
 exclude_file_name_regexp--sc_avoid_write = ^src/libvirt-stream\.c$$
 
-exclude_file_name_regexp--sc_bindtextdomain = .*
-
-exclude_file_name_regexp--sc_gettext_init = ^((tests|examples)/|tools/virt-login-shell.c|src/util/vireventglib\.c)
+exclude_file_name_regexp--sc_gettext_init = \
+	^((tests|examples)/|tools/virt-login-shell.c)
 
 exclude_file_name_regexp--sc_copyright_usage = \
-  ^COPYING(|\.LESSER)|build-aux/syntax-check.mk$$
+  ^COPYING(|\.LESSER)$$
 
 exclude_file_name_regexp--sc_flags_usage = \
   ^(build-aux/syntax-check\.mk|docs/|src/util/virnetdevtap\.c$$|tests/((vir(cgroup|pci|test|usb)|nss|qemuxml2argv|qemusecurity)mock|virfilewrapper)\.c$$)
@@ -1600,10 +1366,10 @@ exclude_file_name_regexp--sc_prohibit_strdup = \
   ^(docs/|examples/|tests/virnetserverclientmock.c|tests/commandhelper.c|tools/nss/libvirt_nss_(leases|macs)\.c$$)
 
 exclude_file_name_regexp--sc_prohibit_close = \
-  (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)$$)
+  (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)|tools/virt-qemu-qmp-proxy$$)
 
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
-  (^tests/(nodedevmdevctl|virhostcpu|virpcitest|virstoragetest)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
+  (^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest|qemunbdkit)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
 
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
   (^(src/(util/(vircommand|virdaemon)|lxc/lxc_controller)|tests/testutils)\.c$$)
@@ -1619,11 +1385,11 @@ exclude_file_name_regexp--sc_prohibit_raw_virclassnew = \
 exclude_file_name_regexp--sc_prohibit_newline_at_end_of_diagnostic = \
   ^src/rpc/gendispatch\.pl$$
 
-exclude_file_name_regexp--sc_prohibit_nonreentrant = \
-  ^((po|tests|examples)/|docs/.*(py|js|html\.in)|run.in$$|tools/wireshark/util/genxdrstub\.pl|tools/virt-login-shell\.c$$)
+exclude_file_name_regexp--sc_prohibit_error_message_on_multiple_lines = \
+  ^(build-aux/syntax-check\.mk|docs/coding-style.rst)
 
-exclude_file_name_regexp--sc_prohibit_select = \
-	^build-aux/syntax-check\.mk$$
+exclude_file_name_regexp--sc_prohibit_nonreentrant = \
+  ^((po|tests|examples)/|docs/.*(py|js|html\.in|.rst)|run.in$$|tools/wireshark/util/genxdrstub\.pl|tools/virt-login-shell\.c$$)
 
 exclude_file_name_regexp--sc_prohibit_canonicalize_file_name = \
   ^(build-aux/syntax-check\.mk|tests/virfilemock\.c)$$
@@ -1709,11 +1475,180 @@ exclude_file_name_regexp--sc_prohibit_dirent_d_type = \
 exclude_file_name_regexp--sc_prohibit_strcmp = \
   ^(tools/nss/libvirt_nss.*\.c|tools/virt-login-shell\.c)
 
-exclude_file_name_regexp--sc_prohibit_backslash_alignment = \
-  ^build-aux/syntax-check\.mk$$
-
 exclude_file_name_regexp--sc_prohibit_select = \
-  ^build-aux/syntax-check\.mk|src/util/vireventglibwatch\.c$$
+  ^build-aux/syntax-check\.mk|src/util/vireventglibwatch\.c|tests/meson\.build$$
 
-exclude_file_name_regexp--sc_prohibit_config_h_in_headers = \
-  ^config\.h$$
+
+## -------------- ##
+## Implementation ##
+## -------------- ##
+
+# Helper variables.
+_empty =
+_sp = $(_empty) $(_empty)
+
+VC_LIST = cd $(top_srcdir); git ls-tree -r 'HEAD:' | \
+          sed -n "s|^100[^	]*.||p"
+
+# This is to preprocess robustly the output of $(VC_LIST), so that even
+# when $(top_srcdir) is a pathological name like "....", the leading sed command
+# removes only the intended prefix.
+_dot_escaped_srcdir = $(subst .,\.,$(top_srcdir))
+_dot_escaped_builddir = $(subst .,\.,$(top_builddir))
+
+# Post-process $(VC_LIST) output, prepending $(top_srcdir)/, but only
+# when $(top_srcdir) is not ".".
+ifeq ($(top_srcdir),.)
+  _prepend_srcdir_prefix =
+else
+  _prepend_srcdir_prefix = | $(SED) 's|^|$(top_srcdir)/|'
+endif
+
+# In order to be able to consistently filter "."-relative names,
+# (i.e., with no $(top_srcdir) prefix), this definition is careful to
+# remove any $(top_srcdir) prefix, and to restore what it removes.
+_sc_excl = \
+  $(or $(exclude_file_name_regexp--$@),^$$)
+VC_LIST_EXCEPT = \
+  $(VC_LIST) | $(GREP) -Ev -e '($(VC_LIST_ALWAYS_EXCLUDE_REGEX)|$(_sc_excl))' \
+	$(_prepend_srcdir_prefix)
+
+# Prevent programs like 'sort' from considering distinct strings to be equal.
+# Doing it here saves us from having to set LC_ALL elsewhere in this file.
+export LC_ALL = C
+
+# _sc_search_regexp
+#
+# This macro searches for a given construct in the selected files and
+# then takes some action.
+#
+# Parameters (shell variables):
+#
+#  prohibit | require
+#
+#     Regular expression (ERE) denoting either a forbidden construct
+#     or a required construct.  Those arguments are exclusive.
+#
+#  exclude
+#
+#     Regular expression (ERE) denoting lines to ignore that matched
+#     a prohibit construct.  For example, this can be used to exclude
+#     comments that mention why the nearby code uses an alternative
+#     construct instead of the simpler prohibited construct.
+#
+#  in_vc_files | in_files
+#
+#     grep-E-style regexp selecting the files to check.  For in_vc_files,
+#     the regexp is used to select matching files from the list of all
+#     version-controlled files; for in_files, it's from the names printed
+#     by "find $(top_srcdir)".  When neither is specified, use all files that
+#     are under version control.
+#
+#  containing | non_containing
+#
+#     Select the files (non) containing strings matching this regexp.
+#     If both arguments are specified then CONTAINING takes
+#     precedence.
+#
+#  with_grep_options
+#
+#     Extra options for grep.
+#
+#  ignore_case
+#
+#     Ignore case.
+#
+#  halt
+#
+#     Message to display before to halting execution.
+#
+# Finally, you may exempt files based on an ERE matching file names.
+# For example, to exempt from the sc_space_tab check all files with the
+# .diff suffix, set this Make variable:
+#
+# exclude_file_name_regexp--sc_space_tab = \.diff$
+#
+# Note that while this functionality is mostly inherited via VC_LIST_EXCEPT,
+# when filtering by name via in_files, we explicitly filter out matching
+# names here as well.
+
+# Initialize each, so that envvar settings cannot interfere.
+export require =
+export prohibit =
+export exclude =
+export in_vc_files =
+export in_files =
+export containing =
+export non_containing =
+export halt =
+export with_grep_options =
+
+# By default, _sc_search_regexp does not ignore case.
+export ignore_case =
+_ignore_case = $$(test -n "$$ignore_case" && printf %s -i || :)
+
+define _sc_say_and_exit
+   dummy=; : so we do not need a semicolon before each use; \
+   { printf '%s\n' "$$msg" 1>&2; exit 1; };
+endef
+
+define _sc_search_regexp
+   dummy=; : so we do not need a semicolon before each use; \
+ \
+   : Check arguments; \
+   test -n "$$prohibit" && test -n "$$require" \
+     && { msg='Cannot specify both prohibit and require' \
+          $(_sc_say_and_exit) } || :; \
+   test -z "$$prohibit" && test -z "$$require" \
+     && { msg='Should specify either prohibit or require' \
+          $(_sc_say_and_exit) } || :; \
+   test -z "$$prohibit" && test -n "$$exclude" \
+     && { msg='Use of exclude requires a prohibit pattern' \
+          $(_sc_say_and_exit) } || :; \
+   test -n "$$in_vc_files" && test -n "$$in_files" \
+     && { msg='Cannot specify both in_vc_files and in_files' \
+          $(_sc_say_and_exit) } || :; \
+   test "x$$halt" != x \
+     || { msg='halt not defined' $(_sc_say_and_exit) }; \
+ \
+   : Filter by file name; \
+   if test -n "$$in_files"; then \
+     files=$$(find $(top_srcdir) | $(GREP) -E "$$in_files" \
+              | $(GREP) -Ev '$(_sc_excl)'); \
+   else \
+     files=$$($(VC_LIST_EXCEPT)); \
+     if test -n "$$in_vc_files"; then \
+       files=$$(echo "$$files" | $(GREP) -E "$$in_vc_files"); \
+     fi; \
+   fi; \
+ \
+   : Filter by content; \
+   test -n "$$files" \
+     && test -n "$$containing" \
+     && { files=$$(echo "$$files" | xargs $(GREP) -l "$$containing"); } \
+     || :; \
+   test -n "$$files" \
+     && test -n "$$non_containing" \
+     && { files=$$(echo "$$files" | xargs $(GREP) -vl "$$non_containing"); } \
+     || :; \
+ \
+   : Check for the construct; \
+   if test -n "$$files"; then \
+     if test -n "$$prohibit"; then \
+       echo "$$files" \
+         | xargs $(GREP) $$with_grep_options $(_ignore_case) -nE \
+		"$$prohibit" /dev/null \
+         | $(GREP) -vE "$${exclude:-^$$}" \
+         && { msg="$$halt" $(_sc_say_and_exit) } \
+         || :; \
+     else \
+       echo "$$files" \
+         | xargs \
+             $(GREP) $$with_grep_options $(_ignore_case) -LE "$$require" \
+         | $(GREP) . \
+         && { msg="$$halt" $(_sc_say_and_exit) } \
+         || :; \
+     fi \
+   else :; \
+   fi || :;
+endef

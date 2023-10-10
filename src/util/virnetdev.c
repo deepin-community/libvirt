@@ -42,6 +42,9 @@
 #ifdef __linux__
 # include <linux/sockios.h>
 # include <linux/if_vlan.h>
+# include <linux/types.h>
+# include <linux/ethtool.h>
+# include <linux/devlink.h>
 # define VIR_NETDEV_FAMILY AF_UNIX
 #elif defined(WITH_STRUCT_IFREQ) && defined(AF_LOCAL)
 # define VIR_NETDEV_FAMILY AF_LOCAL
@@ -49,19 +52,11 @@
 # undef WITH_STRUCT_IFREQ
 #endif
 
-#if defined(SIOCETHTOOL) && defined(WITH_STRUCT_IFREQ)
-# include <linux/types.h>
-# include <linux/ethtool.h>
-#endif
-
 #if WITH_DECL_LINK_ADDR
 # include <sys/sockio.h>
 # include <net/if_dl.h>
 #endif
 
-#if WITH_LINUX_DEVLINK_H
-# include <linux/devlink.h>
-#endif
 
 #ifndef IFNAMSIZ
 # define IFNAMSIZ 16
@@ -89,7 +84,7 @@ VIR_LOG_INIT("util.netdev");
 #endif
 
 #define RESOURCE_FILE_LEN 4096
-#if WITH_DECL_ETHTOOL_GFEATURES
+#ifdef __linux__
 # define TX_UDP_TNL 25
 # define GFEATURES_SIZE 2
 # define FEATURE_WORD(blocks, index, field)  ((blocks)[(index) / 32U].field)
@@ -152,7 +147,7 @@ static int virNetDevSetupControlFull(const char *ifname,
 
         if (virStrcpyStatic(ifr->ifr_name, ifname) < 0) {
             virReportSystemError(ERANGE,
-                                 _("Network interface name '%s' is too long"),
+                                 _("Network interface name '%1$s' is too long"),
                                  ifname);
             return -1;
         }
@@ -187,8 +182,7 @@ virNetDevSetupControl(const char *ifname G_GNUC_UNUSED,
                       void *ifr G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS, "%s",
-                         _("Network device configuration is not supported "
-                           "on this platform"));
+                         _("Network device configuration is not supported on this platform"));
     return -1;
 }
 #endif /* WITH_STRUCT_IFREQ */
@@ -215,7 +209,7 @@ int virNetDevExists(const char *ifname)
         if (errno == ENODEV || errno == ENXIO)
             return 0;
 
-        virReportSystemError(errno, _("Unable to check interface flags for %s"),
+        virReportSystemError(errno, _("Unable to check interface flags for %1$s"),
                              ifname);
         return -1;
     }
@@ -226,7 +220,7 @@ int virNetDevExists(const char *ifname)
 int virNetDevExists(const char *ifname)
 {
     virReportSystemError(ENOSYS,
-                         _("Unable to check interface %s"), ifname);
+                         _("Unable to check interface %1$s"), ifname);
     return -1;
 }
 #endif
@@ -260,7 +254,7 @@ virNetDevSetMACInternal(const char *ifname,
 
     /* To fill ifr.ifr_hdaddr.sa_family field */
     if (ioctl(fd, SIOCGIFHWADDR, &ifr) < 0) {
-        virReportSystemError(errno, _("Cannot get interface MAC on '%s'"),
+        virReportSystemError(errno, _("Cannot get interface MAC on '%1$s'"),
                              ifname);
 
         VIR_DEBUG("SIOCSIFHWADDR %s get MAC - Fail", ifname);
@@ -279,7 +273,7 @@ virNetDevSetMACInternal(const char *ifname,
         }
 
         virReportSystemError(errno,
-                             _("Cannot set interface MAC to %s on '%s'"),
+                             _("Cannot set interface MAC to %1$s on '%2$s'"),
                              virMacAddrFormat(macaddr, macstr), ifname);
         return -1;
     }
@@ -323,7 +317,7 @@ virNetDevSetMACInternal(const char *ifname,
         }
 
         virReportSystemError(errno,
-                             _("Cannot set interface MAC to %s on '%s'"),
+                             _("Cannot set interface MAC to %1$s on '%2$s'"),
                              mac + 1, ifname);
         return -1;
     }
@@ -342,7 +336,7 @@ virNetDevSetMACInternal(const char *ifname,
                         bool quiet G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS,
-                         _("Cannot set interface MAC on '%s'"),
+                         _("Cannot set interface MAC on '%1$s'"),
                          ifname);
     return -1;
 }
@@ -380,7 +374,7 @@ int virNetDevGetMAC(const char *ifname,
 
     if (ioctl(fd, SIOCGIFHWADDR, &ifr) < 0) {
         virReportSystemError(errno,
-                             _("Cannot get interface MAC on '%s'"),
+                             _("Cannot get interface MAC on '%1$s'"),
                              ifname);
         return -1;
     }
@@ -394,7 +388,7 @@ int virNetDevGetMAC(const char *ifname,
                     virMacAddr *macaddr G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS,
-                         _("Cannot get interface MAC on '%s'"),
+                         _("Cannot get interface MAC on '%1$s'"),
                          ifname);
     return -1;
 }
@@ -420,7 +414,7 @@ int virNetDevGetMTU(const char *ifname)
 
     if (ioctl(fd, SIOCGIFMTU, &ifr) < 0) {
         virReportSystemError(errno,
-                             _("Cannot get interface MTU on '%s'"),
+                             _("Cannot get interface MTU on '%1$s'"),
                              ifname);
         return -1;
     }
@@ -431,7 +425,7 @@ int virNetDevGetMTU(const char *ifname)
 int virNetDevGetMTU(const char *ifname)
 {
     virReportSystemError(ENOSYS,
-                         _("Cannot get interface MTU on '%s'"),
+                         _("Cannot get interface MTU on '%1$s'"),
                          ifname);
     return -1;
 }
@@ -461,7 +455,7 @@ int virNetDevSetMTU(const char *ifname, int mtu)
 
     if (ioctl(fd, SIOCSIFMTU, &ifr) < 0) {
         virReportSystemError(errno,
-                             _("Cannot set interface MTU on '%s'"),
+                             _("Cannot set interface MTU on '%1$s'"),
                              ifname);
         return -1;
     }
@@ -472,7 +466,7 @@ int virNetDevSetMTU(const char *ifname, int mtu)
 int virNetDevSetMTU(const char *ifname, int mtu G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS,
-                         _("Cannot set interface MTU on '%s'"),
+                         _("Cannot set interface MTU on '%1$s'"),
                          ifname);
     return -1;
 }
@@ -564,7 +558,7 @@ int virNetDevSetName(const char* ifname, const char *newifname)
 # ifdef WITH_STRUCT_IFREQ_IFR_NEWNAME
     if (virStrcpyStatic(ifr.ifr_newname, newifname) < 0) {
         virReportSystemError(ERANGE,
-                             _("Network interface name '%s' is too long"),
+                             _("Network interface name '%1$s' is too long"),
                              newifname);
         return -1;
     }
@@ -574,7 +568,7 @@ int virNetDevSetName(const char* ifname, const char *newifname)
 
     if (ioctl(fd, SIOCSIFNAME, &ifr)) {
         virReportSystemError(errno,
-                             _("Unable to rename '%s' to '%s'"),
+                             _("Unable to rename '%1$s' to '%2$s'"),
                              ifname, newifname);
         return -1;
     }
@@ -585,7 +579,7 @@ int virNetDevSetName(const char* ifname, const char *newifname)
 int virNetDevSetName(const char* ifname, const char *newifname)
 {
     virReportSystemError(ENOSYS,
-                         _("Cannot rename interface '%s' to '%s' on this platform"),
+                         _("Cannot rename interface '%1$s' to '%2$s' on this platform"),
                          ifname, newifname);
     return -1;
 }
@@ -605,7 +599,7 @@ virNetDevSetIFFlag(const char *ifname, int flag, bool val)
 
     if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
         virReportSystemError(errno,
-                             _("Cannot get interface flags on '%s'"),
+                             _("Cannot get interface flags on '%1$s'"),
                              ifname);
         return -1;
     }
@@ -619,7 +613,7 @@ virNetDevSetIFFlag(const char *ifname, int flag, bool val)
         ifr.ifr_flags = ifflags;
         if (ioctl(fd, SIOCSIFFLAGS, &ifr) < 0) {
             virReportSystemError(errno,
-                                 _("Cannot set interface flags on '%s'"),
+                                 _("Cannot set interface flags on '%1$s'"),
                                  ifname);
             return -1;
         }
@@ -634,7 +628,7 @@ virNetDevSetIFFlag(const char *ifname,
                    bool val G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS,
-                         _("Cannot set interface flags on '%s'"),
+                         _("Cannot set interface flags on '%1$s'"),
                          ifname);
     return -1;
 }
@@ -725,7 +719,7 @@ virNetDevGetIFFlag(const char *ifname, int flag, bool *val)
 
     if (ioctl(fd, SIOCGIFFLAGS, &ifr) < 0) {
         virReportSystemError(errno,
-                             _("Cannot get interface flags on '%s'"),
+                             _("Cannot get interface flags on '%1$s'"),
                              ifname);
         return -1;
     }
@@ -740,7 +734,7 @@ virNetDevGetIFFlag(const char *ifname,
                    bool *val G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS,
-                         _("Cannot get interface flags on '%s'"),
+                         _("Cannot get interface flags on '%1$s'"),
                          ifname);
     return -1;
 }
@@ -817,13 +811,11 @@ virNetDevGetRcvAllMulti(const char *ifname,
 #if defined(WITH_IF_INDEXTONAME)
 char *virNetDevGetName(int ifindex)
 {
-    char name[IFNAMSIZ];
-
-    memset(&name, 0, sizeof(name));
+    char name[IFNAMSIZ] = { 0 };
 
     if (!if_indextoname(ifindex, name)) {
         virReportSystemError(errno,
-                             _("Failed to convert interface index %d to a name"),
+                             _("Failed to convert interface index %1$d to a name"),
                              ifindex);
         return NULL;
     }
@@ -834,7 +826,7 @@ char *virNetDevGetName(int ifindex)
 char *virNetDevGetName(int ifindex)
 {
     virReportSystemError(ENOSYS,
-                         _("Cannot get interface name for index '%i'"),
+                         _("Cannot get interface name for index '%1$i'"),
                          ifindex);
     return NULL;
 }
@@ -852,7 +844,7 @@ char *virNetDevGetName(int ifindex)
 #if defined(SIOCGIFINDEX) && defined(WITH_STRUCT_IFREQ)
 int virNetDevGetIndex(const char *ifname, int *ifindex)
 {
-    struct ifreq ifreq;
+    struct ifreq ifreq = { 0 };
     VIR_AUTOCLOSE fd = socket(VIR_NETDEV_FAMILY, SOCK_DGRAM, 0);
 
     if (fd < 0) {
@@ -861,18 +853,16 @@ int virNetDevGetIndex(const char *ifname, int *ifindex)
         return -1;
     }
 
-    memset(&ifreq, 0, sizeof(ifreq));
-
     if (virStrcpyStatic(ifreq.ifr_name, ifname) < 0) {
         virReportSystemError(ERANGE,
-                             _("invalid interface name %s"),
+                             _("invalid interface name %1$s"),
                              ifname);
         return -1;
     }
 
     if (ioctl(fd, SIOCGIFINDEX, &ifreq) < 0) {
         virReportSystemError(errno,
-                             _("Unable to get index for interface %s"), ifname);
+                             _("Unable to get index for interface %1$s"), ifname);
         return -1;
     }
 
@@ -962,7 +952,7 @@ virNetDevGetMaster(const char *ifname G_GNUC_UNUSED,
 #endif /* defined(WITH_LIBNL) */
 
 
-#if defined(SIOCGIFVLAN) && defined(WITH_STRUCT_IFREQ) && WITH_DECL_GET_VLAN_VID_CMD
+#if __linux__
 int virNetDevGetVLanID(const char *ifname, int *vlanid)
 {
     struct vlan_ioctl_args vlanargs = {
@@ -978,21 +968,21 @@ int virNetDevGetVLanID(const char *ifname, int *vlanid)
 
     if (virStrcpyStatic(vlanargs.device1, ifname) < 0) {
         virReportSystemError(ERANGE,
-                             _("invalid interface name %s"),
+                             _("invalid interface name %1$s"),
                              ifname);
         return -1;
     }
 
     if (ioctl(fd, SIOCGIFVLAN, &vlanargs) != 0) {
         virReportSystemError(errno,
-                             _("Unable to get VLAN for interface %s"), ifname);
+                             _("Unable to get VLAN for interface %1$s"), ifname);
         return -1;
     }
 
     *vlanid = vlanargs.u.VID;
     return 0;
 }
-#else /* ! SIOCGIFVLAN */
+#else /* ! __linux__ */
 int virNetDevGetVLanID(const char *ifname G_GNUC_UNUSED,
                        int *vlanid G_GNUC_UNUSED)
 {
@@ -1000,7 +990,7 @@ int virNetDevGetVLanID(const char *ifname G_GNUC_UNUSED,
                          _("Unable to get VLAN on this platform"));
     return -1;
 }
-#endif /* ! SIOCGIFVLAN */
+#endif /* ! __linux__ */
 
 
 /**
@@ -1038,7 +1028,7 @@ int virNetDevValidateConfig(const char *ifname,
                 return 0;
 
             virReportSystemError(errno,
-                                 _("could not get MAC address of interface %s"),
+                                 _("could not get MAC address of interface %1$s"),
                                  ifname);
             return -1;
         }
@@ -1115,7 +1105,7 @@ virNetDevIsPCIDevice(const char *devpath)
 
     if (virFileResolveLink(subsys_link, &abs_path) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to resolve device subsystem symlink %s"),
+                       _("Unable to resolve device subsystem symlink %1$s"),
                        subsys_link);
         return false;
     }
@@ -1376,7 +1366,7 @@ virNetDevGetVirtualFunctionInfo(const char *vfname, char **pfname,
          * VFINFO does.
          */
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("The PF device for VF %s has no network device name, cannot get virtual function info"),
+                       _("The PF device for VF %1$s has no network device name, cannot get virtual function info"),
                        vfname);
         return -1;
     }
@@ -1601,7 +1591,7 @@ virNetDevSetVfVlan(const char *ifname,
     if (vlanid) {
         /* VLAN ids 0 and 4095 are reserved per 802.1Q but are valid values. */
         if ((*vlanid < 0 || *vlanid > 4095)) {
-            virReportError(ERANGE, _("vlanid out of range: %d"), *vlanid);
+            virReportError(ERANGE, _("vlanid out of range: %1$d"), *vlanid);
             return -ERANGE;
         }
         ifla_vf_vlan.vlan = *vlanid;
@@ -1620,7 +1610,7 @@ virNetDevSetVfVlan(const char *ifname,
         ret = 0;
     } else if (ret < 0) {
         virReportSystemError(-ret,
-                             _("Cannot set interface vlanid to %d for ifname %s vf %d"),
+                             _("Cannot set interface vlanid to %1$d for ifname %2$s vf %3$d"),
                              ifla_vf_vlan.vlan, ifname ? ifname : "(unspecified)", vf);
     }
 
@@ -1642,7 +1632,9 @@ virNetDevSetVfMac(const char *ifname, int vf,
     };
 
     if (macaddr == NULL || allowRetry == NULL) {
-        virReportError(EINVAL, "%s", _("Invalid parameters: %d"));
+        virReportError(EINVAL,
+                       _("Invalid parameters macaddr=%1$p allowRetry=%2$p"),
+                       macaddr, allowRetry);
         return -EINVAL;
     }
 
@@ -1657,7 +1649,7 @@ virNetDevSetVfMac(const char *ifname, int vf,
     } else if (ret < 0) {
         /* other errors are permanent */
         virReportSystemError(-ret,
-                             _("Cannot set interface MAC to %s for ifname %s vf %d"),
+                             _("Cannot set interface MAC to %1$s for ifname %2$s vf %3$d"),
                              macaddr ? virMacAddrFormat(macaddr, macstr) : "(unchanged)",
                              ifname ? ifname : "(unspecified)",
                              vf);
@@ -1680,7 +1672,8 @@ virNetDevSetVfConfig(const char *ifname,
 {
     int ret = -1;
 
-    if ((ret = virNetDevSetVfMac(ifname, vf, macaddr, allowRetry)) < 0)
+    if (macaddr &&
+        (ret = virNetDevSetVfMac(ifname, vf, macaddr, allowRetry)) < 0)
         return ret;
     if ((ret = virNetDevSetVfVlan(ifname, vf, vlanid)) < 0)
         return ret;
@@ -1763,8 +1756,8 @@ virNetDevParseVfInfo(struct nlattr **tb, int32_t vf, virMacAddr *mac,
     }
     if (rc < 0)
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("couldn't find IFLA_VF_INFO for VF %d "
-                         "in netlink response"), vf);
+                       _("couldn't find IFLA_VF_INFO for VF %1$d in netlink response"),
+                       vf);
     return rc;
 }
 
@@ -1805,7 +1798,7 @@ virNetDevVFInterfaceStats(virPCIDeviceAddress *vfAddr,
         return -1;
 
     if (!virPCIIsVirtualFunction(vfSysfsPath)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, _("'%s' is not a VF device"), vfSysfsPath);
+        virReportError(VIR_ERR_INTERNAL_ERROR, _("'%1$s' is not a VF device"), vfSysfsPath);
        return -1;
     }
 
@@ -1923,10 +1916,7 @@ virNetDevSaveNetConfig(const char *linkdev, int vf,
 
         if (!pfIsOnline) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unable to configure VF %d of PF '%s' "
-                             "because the PF is not online. Please "
-                             "change host network config to put the "
-                             "PF online."),
+                           _("Unable to configure VF %1$d of PF '%2$s' because the PF is not online. Please change host network config to put the PF online."),
                            vf, pfDevName);
             return -1;
         }
@@ -1974,9 +1964,10 @@ virNetDevSaveNetConfig(const char *linkdev, int vf,
     if (!(fileStr = virJSONValueToString(configJSON, true)))
         return -1;
 
-    if (virFileWriteStr(filePath, fileStr, O_CREAT|O_TRUNC|O_WRONLY) < 0) {
-        virReportSystemError(errno, _("Unable to preserve mac/vlan tag "
-                                      "for device = %s, vf = %d"), linkdev, vf);
+    if (virFileWriteStr(filePath, fileStr, 0600) < 0) {
+        virReportSystemError(errno,
+                             _("Unable to preserve mac/vlan tag for device = %1$s, vf = %2$d"),
+                             linkdev, vf);
         return -1;
     }
 
@@ -2099,7 +2090,7 @@ virNetDevReadNetConfig(const char *linkdev, int vf,
             if ((virStrToLong_i(vlanStr, &endptr, 10, &vlanTag) < 0) ||
                 (endptr && *endptr != '\n' && *endptr != 0)) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("cannot parse vlan tag '%s' from file '%s'"),
+                               _("cannot parse vlan tag '%1$s' from file '%2$s'"),
                                vlanStr, filePath);
                 goto cleanup;
             }
@@ -2114,8 +2105,7 @@ virNetDevReadNetConfig(const char *linkdev, int vf,
          */
         if (!(configJSON = virJSONValueFromString(fileStr))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("invalid json in net device saved "
-                             "config file '%s': '%.60s'"),
+                           _("invalid json in net device saved config file '%1$s': '%2$.60s'"),
                            filePath, fileStr);
             goto cleanup;
         }
@@ -2130,9 +2120,7 @@ virNetDevReadNetConfig(const char *linkdev, int vf,
 
         if (!(MACStr || adminMACStr)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("network device saved config file '%s' "
-                             "has unexpected contents, missing both "
-                             "'MAC' and 'adminMAC': '%.60s'"),
+                           _("network device saved config file '%1$s' has unexpected contents, missing both 'MAC' and 'adminMAC': '%2$.60s'"),
                            filePath, fileStr);
             goto cleanup;
         }
@@ -2143,7 +2131,7 @@ virNetDevReadNetConfig(const char *linkdev, int vf,
 
         if (virMacAddrParse(MACStr, *MAC) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("cannot parse MAC address '%s' from file '%s'"),
+                           _("cannot parse MAC address '%1$s' from file '%2$s'"),
                            MACStr, filePath);
             goto cleanup;
         }
@@ -2154,7 +2142,7 @@ virNetDevReadNetConfig(const char *linkdev, int vf,
 
         if (virMacAddrParse(adminMACStr, *adminMAC) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("cannot parse MAC address '%s' from file '%s'"),
+                           _("cannot parse MAC address '%1$s' from file '%2$s'"),
                            adminMACStr, filePath);
             goto cleanup;
         }
@@ -2243,15 +2231,15 @@ virNetDevSetNetConfig(const char *linkdev, int vf,
          */
         if (adminMAC) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("admin MAC can only be set for SR-IOV VFs, but "
-                             "%s is not a VF"), linkdev);
+                           _("admin MAC can only be set for SR-IOV VFs, but %1$s is not a VF"),
+                           linkdev);
             return -1;
         }
 
         if (vlan) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("vlan can only be set for SR-IOV VFs, but "
-                             "%s is not a VF"), linkdev);
+                           _("vlan can only be set for SR-IOV VFs, but %1$s is not a VF"),
+                           linkdev);
             return -1;
         }
 
@@ -2259,15 +2247,13 @@ virNetDevSetNetConfig(const char *linkdev, int vf,
         if (vlan) {
             if (vlan->nTags != 1 || vlan->trunk) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("vlan trunking is not supported "
-                                 "by SR-IOV network devices"));
+                               _("vlan trunking is not supported by SR-IOV network devices"));
                 return -1;
             }
 
             if (!setVlan) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("vlan tag set for interface %s but "
-                                 "caller requested it not be set"));
+                               _("vlan tag set for interface %1$s but caller requested it not be set"));
                 return -1;
             }
 
@@ -2290,8 +2276,7 @@ virNetDevSetNetConfig(const char *linkdev, int vf,
 
         if (!linkdev) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("VF %d of PF '%s' is not bound to a net driver, "
-                             "so its MAC address cannot be set to %s"),
+                           _("VF %1$d of PF '%2$s' is not bound to a net driver, so its MAC address cannot be set to %3$s"),
                            vf, pfDevName, virMacAddrFormat(MAC, MACStr));
             return -1;
         }
@@ -2363,7 +2348,7 @@ virNetDevSetNetConfig(const char *linkdev, int vf,
         }
     }
 
-    if (adminMAC) {
+    if (adminMAC || vlanTag) {
         /* Set vlanTag and admin MAC using an RTM_SETLINK request sent to
          * PFdevname+VF#, if mac != NULL this will set the "admin MAC" via
          * the PF, *not* the actual VF MAC - the admin MAC only takes
@@ -2547,14 +2532,14 @@ virNetDevGetLinkInfo(const char *ifname,
 
     if (virFileReadAll(path, 1024, &buf) < 0) {
         virReportSystemError(errno,
-                             _("unable to read: %s"),
+                             _("unable to read: %1$s"),
                              path);
         return -1;
     }
 
     if (!(tmp = strchr(buf, '\n'))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse: %s"),
+                       _("Unable to parse: %1$s"),
                        buf);
         return -1;
     }
@@ -2565,7 +2550,7 @@ virNetDevGetLinkInfo(const char *ifname,
      * virInterfaceState enum starts from 1. */
     if ((tmp_state = virNetDevIfStateTypeFromString(buf)) <= 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse: %s"),
+                       _("Unable to parse: %1$s"),
                        buf);
         return -1;
     }
@@ -2592,7 +2577,7 @@ virNetDevGetLinkInfo(const char *ifname,
         if (errno == EINVAL)
             return 0;
         virReportSystemError(errno,
-                             _("unable to read: %s"),
+                             _("unable to read: %1$s"),
                              path);
         return -1;
     }
@@ -2600,7 +2585,7 @@ virNetDevGetLinkInfo(const char *ifname,
     if (virStrToLong_ui(buf, &tmp, 10, &tmp_speed) < 0 ||
         *tmp != '\n') {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse: %s"),
+                       _("Unable to parse: %1$s"),
                        buf);
         return -1;
     }
@@ -2652,7 +2637,7 @@ int virNetDevAddMulti(const char *ifname,
     if (ioctl(fd, SIOCADDMULTI, &ifr) < 0) {
         char macstr[VIR_MAC_STRING_BUFLEN];
         virReportSystemError(errno,
-                             _("Cannot add multicast MAC %s on '%s' interface"),
+                             _("Cannot add multicast MAC %1$s on '%2$s' interface"),
                              virMacAddrFormat(macaddr, macstr), ifname);
         return -1;
     }
@@ -2664,8 +2649,7 @@ int virNetDevAddMulti(const char *ifname G_GNUC_UNUSED,
                       virMacAddr *macaddr G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS, "%s",
-                         _("Unable to add address to interface "
-                           "multicast list on this platform"));
+                         _("Unable to add address to interface multicast list on this platform"));
     return -1;
 }
 #endif
@@ -2697,7 +2681,7 @@ int virNetDevDelMulti(const char *ifname,
     if (ioctl(fd, SIOCDELMULTI, &ifr) < 0) {
         char macstr[VIR_MAC_STRING_BUFLEN];
         virReportSystemError(errno,
-                             _("Cannot add multicast MAC %s on '%s' interface"),
+                             _("Cannot add multicast MAC %1$s on '%2$s' interface"),
                              virMacAddrFormat(macaddr, macstr), ifname);
         return -1;
     }
@@ -2709,8 +2693,7 @@ int virNetDevDelMulti(const char *ifname G_GNUC_UNUSED,
                       virMacAddr *macaddr G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS, "%s",
-                         _("Unable to delete address from interface "
-                           "multicast list on this platform"));
+                         _("Unable to delete address from interface multicast list on this platform"));
     return -1;
 }
 #endif
@@ -2730,7 +2713,7 @@ static int virNetDevParseMcast(char *buf, virNetDevMcastEntry *mcast)
 
         if (token == NULL) {
             virReportSystemError(EINVAL,
-                                 _("failed to parse multicast address from '%s'"),
+                                 _("failed to parse multicast address from '%1$s'"),
                                  buf);
             return -1;
         }
@@ -2739,7 +2722,7 @@ static int virNetDevParseMcast(char *buf, virNetDevMcastEntry *mcast)
             case VIR_MCAST_TYPE_INDEX_TOKEN:
                 if (virStrToLong_i(token, &endptr, 10, &num) < 0) {
                     virReportSystemError(EINVAL,
-                                         _("Failed to parse interface index from '%s'"),
+                                         _("Failed to parse interface index from '%1$s'"),
                                          buf);
                     return -1;
 
@@ -2749,7 +2732,7 @@ static int virNetDevParseMcast(char *buf, virNetDevMcastEntry *mcast)
             case VIR_MCAST_TYPE_NAME_TOKEN:
                 if (virStrcpy(mcast->name, token, VIR_MCAST_NAME_LEN) < 0) {
                     virReportSystemError(EINVAL,
-                                         _("Failed to parse network device name from '%s'"),
+                                         _("Failed to parse network device name from '%1$s'"),
                                          buf);
                     return -1;
                 }
@@ -2757,7 +2740,7 @@ static int virNetDevParseMcast(char *buf, virNetDevMcastEntry *mcast)
             case VIR_MCAST_TYPE_USERS_TOKEN:
                 if (virStrToLong_i(token, &endptr, 10, &num) < 0) {
                     virReportSystemError(EINVAL,
-                                         _("Failed to parse users from '%s'"),
+                                         _("Failed to parse users from '%1$s'"),
                                          buf);
                     return -1;
 
@@ -2767,7 +2750,7 @@ static int virNetDevParseMcast(char *buf, virNetDevMcastEntry *mcast)
             case VIR_MCAST_TYPE_GLOBAL_TOKEN:
                 if (virStrToLong_i(token, &endptr, 10, &num) < 0) {
                     virReportSystemError(EINVAL,
-                                         _("Failed to parse users from '%s'"),
+                                         _("Failed to parse users from '%1$s'"),
                                          buf);
                     return -1;
 
@@ -2778,7 +2761,7 @@ static int virNetDevParseMcast(char *buf, virNetDevMcastEntry *mcast)
                 if (virMacAddrParseHex((const char*)token,
                                        &mcast->macaddr) < 0) {
                     virReportSystemError(EINVAL,
-                                         _("Failed to parse MAC address from '%s'"),
+                                         _("Failed to parse MAC address from '%1$s'"),
                                          buf);
                 }
                 break;
@@ -2955,7 +2938,7 @@ int virNetDevGetRxFilter(const char *ifname,
     return ret;
 }
 
-#if defined(SIOCETHTOOL) && defined(WITH_STRUCT_IFREQ)
+#if __linux__
 
 /**
  * virNetDevRDMAFeature
@@ -3033,7 +3016,7 @@ virNetDevSendEthtoolIoctl(const char *ifname, int fd, struct ifreq *ifr)
             VIR_DEBUG("ethtool ioctl: request not supported on %s", ifname);
             break;
         default:
-            virReportSystemError(errno, _("ethtool ioctl error on %s"), ifname);
+            virReportSystemError(errno, _("ethtool ioctl error on %1$s"), ifname);
             break;
         }
     }
@@ -3083,32 +3066,18 @@ virNetDevGetEthtoolFeatures(const char *ifname,
         {ETHTOOL_GTXCSUM, VIR_NET_DEV_FEAT_GTXCSUM},
         {ETHTOOL_GSG, VIR_NET_DEV_FEAT_GSG},
         {ETHTOOL_GTSO, VIR_NET_DEV_FEAT_GTSO},
-# if WITH_DECL_ETHTOOL_GGSO
         {ETHTOOL_GGSO, VIR_NET_DEV_FEAT_GGSO},
-# endif
-# if WITH_DECL_ETHTOOL_GGRO
         {ETHTOOL_GGRO, VIR_NET_DEV_FEAT_GGRO},
-# endif
     };
 
-# if WITH_DECL_ETHTOOL_GFLAGS
     /* ethtool masks */
     struct virNetDevEthtoolFeatureCmd flags[] = {
-#  if WITH_DECL_ETH_FLAG_LRO
         {ETH_FLAG_LRO, VIR_NET_DEV_FEAT_LRO},
-#  endif
-#  if WITH_DECL_ETH_FLAG_TXVLAN
         {ETH_FLAG_RXVLAN, VIR_NET_DEV_FEAT_RXVLAN},
         {ETH_FLAG_TXVLAN, VIR_NET_DEV_FEAT_TXVLAN},
-#  endif
-#  if WITH_DECL_ETH_FLAG_NTUBLE
         {ETH_FLAG_NTUPLE, VIR_NET_DEV_FEAT_NTUPLE},
-#  endif
-#  if WITH_DECL_ETH_FLAG_RXHASH
         {ETH_FLAG_RXHASH, VIR_NET_DEV_FEAT_RXHASH},
-#  endif
     };
-# endif
 
     for (i = 0; i < G_N_ELEMENTS(ethtool_cmds); i++) {
         cmd.cmd = ethtool_cmds[i].cmd;
@@ -3116,7 +3085,6 @@ virNetDevGetEthtoolFeatures(const char *ifname,
             ignore_value(virBitmapSetBit(bitmap, ethtool_cmds[i].feat));
     }
 
-# if WITH_DECL_ETHTOOL_GFLAGS
     cmd.cmd = ETHTOOL_GFLAGS;
     if (virNetDevFeatureAvailable(ifname, fd, ifr, &cmd)) {
         for (i = 0; i < G_N_ELEMENTS(flags); i++) {
@@ -3124,11 +3092,10 @@ virNetDevGetEthtoolFeatures(const char *ifname,
                 ignore_value(virBitmapSetBit(bitmap, flags[i].feat));
         }
     }
-# endif
 }
 
 
-# if defined(WITH_LIBNL) && WITH_DECL_DEVLINK_CMD_ESWITCH_GET
+# if defined(WITH_LIBNL)
 
 /**
  * virNetDevGetFamilyId:
@@ -3207,7 +3174,7 @@ virNetDevSwitchdevFeature(const char *ifname,
     struct nl_msg *nl_msg = NULL;
     g_autofree struct nlmsghdr *resp = NULL;
     unsigned int recvbuflen;
-    struct nlattr *tb[DEVLINK_ATTR_MAX + 1] = {NULL, };
+    g_autofree struct nlattr **tb = g_new0(struct nlattr *, DEVLINK_ATTR_MAX + 1);
     g_autoptr(virPCIDevice) pci_device_ptr = NULL;
     struct genlmsghdr gmsgh = {
         .cmd = DEVLINK_CMD_ESWITCH_GET,
@@ -3280,7 +3247,6 @@ virNetDevSwitchdevFeature(const char *ifname G_GNUC_UNUSED,
 # endif
 
 
-# if WITH_DECL_ETHTOOL_GFEATURES
 /**
  * virNetDevGFeatureAvailable
  * This function checks for the availability of a network device gfeature
@@ -3321,19 +3287,8 @@ virNetDevGetEthtoolGFeatures(const char *ifname,
         ignore_value(virBitmapSetBit(bitmap, VIR_NET_DEV_FEAT_TXUDPTNL));
     return 0;
 }
-# else
-static int
-virNetDevGetEthtoolGFeatures(const char *ifname G_GNUC_UNUSED,
-                             virBitmap *bitmap G_GNUC_UNUSED,
-                             int fd G_GNUC_UNUSED,
-                             struct ifreq *ifr G_GNUC_UNUSED)
-{
-    return 0;
-}
-# endif
 
 
-# if WITH_DECL_ETHTOOL_SCOALESCE && WITH_DECL_ETHTOOL_GCOALESCE
 /**
  * virNetDevSetCoalesce:
  * @ifname: interface name to modify
@@ -3391,7 +3346,7 @@ int virNetDevSetCoalesce(const char *ifname,
 
     if (virNetDevSendEthtoolIoctl(ifname, fd, &ifr) < 0) {
         virReportSystemError(errno,
-                             _("Cannot set coalesce info on '%s'"),
+                             _("Cannot set coalesce info on '%1$s'"),
                              ifname);
         return -1;
     }
@@ -3429,20 +3384,6 @@ int virNetDevSetCoalesce(const char *ifname,
 
     return 0;
 }
-# else
-int virNetDevSetCoalesce(const char *ifname,
-                         virNetDevCoalesce *coalesce,
-                         bool update)
-{
-    if (!coalesce && !update)
-        return 0;
-
-    virReportSystemError(ENOSYS,
-                         _("Cannot set coalesce info on interface '%s'"),
-                         ifname);
-    return -1;
-}
-# endif
 
 
 /**
@@ -3498,7 +3439,7 @@ int virNetDevSetCoalesce(const char *ifname,
         return 0;
 
     virReportSystemError(ENOSYS,
-                         _("Cannot set coalesce info on interface '%s'"),
+                         _("Cannot set coalesce info on interface '%1$s'"),
                          ifname);
     return -1;
 }
@@ -3568,12 +3509,10 @@ virNetDevReserveName(const char *name)
     idstr = name + strlen(virNetDevGenNames[type].prefix);
 
     if (virStrToLong_ui(idstr, NULL, 10, &id) >= 0) {
-        virMutexLock(&virNetDevGenNames[type].mutex);
+        VIR_LOCK_GUARD lock = virLockGuardLock(&virNetDevGenNames[type].mutex);
 
         if (virNetDevGenNames[type].lastID < (int)id)
             virNetDevGenNames[type].lastID = id;
-
-        virMutexUnlock(&virNetDevGenNames[type].mutex);
     }
 }
 
@@ -3594,12 +3533,13 @@ virNetDevReserveName(const char *name)
  * Note: if string pointed by @ifname is NOT a template or NULL, leave
  * it unchanged and return it directly.
  *
- * Returns 0 on success, -1 on failure.
+ * Returns: 1 if @ifname already contains a valid name,
+ *          0 on success (@ifname was generated),
+ *         -1 on failure.
  */
 int
 virNetDevGenerateName(char **ifname, virNetDevGenNameType type)
 {
-    int id;
     const char *prefix = virNetDevGenNames[type].prefix;
     double maxIDd = pow(10, IFNAMSIZ - 1 - strlen(prefix));
     int maxID = INT_MAX;
@@ -3609,7 +3549,7 @@ virNetDevGenerateName(char **ifname, virNetDevGenNameType type)
     if (*ifname &&
         (strchr(*ifname, '%') != strrchr(*ifname, '%') ||
          strstr(*ifname, "%d") == NULL)) {
-        return 0;
+        return 1;
     }
 
     if (maxIDd <= (double)INT_MAX)
@@ -3617,16 +3557,15 @@ virNetDevGenerateName(char **ifname, virNetDevGenNameType type)
 
     do {
         g_autofree char *try = NULL;
+        int id = 0;
 
-        virMutexLock(&virNetDevGenNames[type].mutex);
+        VIR_WITH_MUTEX_LOCK_GUARD(&virNetDevGenNames[type].mutex) {
+            id = ++virNetDevGenNames[type].lastID;
 
-        id = ++virNetDevGenNames[type].lastID;
-
-        /* reset before overflow */
-        if (virNetDevGenNames[type].lastID >= maxID)
-            virNetDevGenNames[type].lastID = -1;
-
-        virMutexUnlock(&virNetDevGenNames[type].mutex);
+            /* reset before overflow */
+            if (virNetDevGenNames[type].lastID >= maxID)
+                virNetDevGenNames[type].lastID = -1;
+        }
 
         if (*ifname)
             try = g_strdup_printf(*ifname, id);
@@ -3641,7 +3580,7 @@ virNetDevGenerateName(char **ifname, virNetDevGenNameType type)
     } while (++attempts < 10000);
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("no unused %s names available"),
+                   _("no unused %1$s names available"),
                    prefix);
     return -1;
 }

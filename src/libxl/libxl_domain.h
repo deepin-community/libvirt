@@ -22,33 +22,10 @@
 
 #include <libxl.h>
 
-#include "domain_conf.h"
 #include "libxl_conf.h"
 #include "virchrdev.h"
-#include "virenum.h"
-#include "domain_job.h"
+#include "virdomainjob.h"
 
-/* Only 1 job is allowed at any time
- * A job includes *all* libxl.so api, even those just querying
- * information, not merely actions */
-enum libxlDomainJob {
-    LIBXL_JOB_NONE = 0,      /* Always set to 0 for easy if (jobActive) conditions */
-    LIBXL_JOB_QUERY,         /* Doesn't change any state */
-    LIBXL_JOB_DESTROY,       /* Destroys the domain (cannot be masked out) */
-    LIBXL_JOB_MODIFY,        /* May change state */
-
-    LIBXL_JOB_LAST
-};
-VIR_ENUM_DECL(libxlDomainJob);
-
-
-struct libxlDomainJobObj {
-    virCond cond;                       /* Use to coordinate jobs */
-    enum libxlDomainJob active;         /* Currently running job */
-    int owner;                          /* Thread which set current job */
-    unsigned long long started;         /* When the job started */
-    virDomainJobData *current;        /* Statistics for the current job */
-};
 
 typedef struct _libxlDomainObjPrivate libxlDomainObjPrivate;
 struct _libxlDomainObjPrivate {
@@ -59,8 +36,6 @@ struct _libxlDomainObjPrivate {
     unsigned short migrationPort;
     char *lockState;
     bool lockProcessRunning;
-
-    struct libxlDomainJobObj job;
 
     bool hookRun;  /* true if there was a hook run over this domain */
 };
@@ -75,18 +50,8 @@ int
 libxlDomainObjPrivateInitCtx(virDomainObj *vm);
 
 int
-libxlDomainObjBeginJob(libxlDriverPrivate *driver,
-                       virDomainObj *obj,
-                       enum libxlDomainJob job)
-    G_GNUC_WARN_UNUSED_RESULT;
-
-void
-libxlDomainObjEndJob(libxlDriverPrivate *driver,
-                     virDomainObj *obj);
-
-int
-libxlDomainJobUpdateTime(struct libxlDomainJobObj *job)
-    G_GNUC_WARN_UNUSED_RESULT;
+libxlDomainJobGetTimeElapsed(virDomainJobObj *job,
+                             unsigned long long *timeElapsed);
 
 char *
 libxlDomainManagedSavePath(libxlDriverPrivate *driver,

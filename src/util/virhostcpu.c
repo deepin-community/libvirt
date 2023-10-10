@@ -45,9 +45,7 @@
 #include "virerror.h"
 #include "virarch.h"
 #include "virfile.h"
-#include "virtypedparam.h"
 #include "virstring.h"
-#include "virnuma.h"
 #include "virlog.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -109,7 +107,7 @@ virHostCPUGetStatsFreeBSD(int cpuNum,
 
     if ((*nparams) != BSD_CPU_STATS_ALL) {
         virReportInvalidArg(*nparams,
-                            _("nparams in %s must be equal to %d"),
+                            _("nparams in %1$s must be equal to %2$d"),
                             __FUNCTION__, BSD_CPU_STATS_ALL);
         return -1;
     }
@@ -117,7 +115,7 @@ virHostCPUGetStatsFreeBSD(int cpuNum,
     clkinfo_size = sizeof(clkinfo);
     if (sysctlbyname("kern.clockrate", &clkinfo, &clkinfo_size, NULL, 0) < 0) {
         virReportSystemError(errno,
-                             _("sysctl failed for '%s'"),
+                             _("sysctl failed for '%1$s'"),
                              "kern.clockrate");
         return -1;
     }
@@ -135,7 +133,7 @@ virHostCPUGetStatsFreeBSD(int cpuNum,
 
         if (cpuNum >= cpu_times_num) {
             virReportInvalidArg(cpuNum,
-                                _("Invalid cpuNum in %s"),
+                                _("Invalid cpuNum in %1$s"),
                                 __FUNCTION__);
             return -1;
         }
@@ -149,7 +147,7 @@ virHostCPUGetStatsFreeBSD(int cpuNum,
 
     if (sysctlbyname(sysctl_name, cpu_times, &cpu_times_size, NULL, 0) < 0) {
         virReportSystemError(errno,
-                             _("sysctl failed for '%s'"),
+                             _("sysctl failed for '%1$s'"),
                              sysctl_name);
         return -1;
     }
@@ -159,7 +157,7 @@ virHostCPUGetStatsFreeBSD(int cpuNum,
 
         if (virStrcpyStatic(param->field, cpu_map[i].field) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Field '%s' too long for destination"),
+                           _("Field '%1$s' too long for destination"),
                            cpu_map[i].field);
             return -1;
         }
@@ -531,7 +529,7 @@ virHostCPUParseFrequencyString(const char *str,
 
  error:
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Missing or invalid CPU frequency in %s"),
+                   _("Missing or invalid CPU frequency in %1$s"),
                    CPUINFO_PATH);
     return -1;
 }
@@ -569,6 +567,38 @@ virHostCPUParseFrequency(FILE *cpuinfo,
     }
 
     return 0;
+}
+
+
+static int
+virHostCPUParsePhysAddrSize(FILE *cpuinfo, unsigned int *addrsz)
+{
+    char line[1024];
+
+    while (fgets(line, sizeof(line), cpuinfo) != NULL) {
+        char *str;
+        char *endptr;
+
+        if (!(str = STRSKIP(line, "address sizes")))
+            continue;
+
+        /* Skip the colon. */
+        if ((str = strstr(str, ":")) == NULL)
+            goto error;
+        str++;
+
+        /* Parse the number of physical address bits */
+        if (virStrToLong_ui(str, &endptr, 10, addrsz) < 0)
+            goto error;
+
+        return 0;
+    }
+
+ error:
+    virReportError(VIR_ERR_INTERNAL_ERROR,
+                   _("Missing or invalid CPU address size in %1$s"),
+                   CPUINFO_PATH);
+    return -1;
 }
 
 
@@ -771,7 +801,7 @@ virHostCPUGetStatsLinux(FILE *procstat,
 
     if ((*nparams) != LINUX_NB_CPU_STATS) {
         virReportInvalidArg(*nparams,
-                            _("nparams in %s must be equal to %d"),
+                            _("nparams in %1$s must be equal to %2$d"),
                             __FUNCTION__, LINUX_NB_CPU_STATS);
         return -1;
     }
@@ -815,7 +845,7 @@ virHostCPUGetStatsLinux(FILE *procstat,
     }
 
     virReportInvalidArg(cpuNum,
-                        _("Invalid cpuNum in %s"),
+                        _("Invalid cpuNum in %1$s"),
                         __FUNCTION__);
 
     return -1;
@@ -862,8 +892,7 @@ virHostCPUStatsAssign(virNodeCPUStatsPtr param,
 {
     if (virStrcpyStatic(param->field, name) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("kernel cpu time field is too long"
-                               " for the destination"));
+                       "%s", _("kernel cpu time field is too long for the destination"));
         return -1;
     }
     param->value = value;
@@ -886,7 +915,7 @@ virHostCPUGetInfo(virArch hostarch G_GNUC_UNUSED,
 
     if (!cpuinfo) {
         virReportSystemError(errno,
-                             _("cannot open %s"), CPUINFO_PATH);
+                             _("cannot open %1$s"), CPUINFO_PATH);
         return -1;
     }
 
@@ -965,7 +994,7 @@ virHostCPUGetStats(int cpuNum G_GNUC_UNUSED,
         FILE *procstat = fopen(PROCSTAT_PATH, "r");
         if (!procstat) {
             virReportSystemError(errno,
-                                 _("cannot open %s"), PROCSTAT_PATH);
+                                 _("cannot open %1$s"), PROCSTAT_PATH);
             return -1;
         }
         ret = virHostCPUGetStatsLinux(procstat, cpuNum, params, nparams);
@@ -1130,7 +1159,7 @@ virHostCPUGetThreadsPerSubcore(virArch arch)
              * is better than silently falling back and reporting
              * different nodeinfo depending on the user */
             virReportSystemError(errno,
-                                 _("Failed to open '%s'"),
+                                 _("Failed to open '%1$s'"),
                                  KVM_DEVICE);
             return -1;
         }
@@ -1168,7 +1197,7 @@ virHostCPUGetKVMMaxVCPUs(void)
     int ret;
 
     if ((fd = open(KVM_DEVICE, O_RDONLY)) < 0) {
-        virReportSystemError(errno, _("Unable to open %s"), KVM_DEVICE);
+        virReportSystemError(errno, _("Unable to open %1$s"), KVM_DEVICE);
         return -1;
     }
 
@@ -1257,25 +1286,22 @@ virHostCPUGetMSRFromKVM(unsigned long index,
                         uint64_t *result)
 {
     VIR_AUTOCLOSE fd = -1;
-    struct {
-        struct kvm_msrs header;
-        struct kvm_msr_entry entry;
-    } msr = {
-        .header = { .nmsrs = 1 },
-        .entry = { .index = index },
-    };
+    g_autofree struct kvm_msrs *msr = g_malloc0(sizeof(struct kvm_msrs) +
+                                                sizeof(struct kvm_msr_entry));
+    msr->nmsrs = 1;
+    msr->entries[0].index = index;
 
     if ((fd = open(KVM_DEVICE, O_RDONLY)) < 0) {
-        virReportSystemError(errno, _("Unable to open %s"), KVM_DEVICE);
+        virReportSystemError(errno, _("Unable to open %1$s"), KVM_DEVICE);
         return -1;
     }
 
-    if (ioctl(fd, KVM_GET_MSRS, &msr) < 0) {
+    if (ioctl(fd, KVM_GET_MSRS, msr) < 0) {
         VIR_DEBUG("Cannot get MSR 0x%lx from KVM", index);
         return 1;
     }
 
-    *result = msr.entry.data;
+    *result = msr->entries[0].data;
     return 0;
 }
 
@@ -1316,35 +1342,113 @@ virHostCPUGetMSR(unsigned long index,
 }
 
 
+/**
+ * virHostCPUGetCPUIDFilterVolatile:
+ *
+ * Filters the 'kvm_cpuid2' struct and removes data which may change depending
+ * on the CPU core this was run on.
+ *
+ * Currently filtered fields:
+ * - local APIC ID
+ * - topology ids and information on AMD cpus
+ */
+static void
+virHostCPUGetCPUIDFilterVolatile(struct kvm_cpuid2 *kvm_cpuid)
+{
+    size_t i;
+    bool isAMD = false;
+
+    for (i = 0; i < kvm_cpuid->nent; ++i) {
+        struct kvm_cpuid_entry2 *entry = &kvm_cpuid->entries[i];
+
+        /* filter out local apic id */
+        if (entry->function == 0x01 && entry->index == 0x00)
+            entry->ebx &= 0x00ffffff;
+        if (entry->function == 0x0b)
+            entry->edx &= 0xffffff00;
+
+        /* Match AMD hosts */
+        if (entry->function == 0x00 && entry->index == 0x00 &&
+            entry->ebx == 0x68747541 && /* Auth */
+            entry->edx == 0x69746e65 && /* enti */
+            entry->ecx == 0x444d4163)   /* cAMD */
+            isAMD = true;
+
+        /* AMD APIC ID and topology information:
+         *
+         * Leaf 0x8000001e
+         *
+         * CPUID Fn8000_001E_EAX Extended APIC ID
+         *  31:0 ExtendedApicId: extended APIC ID.
+         *
+         * CPUID Fn8000_001E_EBX Compute Unit Identifiers
+         *  31:10 Reserved.
+         *  9:8   CoresPerComputeUnit: cores per compute unit.
+         *        The number of cores per compute unit is CoresPerComputeUnit+1.
+         *  7:0   ComputeUnitId: compute unit ID. Identifies the processor compute unit ID.
+         *
+         * CPUID Fn8000_001E_ECX Node Identifiers
+         *  31:11 Reserved.
+         *  10:8  NodesPerProcessor. Specifies the number of nodes per processor.
+         *          000b      1  node per processor
+         *          001b      2  nodes per processor
+         *          111b-010b Reserved
+         *  7:0   NodeId. Specifies the node ID.
+         *
+         * CPUID Fn8000_001E_EDX Reserved
+         *  31:0 Reserved.
+         *
+         * For libvirt none of this information seems to be interesting, thus
+         * we clear all of it including reserved bits for future-proofing.
+         */
+        if (isAMD && entry->function == 0x8000001e) {
+            entry->eax = 0x00;
+            entry->ebx = 0x00;
+            entry->ecx = 0x00;
+            entry->edx = 0x00;
+        }
+    }
+}
+
+
 struct kvm_cpuid2 *
 virHostCPUGetCPUID(void)
 {
-    size_t i;
+    size_t alloc_size;
     VIR_AUTOCLOSE fd = open(KVM_DEVICE, O_RDONLY);
 
     if (fd < 0) {
-        virReportSystemError(errno, _("Unable to open %s"), KVM_DEVICE);
+        virReportSystemError(errno, _("Unable to open %1$s"), KVM_DEVICE);
         return NULL;
     }
 
-    for (i = 1; i < INT32_MAX; i *= 2) {
+    /* Userspace invokes KVM_GET_SUPPORTED_CPUID by passing a kvm_cpuid2 structure
+     * with the 'nent' field indicating the number of entries in the variable-size
+     * array 'entries'.  If the number of entries is too low to describe the cpu
+     * capabilities, an error (E2BIG) is returned.  If the number is too high,
+     * the 'nent' field is adjusted and an error (ENOMEM) is returned.  If the
+     * number is just right, the 'nent' field is adjusted to the number of valid
+     * entries in the 'entries' array, which is then filled. */
+    for (alloc_size = 64; alloc_size <= 65536; alloc_size *= 2) {
         g_autofree struct kvm_cpuid2 *kvm_cpuid = NULL;
+
         kvm_cpuid = g_malloc0(sizeof(struct kvm_cpuid2) +
-                              sizeof(struct kvm_cpuid_entry2) * i);
-        kvm_cpuid->nent = i;
+                              sizeof(struct kvm_cpuid_entry2) * alloc_size);
+        kvm_cpuid->nent = alloc_size;
 
         if (ioctl(fd, KVM_GET_SUPPORTED_CPUID, kvm_cpuid) == 0) {
-            /* filter out local apic id */
-            for (i = 0; i < kvm_cpuid->nent; ++i) {
-                struct kvm_cpuid_entry2 *entry = &kvm_cpuid->entries[i];
-                if (entry->function == 0x01 && entry->index == 0x00)
-                    entry->ebx &= 0x00ffffff;
-                if (entry->function == 0x0b)
-                    entry->edx &= 0xffffff00;
-            }
-
+            virHostCPUGetCPUIDFilterVolatile(kvm_cpuid);
             return g_steal_pointer(&kvm_cpuid);
         }
+
+        /* enlarge the buffer and try again */
+        if (errno == E2BIG) {
+            VIR_DEBUG("looping %zu", alloc_size);
+            continue;
+        }
+
+        /* we fail on any other error code to prevent pointless looping */
+        break;
     }
 
     virReportSystemError(errno, "%s", _("Cannot read host CPUID"));
@@ -1368,7 +1472,7 @@ virHostCPUGetTscInfo(void)
     int rc;
 
     if ((kvmFd = open(KVM_DEVICE, O_RDONLY)) < 0) {
-        virReportSystemError(errno, _("Unable to open %s"), KVM_DEVICE);
+        virReportSystemError(errno, _("Unable to open %1$s"), KVM_DEVICE);
         return NULL;
     }
 
@@ -1532,12 +1636,33 @@ virHostCPUGetSignature(char **signature)
     *signature = NULL;
 
     if (!(cpuinfo = fopen(CPUINFO_PATH, "r"))) {
-        virReportSystemError(errno, _("Failed to open cpuinfo file '%s'"),
+        virReportSystemError(errno, _("Failed to open cpuinfo file '%1$s'"),
                              CPUINFO_PATH);
         return -1;
     }
 
     return virHostCPUReadSignature(virArchFromHost(), cpuinfo, signature);
+}
+
+int
+virHostCPUGetPhysAddrSize(const virArch hostArch,
+                          unsigned int *size)
+{
+    g_autoptr(FILE) cpuinfo = NULL;
+
+    if (ARCH_IS_S390(hostArch)) {
+        /* Ensure size is set to 0 as physical address size is unknown */
+        *size = 0;
+        return 0;
+    }
+
+    if (!(cpuinfo = fopen(CPUINFO_PATH, "r"))) {
+        virReportSystemError(errno, _("Failed to open cpuinfo file '%1$s'"),
+                             CPUINFO_PATH);
+        return -1;
+    }
+
+    return virHostCPUParsePhysAddrSize(cpuinfo, size);
 }
 
 #else
@@ -1547,6 +1672,14 @@ virHostCPUGetSignature(char **signature)
 {
     *signature = NULL;
     return 0;
+}
+
+int
+virHostCPUGetPhysAddrSize(const virArch hostArch G_GNUC_UNUSED,
+                          unsigned int *size G_GNUC_UNUSED)
+{
+    errno = ENOSYS;
+    return -1;
 }
 
 #endif /* __linux__ */

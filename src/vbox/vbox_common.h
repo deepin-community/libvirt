@@ -109,6 +109,7 @@ typedef unsigned long PRUword;
 
 #define nsnull 0
 typedef PRUint32 nsresult;
+#define HRESULT nsresult
 
 #if defined(__GNUC__) && (__GNUC__ > 2)
 # define NS_LIKELY(x)    (__builtin_expect((x), 1))
@@ -361,6 +362,8 @@ typedef nsISupports IHost;
 typedef nsISupports IHostNetworkInterface;
 typedef nsISupports IDHCPServer;
 typedef nsISupports IKeyboard;
+typedef nsISupports IVirtualBoxErrorInfo;
+typedef struct nsIException nsIException;
 
 /* Macros for all vbox drivers. */
 
@@ -405,6 +408,9 @@ typedef nsISupports IKeyboard;
             abort(); \
     } while (0)
 
+#define VBOX_QUERY_INTERFACE(nsi, iid, resultp) \
+    gVBoxAPI.nsUISupports.QueryInterface((void*)(nsi), iid, resultp)
+
 #define VBOX_ADDREF(arg)                gVBoxAPI.nsUISupports.AddRef((void *)(arg))
 
 #define VBOX_RELEASE(arg) \
@@ -440,12 +446,10 @@ typedef nsISupports IKeyboard;
 #define installUniformedAPI(gVBoxAPI, result) \
     do { \
         result = 0; \
-        if (uVersion >= 5001051 && uVersion < 5002051) { \
-            vbox52InstallUniformedAPI(&gVBoxAPI); \
-        } else if (uVersion >= 6000000 && uVersion < 6000051) { \
-            vbox60InstallUniformedAPI(&gVBoxAPI); \
-        } else if (uVersion >= 6000051 && uVersion < 6001051) { \
+        if (uVersion >= 6000051 && uVersion < 6001051) { \
             vbox61InstallUniformedAPI(&gVBoxAPI); \
+        } else if (uVersion >= 7000000 && uVersion < 7001000) { \
+            vbox70InstallUniformedAPI(&gVBoxAPI); \
         } else { \
             result = -1; \
         } \

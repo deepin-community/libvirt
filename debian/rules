@@ -1,8 +1,5 @@
 #!/usr/bin/make -f
 
-DEB_RELEASE = $(shell dpkg-parsechangelog -SVersion | sed 's/[^-]\+-//')
-DEB_BUILDDATE = $(shell dpkg-parsechangelog -SDate)
-DEB_BUILDUSER = $(shell dpkg-parsechangelog -SMaintainer)
 NULL =
 
 DEB_BUILD_MAINT_OPTIONS = hardening=+bindnow
@@ -13,29 +10,27 @@ DEB_BUILD_MAINT_OPTIONS = hardening=+bindnow
 DEB_LDFLAGS_MAINT_STRIP = -Wl,-Bsymbolic-functions
 
 DPKG_EXPORT_BUILDFLAGS = 1
-include /usr/share/dpkg/buildflags.mk
+include /usr/share/dpkg/default.mk
 
+# Fail if the symbols file contains certain mistakes
+DPKG_GENSYMBOLS_CHECK_LEVEL = 4
+export DPKG_GENSYMBOLS_CHECK_LEVEL
+
+ARCHES_CEPH = amd64 arm64 mips64el ppc64el riscv64 s390x
+ARCHES_GLUSTER = amd64 arm64 ia64 mips64el ppc64 ppc64el riscv64 s390x sparc64
+ARCHES_QEMU = amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
 ARCHES_LXC  = alpha amd64 arm64 armel armhf hppa i386 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64 x32
 ARCHES_XEN  = amd64 arm64 armhf
 ARCHES_VBOX = amd64 i386
 
-ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
-    ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
-        WITH_VBOX             = -Ddriver_vbox=enabled
-    else
-        WITH_VBOX             = -Ddriver_vbox=disabled
-    endif
-    ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_XEN)))
-        WITH_LIBXL            = -Ddriver_libxl=enabled
-    else
-        WITH_LIBXL            = -Ddriver_libxl=disabled
-    endif
+# Keep this list empty until we have AppArmor support
+ARCHES_NBDKIT =
+
+ifeq ($(DEB_HOST_ARCH_OS), linux)
     WITH_STORAGE_LVM          = -Dstorage_lvm=enabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=enabled
     WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=enabled
     WITH_STORAGE_DISK         = -Dstorage_disk=enabled
-    WITH_STORAGE_RBD          = -Dstorage_rbd=enabled
-    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=enabled
     WITH_UDEV                 = -Dudev=enabled
     WITH_CAPNG                = -Dcapng=enabled
     WITH_LIBNL                = -Dlibnl=enabled
@@ -52,22 +47,11 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
     WITH_NSS_PLUGIN           = -Dnss=enabled
     WITH_DTRACE               = -Ddtrace=enabled
     WITH_NUMA                 = -Dnumactl=enabled -Dnumad=enabled
-    ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_LXC)))
-        WITH_LXC              = -Ddriver_lxc=enabled
-        WITH_LOGIN_SHELL      = -Dlogin_shell=enabled
-    else
-        WITH_LXC              = -Ddriver_lxc=disabled
-        WITH_LOGIN_SHELL      = -Dlogin_shell=disabled
-    endif
 else
-    WITH_VBOX                 = -Ddriver_vbox=disabled
-    WITH_LIBXL                = -Ddriver_libxl=disabled
     WITH_STORAGE_LVM          = -Dstorage_lvm=disabled
     WITH_STORAGE_ISCSI        = -Dstorage_iscsi=disabled
     WITH_STORAGE_ISCSI_DIRECT = -Dstorage_iscsi_direct=disabled
     WITH_STORAGE_DISK         = -Dstorage_disk=disabled
-    WITH_STORAGE_RBD          = -Dstorage_rbd=disabled
-    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=disabled
     WITH_UDEV                 = -Dudev=disabled
     WITH_CAPNG                = -Dcapng=disabled
     WITH_LIBNL                = -Dlibnl=disabled
@@ -84,16 +68,53 @@ else
     WITH_NSS_PLUGIN           = -Dnss=disabled
     WITH_DTRACE               = -Ddtrace=disabled
     WITH_NUMA                 = -Dnumactl=disabled -Dnumad=disabled
+endif
+
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_CEPH)))
+    WITH_STORAGE_RBD          = -Dstorage_rbd=enabled
+else
+    WITH_STORAGE_RBD          = -Dstorage_rbd=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_GLUSTER)))
+    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=enabled
+else
+    WITH_STORAGE_GLUSTER      = -Dstorage_gluster=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
+    WITH_QEMU                 = -Ddriver_qemu=enabled
+else
+    WITH_QEMU                 = -Ddriver_qemu=disabled
+endif
+ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_LXC)))
+    WITH_LXC                  = -Ddriver_lxc=enabled
+    WITH_LOGIN_SHELL          = -Dlogin_shell=enabled
+else
     WITH_LXC                  = -Ddriver_lxc=disabled
     WITH_LOGIN_SHELL          = -Dlogin_shell=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
+    WITH_LIBXL                = -Ddriver_libxl=enabled
+else
+    WITH_LIBXL                = -Ddriver_libxl=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_VBOX)))
+    WITH_VBOX                 = -Ddriver_vbox=enabled
+else
+    WITH_VBOX                 = -Ddriver_vbox=disabled
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_NBDKIT)))
+    WITH_NBDKIT               = -Dnbdkit=enabled
+else
+    WITH_NBDKIT               = -Dnbdkit=disabled
 endif
 
 DEB_CONFIGURE_EXTRA_ARGS := \
     --libexecdir=/usr/lib/libvirt \
     -Drunstatedir=/run \
-    -Dpackager="$(DEB_BUILDUSER) $(DEB_BUILDDATE)" \
-    -Dpackager_version="$(DEB_RELEASE)" \
-    -Ddriver_qemu=enabled \
+    -Dinitconfdir=/etc/default \
+    -Dpackager="$(DEB_VENDOR)" \
+    -Dpackager_version="$(DEB_VERSION)" \
+    $(WITH_QEMU) \
     -Ddriver_libvirtd=enabled \
     -Ddriver_remote=enabled \
     -Dremote_default_mode=legacy \
@@ -119,7 +140,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_STORAGE_ISCSI) \
     $(WITH_STORAGE_ISCSI_DIRECT) \
     $(WITH_STORAGE_DISK) \
-    -Dstorage_sheepdog=disabled \
     $(WITH_STORAGE_RBD) \
     $(WITH_STORAGE_GLUSTER) \
     -Dstorage_vstorage=disabled \
@@ -142,7 +162,22 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     $(WITH_FIREWALLD) \
     $(WITH_ATTR) \
     $(WITH_NSS_PLUGIN) \
+    $(WITH_NBDKIT) \
     -Dwireshark_dissector=enabled \
+    $(NULL)
+
+# Those have to stay up through upgrades to avoid interruptions
+LIBVIRT_UNITS = \
+    virtlogd.service \
+    virtlockd.service \
+    libvirt-guests.service \
+    libvirtd.socket \
+    libvirtd-ro.socket \
+    libvirtd-admin.socket \
+    virtlogd.socket \
+    virtlogd-admin.socket \
+    virtlockd.socket \
+    virtlockd-admin.socket \
     $(NULL)
 
 APPARMOR_ABSTRACTIONS = \
@@ -168,13 +203,13 @@ NSS_PLUGINS = \
 SYSTEMTAP_TAPSETS = \
     libvirt_functions \
     libvirt_probes \
-    libvirt_qemu_probes \
     $(NULL)
 
-SYSCTL_CONFIGS = \
-    libvirtd \
-    qemu-postcopy-migration \
-    $(NULL)
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
+    SYSTEMTAP_TAPSETS += \
+        libvirt_qemu_probes \
+        $(NULL)
+endif
 
 
 DEB_BUILDDIR := $(CURDIR)/debian/build
@@ -207,32 +242,21 @@ override_dh_auto_test:
 # to perform such operations
 execute_after_dh_auto_install:
 	# Move upstream files where dh_* can find them
-	set -e; for f in $(SYSCTL_CONFIGS); do \
-	    mv $(DEB_DESTDIR)/usr/lib/sysctl.d/60-$${f}.conf \
-	       $(DEB_DESTDIR)/usr/lib/sysctl.d/$${f}.sysctl; \
-	done
+	mv $(DEB_DESTDIR)/usr/lib/sysctl.d/ \
+	   $(DEB_DESTDIR)/usr/share/doc/libvirt/examples/sysctl;
 
 	# Copy the release notes where dh_installdocs can find them
 	cp NEWS.rst \
 	   $(DEB_DESTDIR)/usr/share/doc/libvirt/NEWS
 
-	# Add our backward compat polkit rule
-	mkdir -p $(DEB_DESTDIR)/var/lib/polkit-1/localauthority/10-vendor.d/
-	cp debian/polkit/60-libvirt.pkla \
-	   $(DEB_DESTDIR)/var/lib/polkit-1/localauthority/10-vendor.d/
-
 	# Rename the upstream polkit rule so that it matches the name used
-	# historically in Debian, as well as that of the backwards compat
-	# rules we just installed
+	# historically in Debian
 	mv $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/50-libvirt.rules \
 	   $(DEB_DESTDIR)/usr/share/polkit-1/rules.d/60-libvirt.rules
 
-	# Don't ship any files that are managed by the user only
-	rm $(DEB_DESTDIR)/etc/apparmor.d/local/*
-
 	# Don't ship the CI dashboard, which is not useful as documentation
 	# triggers the privacy-breach-generic Lintian tag
-	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci.html
+	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci-dashboard.html
 
 	# Disable network autostart
 	rm -rf $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/
@@ -243,7 +267,7 @@ execute_after_dh_auto_install:
 	   $(DEB_DESTDIR)/usr/share/libvirt/
 
 execute_after_dh_install:
-ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
+ifeq ($(DEB_HOST_ARCH_OS), linux)
 	# Linux supports more nice things:
 	set -e; for f in $(SRV_MONOLITHIC); do \
 	    dh_install -p libvirt-daemon-system \
@@ -268,15 +292,23 @@ ifneq (,$(findstring $(DEB_HOST_ARCH_OS), linux))
 	                   usr/share/systemtap/tapset/$${f}.stp; \
 	    done; \
 	fi
-	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
-	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
 	set -e; for f in $(NSS_PLUGINS); do \
 	    dh_install -p libnss-libvirt \
 	               usr/lib/$(DEB_HOST_MULTIARCH)/libnss_$${f}.so.2 \
 	               lib/$(DEB_HOST_MULTIARCH)/; \
 	done
 endif
-ifneq (,$(findstring $(DEB_HOST_ARCH), $(ARCHES_XEN)))
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_QEMU)))
+	dh_install -p libvirt-daemon-system etc/libvirt/qemu.conf
+	dh_install -p libvirt-daemon-system etc/libvirt/qemu-lockd.conf
+	dh_install -p libvirt-daemon-system etc/libvirt/qemu-sanlock.conf
+	dh_install -p libvirt-daemon usr/share/augeas/lenses/tests/test_libvirt_lockd.aug
+	dh_install -p libvirt-daemon usr/share/augeas/lenses/tests/test_libvirt_sanlock.aug
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_LXC)))
+	dh_install -p libvirt-daemon-system etc/libvirt/lxc.conf
+endif
+ifneq (,$(filter $(DEB_HOST_ARCH), $(ARCHES_XEN)))
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl-lockd.conf
 	dh_install -p libvirt-daemon-system etc/libvirt/libxl-sanlock.conf
@@ -286,8 +318,8 @@ override_dh_installinit:
 	# Install SysV init scripts
 	dh_installinit -p libvirt-daemon-system-sysv --name=virtlogd --no-stop-on-upgrade
 	dh_installinit -p libvirt-daemon-system-sysv --name=virtlockd --no-stop-on-upgrade
-	dh_installinit -p libvirt-daemon-system-sysv --name=libvirtd --restart-after-upgrade -- defaults 28 72
-	dh_installinit -p libvirt-daemon-system-sysv --name=libvirt-guests --no-start -- defaults 29 71
+	dh_installinit -p libvirt-daemon-system-sysv --name=libvirtd --restart-after-upgrade
+	dh_installinit -p libvirt-daemon-system-sysv --name=libvirt-guests --no-start
 	# Install default files, which are used by both systemd and SysV init
 	dh_installinit -p libvirt-daemon-system --name=virtlogd --no-scripts
 	dh_installinit -p libvirt-daemon-system --name=virtlockd --no-scripts
@@ -295,15 +327,16 @@ override_dh_installinit:
 	dh_installinit -p libvirt-daemon-system --name=libvirt-guests --no-scripts
 
 override_dh_installsystemd:
-	# Due to #994204, we are forced to handle systemd units ourselves to
-	# avoid the restart of services/sockets which would result in VMs
-	# being stopped or crashing.
-	#
-	# See libvirt-daemon-system.{pre,post}{inst,rm} for details.
+	dh_installsystemd -p libvirt-daemon-system --no-also libvirtd.service
+	dh_installsystemd -p libvirt-daemon-system --no-stop-on-upgrade $(LIBVIRT_UNITS)
+
+override_dh_installchangelogs:
+	dh_installchangelogs -plibvirt0
+	dh_installchangelogs -plibvirt-doc
 
 override_dh_installdocs:
+	dh_installdocs -plibvirt0
 	dh_installdocs -plibvirt-doc --doc-main-package libvirt-doc
-	dh_installdocs -Nlibvirt-doc
 
 # dh_missing can't figure out that some files are skipped on purpose due
 # to the conditionals above, so let's make the error non-fatal for -indep

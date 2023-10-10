@@ -114,6 +114,15 @@ static virCPUDef cpuPower9Data = {
     .threads = 1,
 };
 
+static virCPUDef cpuPower10Data = {
+    .type = VIR_CPU_TYPE_HOST,
+    .arch = VIR_ARCH_PPC64,
+    .model = (char *) "POWER10",
+    .sockets = 1,
+    .cores = 16,
+    .threads = 1,
+};
+
 static virCPUDef cpuAarch64Data = {
     .type = VIR_CPU_TYPE_HOST,
     .arch = VIR_ARCH_AARCH64,
@@ -138,6 +147,22 @@ static virCPUDef cpuSparcData = {
     .threads = 1,
 };
 
+static virCPUDef cpuPPCData = {
+    .type = VIR_CPU_TYPE_HOST,
+    .arch = VIR_ARCH_PPC,
+    .sockets = 1,
+    .cores = 1,
+    .threads = 1,
+};
+
+static virCPUDef cpuRiscv64Data = {
+    .type = VIR_CPU_TYPE_HOST,
+    .arch = VIR_ARCH_RISCV64,
+    .sockets = 1,
+    .cores = 4,
+    .threads = 1,
+};
+
 static inline virCPUDef *
 testUtilsHostCpusGetDefForModel(const char *model)
 {
@@ -154,6 +179,8 @@ testUtilsHostCpusGetDefForModel(const char *model)
         return virCPUDefCopy(&cpuPower8Data);
     else if (STREQ(model, "POWER9"))
         return virCPUDefCopy(&cpuPower9Data);
+    else if (STREQ(model, "POWER10"))
+        return virCPUDefCopy(&cpuPower10Data);
 
     return NULL;
 }
@@ -171,6 +198,10 @@ testUtilsHostCpusGetDefForArch(virArch arch)
         return virCPUDefCopy(&cpuAarch64Data);
     else if (arch == VIR_ARCH_SPARC)
         return virCPUDefCopy(&cpuSparcData);
+    else if (arch == VIR_ARCH_RISCV64)
+        return virCPUDefCopy(&cpuRiscv64Data);
+    else if (arch == VIR_ARCH_PPC)
+        return virCPUDefCopy(&cpuPPCData);
 
     return NULL;
 }

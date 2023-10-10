@@ -27,7 +27,6 @@
 #include "qemu_interface.h"
 #include "viralloc.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "virnetdev.h"
 #include "virnetdevtap.h"
 #include "virnetdevmacvlan.h"
@@ -119,6 +118,8 @@ qemuInterfaceStartDevice(virDomainNetDef *net)
     case VIR_DOMAIN_NET_TYPE_INTERNAL:
     case VIR_DOMAIN_NET_TYPE_HOSTDEV:
     case VIR_DOMAIN_NET_TYPE_VDPA:
+    case VIR_DOMAIN_NET_TYPE_NULL:
+    case VIR_DOMAIN_NET_TYPE_VDS:
     case VIR_DOMAIN_NET_TYPE_LAST:
         /* these types all require no action */
         break;
@@ -205,6 +206,8 @@ qemuInterfaceStopDevice(virDomainNetDef *net)
     case VIR_DOMAIN_NET_TYPE_INTERNAL:
     case VIR_DOMAIN_NET_TYPE_HOSTDEV:
     case VIR_DOMAIN_NET_TYPE_VDPA:
+    case VIR_DOMAIN_NET_TYPE_NULL:
+    case VIR_DOMAIN_NET_TYPE_VDS:
     case VIR_DOMAIN_NET_TYPE_LAST:
         /* these types all require no action */
         break;
@@ -238,6 +241,7 @@ qemuInterfaceIsVnetCompatModel(const virDomainNetDef *net)
 {
     return (virDomainNetIsVirtioModel(net) ||
             net->model == VIR_DOMAIN_NET_MODEL_E1000E ||
+            net->model == VIR_DOMAIN_NET_MODEL_IGB ||
             net->model == VIR_DOMAIN_NET_MODEL_VMXNET3);
 }
 
@@ -265,6 +269,7 @@ qemuInterfaceDirectConnect(virDomainDef *def,
     char *res_ifname = NULL;
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     unsigned int macvlan_create_flags = VIR_NETDEV_MACVLAN_CREATE_WITH_TAP;
+    qemuDomainNetworkPrivate *netpriv = QEMU_DOMAIN_NETWORK_PRIVATE(net);
 
     if (qemuInterfaceIsVnetCompatModel(net))
         macvlan_create_flags |= VIR_NETDEV_MACVLAN_VNET_HDR;
@@ -281,6 +286,8 @@ qemuInterfaceDirectConnect(virDomainDef *def,
                                                tapfd, tapfdSize,
                                                macvlan_create_flags) < 0)
         goto cleanup;
+
+    netpriv->created = true;
 
     virDomainAuditNetDevice(def, net, res_ifname, true);
     VIR_FREE(net->ifname);
@@ -320,7 +327,14 @@ qemuCreateInBridgePortWithHelper(virQEMUDriverConfig *cfg,
                                  int *tapfd,
                                  unsigned int flags)
 {
+    const char *const bridgeHelperDirs[] = {
+        "/usr/libexec",
+        "/usr/lib/qemu",
+        "/usr/lib",
+        NULL,
+    };
     g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *bridgeHelperPath = NULL;
     char *errbuf = NULL, *cmdstr = NULL;
     int pair[2] = { -1, -1 };
 
@@ -332,13 +346,17 @@ qemuCreateInBridgePortWithHelper(virQEMUDriverConfig *cfg,
         return -1;
     }
 
-    if (!virFileIsExecutable(cfg->bridgeHelperName)) {
-        virReportSystemError(errno, _("'%s' is not a suitable bridge helper"),
+    bridgeHelperPath = virFindFileInPathFull(cfg->bridgeHelperName, bridgeHelperDirs);
+
+    if (!bridgeHelperPath) {
+        virReportSystemError(errno, _("'%1$s' is not a suitable bridge helper"),
                              cfg->bridgeHelperName);
         return -1;
     }
 
-    cmd = virCommandNew(cfg->bridgeHelperName);
+    VIR_DEBUG("Using qemu-bridge-helper: %s", bridgeHelperPath);
+
+    cmd = virCommandNew(bridgeHelperPath);
     if (flags & VIR_NETDEV_TAP_CREATE_VNET_HDR)
         virCommandAddArgFormat(cmd, "--use-vnet");
     virCommandAddArgFormat(cmd, "--br=%s", brname);
@@ -368,12 +386,12 @@ qemuCreateInBridgePortWithHelper(virQEMUDriverConfig *cfg,
         virCommandAbort(cmd);
 
         if (errbuf && *errbuf)
-            errstr = g_strdup_printf("\nstderr=%s", errbuf);
+            errstr = g_strdup_printf("stderr=%s", errbuf);
 
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-            _("%s: failed to communicate with bridge helper: %s%s"),
-            cmdstr, g_strerror(errno),
-            NULLSTR_EMPTY(errstr));
+        virReportSystemError(errno,
+                             _("%1$s: failed to communicate with bridge helper: %2$s"),
+                             cmdstr,
+                             NULLSTR_EMPTY(errstr));
         VIR_FREE(errstr);
         goto cleanup;
     }
@@ -440,6 +458,9 @@ qemuInterfaceEthernetConnect(virDomainDef *def,
                            _("target managed='no' but specified dev doesn't exist"));
             goto cleanup;
         }
+
+        tap_create_flags |= VIR_NETDEV_TAP_CREATE_ALLOW_EXISTING;
+
         if (virNetDevMacVLanIsMacvtap(net->ifname)) {
             auditdev = net->ifname;
             if (virNetDevMacVLanTapOpen(net->ifname, tapfd, tapfdSize) < 0)
@@ -627,36 +648,13 @@ qemuInterfaceBridgeConnect(virDomainDef *def,
 }
 
 
-/* qemuInterfaceVDPAConnect:
- * @net: pointer to the VM's interface description
- *
- * returns: file descriptor of the vdpa device
- *
- * Called *only* called if actualType is VIR_DOMAIN_NET_TYPE_VDPA
- */
-int
-qemuInterfaceVDPAConnect(virDomainNetDef *net)
-{
-    int fd;
-
-    if ((fd = open(net->data.vdpa.devicepath, O_RDWR)) < 0) {
-        virReportSystemError(errno,
-                             _("Unable to open '%s' for vdpa device"),
-                             net->data.vdpa.devicepath);
-        return -1;
-    }
-
-    return fd;
-}
-
-
 /*
- * Returns: -1 on error, 0 if slirp isn't available, 1 on success
+ * Returns: -1 on error, 0 on success. Populates net->privateData->slirp if
+ * the slirp helper is needed.
  */
 int
 qemuInterfacePrepareSlirp(virQEMUDriver *driver,
-                          virDomainNetDef *net,
-                          qemuSlirp **slirpret)
+                          virDomainNetDef *net)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     g_autoptr(qemuSlirp) slirp = NULL;
@@ -681,98 +679,87 @@ qemuInterfacePrepareSlirp(virQEMUDriver *driver,
             return 0;
     }
 
-    *slirpret = g_steal_pointer(&slirp);
-    return 1;
+    QEMU_DOMAIN_NETWORK_PRIVATE(net)->slirp = g_steal_pointer(&slirp);
+    return 0;
 }
 
 
 /**
  * qemuInterfaceOpenVhostNet:
- * @def: domain definition
+ * @vm: domain object
  * @net: network definition
- * @qemuCaps: qemu binary capabilities
- * @vhostfd: array of opened vhost-net device
- * @vhostfdSize: number of file descriptors in @vhostfd array
  *
  * Open vhost-net, multiple times - if requested.
- * In case, no vhost-net is needed, @vhostfdSize is set to 0
- * and 0 is returned.
  *
  * Returns: 0 on success
  *         -1 on failure
  */
 int
-qemuInterfaceOpenVhostNet(virDomainDef *def,
-                          virDomainNetDef *net,
-                          int *vhostfd,
-                          size_t *vhostfdSize)
+qemuInterfaceOpenVhostNet(virDomainObj *vm,
+                          virDomainNetDef *net)
 {
+    qemuDomainNetworkPrivate *netpriv = QEMU_DOMAIN_NETWORK_PRIVATE(net);
     size_t i;
     const char *vhostnet_path = net->backend.vhost;
+    size_t vhostfdSize = net->driver.virtio.queues;
+
+    if (!vhostfdSize)
+        vhostfdSize = 1;
 
     if (!vhostnet_path)
         vhostnet_path = "/dev/vhost-net";
 
     /* If running a plain QEMU guest, or
      * if the config says explicitly to not use vhost, return now */
-    if (def->virtType != VIR_DOMAIN_VIRT_KVM ||
-        net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_QEMU) {
-        *vhostfdSize = 0;
+    if (vm->def->virtType != VIR_DOMAIN_VIRT_KVM ||
+        net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_QEMU)
         return 0;
-    }
 
     /* If qemu doesn't support vhost-net mode (including the -netdev and
      * -device command options), don't try to open the device.
      */
-    if (!qemuDomainSupportsNicdev(def, net)) {
-        if (net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_VHOST) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           "%s", _("vhost-net is not supported with "
-                                   "this QEMU binary"));
+    if (!qemuDomainSupportsNicdev(vm->def, net)) {
+        if (net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_VHOST) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("vhost-net is not supported with this QEMU binary"));
             return -1;
         }
-        *vhostfdSize = 0;
         return 0;
     }
 
     /* If the nic model isn't virtio, don't try to open. */
     if (!virDomainNetIsVirtioModel(net)) {
-        if (net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_VHOST) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           "%s", _("vhost-net is only supported for "
-                                   "virtio network interfaces"));
+        if (net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_VHOST) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("vhost-net is only supported for virtio network interfaces"));
             return -1;
         }
-        *vhostfdSize = 0;
         return 0;
     }
 
-    for (i = 0; i < *vhostfdSize; i++) {
-        vhostfd[i] = open(vhostnet_path, O_RDWR);
+    for (i = 0; i < vhostfdSize; i++) {
+        VIR_AUTOCLOSE fd = open(vhostnet_path, O_RDWR);
+        g_autofree char *name = g_strdup_printf("vhostfd-%s%zu", net->info.alias, i);
 
         /* If the config says explicitly to use vhost and we couldn't open it,
          * report an error.
          */
-        if (vhostfd[i] < 0) {
-            virDomainAuditNetDevice(def, net, vhostnet_path, false);
-            if (net->driver.virtio.name == VIR_DOMAIN_NET_BACKEND_TYPE_VHOST) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               "%s", _("vhost-net was requested for an interface, "
-                                       "but is unavailable"));
-                goto error;
+        if (fd < 0) {
+            virDomainAuditNetDevice(vm->def, net, vhostnet_path, false);
+            if (net->driver.virtio.name == VIR_DOMAIN_NET_DRIVER_TYPE_VHOST) {
+                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                               _("vhost-net was requested for an interface, but is unavailable"));
+                return -1;
             }
             VIR_WARN("Unable to open vhost-net. Opened so far %zu, requested %zu",
-                     i, *vhostfdSize);
-            *vhostfdSize = i;
+                     i, vhostfdSize);
             break;
         }
+
+        netpriv->vhostfds = g_slist_prepend(netpriv->vhostfds, qemuFDPassDirectNew(name, &fd));
     }
-    virDomainAuditNetDevice(def, net, vhostnet_path, *vhostfdSize);
+
+    netpriv->vhostfds = g_slist_reverse(netpriv->vhostfds);
+    virDomainAuditNetDevice(vm->def, net, vhostnet_path, vhostfdSize);
     return 0;
-
- error:
-    while (i--)
-        VIR_FORCE_CLOSE(vhostfd[i]);
-
-    return -1;
 }

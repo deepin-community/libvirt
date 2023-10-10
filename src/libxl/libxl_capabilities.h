@@ -22,8 +22,6 @@
 
 #include <libxl.h>
 
-#include "virobject.h"
-#include "capabilities.h"
 #include "domain_capabilities.h"
 #include "virfirmware.h"
 
@@ -49,4 +47,4 @@ libxlMakeDomainCapabilities(virDomainCaps *domCaps,
 
 int
 libxlDomainGetEmulatorType(const virDomainDef *def)
-    G_GNUC_NO_INLINE;
+    G_NO_INLINE;

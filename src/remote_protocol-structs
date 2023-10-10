@@ -563,12 +563,27 @@ struct remote_domain_save_flags_args {
         remote_string              dxml;
         u_int                      flags;
 };
+struct remote_domain_save_params_args {
+        remote_nonnull_domain      dom;
+        struct {
+                u_int              params_len;
+                remote_typed_param * params_val;
+        } params;
+    u_int                      flags;
+};
 struct remote_domain_restore_args {
         remote_nonnull_string      from;
 };
 struct remote_domain_restore_flags_args {
         remote_nonnull_string      from;
         remote_string              dxml;
+        u_int                      flags;
+};
+struct remote_domain_restore_params_args {
+        struct {
+                u_int              params_len;
+                remote_typed_param * params_val;
+        } params;
         u_int                      flags;
 };
 struct remote_domain_save_image_get_xml_desc_args {
@@ -1854,6 +1869,10 @@ struct remote_domain_get_job_stats_ret {
 struct remote_domain_abort_job_args {
         remote_nonnull_domain      dom;
 };
+struct remote_domain_abort_job_flags_args {
+        remote_nonnull_domain      dom;
+        u_int                      flags;
+};
 struct remote_domain_migrate_get_max_downtime_args {
         remote_nonnull_domain      dom;
         u_int                      flags;
@@ -2668,6 +2687,29 @@ struct remote_network_event_lifecycle_msg {
         int                        event;
         int                        detail;
 };
+struct remote_network_event_callback_metadata_change_msg {
+        int                        callbackID;
+        remote_nonnull_network     net;
+        int                        type;
+        remote_string              nsuri;
+};
+struct remote_network_set_metadata_args {
+        remote_nonnull_network     network;
+        int                        type;
+        remote_string              metadata;
+        remote_string              key;
+        remote_string              uri;
+        u_int                      flags;
+};
+struct remote_network_get_metadata_args {
+        remote_nonnull_network     network;
+        int                        type;
+        remote_string              uri;
+        u_int                      flags;
+};
+struct remote_network_get_metadata_ret {
+        remote_nonnull_string      metadata;
+};
 struct remote_connect_storage_pool_event_register_any_args {
         int                        eventID;
         remote_storage_pool        pool;
@@ -3249,6 +3291,11 @@ struct remote_domain_event_memory_device_size_change_msg {
         remote_nonnull_string      alias;
         uint64_t                   size;
 };
+struct remote_domain_fd_associate_args {
+        remote_nonnull_domain      dom;
+        remote_nonnull_string      name;
+        u_int                      flags;
+};
 enum remote_procedure {
         REMOTE_PROC_CONNECT_OPEN = 1,
         REMOTE_PROC_CONNECT_CLOSE = 2,
@@ -3689,4 +3736,11 @@ enum remote_procedure {
         REMOTE_PROC_NETWORK_CREATE_XML_FLAGS = 437,
         REMOTE_PROC_DOMAIN_EVENT_MEMORY_DEVICE_SIZE_CHANGE = 438,
         REMOTE_PROC_DOMAIN_SET_LAUNCH_SECURITY_STATE = 439,
+        REMOTE_PROC_DOMAIN_SAVE_PARAMS = 440,
+        REMOTE_PROC_DOMAIN_RESTORE_PARAMS = 441,
+        REMOTE_PROC_DOMAIN_ABORT_JOB_FLAGS = 442,
+        REMOTE_PROC_DOMAIN_FD_ASSOCIATE = 443,
+        REMOTE_PROC_NETWORK_SET_METADATA = 444,
+        REMOTE_PROC_NETWORK_GET_METADATA = 445,
+        REMOTE_PROC_NETWORK_EVENT_CALLBACK_METADATA_CHANGE = 446,
 };

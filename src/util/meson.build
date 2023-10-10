@@ -1,5 +1,6 @@
 util_sources = [
   'glibcompat.c',
+  'viracpi.c',
   'viralloc.c',
   'virarch.c',
   'virarptable.c',
@@ -9,6 +10,7 @@ util_sources = [
   'virbitmap.c',
   'virbpf.c',
   'virbuffer.c',
+  'virccw.c',
   'vircgroup.c',
   'vircgroupbackend.c',
   'vircgroupv1.c',
@@ -136,8 +138,8 @@ keyname_list = [
   'win32',
 ]
 
-keymap_gen_prog = find_program('@0@/src/keycodemapdb/tools/keymap-gen'.format(meson.source_root()))
-keymap_src_file = '@0@/src/keycodemapdb/data/keymaps.csv'.format(meson.source_root())
+keymap_gen_prog = find_program('keymap-gen')
+keymap_src_file = keycodemapdb.get_variable('keymaps_csv')
 
 foreach name : keycode_list
   keycode_gen_sources += custom_target(
@@ -145,7 +147,7 @@ foreach name : keycode_list
     input: keymap_src_file,
     output: 'virkeycodetable_@0@.h'.format(name),
     command: [
-      meson_python_prog, python3_prog, keymap_gen_prog, 'code-table',
+      keymap_gen_prog, 'code-table',
       '--lang', 'stdc',
       '--varname', 'virKeyCodeTable_@0@'.format(name),
       '@INPUT@', name,
@@ -160,7 +162,7 @@ foreach name : keyname_list
     input: keymap_src_file,
     output: 'virkeynametable_@0@.h'.format(name),
     command: [
-      meson_python_prog, python3_prog, keymap_gen_prog, 'name-table',
+      keymap_gen_prog, 'name-table',
       '--lang', 'stdc',
       '--varname', 'virKeyNameTable_@0@'.format(name),
       '@INPUT@', name,
@@ -175,6 +177,7 @@ keycode_dep = declare_dependency(
 
 io_helper_sources = [
   'iohelper.c',
+  'virfile.c',
 ]
 
 virt_util_lib = static_library(
@@ -212,6 +215,10 @@ if conf.has('WITH_LIBVIRTD')
     'sources': [
       files(io_helper_sources),
       dtrace_gen_headers,
+    ],
+    'deps': [
+      acl_dep,
+      libutil_dep,
     ],
   }
 endif

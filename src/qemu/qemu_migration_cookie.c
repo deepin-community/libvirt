@@ -22,7 +22,6 @@
 #include <gnutls/x509.h>
 
 #include "locking/domain_lock.h"
-#include "viralloc.h"
 #include "virerror.h"
 #include "virlog.h"
 #include "virnetdevopenvswitch.h"
@@ -140,9 +139,8 @@ qemuMigrationBlockDirtyBitmapsDiskFree(qemuMigrationBlockDirtyBitmapsDisk *dsk)
         return;
 
     g_free(dsk->target);
-    if (dsk->bitmaps)
-        g_slist_free_full(dsk->bitmaps,
-                          (GDestroyNotify) qemuMigrationBlockDirtyBitmapsDiskBitmapFree);
+    g_slist_free_full(dsk->bitmaps,
+                      (GDestroyNotify) qemuMigrationBlockDirtyBitmapsDiskBitmapFree);
     g_free(dsk);
 }
 
@@ -169,9 +167,8 @@ qemuMigrationCookieFree(qemuMigrationCookie *mig)
     g_clear_pointer(&mig->jobData, virDomainJobDataFree);
     virCPUDefFree(mig->cpu);
     qemuMigrationCookieCapsFree(mig->caps);
-    if (mig->blockDirtyBitmaps)
-        g_slist_free_full(mig->blockDirtyBitmaps,
-                          (GDestroyNotify) qemuMigrationBlockDirtyBitmapsDiskFree);
+    g_slist_free_full(mig->blockDirtyBitmaps,
+                      (GDestroyNotify) qemuMigrationBlockDirtyBitmapsDiskFree);
     g_free(mig);
 }
 
@@ -191,14 +188,14 @@ qemuDomainExtractTLSSubject(const char *certdir)
 
     if (virFileReadAll(certfile, 8192, &pemdata) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to read server cert %s"), certfile);
+                       _("unable to read server cert %1$s"), certfile);
         return NULL;
     }
 
     rc = gnutls_x509_crt_init(&cert);
     if (rc < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot initialize cert object: %s"),
+                       _("cannot initialize cert object: %1$s"),
                        gnutls_strerror(rc));
         return NULL;
     }
@@ -209,7 +206,7 @@ qemuDomainExtractTLSSubject(const char *certdir)
     rc = gnutls_x509_crt_import(cert, &pemdatum, GNUTLS_X509_FMT_PEM);
     if (rc < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot load cert data from %s: %s"),
+                       _("cannot load cert data from %1$s: %2$s"),
                        certfile, gnutls_strerror(rc));
         return NULL;
     }
@@ -222,7 +219,7 @@ qemuDomainExtractTLSSubject(const char *certdir)
     }
     if (rc != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("cannot get cert distinguished name: %s"),
+                       _("cannot get cert distinguished name: %1$s"),
                        gnutls_strerror(rc));
         return NULL;
     }
@@ -290,8 +287,8 @@ qemuMigrationCookieNetworkAlloc(virQEMUDriver *driver G_GNUC_UNUSED,
                 if (virNetDevOpenvswitchGetMigrateData(&mig->net[i].portdata,
                                                        netptr->ifname) != 0) {
                         virReportError(VIR_ERR_INTERNAL_ERROR,
-                                       _("Unable to run command to get OVS port data for "
-                                         "interface %s"), netptr->ifname);
+                                       _("Unable to run command to get OVS port data for interface %1$s"),
+                                       netptr->ifname);
                         return NULL;
                 }
                 break;
@@ -475,12 +472,10 @@ qemuMigrationCookieAddNetwork(qemuMigrationCookie *mig,
 
 static int
 qemuMigrationCookieAddNBD(qemuMigrationCookie *mig,
-                          virQEMUDriver *driver,
                           virDomainObj *vm)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(GHashTable) stats = virHashNew(g_free);
-    bool blockdev = virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_BLOCKDEV);
     size_t i;
     int rc;
 
@@ -498,13 +493,13 @@ qemuMigrationCookieAddNBD(qemuMigrationCookie *mig,
     mig->nbd->disks = g_new0(struct qemuMigrationCookieNBDDisk, vm->def->ndisks);
     mig->nbd->ndisks = 0;
 
-    if (qemuDomainObjEnterMonitorAsync(driver, vm, priv->job.asyncJob) < 0)
+    if (qemuDomainObjEnterMonitorAsync(vm, vm->job->asyncJob) < 0)
         return -1;
-    if (blockdev)
-        rc = qemuMonitorBlockStatsUpdateCapacityBlockdev(priv->mon, stats);
-    else
-        rc = qemuMonitorBlockStatsUpdateCapacity(priv->mon, stats);
-    qemuDomainObjExitMonitor(driver, vm);
+
+    rc = qemuMonitorBlockStatsUpdateCapacityBlockdev(priv->mon, stats);
+
+    qemuDomainObjExitMonitor(vm);
+
     if (rc < 0)
         return -1;
 
@@ -512,14 +507,8 @@ qemuMigrationCookieAddNBD(qemuMigrationCookie *mig,
         virDomainDiskDef *disk = vm->def->disks[i];
         qemuBlockStats *entry;
 
-        if (blockdev) {
-            if (!(entry = virHashLookup(stats, disk->src->nodeformat)))
-                continue;
-        } else {
-            if (!disk->info.alias ||
-                !(entry = virHashLookup(stats, disk->info.alias)))
-                continue;
-        }
+        if (!(entry = virHashLookup(stats, disk->src->nodeformat)))
+            continue;
 
         mig->nbd->disks[mig->nbd->ndisks].target = g_strdup(disk->dst);
         mig->nbd->disks[mig->nbd->ndisks].capacity = entry->capacity;
@@ -534,13 +523,11 @@ static int
 qemuMigrationCookieAddStatistics(qemuMigrationCookie *mig,
                                  virDomainObj *vm)
 {
-    qemuDomainObjPrivate *priv = vm->privateData;
-
-    if (!priv->job.completed)
+    if (!vm->job->completed)
         return 0;
 
     g_clear_pointer(&mig->jobData, virDomainJobDataFree);
-    mig->jobData = virDomainJobDataCopy(priv->job.completed);
+    mig->jobData = virDomainJobDataCopy(vm->job->completed);
 
     mig->flags |= QEMU_MIGRATION_COOKIE_STATS;
 
@@ -555,8 +542,7 @@ qemuMigrationCookieAddCPU(qemuMigrationCookie *mig,
     if (mig->cpu)
         return 0;
 
-    if (!(mig->cpu = virCPUDefCopy(vm->def->cpu)))
-        return -1;
+    mig->cpu = virCPUDefCopy(vm->def->cpu);
 
     if (qemuDomainMakeCPUMigratable(mig->cpu) < 0)
         return -1;
@@ -924,7 +910,7 @@ qemuMigrationCookieGraphicsXMLParse(xmlXPathContextPtr ctxt)
     }
     if ((grap->type = virDomainGraphicsTypeFromString(graphicstype)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown graphics type %s"), graphicstype);
+                       _("unknown graphics type %1$s"), graphicstype);
         return NULL;
     }
     if (virXPathInt("string(./graphics/@port)", ctxt, &grap->port) < 0) {
@@ -1001,7 +987,7 @@ qemuMigrationCookieNBDXMLParse(xmlXPathContextPtr ctxt)
     port = virXPathString("string(./nbd/@port)", ctxt);
     if (port && virStrToLong_i(port, NULL, 10, &ret->port) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Malformed nbd port '%s'"),
+                       _("Malformed nbd port '%1$s'"),
                        port);
         return NULL;
     }
@@ -1029,7 +1015,7 @@ qemuMigrationCookieNBDXMLParse(xmlXPathContextPtr ctxt)
                 virStrToLong_ull(capacity, NULL, 10,
                                  &ret->disks[i].capacity) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Malformed disk capacity: '%s'"),
+                               _("Malformed disk capacity: '%1$s'"),
                                NULLSTR(capacity));
                 return NULL;
             }
@@ -1051,7 +1037,7 @@ qemuMigrationCookieStatisticsXMLParse(xmlXPathContextPtr ctxt)
     if (!(ctxt->node = virXPathNode("./statistics", ctxt)))
         return NULL;
 
-    jobData = virDomainJobDataInit(&qemuJobDataPrivateDataCallbacks);
+    jobData = virDomainJobDataInit(&virQEMUDriverDomainJobConfig.jobDataPrivateCb);
     priv = jobData->privateData;
     stats = &priv->stats.mig;
     jobData->status = VIR_DOMAIN_JOB_STATUS_COMPLETED;
@@ -1194,13 +1180,13 @@ qemuMigrationCookieXMLParseMandatoryFeatures(xmlXPathContextPtr ctxt,
 
         if ((val = qemuMigrationCookieFlagTypeFromString(str)) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unknown migration cookie feature %s"), str);
+                           _("Unknown migration cookie feature %1$s"), str);
             return -1;
         }
 
         if ((flags & (1 << val)) == 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unsupported migration cookie feature %s"), str);
+                           _("Unsupported migration cookie feature %1$s"), str);
             return -1;
         }
     }
@@ -1272,7 +1258,6 @@ static int
 qemuMigrationCookieXMLParse(qemuMigrationCookie *mig,
                             virQEMUDriver *driver,
                             virQEMUCaps *qemuCaps,
-                            xmlDocPtr doc,
                             xmlXPathContextPtr ctxt,
                             unsigned int flags)
 {
@@ -1294,7 +1279,7 @@ qemuMigrationCookieXMLParse(qemuMigrationCookie *mig,
     }
     if (STRNEQ(name, mig->name)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Incoming cookie data had unexpected name %s vs %s"),
+                       _("Incoming cookie data had unexpected name %1$s vs %2$s"),
                        name, mig->name);
         return -1;
     }
@@ -1308,7 +1293,7 @@ qemuMigrationCookieXMLParse(qemuMigrationCookie *mig,
     virUUIDFormat(mig->uuid, localdomuuid);
     if (STRNEQ(uuid, localdomuuid)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Incoming cookie data had unexpected UUID %s vs %s"),
+                       _("Incoming cookie data had unexpected UUID %1$s vs %2$s"),
                        uuid, localdomuuid);
         return -1;
     }
@@ -1336,7 +1321,7 @@ qemuMigrationCookieXMLParse(qemuMigrationCookie *mig,
     }
     if (memcmp(mig->remoteHostuuid, mig->localHostuuid, VIR_UUID_BUFLEN) == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Attempt to migrate guest to the same host %s"),
+                       _("Attempt to migrate guest to the same host %1$s"),
                        hostuuid);
         return -1;
     }
@@ -1367,6 +1352,7 @@ qemuMigrationCookieXMLParse(qemuMigrationCookie *mig,
 
     if ((flags & QEMU_MIGRATION_COOKIE_PERSISTENT) &&
         virXPathBoolean("count(./domain) > 0", ctxt)) {
+        VIR_XPATH_NODE_AUTORESTORE(ctxt)
         g_autofree xmlNodePtr *nodes = NULL;
 
         if ((virXPathNodeSet("./domain", ctxt, &nodes)) != 1) {
@@ -1374,8 +1360,10 @@ qemuMigrationCookieXMLParse(qemuMigrationCookie *mig,
                            _("Too many domain elements in migration cookie"));
             return -1;
         }
-        mig->persistent = virDomainDefParseNode(doc, nodes[0],
-                                                driver->xmlopt, qemuCaps,
+
+        ctxt->node = nodes[0];
+
+        mig->persistent = virDomainDefParseNode(ctxt, driver->xmlopt, qemuCaps,
                                                 VIR_DOMAIN_DEF_PARSE_INACTIVE |
                                                 VIR_DOMAIN_DEF_PARSE_ABI_UPDATE_MIGRATION |
                                                 VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE);
@@ -1431,7 +1419,7 @@ qemuMigrationCookieXMLParseStr(qemuMigrationCookie *mig,
     if (!(doc = virXMLParseStringCtxt(xml, _("(qemu_migration_cookie)"), &ctxt)))
         return -1;
 
-    return qemuMigrationCookieXMLParse(mig, driver, qemuCaps, doc, ctxt, flags);
+    return qemuMigrationCookieXMLParse(mig, driver, qemuCaps, ctxt, flags);
 }
 
 
@@ -1466,7 +1454,7 @@ qemuMigrationCookieFormat(qemuMigrationCookie *mig,
     }
 
     if ((flags & QEMU_MIGRATION_COOKIE_NBD) &&
-        qemuMigrationCookieAddNBD(mig, driver, dom) < 0)
+        qemuMigrationCookieAddNBD(mig, dom) < 0)
         return -1;
 
     if (flags & QEMU_MIGRATION_COOKIE_STATS &&
@@ -1501,9 +1489,10 @@ qemuMigrationCookieFormat(qemuMigrationCookie *mig,
 
 qemuMigrationCookie *
 qemuMigrationCookieParse(virQEMUDriver *driver,
+                         virDomainObj *vm,
                          const virDomainDef *def,
                          const char *origname,
-                         qemuDomainObjPrivate *priv,
+                         virQEMUCaps *qemuCaps,
                          const char *cookiein,
                          int cookieinlen,
                          unsigned int flags)
@@ -1524,11 +1513,7 @@ qemuMigrationCookieParse(virQEMUDriver *driver,
         return NULL;
 
     if (cookiein && cookieinlen &&
-        qemuMigrationCookieXMLParseStr(mig,
-                                       driver,
-                                       priv ? priv->qemuCaps : NULL,
-                                       cookiein,
-                                       flags) < 0)
+        qemuMigrationCookieXMLParseStr(mig, driver, qemuCaps, cookiein, flags) < 0)
         return NULL;
 
     if (flags & QEMU_MIGRATION_COOKIE_PERSISTENT &&
@@ -1542,22 +1527,22 @@ qemuMigrationCookieParse(virQEMUDriver *driver,
         if (!mig->lockDriver) {
             if (virLockManagerPluginUsesState(driver->lockManager)) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Missing %s lock state for migration cookie"),
+                               _("Missing %1$s lock state for migration cookie"),
                                virLockManagerPluginGetName(driver->lockManager));
                 return NULL;
             }
         } else if (STRNEQ(mig->lockDriver,
                           virLockManagerPluginGetName(driver->lockManager))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Source host lock driver %s different from target %s"),
+                           _("Source host lock driver %1$s different from target %2$s"),
                            mig->lockDriver,
                            virLockManagerPluginGetName(driver->lockManager));
             return NULL;
         }
     }
 
-    if (flags & QEMU_MIGRATION_COOKIE_STATS && mig->jobData && priv->job.current)
-        mig->jobData->operation = priv->job.current->operation;
+    if (vm && flags & QEMU_MIGRATION_COOKIE_STATS && mig->jobData && vm->job->current)
+        mig->jobData->operation = vm->job->current->operation;
 
     return g_steal_pointer(&mig);
 }
@@ -1582,7 +1567,7 @@ qemuMigrationCookieBlockDirtyBitmapsMatchDisks(virDomainDef *def,
 
         if (!(disk->disk = virDomainDiskByTarget(def, disk->target))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Can't find disk '%s' in domain definition"),
+                           _("Can't find disk '%1$s' in domain definition"),
                            disk->target);
             return -1;
         }

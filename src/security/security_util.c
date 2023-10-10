@@ -23,7 +23,6 @@
 #include "virstring.h"
 #include "virerror.h"
 #include "virlog.h"
-#include "viruuid.h"
 #include "virhostuptime.h"
 
 #include "security_util.h"
@@ -184,7 +183,7 @@ virSecurityValidateTimestamp(const char *name,
             return -2;
         } else if (errno != ENODATA) {
             virReportSystemError(errno,
-                                 _("Unable to get XATTR %s on %s"),
+                                 _("Unable to get XATTR %1$s on %2$s"),
                                  timestamp_name,
                                  path);
             return -1;
@@ -291,7 +290,7 @@ virSecurityGetRememberedLabel(const char *name,
             return -2;
 
         virReportSystemError(errno,
-                             _("Unable to get XATTR %s on %s"),
+                             _("Unable to get XATTR %1$s on %2$s"),
                              ref_name,
                              path);
         return -1;
@@ -313,7 +312,7 @@ virSecurityGetRememberedLabel(const char *name,
 
     if (virStrToLong_ui(value, NULL, 10, &refcount) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("malformed refcount %s on %s"),
+                       _("malformed refcount %1$s on %2$s"),
                        value, path);
         return -1;
     }
@@ -389,7 +388,7 @@ virSecuritySetRememberedLabel(const char *name,
             return -2;
         } else if (errno != ENODATA) {
             virReportSystemError(errno,
-                                 _("Unable to get XATTR %s on %s"),
+                                 _("Unable to get XATTR %1$s on %2$s"),
                                  ref_name,
                                  path);
             return -1;
@@ -413,7 +412,7 @@ virSecuritySetRememberedLabel(const char *name,
     if (value &&
         virStrToLong_ui(value, NULL, 10, &refcount) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("malformed refcount %s on %s"),
+                       _("malformed refcount %1$s on %2$s"),
                        value, path);
         return -1;
     }
@@ -480,7 +479,7 @@ virSecurityMoveRememberedLabel(const char *name,
             return -2;
         } else if (errno != ENODATA) {
             virReportSystemError(errno,
-                                 _("Unable to get XATTR %s on %s"),
+                                 _("Unable to get XATTR %1$s on %2$s"),
                                  ref_name, src);
             return -1;
         }
@@ -491,7 +490,7 @@ virSecurityMoveRememberedLabel(const char *name,
             return -2;
         } else if (errno != ENODATA) {
             virReportSystemError(errno,
-                                 _("Unable to get XATTR %s on %s"),
+                                 _("Unable to get XATTR %1$s on %2$s"),
                                  attr_name, src);
             return -1;
         }
@@ -502,7 +501,7 @@ virSecurityMoveRememberedLabel(const char *name,
             return -2;
         } else if (errno != ENODATA) {
             virReportSystemError(errno,
-                                 _("Unable to get XATTR %s on %s"),
+                                 _("Unable to get XATTR %1$s on %2$s"),
                                  attr_name, src);
             return -1;
         }

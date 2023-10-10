@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #ifndef WIN32
 # include <sys/wait.h>
+# include <poll.h>
 #endif
 #include <fcntl.h>
 
@@ -35,8 +36,6 @@
 #include "virfile.h"
 #include "virpidfile.h"
 #include "virerror.h"
-#include "virthread.h"
-#include "virstring.h"
 #include "virprocess.h"
 #include "virutil.h"
 
@@ -59,29 +58,18 @@ static int checkoutput(const char *testname)
 {
     int ret = -1;
     g_autofree char *expectname = NULL;
-    g_autofree char *expectlog = NULL;
     g_autofree char *actualname = NULL;
     g_autofree char *actuallog = NULL;
 
     expectname = g_strdup_printf("%s/commanddata/%s.log", abs_srcdir, testname);
     actualname = g_strdup_printf("%s/commandhelper.log", abs_builddir);
 
-    if (virFileReadAll(expectname, 1024*64, &expectlog) < 0) {
-        fprintf(stderr, "cannot read %s\n", expectname);
-        goto cleanup;
-    }
-
     if (virFileReadAll(actualname, 1024*64, &actuallog) < 0) {
         fprintf(stderr, "cannot read %s\n", actualname);
         goto cleanup;
     }
 
-    if (STRNEQ(expectlog, actuallog)) {
-        virTestDifference(stderr, expectlog, actuallog);
-        goto cleanup;
-    }
-
-    ret = 0;
+    ret = virTestCompareToFile(actuallog, expectname);
 
  cleanup:
     if (actualname)
@@ -448,8 +436,7 @@ static int test13(const void *unused G_GNUC_UNUSED)
 
     g_clear_pointer(&cmd, virCommandFree);
 
-    if (STRNEQ(outactual, outexpect)) {
-        virTestDifference(stderr, outexpect, outactual);
+    if (virTestCompareToString(outexpect, outactual) < 0) {
         goto cleanup;
     }
 
@@ -509,16 +496,13 @@ static int test14(const void *unused G_GNUC_UNUSED)
     if (!jointactual)
         goto cleanup;
 
-    if (STRNEQ(outactual, outexpect)) {
-        virTestDifference(stderr, outexpect, outactual);
+    if (virTestCompareToString(outexpect, outactual) < 0) {
         goto cleanup;
     }
-    if (STRNEQ(erractual, errexpect)) {
-        virTestDifference(stderr, errexpect, erractual);
+    if (virTestCompareToString(errexpect, erractual) < 0) {
         goto cleanup;
     }
-    if (STRNEQ(jointactual, jointexpect)) {
-        virTestDifference(stderr, jointexpect, jointactual);
+    if (virTestCompareToString(jointexpect, jointactual) < 0) {
         goto cleanup;
     }
 
@@ -581,8 +565,7 @@ static int test16(const void *unused G_GNUC_UNUSED)
         return -1;
     }
 
-    if (STRNEQ(outactual, outexpect)) {
-        virTestDifference(stderr, outexpect, outactual);
+    if (virTestCompareToString(outexpect, outactual) < 0) {
         return -1;
     }
 
@@ -786,13 +769,11 @@ static int test21(const void *unused G_GNUC_UNUSED)
     if (virTestGetVerbose())
         printf("STDOUT:%s\nSTDERR:%s\n", NULLSTR(outbuf), NULLSTR(errbuf));
 
-    if (STRNEQ_NULLABLE(outbuf, outbufExpected)) {
-        virTestDifference(stderr, outbufExpected, outbuf);
+    if (virTestCompareToString(outbufExpected, outbuf) < 0) {
         return -1;
     }
 
-    if (STRNEQ_NULLABLE(errbuf, errbufExpected)) {
-        virTestDifference(stderr, errbufExpected, errbuf);
+    if (virTestCompareToString(errbufExpected, errbuf) < 0) {
         return -1;
     }
 
@@ -1028,8 +1009,7 @@ static int test26(const void *unused G_GNUC_UNUSED)
         return -1;
     }
 
-    if (STRNEQ(outactual, outexpect)) {
-        virTestDifference(stderr, outexpect, outactual);
+    if (virTestCompareToString(outexpect, outactual) < 0) {
         return -1;
     }
 
@@ -1043,8 +1023,8 @@ static int test27(const void *unused G_GNUC_UNUSED)
     int buf2fd;
     size_t buflen = 1024 * 128;
     g_autofree char *buffer0 = NULL;
-    g_autofree char *buffer1 = NULL;
-    g_autofree char *buffer2 = NULL;
+    g_autofree unsigned char *buffer1 = NULL;
+    g_autofree unsigned char *buffer2 = NULL;
     g_autofree char *outactual = NULL;
     g_autofree char *erractual = NULL;
     g_autofree char *outexpect = NULL;
@@ -1057,8 +1037,8 @@ static int test27(const void *unused G_GNUC_UNUSED)
         "END STDERR\n"
 
     buffer0 = g_new0(char, buflen);
-    buffer1 = g_new0(char, buflen);
-    buffer2 = g_new0(char, buflen);
+    buffer1 = g_new0(unsigned char, buflen);
+    buffer2 = g_new0(unsigned char, buflen);
 
     memset(buffer0, 'H', buflen - 2);
     buffer0[buflen - 2] = '\n';
@@ -1077,8 +1057,8 @@ static int test27(const void *unused G_GNUC_UNUSED)
     errexpect = g_strdup_printf(TEST27_ERREXPECT_TEMP,
                                 buffer0, buffer1, buffer2);
 
-    buf1fd = virCommandSetSendBuffer(cmd, (unsigned char *) g_steal_pointer(&buffer1), buflen - 1);
-    buf2fd = virCommandSetSendBuffer(cmd, (unsigned char *) g_steal_pointer(&buffer2), buflen - 1);
+    buf1fd = virCommandSetSendBuffer(cmd, &buffer1, buflen - 1);
+    buf2fd = virCommandSetSendBuffer(cmd, &buffer2, buflen - 1);
 
     virCommandAddArg(cmd, "--readfd");
     virCommandAddArgFormat(cmd, "%d", buf1fd);
@@ -1098,12 +1078,10 @@ static int test27(const void *unused G_GNUC_UNUSED)
     if (!outactual || !erractual)
         return -1;
 
-    if (STRNEQ(outactual, outexpect)) {
-        virTestDifference(stderr, outexpect, outactual);
+    if (virTestCompareToString(outexpect, outactual) < 0) {
         return -1;
     }
-    if (STRNEQ(erractual, errexpect)) {
-        virTestDifference(stderr, errexpect, erractual);
+    if (virTestCompareToString(errexpect, erractual) < 0) {
         return -1;
     }
 
@@ -1158,6 +1136,103 @@ test28(const void *unused G_GNUC_UNUSED)
 
 
 static int
+test29(const void *unused G_GNUC_UNUSED)
+{
+    g_autoptr(virCommand) cmd = virCommandNew(abs_builddir "/commandhelper");
+    g_autofree char *pidfile = virPidFileBuildPath(abs_builddir, "commandhelper");
+    pid_t pid;
+    int buffd;
+    VIR_AUTOCLOSE outfd = -1;
+    size_t buflen = 1024 * 10;
+    g_autofree unsigned char *buffer = NULL;
+    g_autofree char *outactual = NULL;
+    g_autofree char *outexpect = NULL;
+    size_t i;
+    size_t outactuallen = 0;
+    int ret = -1;
+
+    if (!pidfile)
+        return -1;
+
+    buffer = g_new0(unsigned char, buflen + 1);
+    for (i = 0; i < buflen; i++) {
+        buffer[i] = 'a' + i % ('z' - 'a' + 1);
+    }
+    buffer[buflen] = '\0';
+
+    outexpect = g_strdup_printf("BEGIN STDOUT\n%sEND STDOUT\n", buffer);
+
+    buffd = virCommandSetSendBuffer(cmd, &buffer, buflen);
+
+    virCommandAddArg(cmd, "--close-stdin");
+    virCommandAddArg(cmd, "--check-daemonize");
+    virCommandAddArg(cmd, "--readfd");
+    virCommandAddArgFormat(cmd, "%d", buffd);
+
+    virCommandSetOutputFD(cmd, &outfd);
+    virCommandSetPidFile(cmd, pidfile);
+    virCommandDaemonize(cmd);
+    virCommandDoAsyncIO(cmd);
+
+    if (virCommandRun(cmd, NULL) < 0) {
+        fprintf(stderr, "Cannot run child %s\n", virGetLastErrorMessage());
+        goto cleanup;
+    }
+
+    if (virPidFileReadPath(pidfile, &pid) < 0) {
+        fprintf(stderr, "cannot read pidfile: %s\n", pidfile);
+        goto cleanup;
+    }
+
+    while (1) {
+        char buf[1024] = { 0 };
+        struct pollfd pfd = {.fd = outfd, .events = POLLIN, .revents = 0};
+        int rc = 0;
+
+        rc = poll(&pfd, 1, 1000);
+        if (rc < 0) {
+            if (errno == EINTR)
+                continue;
+
+            fprintf(stderr, "poll() returned errno = %d\n", errno);
+            goto cleanup;
+        }
+
+        if (pfd.revents & POLLIN) {
+            rc = read(outfd, buf, sizeof(buf));
+            if (rc < 0) {
+                fprintf(stderr, "cannot read from output pipe: errno=%d\n", errno);
+                goto cleanup;
+            }
+
+            if (rc == 0)
+                break;
+
+            outactual = g_renew(char, outactual, outactuallen + rc + 1);
+            memcpy(outactual + outactuallen, buf, rc);
+            outactuallen += rc;
+            outactual[outactuallen] = '\0';
+        } else if (pfd.revents & POLLERR ||
+                   pfd.revents & POLLHUP) {
+            break;
+        }
+    }
+
+    if (virTestCompareToString(outexpect, outactual) < 0) {
+        goto cleanup;
+    }
+
+    ret = checkoutput("test29");
+
+ cleanup:
+    if (pidfile)
+        unlink(pidfile);
+
+    return ret;
+}
+
+
+static int
 mymain(void)
 {
     int ret = 0;
@@ -1171,6 +1246,8 @@ mymain(void)
 
     setpgid(0, 0);
     ignore_value(setsid());
+
+    virCloseRangeInit();
 
     /* Our test expects particular fd values; to get that, we must not
      * leak fds that we inherited from a lazy parent.  At the same
@@ -1198,6 +1275,7 @@ mymain(void)
      * since we're about to reset 'environ' */
     ignore_value(virTestGetDebug());
     ignore_value(virTestGetVerbose());
+    ignore_value(virTestGetRegenerate());
 
     /* Make sure to not leak fd's */
     virinitret = virInitialize();
@@ -1254,6 +1332,7 @@ mymain(void)
     DO_TEST(test26);
     DO_TEST(test27);
     DO_TEST(test28);
+    DO_TEST(test29);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

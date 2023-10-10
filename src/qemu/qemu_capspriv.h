@@ -57,22 +57,14 @@ virQEMUCapsSetArch(virQEMUCaps *qemuCaps,
                    virArch arch);
 
 void
-virQEMUCapsInitHostCPUModel(virQEMUCaps *qemuCaps,
-                            virArch hostArch,
-                            virDomainVirtType type);
-
-void
 virQEMUCapsUpdateHostCPUModel(virQEMUCaps *qemuCaps,
-                            virArch hostArch,
-                            virDomainVirtType type);
+                              virArch hostArch,
+                              virDomainVirtType type);
 int
 virQEMUCapsInitCPUModel(virQEMUCaps *qemuCaps,
                         virDomainVirtType type,
                         virCPUDef *cpu,
                         bool migratable);
-
-void
-virQEMUCapsInitQMPBasicArch(virQEMUCaps *qemuCaps);
 
 qemuMonitorCPUModelInfo *
 virQEMUCapsGetCPUModelInfo(virQEMUCaps *qemuCaps,
@@ -90,16 +82,12 @@ virQEMUCapsGetCPUModelX86Data(virQEMUCaps *qemuCaps,
 
 virCPUDef *
 virQEMUCapsProbeHostCPU(virArch hostArch,
-                        virDomainCapsCPUModels *models) G_GNUC_NO_INLINE;
+                        virDomainCapsCPUModels *models) G_NO_INLINE;
 
 void
 virQEMUCapsSetGICCapabilities(virQEMUCaps *qemuCaps,
                               virGICCapability *capabilities,
                               size_t ncapabilities);
-
-void
-virQEMUCapsSetSEVCapabilities(virQEMUCaps *qemuCaps,
-                              virSEVCapability *capabilities);
 
 int
 virQEMUCapsProbeCPUDefinitionsTest(virQEMUCaps *qemuCaps,
@@ -115,15 +103,5 @@ virQEMUCapsStripMachineAliases(virQEMUCaps *qemuCaps);
 bool
 virQEMUCapsHasMachines(virQEMUCaps *qemuCaps);
 
-void
-virQEMUCapsAddMachine(virQEMUCaps *qemuCaps,
-                      virDomainVirtType virtType,
-                      const char *name,
-                      const char *alias,
-                      const char *defaultCPU,
-                      int maxCpus,
-                      bool hotplugCpus,
-                      bool isDefault,
-                      bool numaMemSupported,
-                      const char *defaultRAMid,
-                      bool deprecated);
+bool
+virQEMUCapsHaveAccel(virQEMUCaps *qemuCaps);

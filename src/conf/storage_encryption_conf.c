@@ -30,10 +30,7 @@
 #include "storage_encryption_conf.h"
 #include "virxml.h"
 #include "virerror.h"
-#include "viruuid.h"
-#include "virfile.h"
 #include "virsecret.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -44,7 +41,7 @@ VIR_ENUM_IMPL(virStorageEncryptionSecret,
 
 VIR_ENUM_IMPL(virStorageEncryptionFormat,
               VIR_STORAGE_ENCRYPTION_FORMAT_LAST,
-              "default", "qcow", "luks", "luks2",
+              "default", "qcow", "luks", "luks2", "luks-any",
 );
 
 VIR_ENUM_IMPL(virStorageEncryptionEngine,
@@ -162,7 +159,7 @@ virStorageEncryptionSecretParse(xmlXPathContextPtr ctxt,
 
     if ((ret->type = virStorageEncryptionSecretTypeFromString(type_str)) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown volume encryption secret type %s"),
+                       _("unknown volume encryption secret type %1$s"),
                        type_str);
         goto cleanup;
     }
@@ -240,7 +237,7 @@ virStorageEncryptionParseNode(xmlNodePtr node,
     if ((encdef->format =
          virStorageEncryptionFormatTypeFromString(format_str)) < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown volume encryption format type %s"),
+                       _("unknown volume encryption format type %1$s"),
                        format_str);
         goto cleanup;
     }

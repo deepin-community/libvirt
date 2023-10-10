@@ -3,10 +3,8 @@
 #include <unistd.h>
 
 #include "internal.h"
-#include "virxml.h"
 #include "testutils.h"
 #include "vircommand.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -118,8 +116,7 @@ testCompareOutputLit(const char *expectData,
     g_autoptr(virCommand) cmd = NULL;
     g_autofree char *errbuf = NULL;
 
-    if (!(cmd = virCommandNewArgs(argv)))
-        return -1;
+    cmd = virCommandNewArgs(argv);
 
     virCommandAddEnvString(cmd, "LANG=C");
     virCommandSetInputBuffer(cmd, empty);
@@ -137,8 +134,7 @@ testCompareOutputLit(const char *expectData,
     if (filter && testFilterLine(actualData, filter) < 0)
         return -1;
 
-    if (STRNEQ(expectData, actualData)) {
-        virTestDifference(stderr, expectData, actualData);
+    if (virTestCompareToString(expectData, actualData) < 0) {
         return -1;
     }
 

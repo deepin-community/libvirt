@@ -25,13 +25,10 @@
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <time.h>
 #include <unistd.h>
 
 #include "internal.h"
-#include "virerror.h"
 #include "virlog.h"
-#include "viralloc.h"
 #include "virfile.h"
 #include "virrandom.h"
 
@@ -218,13 +215,13 @@ int
 virSetHostUUIDStr(const char *uuid)
 {
     int rc;
-    char dmiuuid[VIR_UUID_STRING_BUFLEN];
 
     if (virUUIDIsValid(host_uuid))
         return EEXIST;
 
     if (!uuid) {
-        memset(dmiuuid, 0, sizeof(dmiuuid));
+        char dmiuuid[VIR_UUID_STRING_BUFLEN] = { 0 };
+
         if (!getDMISystemUUID(dmiuuid, sizeof(dmiuuid))) {
             if (!virUUIDParse(dmiuuid, host_uuid))
                 return 0;

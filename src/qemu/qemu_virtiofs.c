@@ -132,8 +132,7 @@ qemuVirtioFSBuildCommandLine(virQEMUDriverConfig *cfg,
     g_autoptr(virCommand) cmd = NULL;
     g_auto(virBuffer) opts = VIR_BUFFER_INITIALIZER;
 
-    if (!(cmd = virCommandNew(fs->binary)))
-        return NULL;
+    cmd = virCommandNew(fs->binary);
 
     virCommandAddArgFormat(cmd, "--fd=%d", *fd);
     virCommandPassFD(cmd, *fd, VIR_COMMAND_PASS_FD_CLOSE_PARENT);
@@ -163,6 +162,10 @@ qemuVirtioFSBuildCommandLine(virQEMUDriverConfig *cfg,
         virBufferAddLit(&opts, ",no_posix_lock");
 
     virCommandAddArgBuffer(cmd, &opts);
+
+    if (fs->thread_pool_size >= 0)
+        virCommandAddArgFormat(cmd, "--thread-pool-size=%i", fs->thread_pool_size);
+
     if (cfg->virtiofsdDebug)
         virCommandAddArg(cmd, "-d");
 
@@ -175,6 +178,7 @@ qemuVirtioFSStart(virQEMUDriver *driver,
                   virDomainFSDef *fs)
 {
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+    qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virCommand) cmd = NULL;
     g_autofree char *socket_path = NULL;
     g_autofree char *pidfile = NULL;
@@ -186,14 +190,14 @@ qemuVirtioFSStart(virQEMUDriver *driver,
 
     if (!virFileIsExecutable(fs->binary)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("virtiofsd binary '%s' is not executable"),
+                       _("virtiofsd binary '%1$s' is not executable"),
                        fs->binary);
         return -1;
     }
 
     if (!virFileExists(fs->src->path)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("the virtiofs export directory '%s' does not exist"),
+                       _("the virtiofs export directory '%1$s' does not exist"),
                        fs->src->path);
         return -1;
     }
@@ -224,12 +228,12 @@ qemuVirtioFSStart(virQEMUDriver *driver,
             goto error;
     } else {
         if ((logfd = open(logpath, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR)) < 0) {
-            virReportSystemError(errno, _("failed to create logfile %s"),
+            virReportSystemError(errno, _("failed to create logfile %1$s"),
                                  logpath);
             goto error;
         }
         if (virSetCloseExec(logfd) < 0) {
-            virReportSystemError(errno, _("failed to set close-on-exec flag on %s"),
+            virReportSystemError(errno, _("failed to set close-on-exec flag on %1$s"),
                                  logpath);
             goto error;
         }
@@ -248,6 +252,16 @@ qemuVirtioFSStart(virQEMUDriver *driver,
     virCommandNonblockingFDs(cmd);
     virCommandDaemonize(cmd);
 
+    if (cfg->schedCore == QEMU_SCHED_CORE_FULL) {
+        pid_t cookie_pid = vm->pid;
+
+        if (cookie_pid <= 0)
+            cookie_pid = priv->schedCoreChildPID;
+
+        virCommandSetRunAmong(cmd, cookie_pid);
+    }
+
+
     if (qemuExtDeviceLogCommand(driver, vm, cmd, "virtiofsd") < 0)
         goto error;
 
@@ -262,7 +276,7 @@ qemuVirtioFSStart(virQEMUDriver *driver,
     rc = virPidFileReadPath(pidfile, &pid);
     if (rc < 0) {
         virReportSystemError(-rc,
-                             _("Unable to read virtiofsd pidfile '%s'"),
+                             _("Unable to read virtiofsd pidfile '%1$s'"),
                              pidfile);
         goto error;
     }

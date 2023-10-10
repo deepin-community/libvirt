@@ -7,14 +7,13 @@ Requires=virtproxyd-admin.socket
 After=network.target
 After=dbus.service
 After=apparmor.service
-After=local-fs.target
 Documentation=man:virtproxyd(8)
 Documentation=https://libvirt.org
 
 [Service]
 Type=notify
 Environment=VIRTPROXYD_ARGS="--timeout 120"
-EnvironmentFile=-@sysconfdir@/sysconfig/virtproxyd
+EnvironmentFile=-@initconfdir@/virtproxyd
 ExecStart=@sbindir@/virtproxyd $VIRTPROXYD_ARGS
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure

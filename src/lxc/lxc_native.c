@@ -25,11 +25,11 @@
 #include "lxc_container.h"
 #include "lxc_native.h"
 #include "util/viralloc.h"
-#include "util/virfile.h"
 #include "util/virlog.h"
 #include "util/virstring.h"
 #include "util/virconf.h"
 #include "conf/domain_conf.h"
+#include "conf/domain_postparse.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
@@ -67,8 +67,7 @@ lxcCreateFSDef(int type,
 
     def->type = type;
     def->accessmode = VIR_DOMAIN_FS_ACCESSMODE_PASSTHROUGH;
-    if (src)
-        def->src->path = g_strdup(src);
+    def->src->path = g_strdup(src);
     def->dst = g_strdup(dst);
     def->readonly = readonly;
     def->usage = usage;
@@ -221,7 +220,7 @@ lxcConvertSize(const char *size, unsigned long long *value)
 
     if (STREQ(unit, "%")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("can't convert relative size: '%s'"),
+                       _("can't convert relative size: '%1$s'"),
                        size);
         return -1;
     } else {
@@ -233,7 +232,7 @@ lxcConvertSize(const char *size, unsigned long long *value)
 
  error:
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("failed to convert size: '%s'"),
+                   _("failed to convert size: '%1$s'"),
                    size);
     return -1;
 }
@@ -375,18 +374,16 @@ lxcCreateNetDef(const char *type,
 }
 
 static virDomainHostdevDef *
-lxcCreateHostdevDef(int mode, int type, const char *data)
+lxcCreateHostdevDef(const char *data)
 {
     virDomainHostdevDef *hostdev = virDomainHostdevDefNew();
 
     if (!hostdev)
         return NULL;
 
-    hostdev->mode = mode;
-    hostdev->source.caps.type = type;
-
-    if (type == VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET)
-        hostdev->source.caps.u.net.ifname = g_strdup(data);
+    hostdev->mode = VIR_DOMAIN_HOSTDEV_MODE_CAPABILITIES;
+    hostdev->source.caps.type = VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET;
+    hostdev->source.caps.u.net.ifname = g_strdup(data);
 
     return hostdev;
 }
@@ -457,9 +454,7 @@ lxcAddNetworkDefinition(virDomainDef *def, lxcNetworkParseData *data)
                            _("Missing 'link' attribute for NIC"));
             goto error;
         }
-        if (!(hostdev = lxcCreateHostdevDef(VIR_DOMAIN_HOSTDEV_MODE_CAPABILITIES,
-                                            VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET,
-                                            data->link)))
+        if (!(hostdev = lxcCreateHostdevDef(data->link)))
             goto error;
 
         /* This still requires the user to manually setup the vlan interface
@@ -543,7 +538,7 @@ lxcNetworkParseDataIPs(const char *name,
         virStrToLong_ui(ipparts[1], NULL, 10, &ip->prefix) < 0) {
 
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Invalid CIDR address: '%s'"), value->str);
+                       _("Invalid CIDR address: '%1$s'"), value->str);
         return -1;
     }
 
@@ -772,7 +767,7 @@ lxcCreateConsoles(virDomainDef *def, virConf *properties)
     }
 
     if (virStrToLong_i(value, NULL, 10, &nbttys) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, _("failed to parse int: '%s'"),
+        virReportError(VIR_ERR_INTERNAL_ERROR, _("failed to parse int: '%1$s'"),
                        value);
         return -1;
     }
@@ -815,7 +810,7 @@ lxcIdmapWalkCallback(const char *name, virConfValue *value, void *data)
 
     if (sscanf(value->str, "%c %lu %lu %lu", &type,
                &target, &start, &count) != 4) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, _("invalid %s: '%s'"),
+        virReportError(VIR_ERR_INTERNAL_ERROR, _("invalid %1$s: '%2$s'"),
                        name, value->str);
         return -1;
     }
@@ -903,7 +898,7 @@ lxcSetCpuTune(virDomainDef *def, virConf *properties)
 
  error:
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("failed to parse integer: '%s'"), value);
+                   _("failed to parse integer: '%1$s'"), value);
     return -1;
 }
 
@@ -955,7 +950,7 @@ lxcBlkioDeviceWalkCallback(const char *name, virConfValue *value, void *data)
 
     if (!parts[0] || !parts[1]) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("invalid %s value: '%s'"),
+                       _("invalid %1$s value: '%2$s'"),
                        name, value->str);
         return -1;
     }
@@ -978,34 +973,34 @@ lxcBlkioDeviceWalkCallback(const char *name, virConfValue *value, void *data)
     if (STREQ(name, "lxc.cgroup.blkio.device_weight")) {
         if (virStrToLong_ui(parts[1], NULL, 10, &device->weight) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("failed to parse device weight: '%s'"), parts[1]);
+                           _("failed to parse device weight: '%1$s'"), parts[1]);
             return -1;
         }
     } else if (STREQ(name, "lxc.cgroup.blkio.throttle.read_bps_device")) {
         if (virStrToLong_ull(parts[1], NULL, 10, &device->rbps) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("failed to parse read_bps_device: '%s'"),
+                           _("failed to parse read_bps_device: '%1$s'"),
                            parts[1]);
             return -1;
         }
     } else if (STREQ(name, "lxc.cgroup.blkio.throttle.write_bps_device")) {
         if (virStrToLong_ull(parts[1], NULL, 10, &device->wbps) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("failed to parse write_bps_device: '%s'"),
+                           _("failed to parse write_bps_device: '%1$s'"),
                            parts[1]);
             return -1;
         }
     } else if (STREQ(name, "lxc.cgroup.blkio.throttle.read_iops_device")) {
         if (virStrToLong_ui(parts[1], NULL, 10, &device->riops) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("failed to parse read_iops_device: '%s'"),
+                           _("failed to parse read_iops_device: '%1$s'"),
                            parts[1]);
             return -1;
         }
     } else if (STREQ(name, "lxc.cgroup.blkio.throttle.write_iops_device")) {
         if (virStrToLong_ui(parts[1], NULL, 10, &device->wiops) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("failed to parse write_iops_device: '%s'"),
+                           _("failed to parse write_iops_device: '%1$s'"),
                            parts[1]);
             return -1;
         }
@@ -1025,7 +1020,7 @@ lxcSetBlkioTune(virDomainDef *def, virConf *properties)
                               &value) > 0) {
         if (virStrToLong_ui(value, NULL, 10, &def->blkio.weight) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("failed to parse integer: '%s'"), value);
+                           _("failed to parse integer: '%1$s'"), value);
             return -1;
         }
     }
@@ -1130,8 +1125,7 @@ lxcParseConfigString(const char *config,
     if (virConfGetValue(properties, "lxc.mount.fstab") ||
         virConfGetValue(properties, "lxc.mount")) {
         virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
-                       _("lxc.mount.fstab or lxc.mount found, use "
-                         "lxc.mount.entry lines instead"));
+                       _("lxc.mount.fstab or lxc.mount found, use lxc.mount.entry lines instead"));
         return NULL;
     }
 

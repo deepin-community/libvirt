@@ -216,7 +216,7 @@ virBitmapIsSet(virBitmap *bitmap, size_t b)
 
 /**
  * virBitmapIsBitSet:
- * @bitmap: Pointer to bitmap
+ * @bitmap: Pointer to bitmap (May be NULL)
  * @b: bit position to get
  *
  * Get setting of bit position @b in @bitmap.
@@ -228,7 +228,7 @@ bool
 virBitmapIsBitSet(virBitmap *bitmap,
                   size_t b)
 {
-    if (bitmap->nbits <= b)
+    if (!bitmap || bitmap->nbits <= b)
         return false;
 
     return virBitmapIsSet(bitmap, b);
@@ -478,7 +478,7 @@ virBitmapParseInternal(const char *str,
 
  error:
     virReportError(VIR_ERR_INVALID_ARG,
-                   _("Failed to parse bitmap '%s'"), str);
+                   _("Failed to parse bitmap '%1$s'"), str);
     return -1;
 }
 
@@ -824,6 +824,9 @@ virBitmapNextSetBit(virBitmap *bitmap,
     size_t nb;
     unsigned long bits;
 
+    if (!bitmap)
+        return -1;
+
     if (pos < 0)
         pos = -1;
 
@@ -862,6 +865,9 @@ virBitmapLastSetBit(virBitmap *bitmap)
     int unusedBits;
     ssize_t sz;
     unsigned long bits;
+
+    if (!bitmap)
+        return -1;
 
     /* If bitmap is empty then there is no set bit */
     if (bitmap->map_len == 0)
@@ -915,6 +921,9 @@ virBitmapNextClearBit(virBitmap *bitmap,
     size_t nl;
     size_t nb;
     unsigned long bits;
+
+    if (!bitmap)
+        return -1;
 
     if (pos < 0)
         pos = -1;
@@ -987,7 +996,7 @@ virBitmapNewString(const char *string)
 
     if (strspn(string, "0123456789abcdefABCDEF") != len) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Invalid hexadecimal string '%s'"), string);
+                       _("Invalid hexadecimal string '%1$s'"), string);
         return NULL;
     }
 

@@ -43,6 +43,7 @@ typedef enum {
     VIR_STORAGE_TYPE_VOLUME,
     VIR_STORAGE_TYPE_NVME,
     VIR_STORAGE_TYPE_VHOST_USER,
+    VIR_STORAGE_TYPE_VHOST_VDPA,
 
     VIR_STORAGE_TYPE_LAST
 } virStorageType;
@@ -150,7 +151,7 @@ typedef struct _virStorageNetHostDef virStorageNetHostDef;
 struct _virStorageNetHostDef {
     char *name;
     unsigned int port;
-    int transport; /* virStorageNetHostTransport */
+    virStorageNetHostTransport transport;
     char *socket;  /* path to unix socket */
 };
 
@@ -199,7 +200,7 @@ struct _virStorageSourcePoolDef {
     char *volume; /* volume name */
     int voltype; /* virStorageVolType, internal only */
     int pooltype; /* virStoragePoolType from storage_conf.h, internal only */
-    int actualtype; /* virStorageType, internal only */
+    virStorageType actualtype; /* internal only */
     int mode; /* virStorageSourcePoolMode, currently makes sense only for iscsi pool */
 };
 
@@ -258,6 +259,27 @@ struct _virStorageSourceSlice {
 };
 
 
+struct _virStorageSourceFDTuple {
+    GObject parent;
+    int *fds;
+    size_t nfds;
+    int *testfds; /* populated by tests to ensure stable FDs */
+
+    bool writable;
+    bool tryRestoreLabel;
+
+    /* connection this FD tuple is associated with for auto-closing */
+    virConnect *conn;
+
+    /* original selinux label when we relabel the image */
+    char *selinuxLabel;
+};
+G_DECLARE_FINAL_TYPE(virStorageSourceFDTuple, vir_storage_source_fd_tuple, VIR, STORAGE_SOURCE_FD_TUPLE, GObject);
+
+virStorageSourceFDTuple *
+virStorageSourceFDTupleNew(void);
+
+
 typedef struct _virStorageSource virStorageSource;
 
 /* Stores information related to a host resource.  In the case of backing
@@ -269,14 +291,16 @@ struct _virStorageSource {
     virObject parent;
 
     unsigned int id; /* backing chain identifier, 0 is unset */
-    int type; /* virStorageType */
+    virStorageType type;
     char *path;
+    char *fdgroup; /* name of group of file descriptors the user wishes to use instead of 'path' */
     int protocol; /* virStorageNetProtocol */
     char *volume; /* volume name for remote storage */
     char *snapshot; /* for storage systems supporting internal snapshots */
     char *configFile; /* some storage systems use config file as part of
                          the source definition */
     char *query; /* query string for HTTP based protocols */
+    char *vdpadev;
     size_t nhosts;
     virStorageNetHostDef *hosts;
     size_t ncookies;
@@ -289,6 +313,10 @@ struct _virStorageSource {
     /* both values below have 0 as default value */
     unsigned long long readahead; /* size of the readahead buffer in bytes */
     unsigned long long timeout; /* connection timeout in seconds */
+
+    /* NBD QEMU reconnect-delay option,
+     * 0 as default value */
+    unsigned int reconnectDelay;
 
     virStorageSourceNVMeDef *nvme; /* type == VIR_STORAGE_TYPE_NVME */
 
@@ -358,6 +386,9 @@ struct _virStorageSource {
     char *tlsAlias;
     char *tlsCertdir;
 
+    /* TLS hostname override */
+    char *tlsHostname;
+
     bool detected; /* true if this entry was not provided by the user */
 
     unsigned int debugLevel;
@@ -370,16 +401,19 @@ struct _virStorageSource {
     int cachemode; /* enum virDomainDiskCache */
     int discard; /* enum virDomainDiskDiscard */
     int detect_zeroes; /* enum virDomainDiskDetectZeroes */
+    virTristateSwitch discard_no_unref;
 
     bool floppyimg; /* set to true if the storage source is going to be used
                        as a source for floppy drive */
 
     bool hostcdrom; /* backing device is a cdrom */
 
-    /* passthrough variables for the ssh driver which we don't handle properly */
-    /* these must not be used apart from formatting the output JSON in the qemu driver */
+    /* ssh variables */
     char *ssh_user;
     bool ssh_host_key_check_disabled;
+    char *ssh_known_hosts_file;
+    char *ssh_keyfile;
+    char *ssh_agent;
 
     /* nfs_user and nfs_group store the strings passed in by the user for NFS params.
      * nfs_uid and nfs_gid represent the converted/looked up ID numbers which are used
@@ -393,6 +427,8 @@ struct _virStorageSource {
      * registered with a full index (vda[3]) so that we can properly report just
      * one event for it */
     bool thresholdEventWithIndex;
+
+    virStorageSourceFDTuple *fdtuple;
 };
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virStorageSource, virObjectUnref);
@@ -466,11 +502,14 @@ virStorageSourcePoolDefFree(virStorageSourcePoolDef *def);
 void
 virStorageSourceClear(virStorageSource *def);
 
-int
+virStorageType
 virStorageSourceGetActualType(const virStorageSource *def);
 
 bool
 virStorageSourceIsLocalStorage(const virStorageSource *src);
+
+bool
+virStorageSourceIsFD(const virStorageSource *src);
 
 bool
 virStorageSourceIsEmpty(virStorageSource *src);

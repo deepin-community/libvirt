@@ -2,6 +2,7 @@
   <arch>x86_64</arch>
   <model>Nehalem-IBRS</model>
   <vendor>Intel</vendor>
+  <signature family='6' model='46' stepping='6'/>
   <feature name='vme'/>
   <feature name='ds'/>
   <feature name='acpi'/>
@@ -20,6 +21,7 @@
   <feature name='dca'/>
   <feature name='x2apic'/>
   <feature name='stibp'/>
+  <feature name='flush-l1d'/>
   <feature name='ssbd'/>
   <feature name='rdtscp'/>
   <feature name='invtsc'/>

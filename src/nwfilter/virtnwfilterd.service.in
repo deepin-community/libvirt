@@ -7,14 +7,13 @@ Requires=virtnwfilterd-admin.socket
 After=network.target
 After=dbus.service
 After=apparmor.service
-After=local-fs.target
 Documentation=man:virtnwfilterd(8)
 Documentation=https://libvirt.org
 
 [Service]
 Type=notify
 Environment=VIRTNWFILTERD_ARGS="--timeout 120"
-EnvironmentFile=-@sysconfdir@/sysconfig/virtnwfilterd
+EnvironmentFile=-@initconfdir@/virtnwfilterd
 ExecStart=@sbindir@/virtnwfilterd $VIRTNWFILTERD_ARGS
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure

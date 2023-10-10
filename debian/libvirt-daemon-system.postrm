@@ -3,15 +3,16 @@
 set -e
 
 # summary of how this script can be called:
-#        * <postrm> `remove'
-#        * <postrm> `purge'
-#        * <old-postrm> `upgrade' <new-version>
-#        * <new-postrm> `failed-upgrade' <old-version>
-#        * <new-postrm> `abort-install'
-#        * <new-postrm> `abort-install' <old-version>
-#        * <new-postrm> `abort-upgrade' <old-version>
-#        * <disappearer's-postrm> `disappear' <overwriter>
-#          <overwriter-version>
+#
+#   * <postrm> `remove'
+#   * <postrm> `purge'
+#   * <old-postrm> `upgrade' <new-version>
+#   * <disappearer's-postrm> `disappear' <overwriter> <overwriter-version>
+#   * <new-postrm> `failed-upgrade' <old-version> <new-version>
+#   * <new-postrm> `abort-install'
+#   * <new-postrm> `abort-install' <old-version> <new-version>
+#   * <new-postrm> `abort-upgrade' <old-version> <new-version>
+#
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
@@ -84,6 +85,15 @@ case "$1" in
         rm -rf /var/log/libvirt \
                /var/cache/libvirt/qemu/capabilities
 
+        # Clean up obsolete runtime data
+        rm -rf /var/lib/libvirt/qemu/channel/target/domain-*
+        if [ -d /var/lib/libvirt/qemu/channel/target ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel/target
+        fi
+        if [ -d /var/lib/libvirt/qemu/channel ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel
+        fi
+
         # Clean up created dirs if existent and empty, they contain precious
         # data otherwise
         for dir in /var/lib/libvirt/qemu/save \
@@ -93,7 +103,6 @@ case "$1" in
                    /var/lib/libvirt/qemu/ram/libvirt/qemu \
                    /var/lib/libvirt/qemu/ram/libvirt \
                    /var/lib/libvirt/qemu/ram \
-                   /var/lib/libvirt/qemu/channel \
                    /var/lib/libvirt/qemu \
                    /var/cache/libvirt/qemu; do
             [ ! -d $dir ] || rmdir --ignore-fail-on-non-empty $dir
@@ -133,7 +142,7 @@ case "$1" in
         done
     ;;
 
-    remove|upgrade|failed-upgrade|disappear)
+    remove|upgrade|disappear|failed-upgrade)
     ;;
 
     *)
@@ -141,63 +150,6 @@ case "$1" in
         exit 1
     ;;
 esac
-
-# Section copied verbatim from the output of dh_installsystemd/13.6
-#
-# Due to #994204, we are forced to handle systemd units ourselves to
-# avoid the restart of services/sockets which would result in VMs
-# being stopped or crashing.
-#
-# In order to do this, instead of calling dh_installsystemd in
-# debian/rules we take the output that those calls would generate
-# and hardcode it here, tweaking it as necessary to prevent the
-# problematic scenarios.
-if [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
-	systemctl --system daemon-reload >/dev/null || true
-fi
-if [ "$1" = "remove" ]; then
-	if [ -x "/usr/bin/deb-systemd-helper" ]; then
-		deb-systemd-helper mask 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
-	fi
-fi
-
-if [ "$1" = "purge" ]; then
-	if [ -x "/usr/bin/deb-systemd-helper" ]; then
-		deb-systemd-helper purge 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
-		deb-systemd-helper unmask 'libvirtd-admin.socket' 'libvirtd-ro.socket' 'libvirtd.socket' 'virtlockd-admin.socket' 'virtlockd.socket' 'virtlogd-admin.socket' 'virtlogd.socket' >/dev/null || true
-	fi
-fi
-if [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
-	systemctl --system daemon-reload >/dev/null || true
-fi
-if [ "$1" = "remove" ]; then
-	if [ -x "/usr/bin/deb-systemd-helper" ]; then
-		deb-systemd-helper mask 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
-	fi
-fi
-
-if [ "$1" = "purge" ]; then
-	if [ -x "/usr/bin/deb-systemd-helper" ]; then
-		deb-systemd-helper purge 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
-		deb-systemd-helper unmask 'libvirt-guests.service' 'virtlockd.service' 'virtlogd.service' >/dev/null || true
-	fi
-fi
-if [ "$1" = remove ] && [ -d /run/systemd/system ] ; then
-	systemctl --system daemon-reload >/dev/null || true
-fi
-if [ "$1" = "remove" ]; then
-	if [ -x "/usr/bin/deb-systemd-helper" ]; then
-		deb-systemd-helper mask 'libvirtd.service' >/dev/null || true
-	fi
-fi
-
-if [ "$1" = "purge" ]; then
-	if [ -x "/usr/bin/deb-systemd-helper" ]; then
-		deb-systemd-helper purge 'libvirtd.service' >/dev/null || true
-		deb-systemd-helper unmask 'libvirtd.service' >/dev/null || true
-	fi
-fi
-# End of section copied verbatim
 
 #DEBHELPER#
 

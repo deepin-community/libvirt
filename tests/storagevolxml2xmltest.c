@@ -8,8 +8,6 @@
 #include "internal.h"
 #include "testutils.h"
 #include "storage_conf.h"
-#include "testutilsqemu.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -21,10 +19,10 @@ testCompareXMLToXMLFiles(const char *poolxml, const char *inxml,
     g_autoptr(virStoragePoolDef) pool = NULL;
     g_autoptr(virStorageVolDef) dev = NULL;
 
-    if (!(pool = virStoragePoolDefParseFile(poolxml)))
+    if (!(pool = virStoragePoolDefParse(NULL, poolxml, 0)))
         return -1;
 
-    if (!(dev = virStorageVolDefParseFile(pool, inxml, flags)))
+    if (!(dev = virStorageVolDefParse(pool, NULL, inxml, flags)))
         return -1;
 
     if (!(actual = virStorageVolDefFormat(pool, dev)))
@@ -94,7 +92,6 @@ mymain(void)
     DO_TEST("pool-disk", "vol-partition");
     DO_TEST("pool-logical", "vol-logical");
     DO_TEST("pool-logical", "vol-logical-backing");
-    DO_TEST("pool-sheepdog", "vol-sheepdog");
     DO_TEST("pool-gluster", "vol-gluster-dir");
     DO_TEST("pool-gluster", "vol-gluster-dir-neg-uid");
     DO_TEST_FULL("pool-dir", "vol-qcow2-nocapacity",

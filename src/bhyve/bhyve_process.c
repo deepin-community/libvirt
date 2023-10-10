@@ -56,10 +56,10 @@ VIR_LOG_INIT("bhyve.bhyve_process");
 
 static void
 bhyveProcessAutoDestroy(virDomainObj *vm,
-                        virConnectPtr conn G_GNUC_UNUSED,
-                        void *opaque)
+                        virConnectPtr conn G_GNUC_UNUSED)
 {
-    struct _bhyveConn *driver = opaque;
+    bhyveDomainObjPrivate *priv = vm->privateData;
+    struct _bhyveConn *driver = priv->driver;
 
     virBhyveProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_DESTROYED);
 
@@ -94,21 +94,34 @@ virBhyveFormatDevMapFile(const char *vm_name, char **fn_out)
 }
 
 static int
-bhyveProcessStartHook(virDomainObj *vm, virHookBhyveOpType op)
+bhyveProcessStartHook(struct _bhyveConn *driver,
+                      virDomainObj *vm,
+                      virHookBhyveOpType op)
 {
+    g_autofree char *xml = NULL;
+
     if (!virHookPresent(VIR_HOOK_DRIVER_BHYVE))
         return 0;
 
+    xml = virDomainDefFormat(vm->def, driver->xmlopt, 0);
+
     return virHookCall(VIR_HOOK_DRIVER_BHYVE, vm->def->name, op,
-                       VIR_HOOK_SUBOP_BEGIN, NULL, NULL, NULL);
+                       VIR_HOOK_SUBOP_BEGIN, NULL, xml, NULL);
 }
 
 static void
-bhyveProcessStopHook(virDomainObj *vm, virHookBhyveOpType op)
+bhyveProcessStopHook(struct _bhyveConn *driver,
+                     virDomainObj *vm,
+                     virHookBhyveOpType op)
 {
-    if (virHookPresent(VIR_HOOK_DRIVER_BHYVE))
-        virHookCall(VIR_HOOK_DRIVER_BHYVE, vm->def->name, op,
-                    VIR_HOOK_SUBOP_END, NULL, NULL, NULL);
+    g_autofree char *xml = NULL;
+    if (!virHookPresent(VIR_HOOK_DRIVER_BHYVE))
+        return;
+
+    xml = virDomainDefFormat(vm->def, driver->xmlopt, 0);
+
+    virHookCall(VIR_HOOK_DRIVER_BHYVE, vm->def->name, op,
+                VIR_HOOK_SUBOP_END, NULL, xml, NULL);
 }
 
 static int
@@ -129,7 +142,7 @@ virBhyveProcessStartImpl(struct _bhyveConn *driver,
     if ((logfd = open(logfile, O_WRONLY | O_APPEND | O_CREAT,
                       S_IRUSR | S_IWUSR)) < 0) {
         virReportSystemError(errno,
-                             _("Failed to open '%s'"),
+                             _("Failed to open '%1$s'"),
                              logfile);
         goto cleanup;
     }
@@ -145,7 +158,7 @@ virBhyveProcessStartImpl(struct _bhyveConn *driver,
     if (unlink(driver->pidfile) < 0 &&
         errno != ENOENT) {
         virReportSystemError(errno,
-                             _("Cannot remove state PID file %s"),
+                             _("Cannot remove stale PID file %1$s"),
                              driver->pidfile);
         goto cleanup;
     }
@@ -180,7 +193,7 @@ virBhyveProcessStartImpl(struct _bhyveConn *driver,
             rc = virFileWriteStr(devmap_file, devicemap, 0644);
             if (rc) {
                 virReportSystemError(errno,
-                                     _("Cannot write device.map '%s'"),
+                                     _("Cannot write device.map '%1$s'"),
                                      devmap_file);
                 goto cleanup;
             }
@@ -194,7 +207,7 @@ virBhyveProcessStartImpl(struct _bhyveConn *driver,
             goto cleanup;
     }
 
-    if (bhyveProcessStartHook(vm, VIR_HOOK_BHYVE_OP_START) < 0)
+    if (bhyveProcessStartHook(driver, vm, VIR_HOOK_BHYVE_OP_START) < 0)
         goto cleanup;
 
     /* Now we can start the domain */
@@ -204,7 +217,7 @@ virBhyveProcessStartImpl(struct _bhyveConn *driver,
 
     if (virPidFileReadPath(driver->pidfile, &vm->pid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Domain %s didn't show up"), vm->def->name);
+                       _("Domain %1$s didn't show up"), vm->def->name);
         goto cleanup;
     }
 
@@ -216,7 +229,7 @@ virBhyveProcessStartImpl(struct _bhyveConn *driver,
                          BHYVE_STATE_DIR) < 0)
         goto cleanup;
 
-    if (bhyveProcessStartHook(vm, VIR_HOOK_BHYVE_OP_STARTED) < 0)
+    if (bhyveProcessStartHook(driver, vm, VIR_HOOK_BHYVE_OP_STARTED) < 0)
         goto cleanup;
 
     ret = 0;
@@ -225,7 +238,7 @@ virBhyveProcessStartImpl(struct _bhyveConn *driver,
     if (devicemap != NULL) {
         rc = unlink(devmap_file);
         if (rc < 0 && errno != ENOENT)
-            virReportSystemError(errno, _("cannot unlink file '%s'"),
+            virReportSystemError(errno, _("cannot unlink file '%1$s'"),
                                  devmap_file);
     }
 
@@ -265,13 +278,11 @@ virBhyveProcessStart(virConnectPtr conn,
     struct _bhyveConn *driver = conn->privateData;
 
     /* Run an early hook to setup missing devices. */
-    if (bhyveProcessStartHook(vm, VIR_HOOK_BHYVE_OP_PREPARE) < 0)
+    if (bhyveProcessStartHook(driver, vm, VIR_HOOK_BHYVE_OP_PREPARE) < 0)
         return -1;
 
-    if (flags & VIR_BHYVE_PROCESS_START_AUTODESTROY &&
-        virCloseCallbacksSet(driver->closeCallbacks, vm,
-                             conn, bhyveProcessAutoDestroy) < 0)
-        return -1;
+    if (flags & VIR_BHYVE_PROCESS_START_AUTODESTROY)
+        virCloseCallbacksDomainAdd(vm, conn, bhyveProcessAutoDestroy);
 
     if (bhyveProcessPrepareDomain(driver, vm, flags) < 0)
         return -1;
@@ -293,9 +304,9 @@ virBhyveProcessStop(struct _bhyveConn *driver,
         return 0;
     }
 
-    if (vm->pid <= 0) {
+    if (vm->pid == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Invalid PID %d for VM"),
+                       _("Invalid PID %1$d for VM"),
                        (int)vm->pid);
         return -1;
     }
@@ -309,7 +320,7 @@ virBhyveProcessStop(struct _bhyveConn *driver,
     if ((priv != NULL) && (priv->mon != NULL))
          bhyveMonitorClose(priv->mon);
 
-    bhyveProcessStopHook(vm, VIR_HOOK_BHYVE_OP_STOPPED);
+    bhyveProcessStopHook(driver, vm, VIR_HOOK_BHYVE_OP_STOPPED);
 
     /* Cleanup network interfaces */
     bhyveNetCleanup(vm);
@@ -325,14 +336,13 @@ virBhyveProcessStop(struct _bhyveConn *driver,
 
     ret = 0;
 
-    virCloseCallbacksUnset(driver->closeCallbacks, vm,
-                           bhyveProcessAutoDestroy);
+    virCloseCallbacksDomainRemove(vm, NULL, bhyveProcessAutoDestroy);
 
     virDomainObjSetState(vm, VIR_DOMAIN_SHUTOFF, reason);
-    vm->pid = -1;
+    vm->pid = 0;
     vm->def->id = -1;
 
-    bhyveProcessStopHook(vm, VIR_HOOK_BHYVE_OP_RELEASE);
+    bhyveProcessStopHook(driver, vm, VIR_HOOK_BHYVE_OP_RELEASE);
 
  cleanup:
     virPidFileDelete(BHYVE_STATE_DIR, vm->def->name);
@@ -344,9 +354,9 @@ virBhyveProcessStop(struct _bhyveConn *driver,
 int
 virBhyveProcessShutdown(virDomainObj *vm)
 {
-    if (vm->pid <= 0) {
+    if (vm->pid == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Invalid PID %d for VM"),
+                       _("Invalid PID %1$d for VM"),
                        (int)vm->pid);
         return -1;
     }
@@ -383,13 +393,13 @@ virBhyveGetDomainTotalCpuStats(virDomainObj *vm,
 {
     struct kinfo_proc *kp;
     kvm_t *kd;
-    char errbuf[_POSIX2_LINE_MAX];
+    g_autofree char *errbuf = g_new0(char, _POSIX2_LINE_MAX);
     int nprocs;
     int ret = -1;
 
     if ((kd = kvm_openfiles(NULL, NULL, NULL, O_RDONLY, errbuf)) == NULL) {
         virReportError(VIR_ERR_SYSTEM_ERROR,
-                       _("Unable to get kvm descriptor: %s"),
+                       _("Unable to get kvm descriptor: %1$s"),
                        errbuf);
         return -1;
 
@@ -398,7 +408,7 @@ virBhyveGetDomainTotalCpuStats(virDomainObj *vm,
     kp = kvm_getprocs(kd, KERN_PROC_PID, vm->pid, &nprocs);
     if (kp == NULL || nprocs != 1) {
         virReportError(VIR_ERR_SYSTEM_ERROR,
-                       _("Unable to obtain information about pid: %d"),
+                       _("Unable to obtain information about pid: %1$d"),
                        (int)vm->pid);
         goto cleanup;
     }
@@ -433,7 +443,7 @@ virBhyveProcessReconnect(virDomainObj *vm,
     if (!virDomainObjIsActive(vm))
         return 0;
 
-    if (!vm->pid)
+    if (vm->pid == 0)
         return 0;
 
     virObjectLock(vm);
@@ -484,11 +494,11 @@ virBhyveProcessReconnectAll(struct _bhyveConn *driver)
 {
     kvm_t *kd;
     struct bhyveProcessReconnectData data;
-    char errbuf[_POSIX2_LINE_MAX];
+    g_autofree char *errbuf = g_new0(char, _POSIX2_LINE_MAX);
 
     if ((kd = kvm_openfiles(NULL, NULL, NULL, O_RDONLY, errbuf)) == NULL) {
         virReportError(VIR_ERR_SYSTEM_ERROR,
-                       _("Unable to get kvm descriptor: %s"),
+                       _("Unable to get kvm descriptor: %1$s"),
                        errbuf);
         return;
 

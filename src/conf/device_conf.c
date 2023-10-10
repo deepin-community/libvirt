@@ -20,10 +20,8 @@
 
 #include <config.h>
 #include "virerror.h"
-#include "datatypes.h"
 #include "viralloc.h"
 #include "virxml.h"
-#include "viruuid.h"
 #include "virbuffer.h"
 #include "device_conf.h"
 #include "domain_addr.h"
@@ -100,7 +98,7 @@ virDomainDeviceInfoAddressIsEqual(const virDomainDeviceInfo *a,
     if (a->type != b->type)
         return false;
 
-    switch ((virDomainDeviceAddressType) a->type) {
+    switch (a->type) {
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE:
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_LAST:
     /* address types below don't have any specific data */
@@ -201,8 +199,7 @@ int
 virPCIDeviceAddressParseXML(xmlNodePtr node,
                             virPCIDeviceAddress *addr)
 {
-    xmlNodePtr cur;
-    xmlNodePtr zpci = NULL;
+    xmlNodePtr zpci;
 
     memset(addr, 0, sizeof(*addr));
 
@@ -229,17 +226,10 @@ virPCIDeviceAddressParseXML(xmlNodePtr node,
     if (!virPCIDeviceAddressIsEmpty(addr) && !virPCIDeviceAddressIsValid(addr, true))
         return -1;
 
-    cur = node->children;
-    while (cur) {
-        if (cur->type == XML_ELEMENT_NODE &&
-            virXMLNodeNameEqual(cur, "zpci")) {
-            zpci = cur;
-        }
-        cur = cur->next;
+    if ((zpci = virXMLNodeGetSubelement(node, "zpci"))) {
+        if (virZPCIDeviceAddressParseXML(zpci, addr) < 0)
+            return -1;
     }
-
-    if (zpci && virZPCIDeviceAddressParseXML(zpci, addr) < 0)
-        return -1;
 
     return 0;
 }
@@ -258,17 +248,9 @@ virPCIDeviceAddressFormat(virBuffer *buf,
                       addr.function);
 }
 
-bool
-virDomainDeviceCCWAddressIsValid(virDomainDeviceCCWAddress *addr)
-{
-    return addr->cssid <= VIR_DOMAIN_DEVICE_CCW_MAX_CSSID &&
-           addr->ssid <= VIR_DOMAIN_DEVICE_CCW_MAX_SSID &&
-           addr->devno <= VIR_DOMAIN_DEVICE_CCW_MAX_DEVNO;
-}
-
 int
-virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
-                                  virDomainDeviceCCWAddress *addr)
+virCCWDeviceAddressParseXML(xmlNodePtr node,
+                            virCCWDeviceAddress *addr)
 {
     int cssid;
     int ssid;
@@ -288,9 +270,9 @@ virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
                                 &addr->devno)) < 0)
         return -1;
 
-    if (!virDomainDeviceCCWAddressIsValid(addr)) {
+    if (!virCCWDeviceAddressIsValid(addr)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Invalid specification for virtio ccw address: cssid='0x%x' ssid='0x%x' devno='0x%04x'"),
+                       _("Invalid specification for virtio ccw address: cssid='0x%1$x' ssid='0x%2$x' devno='0x%3$04x'"),
                        addr->cssid, addr->ssid, addr->devno);
         return -1;
     }
@@ -304,18 +286,6 @@ virDomainDeviceCCWAddressParseXML(xmlNodePtr node,
     }
 
     return 0;
-}
-
-bool
-virDomainDeviceCCWAddressEqual(virDomainDeviceCCWAddress *addr1,
-                               virDomainDeviceCCWAddress *addr2)
-{
-    if (addr1->cssid == addr2->cssid &&
-        addr1->ssid == addr2->ssid &&
-        addr1->devno == addr2->devno) {
-        return true;
-    }
-    return false;
 }
 
 int
@@ -453,10 +423,20 @@ virDomainDeviceAddressIsValid(virDomainDeviceInfo *info,
         return true;
 
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCW:
-        return virDomainDeviceCCWAddressIsValid(&info->addr.ccw);
+        return virCCWDeviceAddressIsValid(&info->addr.ccw);
 
     case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_USB:
         return true;
+
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_NONE:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_VIRTIO_SERIAL:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_CCID:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_SPAPRVIO:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_ISA:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_UNASSIGNED:
+    case VIR_DOMAIN_DEVICE_ADDRESS_TYPE_LAST:
+        break;
     }
 
     return false;

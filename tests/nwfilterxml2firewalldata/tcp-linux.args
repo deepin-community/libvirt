@@ -7,8 +7,10 @@ iptables \
 --destination 10.1.2.3/32 \
 -m dscp \
 --dscp 2 \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -j RETURN
 iptables \
 -w \
@@ -17,8 +19,10 @@ iptables \
 --source 10.1.2.3/32 \
 -m dscp \
 --dscp 2 \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -j ACCEPT
 iptables \
 -w \
@@ -29,8 +33,10 @@ iptables \
 --destination 10.1.2.3/32 \
 -m dscp \
 --dscp 2 \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -j RETURN
 iptables \
 -w \

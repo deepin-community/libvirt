@@ -78,7 +78,7 @@ virNetworkObjSetFloorSum(virNetworkObj *obj,
 
 void
 virNetworkObjSetMacMap(virNetworkObj *obj,
-                       virMacMap *macmap);
+                       virMacMap **macmap);
 
 void
 virNetworkObjUnrefMacMap(virNetworkObj *obj);
@@ -258,3 +258,24 @@ virNetworkObjListNumOfNetworks(virNetworkObjList *nets,
 void
 virNetworkObjListPrune(virNetworkObjList *nets,
                        unsigned int flags);
+
+int
+virNetworkObjUpdateModificationImpact(virNetworkObj *obj,
+                                      unsigned int *flags);
+
+char *
+virNetworkObjGetMetadata(virNetworkObj *network,
+                         int type,
+                         const char *uri,
+                         unsigned int flags);
+
+int
+virNetworkObjSetMetadata(virNetworkObj *network,
+                         int type,
+                         const char *metadata,
+                         const char *key,
+                         const char *uri,
+                         virNetworkXMLOption *xmlopt,
+                         const char *stateDir,
+                         const char *configDir,
+                         unsigned int flags);

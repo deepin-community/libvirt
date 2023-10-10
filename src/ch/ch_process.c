@@ -27,8 +27,6 @@
 #include "ch_monitor.h"
 #include "ch_process.h"
 #include "domain_cgroup.h"
-#include "virnuma.h"
-#include "viralloc.h"
 #include "virerror.h"
 #include "virjson.h"
 #include "virlog.h"
@@ -69,7 +67,7 @@ virCHProcessUpdateConsoleDevice(virDomainObj *vm,
     dev = virJSONValueObjectGet(config, device);
     if (!dev) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing '%s' in 'config' from cloud-hypervisor"),
+                       _("missing '%1$s' in 'config' from cloud-hypervisor"),
                        device);
         return;
     }
@@ -77,7 +75,7 @@ virCHProcessUpdateConsoleDevice(virDomainObj *vm,
     file = virJSONValueObjectGet(dev, "file");
     if (!file) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing 'file' in '%s' from cloud-hypervisor"),
+                       _("missing 'file' in '%1$s' from cloud-hypervisor"),
                        device);
         return;
     }
@@ -85,7 +83,7 @@ virCHProcessUpdateConsoleDevice(virDomainObj *vm,
     path = virJSONValueGetString(file);
     if (!path) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to parse contents of 'file' field in '%s' from cloud-hypervisor"),
+                       _("unable to parse contents of 'file' field in '%1$s' from cloud-hypervisor"),
                        device);
         return;
     }
@@ -254,13 +252,20 @@ virCHProcessSetupPid(virDomainObj *vm,
         virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPUSET)) {
 
         if (virDomainNumatuneGetMode(vm->def->numa, -1, &mem_mode) == 0 &&
-            mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT &&
+            (mem_mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT ||
+             mem_mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) &&
             virDomainNumatuneMaybeFormatNodeset(vm->def->numa,
                                                 priv->autoNodeset,
                                                 &mem_mask, -1) < 0)
             goto cleanup;
 
         if (virCgroupNewThread(priv->cgroup, nameval, id, true, &cgroup) < 0)
+            goto cleanup;
+
+        /* Move the thread to the sub dir before changing the settings so that
+         * all take effect even with cgroupv2. */
+        VIR_INFO("Adding pid %d to cgroup", pid);
+        if (virCgroupAddThread(cgroup, pid) < 0)
             goto cleanup;
 
         if (virCgroupHasController(priv->cgroup, VIR_CGROUP_CONTROLLER_CPUSET)) {
@@ -275,12 +280,6 @@ virCHProcessSetupPid(virDomainObj *vm,
 
         if (virDomainCgroupSetupVcpuBW(cgroup, period, quota) < 0)
             goto cleanup;
-
-        /* Move the thread to the sub dir */
-        VIR_INFO("Adding pid %d to cgroup", pid);
-        if (virCgroupAddThread(cgroup, pid) < 0)
-            goto cleanup;
-
     }
 
     if (!affinity_cpumask)
@@ -333,7 +332,7 @@ virCHProcessSetupIOThreads(virDomainObj *vm)
         return -1;
 
     for (i = 0; i < niothreads; i++) {
-        VIR_DEBUG("IOThread index = %ld , tid = %d", i, iothreads[i]->iothread_id);
+        VIR_DEBUG("IOThread index = %zu , tid = %d", i, iothreads[i]->iothread_id);
         if (virCHProcessSetupIOThread(vm, iothreads[i]) < 0)
             return -1;
     }
@@ -526,8 +525,7 @@ virCHProcessStart(virCHDriver *driver,
 
     VIR_DEBUG("Setting global CPU cgroup (if required)");
     if (virDomainCgroupSetupGlobalCpuCgroup(vm,
-                                            priv->cgroup,
-                                            priv->autoNodeset) < 0)
+                                            priv->cgroup) < 0)
         goto cleanup;
 
     VIR_DEBUG("Setting vCPU tuning/settings");
@@ -574,7 +572,7 @@ virCHProcessStop(virCHDriver *driver G_GNUC_UNUSED,
                  vm->def->name);
     }
 
-    vm->pid = -1;
+    vm->pid = 0;
     vm->def->id = -1;
     g_clear_pointer(&priv->machineName, g_free);
 

@@ -21,13 +21,11 @@
 #include <config.h>
 
 #include "log_handler.h"
+#include "log_cleaner.h"
 #include "virerror.h"
-#include "virobject.h"
 #include "virfile.h"
 #include "viralloc.h"
-#include "virstring.h"
 #include "virlog.h"
-#include "virrotatingfile.h"
 #include "viruuid.h"
 #include "virutil.h"
 
@@ -43,31 +41,6 @@ VIR_LOG_INIT("logging.log_handler");
 
 #define DEFAULT_MODE 0600
 
-typedef struct _virLogHandlerLogFile virLogHandlerLogFile;
-struct _virLogHandlerLogFile {
-    virRotatingFileWriter *file;
-    int watch;
-    int pipefd; /* Read from QEMU via this */
-    bool drained;
-
-    char *driver;
-    unsigned char domuuid[VIR_UUID_BUFLEN];
-    char *domname;
-};
-
-struct _virLogHandler {
-    virObjectLockable parent;
-
-    bool privileged;
-    size_t max_size;
-    size_t max_backups;
-
-    virLogHandlerLogFile **files;
-    size_t nfiles;
-
-    virLogHandlerShutdownInhibitor inhibitor;
-    void *opaque;
-};
 
 static virClass *virLogHandlerClass;
 static void virLogHandlerDispose(void *obj);
@@ -186,8 +159,7 @@ virLogHandlerDomainLogFileEvent(int watch,
 
 virLogHandler *
 virLogHandlerNew(bool privileged,
-                 size_t max_size,
-                 size_t max_backups,
+                 virLogDaemonConfig *config,
                  virLogHandlerShutdownInhibitor inhibitor,
                  void *opaque)
 {
@@ -200,12 +172,19 @@ virLogHandlerNew(bool privileged,
         return NULL;
 
     handler->privileged = privileged;
-    handler->max_size = max_size;
-    handler->max_backups = max_backups;
+    handler->config = config;
     handler->inhibitor = inhibitor;
     handler->opaque = opaque;
 
+    if (virLogCleanerInit(handler) < 0) {
+        goto error;
+    }
+
     return handler;
+
+ error:
+    virObjectUnref(handler);
+    return NULL;
 }
 
 
@@ -254,8 +233,8 @@ virLogHandlerLogFilePostExecRestart(virLogHandler *handler,
     }
 
     if ((file->file = virRotatingFileWriterNew(path,
-                                               handler->max_size,
-                                               handler->max_backups,
+                                               handler->config->max_size,
+                                               handler->config->max_backups,
                                                false,
                                                DEFAULT_MODE)) == NULL)
         goto error;
@@ -283,8 +262,7 @@ virLogHandlerLogFilePostExecRestart(virLogHandler *handler,
 virLogHandler *
 virLogHandlerNewPostExecRestart(virJSONValue *object,
                                 bool privileged,
-                                size_t max_size,
-                                size_t max_backups,
+                                virLogDaemonConfig *config,
                                 virLogHandlerShutdownInhibitor inhibitor,
                                 void *opaque)
 {
@@ -293,8 +271,7 @@ virLogHandlerNewPostExecRestart(virJSONValue *object,
     size_t i;
 
     if (!(handler = virLogHandlerNew(privileged,
-                                     max_size,
-                                     max_backups,
+                                     config,
                                      inhibitor,
                                      opaque)))
         return NULL;
@@ -345,6 +322,8 @@ virLogHandlerDispose(void *obj)
     virLogHandler *handler = obj;
     size_t i;
 
+    virLogCleanerShutdown(handler);
+
     for (i = 0; i < handler->nfiles; i++) {
         handler->inhibitor(false, handler->opaque);
         virLogHandlerLogFileFree(handler->files[i]);
@@ -375,7 +354,7 @@ virLogHandlerDomainOpenLogFile(virLogHandler *handler,
         if (STREQ(virRotatingFileWriterGetPath(handler->files[i]->file),
                   path)) {
             virReportSystemError(EBUSY,
-                                 _("Cannot open log file: '%s'"),
+                                 _("Cannot open log file: '%1$s'"),
                                  path);
             goto error;
         }
@@ -394,8 +373,8 @@ virLogHandlerDomainOpenLogFile(virLogHandler *handler,
     file->domname = g_strdup(domname);
 
     if ((file->file = virRotatingFileWriterNew(path,
-                                               handler->max_size,
-                                               handler->max_backups,
+                                               handler->config->max_size,
+                                               handler->config->max_backups,
                                                trunc,
                                                DEFAULT_MODE)) == NULL)
         goto error;
@@ -492,7 +471,7 @@ virLogHandlerDomainGetLogFilePosition(virLogHandler *handler,
 
     if (!file) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("No open log file %s"),
+                       _("No open log file %1$s"),
                        path);
         goto cleanup;
     }
@@ -526,7 +505,7 @@ virLogHandlerDomainReadLogFile(virLogHandler *handler,
 
     virObjectLock(handler);
 
-    if (!(file = virRotatingFileReaderNew(path, handler->max_backups)))
+    if (!(file = virRotatingFileReaderNew(path, handler->config->max_backups)))
         goto error;
 
     if (virRotatingFileReaderSeek(file, inode, offset) < 0)
@@ -580,8 +559,8 @@ virLogHandlerDomainAppendLogFile(virLogHandler *handler,
 
     if (!writer) {
         if (!(newwriter = virRotatingFileWriterNew(path,
-                                                   handler->max_size,
-                                                   handler->max_backups,
+                                                   handler->config->max_size,
+                                                   handler->config->max_backups,
                                                    false,
                                                    DEFAULT_MODE)))
             goto cleanup;

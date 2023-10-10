@@ -1,5 +1,6 @@
 network_driver_sources = [
   'bridge_driver.c',
+  'bridge_driver_conf.c',
   'bridge_driver_platform.c',
 ]
 
@@ -63,8 +64,6 @@ if conf.has('WITH_NETWORK')
     'service': 'virtnetworkd',
     'service_in': files('virtnetworkd.service.in'),
     'name': 'Libvirt network',
-    'sockprefix': 'virtnetworkd',
-    'sockets': [ 'main', 'ro', 'admin' ],
   }
 
   openrc_init_files += {
@@ -83,13 +82,13 @@ if conf.has('WITH_NETWORK')
   configure_file(
     input: 'default.xml.in',
     output: '@BASENAME@',
-    copy: true,
+    configuration: configmake_conf,
     install: true,
     install_dir: confdir / 'qemu' / 'networks',
   )
 
   meson.add_install_script(
-    meson_python_prog.path(), python3_prog.path(), meson_install_symlink_prog.path(),
+    meson_python_prog.full_path(), python3_prog.full_path(), meson_install_symlink_prog.full_path(),
     confdir / 'qemu' / 'networks' / 'autostart',
     '../default.xml', 'default.xml',
   )
@@ -99,6 +98,26 @@ if conf.has('WITH_NETWORK')
       'libvirt.zone',
       install_dir: prefix / 'lib' / 'firewalld' / 'zones',
       rename: [ 'libvirt.xml' ],
+    )
+    install_data(
+      'libvirt-routed.zone',
+      install_dir: prefix / 'lib' / 'firewalld' / 'zones',
+      rename: [ 'libvirt-routed.xml' ],
+    )
+    install_data(
+      'libvirt-to-host.policy',
+      install_dir: prefix / 'lib' / 'firewalld' / 'policies',
+      rename: [ 'libvirt-to-host.xml' ],
+    )
+    install_data(
+      'libvirt-routed-out.policy',
+      install_dir: prefix / 'lib' / 'firewalld' / 'policies',
+      rename: [ 'libvirt-routed-out.xml' ],
+    )
+    install_data(
+      'libvirt-routed-in.policy',
+      install_dir: prefix / 'lib' / 'firewalld' / 'policies',
+      rename: [ 'libvirt-routed-in.xml' ],
     )
   endif
 endif

@@ -33,6 +33,8 @@
  *
  * a virConnect is a private structure representing a connection to
  * the Hypervisor.
+ *
+ * Since: 0.0.1
  */
 typedef struct _virConnect virConnect;
 
@@ -41,6 +43,8 @@ typedef struct _virConnect virConnect;
  *
  * a virConnectPtr is pointer to a virConnect private structure, this is the
  * type used to reference a connection to the Hypervisor in the API.
+ *
+ * Since: 0.0.1
  */
 typedef virConnect *virConnectPtr;
 
@@ -49,14 +53,16 @@ typedef virConnect *virConnectPtr;
  *
  * Flags to indicate which system-wide sleep state the host must be
  * transitioned to.
+ *
+ * Since: 0.9.8
  */
 typedef enum {
-    VIR_NODE_SUSPEND_TARGET_MEM     = 0,
-    VIR_NODE_SUSPEND_TARGET_DISK    = 1,
-    VIR_NODE_SUSPEND_TARGET_HYBRID  = 2,
+    VIR_NODE_SUSPEND_TARGET_MEM     = 0, /* (Since: 0.9.8) */
+    VIR_NODE_SUSPEND_TARGET_DISK    = 1, /* (Since: 0.9.8) */
+    VIR_NODE_SUSPEND_TARGET_HYBRID  = 2, /* (Since: 0.9.8) */
 
 # ifdef VIR_ENUM_SENTINELS
-    VIR_NODE_SUSPEND_TARGET_LAST /* This constant is subject to change */
+    VIR_NODE_SUSPEND_TARGET_LAST /* This constant is subject to change (Since: 0.9.8) */
 # endif
 } virNodeSuspendTarget;
 
@@ -64,6 +70,8 @@ typedef enum {
  * virStream:
  *
  * a virStream is a private structure representing a data stream.
+ *
+ * Since: 0.7.2
  */
 typedef struct _virStream virStream;
 
@@ -72,6 +80,8 @@ typedef struct _virStream virStream;
  *
  * a virStreamPtr is pointer to a virStream private structure, this is the
  * type used to reference a data stream in the API.
+ *
+ * Since: 0.7.2
  */
 typedef virStream *virStreamPtr;
 
@@ -80,6 +90,8 @@ typedef virStream *virStreamPtr;
  *
  * Macro providing the maximum length of the virSecurityLabel label string.
  * Note that this value is based on that used by Labeled NFS.
+ *
+ * Since: 0.6.1
  */
 # define VIR_SECURITY_LABEL_BUFLEN (4096 + 1)
 
@@ -89,6 +101,8 @@ typedef virStream *virStreamPtr;
  * a virSecurityLabel is a structure filled by virDomainGetSecurityLabel(),
  * providing the security label and associated attributes for the specified
  * domain.
+ *
+ * Since: 0.6.1
  */
 typedef struct _virSecurityLabel virSecurityLabel;
 
@@ -101,6 +115,8 @@ struct _virSecurityLabel {
  * virSecurityLabelPtr:
  *
  * a virSecurityLabelPtr is a pointer to a virSecurityLabel.
+ *
+ * Since: 0.6.1
  */
 typedef virSecurityLabel *virSecurityLabelPtr;
 
@@ -108,6 +124,8 @@ typedef virSecurityLabel *virSecurityLabelPtr;
  * VIR_SECURITY_MODEL_BUFLEN:
  *
  * Macro providing the maximum length of the virSecurityModel model string.
+ *
+ * Since: 0.6.1
  */
 # define VIR_SECURITY_MODEL_BUFLEN (256 + 1)
 
@@ -115,6 +133,8 @@ typedef virSecurityLabel *virSecurityLabelPtr;
  * VIR_SECURITY_DOI_BUFLEN:
  *
  * Macro providing the maximum length of the virSecurityModel doi string.
+ *
+ * Since: 0.6.1
  */
 # define VIR_SECURITY_DOI_BUFLEN (256 + 1)
 
@@ -124,6 +144,8 @@ typedef virSecurityLabel *virSecurityLabelPtr;
  * a virSecurityModel is a structure filled by virNodeGetSecurityModel(),
  * providing the per-hypervisor security model and DOI attributes for the
  * specified domain.
+ *
+ * Since: 0.6.1
  */
 typedef struct _virSecurityModel virSecurityModel;
 
@@ -136,6 +158,8 @@ struct _virSecurityModel {
  * virSecurityModelPtr:
  *
  * a virSecurityModelPtr is a pointer to a virSecurityModel.
+ *
+ * Since: 0.6.1
  */
 typedef virSecurityModel *virSecurityModelPtr;
 
@@ -143,7 +167,7 @@ typedef virSecurityModel *virSecurityModelPtr;
 /* data types related to virNodePtr */
 
 /**
- * virNodeInfoPtr:
+ * virNodeInfo:
  *
  * a virNodeInfo is a structure filled by virNodeGetInfo() and providing
  * the information for the Node.
@@ -151,8 +175,9 @@ typedef virSecurityModel *virSecurityModelPtr;
  * Note that the information in this struct is not guaranteed to be an
  * accurate relection of the system hardware. See the virNodeGetInfo()
  * API documentation for further guidance.
+ *
+ * Since: 0.1.0
  */
-
 typedef struct _virNodeInfo virNodeInfo;
 
 struct _virNodeInfo {
@@ -176,16 +201,20 @@ struct _virNodeInfo {
  * VIR_NODE_CPU_STATS_FIELD_LENGTH:
  *
  * Macro providing the field length of virNodeCPUStats
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_CPU_STATS_FIELD_LENGTH 80
 
 /**
- * VIR_NODE_CPU_STATS_ALL_CPUS:
+ * virNodeGetCPUStatsAllCPUs:
  *
  * Value for specifying request for the total CPU time/utilization
+ *
+ * Since: 0.9.8
  */
 typedef enum {
-    VIR_NODE_CPU_STATS_ALL_CPUS = -1,
+    VIR_NODE_CPU_STATS_ALL_CPUS = -1, /* (Since: 0.9.3) */
 } virNodeGetCPUStatsAllCPUs;
 
 /**
@@ -193,6 +222,8 @@ typedef enum {
  *
  * Macro for the cumulative CPU time which was spent by the kernel,
  * since the node booting up (in nanoseconds).
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_CPU_STATS_KERNEL "kernel"
 
@@ -201,6 +232,8 @@ typedef enum {
  *
  * The cumulative CPU time which was spent by user processes,
  * since the node booting up (in nanoseconds).
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_CPU_STATS_USER "user"
 
@@ -209,6 +242,8 @@ typedef enum {
  *
  * The cumulative idle CPU time,
  * since the node booting up (in nanoseconds).
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_CPU_STATS_IDLE "idle"
 
@@ -217,6 +252,8 @@ typedef enum {
  *
  * The cumulative I/O wait CPU time,
  * since the node booting up (in nanoseconds).
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_CPU_STATS_IOWAIT "iowait"
 
@@ -225,6 +262,8 @@ typedef enum {
  *
  * The cumulative interrupt CPU time,
  * since the node booting up (in nanoseconds).
+ *
+ * Since: 1.2.2
  */
 # define VIR_NODE_CPU_STATS_INTR "intr"
 
@@ -234,6 +273,8 @@ typedef enum {
  * The CPU utilization of a node.
  * The usage value is in percent and 100% represents all CPUs of
  * the node.
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_CPU_STATS_UTILIZATION "utilization"
 
@@ -242,6 +283,8 @@ typedef enum {
  *
  * a virNodeCPUStats is a structure filled by virNodeGetCPUStats()
  * providing information about the CPU stats of the node.
+ *
+ * Since: 0.9.3
  */
 typedef struct _virNodeCPUStats virNodeCPUStats;
 
@@ -254,16 +297,20 @@ struct _virNodeCPUStats {
  * VIR_NODE_MEMORY_STATS_FIELD_LENGTH:
  *
  * Macro providing the field length of virNodeMemoryStats
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_MEMORY_STATS_FIELD_LENGTH 80
 
 /**
- * VIR_NODE_MEMORY_STATS_ALL_CELLS:
+ * virNodeGetMemoryStatsAllCells:
  *
  * Value for specifying request for the total memory of all cells.
+ *
+ * Since: 0.9.8
  */
 typedef enum {
-    VIR_NODE_MEMORY_STATS_ALL_CELLS = -1,
+    VIR_NODE_MEMORY_STATS_ALL_CELLS = -1, /* (Since: 0.9.3) */
 } virNodeGetMemoryStatsAllCells;
 
 /**
@@ -271,6 +318,8 @@ typedef enum {
  *
  * Macro for the total memory of specified cell:
  * it represents the maximum memory.
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_MEMORY_STATS_TOTAL "total"
 
@@ -280,6 +329,8 @@ typedef enum {
  * Macro for the free memory of specified cell:
  * On Linux, it includes buffer and cached memory, in case of
  * VIR_NODE_MEMORY_STATS_ALL_CELLS.
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_MEMORY_STATS_FREE "free"
 
@@ -288,6 +339,8 @@ typedef enum {
  *
  * Macro for the buffer memory: On Linux, it is only returned in case of
  * VIR_NODE_MEMORY_STATS_ALL_CELLS.
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_MEMORY_STATS_BUFFERS "buffers"
 
@@ -296,6 +349,8 @@ typedef enum {
  *
  * Macro for the cached memory: On Linux, it is only returned in case of
  * VIR_NODE_MEMORY_STATS_ALL_CELLS.
+ *
+ * Since: 0.9.3
  */
 # define VIR_NODE_MEMORY_STATS_CACHED "cached"
 
@@ -304,6 +359,8 @@ typedef enum {
  *
  * a virNodeMemoryStats is a structure filled by virNodeGetMemoryStats()
  * providing information about the memory of the node.
+ *
+ * Since: 0.9.3
  */
 typedef struct _virNodeMemoryStats virNodeMemoryStats;
 
@@ -317,6 +374,8 @@ struct _virNodeMemoryStats {
  *
  * Macro for typed parameter that represents how many present pages
  * to scan before the shared memory service goes to sleep.
+ *
+ * Since: 0.10.2
  */
 # define VIR_NODE_MEMORY_SHARED_PAGES_TO_SCAN      "shm_pages_to_scan"
 
@@ -325,6 +384,8 @@ struct _virNodeMemoryStats {
  *
  * Macro for typed parameter that represents how many milliseconds
  * the shared memory service should sleep before next scan.
+ *
+ * Since: 0.10.2
  */
 # define VIR_NODE_MEMORY_SHARED_SLEEP_MILLISECS    "shm_sleep_millisecs"
 
@@ -333,6 +394,8 @@ struct _virNodeMemoryStats {
  *
  * Macro for typed parameter that represents how many the shared
  * memory pages are being used.
+ *
+ * Since: 0.10.2
  */
 # define VIR_NODE_MEMORY_SHARED_PAGES_SHARED       "shm_pages_shared"
 
@@ -341,6 +404,8 @@ struct _virNodeMemoryStats {
  *
  * Macro for typed parameter that represents how many sites are
  * sharing the pages i.e. how much saved.
+ *
+ * Since: 0.10.2
  */
 # define VIR_NODE_MEMORY_SHARED_PAGES_SHARING      "shm_pages_sharing"
 
@@ -349,6 +414,8 @@ struct _virNodeMemoryStats {
  *
  * Macro for typed parameter that represents how many pages unique
  * but repeatedly checked for merging.
+ *
+ * Since: 0.10.2
  */
 # define VIR_NODE_MEMORY_SHARED_PAGES_UNSHARED     "shm_pages_unshared"
 
@@ -357,6 +424,8 @@ struct _virNodeMemoryStats {
  *
  * Macro for typed parameter that represents how many pages changing
  * too fast to be placed in a tree.
+ *
+ * Since: 0.10.2
  */
 # define VIR_NODE_MEMORY_SHARED_PAGES_VOLATILE     "shm_pages_volatile"
 
@@ -365,6 +434,8 @@ struct _virNodeMemoryStats {
  *
  * Macro for typed parameter that represents how many times all
  * mergeable areas have been scanned.
+ *
+ * Since: 0.10.2
  */
 # define VIR_NODE_MEMORY_SHARED_FULL_SCANS         "shm_full_scans"
 
@@ -377,6 +448,8 @@ struct _virNodeMemoryStats {
  * memory area of same NUMA node are merged; When its value is 1,
  * pages from all nodes can be merged. Other values are reserved
  * for future use.
+ *
+ * Since: 1.0.0
  */
 # define VIR_NODE_MEMORY_SHARED_MERGE_ACROSS_NODES "shm_merge_across_nodes"
 
@@ -406,33 +479,36 @@ int virNodeGetCPUMap(virConnectPtr conn,
  *
  * This macro is to calculate the total number of CPUs supported
  * but not necessary active in the host.
+ *
+ * Since: 0.1.4
  */
-
-
 # define VIR_NODEINFO_MAXCPUS(nodeinfo) ((nodeinfo).nodes*(nodeinfo).sockets*(nodeinfo).cores*(nodeinfo).threads)
 
 /**
  * virNodeInfoPtr:
  *
  * a virNodeInfoPtr is a pointer to a virNodeInfo structure.
+ *
+ * Since: 0.1.0
  */
-
 typedef virNodeInfo *virNodeInfoPtr;
 
 /**
  * virNodeCPUStatsPtr:
  *
  * a virNodeCPUStatsPtr is a pointer to a virNodeCPUStats structure.
+ *
+ * Since: 0.9.3
  */
-
 typedef virNodeCPUStats *virNodeCPUStatsPtr;
 
 /**
  * virNodeMemoryStatsPtr:
  *
  * a virNodeMemoryStatsPtr is a pointer to a virNodeMemoryStats structure.
+ *
+ * Since: 0.9.3
  */
-
 typedef virNodeMemoryStats *virNodeMemoryStatsPtr;
 
 
@@ -445,6 +521,8 @@ typedef virNodeMemoryStats *virNodeMemoryStatsPtr;
  * VIR_NODE_SEV_PDH:
  *
  * Macro represents the Platform Diffie-Hellman key, as VIR_TYPED_PARAMS_STRING.
+ *
+ * Since: 4.5.0
  */
 # define VIR_NODE_SEV_PDH "pdh"
 
@@ -454,13 +532,28 @@ typedef virNodeMemoryStats *virNodeMemoryStatsPtr;
  * Macro represents the platform certificate chain that includes the platform
  * endorsement key (PEK), owner certificate authority (OCD) and chip
  * endorsement key (CEK), as VIR_TYPED_PARAMS_STRING.
+ *
+ * Since: 4.5.0
  */
 # define VIR_NODE_SEV_CERT_CHAIN "cert-chain"
+
+/**
+ * VIR_NODE_SEV_CPU0_ID:
+ *
+ * Macro represents the unique ID of CPU0 (socket 0) needed to retrieve
+ * the signed CEK of the CPU from AMD's Key Distribution Service (KDS),
+ * as VIR_TYPED_PARAMS_STRING.
+ *
+ * Since: 8.4.0
+ */
+# define VIR_NODE_SEV_CPU0_ID "cpu0-id"
 
 /**
  * VIR_NODE_SEV_CBITPOS:
  *
  * Macro represents the CBit Position used by hypervisor when SEV is enabled.
+ *
+ * Since: 4.5.0
  */
 # define VIR_NODE_SEV_CBITPOS "cbitpos"
 
@@ -469,6 +562,8 @@ typedef virNodeMemoryStats *virNodeMemoryStatsPtr;
  *
  * Macro represents the number of bits we lose in physical address space
  * when SEV is enabled in the guest.
+ *
+ * Since: 4.5.0
  */
 # define VIR_NODE_SEV_REDUCED_PHYS_BITS "reduced-phys-bits"
 
@@ -477,6 +572,8 @@ typedef virNodeMemoryStats *virNodeMemoryStatsPtr;
  *
  * Macro represents the number of SEV guests that can
  * be run on the host, as a VIR_TYPED_PARAM_UINT.
+ *
+ * Since: 8.0.0
  */
 # define VIR_NODE_SEV_MAX_GUESTS "max-guests"
 
@@ -485,6 +582,8 @@ typedef virNodeMemoryStats *virNodeMemoryStatsPtr;
  *
  * Macro represents the number of SEV-ES guests that can
  * be run on the host, as a VIR_TYPED_PARAM_UINT.
+ *
+ * Since: 8.0.0
  */
 # define VIR_NODE_SEV_MAX_ES_GUESTS "max-es-guests"
 
@@ -494,29 +593,35 @@ int virNodeGetSEVInfo (virConnectPtr conn,
                        unsigned int flags);
 
 /**
- * virConnectFlags
+ * virConnectFlags:
  *
  * Flags when opening a connection to a hypervisor
+ *
+ * Since: 0.4.1
  */
 typedef enum {
-    VIR_CONNECT_RO         = (1 << 0),  /* A readonly connection */
-    VIR_CONNECT_NO_ALIASES = (1 << 1),  /* Don't try to resolve URI aliases */
+    VIR_CONNECT_RO         = (1 << 0),  /* A readonly connection (Since: 0.4.1) */
+    VIR_CONNECT_NO_ALIASES = (1 << 1),  /* Don't try to resolve URI aliases (Since: 0.9.7) */
 } virConnectFlags;
 
-
+/**
+ * virConnectCredentialType:
+ *
+ * Since: 0.4.1
+ */
 typedef enum {
-    VIR_CRED_USERNAME = 1,     /* Identity to act as */
-    VIR_CRED_AUTHNAME = 2,     /* Identify to authorize as */
-    VIR_CRED_LANGUAGE = 3,     /* RFC 1766 languages, comma separated */
-    VIR_CRED_CNONCE = 4,       /* client supplies a nonce */
-    VIR_CRED_PASSPHRASE = 5,   /* Passphrase secret */
-    VIR_CRED_ECHOPROMPT = 6,   /* Challenge response */
-    VIR_CRED_NOECHOPROMPT = 7, /* Challenge response */
-    VIR_CRED_REALM = 8,        /* Authentication realm */
-    VIR_CRED_EXTERNAL = 9,     /* Externally managed credential */
+    VIR_CRED_USERNAME = 1,     /* Identity to act as (Since: 0.4.1) */
+    VIR_CRED_AUTHNAME = 2,     /* Identify to authorize as (Since: 0.4.1) */
+    VIR_CRED_LANGUAGE = 3,     /* RFC 1766 languages, comma separated (Since: 0.4.1) */
+    VIR_CRED_CNONCE = 4,       /* client supplies a nonce (Since: 0.4.1) */
+    VIR_CRED_PASSPHRASE = 5,   /* Passphrase secret (Since: 0.4.1) */
+    VIR_CRED_ECHOPROMPT = 6,   /* Challenge response (Since: 0.4.1) */
+    VIR_CRED_NOECHOPROMPT = 7, /* Challenge response (Since: 0.4.1) */
+    VIR_CRED_REALM = 8,        /* Authentication realm (Since: 0.4.1) */
+    VIR_CRED_EXTERNAL = 9,     /* Externally managed credential (Since: 0.4.1) */
 
 # ifdef VIR_ENUM_SENTINELS
-    VIR_CRED_LAST              /* More may be added - expect the unexpected */
+    VIR_CRED_LAST              /* More may be added - expect the unexpected (Since: 0.9.10) */
 # endif
 } virConnectCredentialType;
 
@@ -529,7 +634,18 @@ struct _virConnectCredential {
     unsigned int resultlen; /* Length of the result */
 };
 
+/**
+ * virConnectCredential:
+ *
+ * Since: 0.4.1
+ */
 typedef struct _virConnectCredential virConnectCredential;
+
+/**
+ * virConnectCredentialPtr:
+ *
+ * Since: 0.4.1
+ */
 typedef virConnectCredential *virConnectCredentialPtr;
 
 
@@ -545,6 +661,8 @@ typedef virConnectCredential *virConnectCredentialPtr;
  * If an interaction cannot be filled, fill in NULL and 0.
  *
  * Returns 0 if all interactions were filled, or -1 upon error
+ *
+ * Since: 0.4.1
  */
 typedef int (*virConnectAuthCallbackPtr)(virConnectCredentialPtr cred,
                                          unsigned int ncred,
@@ -558,10 +676,32 @@ struct _virConnectAuth {
     void *cbdata;
 };
 
-
+/**
+ * virConnectAuth:
+ *
+ * Since: 0.4.1
+ */
 typedef struct _virConnectAuth virConnectAuth;
+
+/**
+ * virConnectAuthPtr:
+ *
+ * Since: 0.4.1
+ */
 typedef virConnectAuth *virConnectAuthPtr;
 
+/*
+ * virConnectAuthPtrDefault:
+ *
+ * A default implementation of the authentication callbacks. This
+ * implementation is suitable for command line based tools. It will
+ * prompt for username, passwords, realm and one time keys as needed.
+ * It will print on STDOUT, and read from STDIN. If this is not
+ * suitable for the application's needs an alternative implementation
+ * should be provided.
+ *
+ * Since: 0.4.1
+ */
 VIR_EXPORT_VAR virConnectAuthPtr virConnectAuthPtrDefault;
 
 /**
@@ -569,8 +709,9 @@ VIR_EXPORT_VAR virConnectAuthPtr virConnectAuthPtrDefault;
  *
  * This macro provides the length of the buffer required
  * for virDomainGetUUID()
+ *
+ * Since: 0.2.0
  */
-
 # define VIR_UUID_BUFLEN (16)
 
 /**
@@ -578,8 +719,9 @@ VIR_EXPORT_VAR virConnectAuthPtr virConnectAuthPtrDefault;
  *
  * This macro provides the length of the buffer required
  * for virDomainGetUUIDString()
+ *
+ * Since: 0.2.0
  */
-
 # define VIR_UUID_STRING_BUFLEN (36+1)
 
 
@@ -604,6 +746,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * VIR_CONNECT_IDENTITY_USER_NAME:
  *
  * The operating system user name as VIR_TYPED_PARAM_STRING.
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_USER_NAME "user-name"
 
@@ -611,6 +755,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * VIR_CONNECT_IDENTITY_UNIX_USER_ID:
  *
  * The UNIX user ID as VIR_TYPED_PARAM_ULLONG.
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_UNIX_USER_ID "unix-user-id"
 
@@ -618,6 +764,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * VIR_CONNECT_IDENTITY_GROUP_NAME:
  *
  * The operating system group name as VIR_TYPED_PARAM_STRING.
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_GROUP_NAME "group-name"
 
@@ -625,6 +773,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * VIR_CONNECT_IDENTITY_UNIX_GROUP_ID:
  *
  * The UNIX group ID as VIR_TYPED_PARAM_ULLONG.
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_UNIX_GROUP_ID "unix-group-id"
 
@@ -632,6 +782,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * VIR_CONNECT_IDENTITY_PROCESS_ID:
  *
  * The operating system process ID as VIR_TYPED_PARAM_LLONG.
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_PROCESS_ID "process-id"
 
@@ -643,6 +795,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * The units the time is measured in vary according to the
  * host operating system. On Linux this is usually clock
  * ticks (as reported in /proc/$PID/stat field 22).
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_PROCESS_TIME "process-time"
 
@@ -650,6 +804,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * VIR_CONNECT_IDENTITY_SASL_USER_NAME:
  *
  * The SASL authenticated username as VIR_TYPED_PARAM_STRING
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_SASL_USER_NAME "sasl-user-name"
 
@@ -657,6 +813,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * VIR_CONNECT_IDENTITY_X509_DISTINGUISHED_NAME:
  *
  * The TLS x509 certificate distinguished named as VIR_TYPED_PARAM_STRING
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_X509_DISTINGUISHED_NAME "x509-distinguished-name"
 
@@ -664,6 +822,8 @@ int                     virConnectClose         (virConnectPtr conn);
  * VIR_CONNECT_IDENTITY_SELINUX_CONTEXT:
  *
  * The application's SELinux context as VIR_TYPED_PARAM_STRING.
+ *
+ * Since: 5.8.0
  */
 # define VIR_CONNECT_IDENTITY_SELINUX_CONTEXT "selinux-context"
 
@@ -694,6 +854,8 @@ int virConnectSetKeepAlive(virConnectPtr conn,
  *
  * A callback function to be registered, and called when the connection
  * is closed.
+ *
+ * Since: 0.10.0
  */
 typedef void (*virConnectCloseFunc)(virConnectPtr conn,
                                     int reason,
@@ -756,22 +918,32 @@ int virConnectIsAlive(virConnectPtr conn);
  * CPU specification API
  */
 
+/**
+ * virCPUCompareResult:
+ *
+ * Since: 0.7.5
+ */
 typedef enum {
-    VIR_CPU_COMPARE_ERROR           = -1,
-    VIR_CPU_COMPARE_INCOMPATIBLE    = 0,
-    VIR_CPU_COMPARE_IDENTICAL       = 1,
-    VIR_CPU_COMPARE_SUPERSET        = 2,
+    VIR_CPU_COMPARE_ERROR           = -1, /* (Since: 0.7.5) */
+    VIR_CPU_COMPARE_INCOMPATIBLE    = 0, /* (Since: 0.7.5) */
+    VIR_CPU_COMPARE_IDENTICAL       = 1, /* (Since: 0.7.5) */
+    VIR_CPU_COMPARE_SUPERSET        = 2, /* (Since: 0.7.5) */
 
 # ifdef VIR_ENUM_SENTINELS
-    VIR_CPU_COMPARE_LAST
+    VIR_CPU_COMPARE_LAST /* (Since: 0.9.10) */
 # endif
 } virCPUCompareResult;
 
+/**
+ * virConnectCompareCPUFlags:
+ *
+ * Since: 1.2.6
+ */
 typedef enum {
     VIR_CONNECT_COMPARE_CPU_FAIL_INCOMPATIBLE = (1 << 0), /* treat incompatible
-                                                             CPUs as failure */
+                                                             CPUs as failure (Since: 1.2.6) */
     VIR_CONNECT_COMPARE_CPU_VALIDATE_XML = (1 << 1), /* validate the xml
-                                                        document */
+                                                        document (Since: 6.9.0) */
 } virConnectCompareCPUFlags;
 
 int virConnectCompareCPU(virConnectPtr conn,
@@ -791,13 +963,15 @@ int virConnectGetCPUModelNames(virConnectPtr conn,
                                unsigned int flags);
 
 /**
- * virConnectBaselineCPUFlags
+ * virConnectBaselineCPUFlags:
  *
  * Flags when getting XML description of a computed CPU
+ *
+ * Since: 1.1.2
  */
 typedef enum {
-    VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES  = (1 << 0),  /* show all features */
-    VIR_CONNECT_BASELINE_CPU_MIGRATABLE = (1 << 1),  /* filter out non-migratable features */
+    VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES  = (1 << 0),  /* show all features (Since: 1.1.2) */
+    VIR_CONNECT_BASELINE_CPU_MIGRATABLE = (1 << 1),  /* filter out non-migratable features (Since: 1.2.14) */
 } virConnectBaselineCPUFlags;
 
 char *virConnectBaselineCPU(virConnectPtr conn,
@@ -821,13 +995,17 @@ int virNodeGetFreePages(virConnectPtr conn,
                         unsigned int cellcount,
                         unsigned long long *counts,
                         unsigned int flags);
-
+/**
+ * virNodeAllocPagesFlags:
+ *
+ * Since: 1.2.9
+ */
 typedef enum {
     VIR_NODE_ALLOC_PAGES_ADD = 0, /* Add @pageCounts to the pages pool. This
-                                     can be used only to size up the pool. */
+                                     can be used only to size up the pool. (Since: 1.2.9) */
     VIR_NODE_ALLOC_PAGES_SET = (1 << 0), /* Don't add @pageCounts, instead set
                                             passed number of pages. This can be
-                                            used to free allocated pages. */
+                                            used to free allocated pages. (Since: 1.2.9) */
 } virNodeAllocPagesFlags;
 
 int virNodeAllocPages(virConnectPtr conn,

@@ -22,7 +22,6 @@
 
 #include "virfile.h"
 #include "virstring.h"
-#include "viralloc.h"
 #include "virxml.h"
 
 static virDomainPtr
@@ -64,7 +63,7 @@ virshLookupDomainInternal(vshControl *ctl,
     vshResetLibvirtError();
 
     if (!dom)
-        vshError(ctl, _("failed to get domain '%s'"), name);
+        vshError(ctl, _("failed to get domain '%1$s'"), name);
 
     return dom;
 }
@@ -400,6 +399,31 @@ virshDomainGetXMLFromDom(vshControl *ctl,
 
 
 int
+virshNetworkGetXMLFromNet(vshControl *ctl,
+                          virNetworkPtr net,
+                          unsigned int flags,
+                          xmlDocPtr *xml,
+                          xmlXPathContextPtr *ctxt)
+{
+    g_autofree char *desc = NULL;
+
+    if (!(desc = virNetworkGetXMLDesc(net, flags))) {
+        vshError(ctl, _("Failed to get network description xml"));
+        return -1;
+    }
+
+    *xml = virXMLParseStringCtxt(desc, _("(network_definition)"), ctxt);
+
+    if (!(*xml)) {
+        vshError(ctl, _("Failed to parse network description xml"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+int
 virshDomainGetXML(vshControl *ctl,
                   const vshCmd *cmd,
                   unsigned int flags,
@@ -417,4 +441,79 @@ virshDomainGetXML(vshControl *ctl,
     virshDomainFree(dom);
 
     return ret;
+}
+
+
+VIR_ENUM_IMPL(virshDomainBlockJob,
+              VIR_DOMAIN_BLOCK_JOB_TYPE_LAST,
+              N_("Unknown job"),
+              N_("Block Pull"),
+              N_("Block Copy"),
+              N_("Block Commit"),
+              N_("Active Block Commit"),
+              N_("Backup"),
+);
+
+
+const char *
+virshDomainBlockJobToString(int type)
+{
+    const char *str = virshDomainBlockJobTypeToString(type);
+    return str ? _(str) : _("Unknown job");
+}
+
+bool
+virshDumpXML(vshControl *ctl,
+             const char *xml,
+             const char *url,
+             const char *xpath,
+             bool wrap)
+{
+    g_autoptr(xmlDoc) doc = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    g_autofree xmlNodePtr *nodes = NULL;
+    int nnodes = 0;
+    size_t i;
+    int oldblanks;
+
+    if (xpath == NULL) {
+        vshPrint(ctl, "%s", xml);
+        return true;
+    }
+
+    oldblanks = xmlKeepBlanksDefault(0);
+    doc = virXMLParseStringCtxt(xml, url, &ctxt);
+    xmlKeepBlanksDefault(oldblanks);
+    if (!doc)
+        return false;
+
+    if ((nnodes = virXPathNodeSet(xpath, ctxt, &nodes)) < 0) {
+        return false;
+    }
+
+    if (wrap) {
+        g_autoptr(xmlDoc) newdoc = xmlNewDoc((xmlChar *)"1.0");
+        xmlNodePtr newroot = xmlNewNode(NULL, (xmlChar *)"nodes");
+        g_autofree char *xmlbit = NULL;
+
+        xmlDocSetRootElement(newdoc, newroot);
+
+        for (i = 0; i < nnodes; i++) {
+            g_autoptr(xmlNode) copy = xmlDocCopyNode(nodes[i], newdoc, 1);
+            if (!xmlAddChild(newroot, copy))
+                return false;
+
+            copy = NULL;
+        }
+
+        xmlbit = virXMLNodeToString(doc, newroot);
+        vshPrint(ctl, "%s\n", xmlbit);
+    } else {
+        for (i = 0; i < nnodes; i++) {
+            g_autofree char *xmlbit = virXMLNodeToString(doc, nodes[i]);
+            vshPrint(ctl, "%s\n", xmlbit);
+        }
+    }
+
+    return true;
 }

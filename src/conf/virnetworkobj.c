@@ -117,6 +117,7 @@ virNetworkObjNew(void)
     ignore_value(virBitmapSetBit(obj->classIdMap, 2));
 
     obj->ports = virHashNew(virNetworkObjPortFree);
+    obj->dnsmasqPid = (pid_t)-1;
 
     virObjectLock(obj);
 
@@ -240,9 +241,9 @@ virNetworkObjSetFloorSum(virNetworkObj *obj,
 
 void
 virNetworkObjSetMacMap(virNetworkObj *obj,
-                       virMacMap *macmap)
+                       virMacMap **macmap)
 {
-    obj->macmap = macmap;
+    obj->macmap = g_steal_pointer(macmap);
 }
 
 
@@ -260,8 +261,7 @@ virNetworkObjMacMgrAdd(virNetworkObj *obj,
                        const virMacAddr *mac)
 {
     char macStr[VIR_MAC_STRING_BUFLEN];
-    char *file = NULL;
-    int ret = -1;
+    g_autofree char *file = NULL;
 
     if (!obj->macmap)
         return 0;
@@ -269,18 +269,15 @@ virNetworkObjMacMgrAdd(virNetworkObj *obj,
     virMacAddrFormat(mac, macStr);
 
     if (!(file = virMacMapFileName(dnsmasqStateDir, obj->def->bridge)))
-        goto cleanup;
+        return -1;
 
     if (virMacMapAdd(obj->macmap, domain, macStr) < 0)
-        goto cleanup;
+        return -1;
 
     if (virMacMapWriteFile(obj->macmap, file) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(file);
-    return ret;
+    return 0;
 }
 
 
@@ -291,8 +288,7 @@ virNetworkObjMacMgrDel(virNetworkObj *obj,
                        const virMacAddr *mac)
 {
     char macStr[VIR_MAC_STRING_BUFLEN];
-    char *file = NULL;
-    int ret = -1;
+    g_autofree char *file = NULL;
 
     if (!obj->macmap)
         return 0;
@@ -300,18 +296,15 @@ virNetworkObjMacMgrDel(virNetworkObj *obj,
     virMacAddrFormat(mac, macStr);
 
     if (!(file = virMacMapFileName(dnsmasqStateDir, obj->def->bridge)))
-        goto cleanup;
+        return -1;
 
     if (virMacMapRemove(obj->macmap, domain, macStr) < 0)
-        goto cleanup;
+        return -1;
 
     if (virMacMapWriteFile(obj->macmap, file) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(file);
-    return ret;
+    return 0;
 }
 
 
@@ -326,7 +319,7 @@ virNetworkObjListNew(void)
     if (!(nets = virObjectRWLockableNew(virNetworkObjListClass)))
         return NULL;
 
-    nets->objs = virHashNew(virObjectFreeHashData);
+    nets->objs = virHashNew(virObjectUnref);
 
     return nets;
 }
@@ -551,7 +544,7 @@ virNetworkObjAssignDefLocked(virNetworkObjList *nets,
         if (STRNEQ(obj->def->name, def->name)) {
             virUUIDFormat(obj->def->uuid, uuidstr);
             virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("network '%s' is already defined with uuid %s"),
+                           _("network '%1$s' is already defined with uuid %2$s"),
                            obj->def->name, uuidstr);
             goto cleanup;
         }
@@ -560,7 +553,7 @@ virNetworkObjAssignDefLocked(virNetworkObjList *nets,
             /* UUID & name match, but if network is already active, refuse it */
             if (virNetworkObjIsActive(obj)) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
-                               _("network is already active as '%s'"),
+                               _("network is already active as '%1$s'"),
                                obj->def->name);
                 goto cleanup;
             }
@@ -574,7 +567,7 @@ virNetworkObjAssignDefLocked(virNetworkObjList *nets,
             virObjectLock(obj);
             virUUIDFormat(obj->def->uuid, uuidstr);
             virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("network '%s' already exists with uuid %s"),
+                           _("network '%1$s' already exists with uuid %2$s"),
                            def->name, uuidstr);
             goto cleanup;
         }
@@ -732,7 +725,6 @@ virNetworkObjReplacePersistentDef(virNetworkObj *obj,
  */
 static int
 virNetworkObjConfigChangeSetup(virNetworkObj *obj,
-                               virNetworkXMLOption *xmlopt,
                                unsigned int flags)
 {
     bool isActive;
@@ -745,17 +737,10 @@ virNetworkObjConfigChangeSetup(virNetworkObj *obj,
         return -1;
     }
 
-    if (flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG) {
-        if (!obj->persistent) {
+    if ((flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG) &&
+         !obj->persistent) {
             virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("cannot change persistent config of a "
-                             "transient network"));
-            return -1;
-        }
-        /* this should already have been done by the driver, but do it
-         * anyway just in case.
-         */
-        if (isActive && (virNetworkObjSetDefTransient(obj, false, xmlopt) < 0))
+                           _("cannot change persistent config of a transient network"));
             return -1;
     }
 
@@ -819,20 +804,16 @@ virNetworkObjSaveStatus(const char *statusDir,
                         virNetworkObj *obj,
                         virNetworkXMLOption *xmlopt)
 {
-    int ret = -1;
     int flags = 0;
-    char *xml;
+    g_autofree char *xml = NULL;
 
     if (!(xml = virNetworkObjFormat(obj, xmlopt, flags)))
-        goto cleanup;
+        return -1;
 
     if (virNetworkSaveXML(statusDir, obj->def, xml))
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(xml);
-    return ret;
+    return 0;
 }
 
 
@@ -843,7 +824,7 @@ virNetworkLoadState(virNetworkObjList *nets,
                     virNetworkXMLOption *xmlopt)
 {
     g_autofree char *configFile = NULL;
-    virNetworkDef *def = NULL;
+    g_autoptr(virNetworkDef) def = NULL;
     virNetworkObj *obj = NULL;
     g_autoptr(xmlDoc) xml = NULL;
     xmlNodePtr node = NULL;
@@ -856,28 +837,27 @@ virNetworkLoadState(virNetworkObjList *nets,
 
 
     if ((configFile = virNetworkConfigFile(stateDir, name)) == NULL)
-        goto error;
+        return NULL;
 
-    if (!(xml = virXMLParseCtxt(configFile, NULL, _("(network status)"), &ctxt)))
-        goto error;
+    if (!(xml = virXMLParseFileCtxt(configFile, &ctxt)))
+        return NULL;
 
     if (!(node = virXPathNode("//network", ctxt))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Could not find any 'network' element in status file"));
-        goto error;
+        return NULL;
     }
 
     /* parse the definition first */
     ctxt->node = node;
     if (!(def = virNetworkDefParseXML(ctxt, xmlopt)))
-        goto error;
+        return NULL;
 
     if (STRNEQ(name, def->name)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Network config filename '%s'"
-                         " does not match network name '%s'"),
+                       _("Network config filename '%1$s' does not match network name '%2$s'"),
                        configFile, def->name);
-        goto error;
+        return NULL;
     }
 
     /* now parse possible status data */
@@ -893,20 +873,20 @@ virNetworkLoadState(virNetworkObjList *nets,
         if ((classIdStr = virXPathString("string(./class_id[1]/@bitmap)",
                                          ctxt))) {
             if (!(classIdMap = virBitmapParseUnlimited(classIdStr)))
-                goto error;
+                return NULL;
         }
 
         floor_sum = virXPathString("string(./floor[1]/@sum)", ctxt);
         if (floor_sum &&
             virStrToLong_ull(floor_sum, NULL, 10, &floor_sum_val) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Malformed 'floor_sum' attribute: %s"),
+                           _("Malformed 'floor_sum' attribute: %1$s"),
                            floor_sum);
-            goto error;
+            return NULL;
         }
 
         if ((n = virXPathNodeSet("./taint", ctxt, &nodes)) < 0)
-            goto error;
+            return NULL;
 
         for (i = 0; i < n; i++) {
             g_autofree char *str = virXMLPropString(nodes[i], "flag");
@@ -914,8 +894,8 @@ virNetworkLoadState(virNetworkObjList *nets,
                 int flag = virNetworkTaintTypeFromString(str);
                 if (flag < 0) {
                     virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                                   _("Unknown taint flag %s"), str);
-                    goto error;
+                                   _("Unknown taint flag %1$s"), str);
+                    return NULL;
                 }
                 /* Compute taint mask here. The network object does not
                  * exist yet, so we can't use virNetworkObjtTaint. */
@@ -925,10 +905,10 @@ virNetworkLoadState(virNetworkObjList *nets,
     }
 
     /* create the object */
-    if (!(obj = virNetworkObjAssignDef(nets, def,
-                                       VIR_NETWORK_OBJ_LIST_ADD_LIVE)))
-        goto error;
-    /* do not put any "goto error" below this comment */
+    if (!(obj = virNetworkObjAssignDef(nets, def, VIR_NETWORK_OBJ_LIST_ADD_LIVE)))
+        return NULL;
+
+    def = NULL;
 
     /* assign status data stored in the network object */
     if (classIdMap) {
@@ -943,10 +923,6 @@ virNetworkLoadState(virNetworkObjList *nets,
     obj->active = true; /* network with a state file is by definition active */
 
     return obj;
-
- error:
-    virNetworkDefFree(def);
-    return NULL;
 }
 
 
@@ -957,29 +933,29 @@ virNetworkLoadConfig(virNetworkObjList *nets,
                      const char *name,
                      virNetworkXMLOption *xmlopt)
 {
-    char *configFile = NULL, *autostartLink = NULL;
-    virNetworkDef *def = NULL;
+    g_autofree char *configFile = NULL;
+    g_autofree char *autostartLink = NULL;
+    g_autoptr(virNetworkDef) def = NULL;
     virNetworkObj *obj;
     bool saveConfig = false;
     int autostart;
 
     if ((configFile = virNetworkConfigFile(configDir, name)) == NULL)
-        goto error;
+        return NULL;
     if ((autostartLink = virNetworkConfigFile(autostartDir, name)) == NULL)
-        goto error;
+        return NULL;
 
     if ((autostart = virFileLinkPointsTo(autostartLink, configFile)) < 0)
-        goto error;
+        return NULL;
 
-    if (!(def = virNetworkDefParseFile(configFile, xmlopt)))
-        goto error;
+    if (!(def = virNetworkDefParse(NULL, configFile, xmlopt, false)))
+        return NULL;
 
     if (STRNEQ(name, def->name)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Network config filename '%s'"
-                         " does not match network name '%s'"),
+                       _("Network config filename '%1$s' does not match network name '%2$s'"),
                        configFile, def->name);
-        goto error;
+        return NULL;
     }
 
     switch ((virNetworkForwardType) def->forward.type) {
@@ -1009,7 +985,7 @@ virNetworkLoadConfig(virNetworkObjList *nets,
     case VIR_NETWORK_FORWARD_LAST:
     default:
         virReportEnumRangeError(virNetworkForwardType, def->forward.type);
-        goto error;
+        return NULL;
     }
 
     /* The network didn't have a UUID so we generated a new one, and
@@ -1020,24 +996,17 @@ virNetworkLoadConfig(virNetworkObjList *nets,
 
     if (saveConfig &&
         virNetworkSaveConfig(configDir, def, xmlopt) < 0) {
-        goto error;
+        return NULL;
     }
 
     if (!(obj = virNetworkObjAssignDef(nets, def, 0)))
-        goto error;
+        return NULL;
+
+    def = NULL;
 
     obj->autostart = (autostart == 1);
 
-    VIR_FREE(configFile);
-    VIR_FREE(autostartLink);
-
     return obj;
-
- error:
-    VIR_FREE(configFile);
-    VIR_FREE(autostartLink);
-    virNetworkDefFree(def);
-    return NULL;
 }
 
 
@@ -1113,14 +1082,13 @@ virNetworkObjDeleteConfig(const char *configDir,
                           const char *autostartDir,
                           virNetworkObj *obj)
 {
-    char *configFile = NULL;
-    char *autostartLink = NULL;
-    int ret = -1;
+    g_autofree char *configFile = NULL;
+    g_autofree char *autostartLink = NULL;
 
     if (!(configFile = virNetworkConfigFile(configDir, obj->def->name)))
-        goto error;
+        return -1;
     if (!(autostartLink = virNetworkConfigFile(autostartDir, obj->def->name)))
-        goto error;
+        return -1;
 
     /* Not fatal if this doesn't work */
     unlink(autostartLink);
@@ -1128,17 +1096,12 @@ virNetworkObjDeleteConfig(const char *configDir,
 
     if (unlink(configFile) < 0) {
         virReportSystemError(errno,
-                             _("cannot remove config file '%s'"),
+                             _("cannot remove config file '%1$s'"),
                              configFile);
-        goto error;
+        return -1;
     }
 
-    ret = 0;
-
- error:
-    VIR_FREE(configFile);
-    VIR_FREE(autostartLink);
-    return ret;
+    return 0;
 }
 
 
@@ -1212,57 +1175,56 @@ virNetworkObjUpdate(virNetworkObj *obj,
                     virNetworkXMLOption *xmlopt,
                     unsigned int flags)  /* virNetworkUpdateFlags */
 {
-    int ret = -1;
-    virNetworkDef *livedef = NULL;
-    virNetworkDef *configdef = NULL;
+    g_autoptr(virNetworkDef) livedef = NULL;
+    g_autoptr(virNetworkDef) configdef = NULL;
 
     /* normalize config data, and check for common invalid requests. */
-    if (virNetworkObjConfigChangeSetup(obj, xmlopt, flags) < 0)
-       goto cleanup;
+    if (virNetworkObjConfigChangeSetup(obj, flags) < 0)
+        return -1;
 
     if (flags & VIR_NETWORK_UPDATE_AFFECT_LIVE) {
-        virNetworkDef *checkdef;
+        g_autoptr(virNetworkDef) checkdef = NULL;
 
         /* work on a copy of the def */
         if (!(livedef = virNetworkDefCopy(obj->def, xmlopt, 0)))
-            goto cleanup;
+            return -1;
+
         if (virNetworkDefUpdateSection(livedef, command, section,
                                        parentIndex, xml, flags) < 0) {
-            goto cleanup;
+            return -1;
         }
         /* run a final format/parse cycle to make sure we didn't
          * add anything illegal to the def
          */
         if (!(checkdef = virNetworkDefCopy(livedef, xmlopt, 0)))
-            goto cleanup;
-        virNetworkDefFree(checkdef);
+            return -1;
     }
 
     if (flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG) {
-        virNetworkDef *checkdef;
+        g_autoptr(virNetworkDef) checkdef = NULL;
 
         /* work on a copy of the def */
         if (!(configdef = virNetworkDefCopy(virNetworkObjGetPersistentDef(obj),
                                             xmlopt,
                                             VIR_NETWORK_XML_INACTIVE))) {
-            goto cleanup;
+            return -1;
         }
         if (virNetworkDefUpdateSection(configdef, command, section,
                                        parentIndex, xml, flags) < 0) {
-            goto cleanup;
+            return -1;
         }
         if (!(checkdef = virNetworkDefCopy(configdef,
                                            xmlopt,
                                            VIR_NETWORK_XML_INACTIVE))) {
-            goto cleanup;
+            return -1;
         }
-        virNetworkDefFree(checkdef);
     }
 
     if (configdef) {
         /* successfully modified copy, now replace original */
         if (virNetworkObjReplacePersistentDef(obj, configdef) < 0)
-           goto cleanup;
+            return -1;
+
         configdef = NULL;
     }
     if (livedef) {
@@ -1271,11 +1233,7 @@ virNetworkObjUpdate(virNetworkObj *obj,
         obj->def = g_steal_pointer(&livedef);
     }
 
-    ret = 0;
- cleanup:
-    virNetworkDefFree(livedef);
-    virNetworkDefFree(configdef);
-    return ret;
+    return 0;
 }
 
 
@@ -1598,7 +1556,7 @@ virNetworkObjAddPort(virNetworkObj *net,
 
     if (virHashLookup(net->ports, uuidstr)) {
         virReportError(VIR_ERR_NETWORK_PORT_EXIST,
-                       _("Network port with UUID %s already exists"),
+                       _("Network port with UUID %1$s already exists"),
                        uuidstr);
         return -1;
     }
@@ -1629,7 +1587,7 @@ virNetworkObjLookupPort(virNetworkObj *net,
 
     if (!(ret = virHashLookup(net->ports, uuidstr))) {
         virReportError(VIR_ERR_NO_NETWORK_PORT,
-                       _("Network port with UUID %s does not exist"),
+                       _("Network port with UUID %1$s does not exist"),
                        uuidstr);
         return NULL;
     }
@@ -1651,7 +1609,7 @@ virNetworkObjDeletePort(virNetworkObj *net,
 
     if (!(portdef = virHashLookup(net->ports, uuidstr))) {
         virReportError(VIR_ERR_NO_NETWORK_PORT,
-                       _("Network port with UUID %s does not exist"),
+                       _("Network port with UUID %1$s does not exist"),
                        uuidstr);
         return -1;
     }
@@ -1841,7 +1799,7 @@ virNetworkObjLoadAllPorts(virNetworkObj *net,
 
         file = g_strdup_printf("%s/%s.xml", dir, de->d_name);
 
-        portdef = virNetworkPortDefParseFile(file);
+        portdef = virNetworkPortDefParse(NULL, file, 0);
         if (!portdef) {
             VIR_WARN("Cannot parse port %s", file);
             continue;
@@ -1852,6 +1810,319 @@ virNetworkObjLoadAllPorts(virNetworkObj *net,
             return -1;
 
         portdef = NULL;
+    }
+
+    return 0;
+}
+
+
+/**
+ * virNetworkObjUpdateModificationImpact:
+ *
+ * @obj: network object
+ * @flags: flags to update the modification impact on
+ *
+ * Resolves virNetworkUpdateFlags in @flags so that they correctly
+ * apply to the actual state of @obj. @flags may be modified after call to this
+ * function.
+ *
+ * Returns 0 on success if @flags point to a valid combination for @obj or -1 on
+ * error.
+ */
+int
+virNetworkObjUpdateModificationImpact(virNetworkObj *obj,
+                                      unsigned int *flags)
+{
+    bool isActive = virNetworkObjIsActive(obj);
+
+    if ((*flags & (VIR_NETWORK_UPDATE_AFFECT_LIVE | VIR_NETWORK_UPDATE_AFFECT_CONFIG)) ==
+        VIR_NETWORK_UPDATE_AFFECT_CURRENT) {
+        if (isActive)
+            *flags |= VIR_NETWORK_UPDATE_AFFECT_LIVE;
+        else
+            *flags |= VIR_NETWORK_UPDATE_AFFECT_CONFIG;
+    }
+
+    if (virNetworkObjConfigChangeSetup(obj, *flags) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+/**
+ * virNetworkObjGetDefs:
+ *
+ * @net: network object
+ * @flags: for virNetworkUpdateFlags
+ * @liveDef: Set the pointer to the live definition of @net.
+ * @persDef: Set the pointer to the config definition of @net.
+ *
+ * Helper function to resolve @flags and retrieve correct network pointer
+ * objects. This function should be used only when the network driver
+ * creates net->newDef once the network has started.
+ *
+ * If @liveDef or @persDef are set it implies that @flags request modification
+ * thereof.
+ *
+ * Returns 0 on success and sets @liveDef and @persDef; -1 if @flags are
+ * inappropriate.
+ */
+static int
+virNetworkObjGetDefs(virNetworkObj *net,
+                    unsigned int flags,
+                    virNetworkDef **liveDef,
+                    virNetworkDef **persDef)
+{
+    if (liveDef)
+        *liveDef = NULL;
+
+    if (persDef)
+        *persDef = NULL;
+
+    if (virNetworkObjUpdateModificationImpact(net, &flags) < 0)
+        return -1;
+
+    if (virNetworkObjIsActive(net)) {
+        if (liveDef && (flags & VIR_NETWORK_UPDATE_AFFECT_LIVE))
+            *liveDef = net->def;
+
+        if (persDef && (flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG))
+            *persDef = net->newDef;
+    } else {
+        if (persDef)
+            *persDef = net->def;
+    }
+
+    return 0;
+}
+
+
+/**
+ * virNetworkObjGetOneDefState:
+ *
+ * @net: Network object
+ * @flags: for virNetworkUpdateFlags
+ * @live: set to true if live config was returned (may be omitted)
+ *
+ * Helper function to resolve @flags and return the correct network pointer
+ * object. This function returns one of @net->def or @net->persistentDef
+ * according to @flags. @live is set to true if the live net config will be
+ * returned. This helper should be used only in APIs that guarantee
+ * that @flags contains exactly one of VIR_NETWORK_UPDATE_AFFECT_LIVE or
+ * VIR_NETWORK_UPDATE_AFFECT_CONFIG and not both.
+ *
+ * Returns the correct definition pointer or NULL on error.
+ */
+static virNetworkDef *
+virNetworkObjGetOneDefState(virNetworkObj *net,
+                           unsigned int flags,
+                           bool *live)
+{
+    if (flags & VIR_NETWORK_UPDATE_AFFECT_LIVE &&
+        flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG) {
+        virReportInvalidArg(flags, "%s",
+                            _("Flags 'VIR_NETWORK_UPDATE_AFFECT_LIVE' and 'VIR_NETWORK_UPDATE_AFFECT_CONFIG' are mutually exclusive"));
+        return NULL;
+    }
+
+    if (virNetworkObjUpdateModificationImpact(net, &flags) < 0)
+        return NULL;
+
+    if (live)
+        *live = flags & VIR_NETWORK_UPDATE_AFFECT_LIVE;
+
+    if (virNetworkObjIsActive(net) && flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG)
+        return net->newDef;
+
+    return net->def;
+}
+
+
+/**
+ * virNetworkObjGetOneDef:
+ *
+ * @net: Network object
+ * @flags: for virNetworkUpdateFlags
+ *
+ * Helper function to resolve @flags and return the correct network pointer
+ * object. This function returns one of @net->def or @net->persistentDef
+ * according to @flags. This helper should be used only in APIs that guarantee
+ * that @flags contains exactly one of VIR_NETWORK_UPDATE_AFFECT_LIVE or
+ * VIR_NETWORK_UPDATE_AFFECT_CONFIG and not both.
+ *
+ * Returns the correct definition pointer or NULL on error.
+ */
+static virNetworkDef *
+virNetworkObjGetOneDef(virNetworkObj *net,
+                      unsigned int flags)
+{
+    return virNetworkObjGetOneDefState(net, flags, NULL);
+}
+
+
+char *
+virNetworkObjGetMetadata(virNetworkObj *net,
+                        int type,
+                        const char *uri,
+                        unsigned int flags)
+{
+    virNetworkDef *def;
+    char *ret = NULL;
+
+    virCheckFlags(VIR_NETWORK_UPDATE_AFFECT_LIVE |
+                  VIR_NETWORK_UPDATE_AFFECT_CONFIG, NULL);
+
+    if (type >= VIR_NETWORK_METADATA_LAST) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("unknown metadata type '%1$d'"), type);
+        return NULL;
+    }
+
+    if (!(def = virNetworkObjGetOneDef(net, flags)))
+        return NULL;
+
+    switch ((virNetworkMetadataType) type) {
+    case VIR_NETWORK_METADATA_DESCRIPTION:
+        ret = g_strdup(def->description);
+        break;
+
+    case VIR_NETWORK_METADATA_TITLE:
+        ret = g_strdup(def->title);
+        break;
+
+    case VIR_NETWORK_METADATA_ELEMENT:
+        if (!def->metadata)
+            break;
+
+        if (virXMLExtractNamespaceXML(def->metadata, uri, &ret) < 0)
+            return NULL;
+        break;
+
+    case VIR_NETWORK_METADATA_LAST:
+        break;
+    }
+
+    if (!ret)
+        virReportError(VIR_ERR_NO_NETWORK_METADATA, "%s",
+                       _("Requested metadata element is not present"));
+
+    return ret;
+}
+
+
+static int
+virNetworkDefSetMetadata(virNetworkDef *def,
+                        int type,
+                        const char *metadata,
+                        const char *key,
+                        const char *uri)
+{
+    g_autoptr(xmlDoc) doc = NULL;
+    xmlNodePtr old;
+    g_autoptr(xmlNode) new = NULL;
+
+    if (type >= VIR_NETWORK_METADATA_LAST) {
+        virReportError(VIR_ERR_INVALID_ARG,
+                       _("unknown metadata type '%1$d'"), type);
+        return -1;
+    }
+
+    switch ((virNetworkMetadataType) type) {
+    case VIR_NETWORK_METADATA_DESCRIPTION:
+        g_clear_pointer(&def->description, g_free);
+
+        if (STRNEQ_NULLABLE(metadata, ""))
+            def->description = g_strdup(metadata);
+        break;
+
+    case VIR_NETWORK_METADATA_TITLE:
+        g_clear_pointer(&def->title, g_free);
+
+        if (STRNEQ_NULLABLE(metadata, ""))
+            def->title = g_strdup(metadata);
+        break;
+
+    case VIR_NETWORK_METADATA_ELEMENT:
+        if (metadata) {
+
+            /* parse and modify the xml from the user */
+            if (!(doc = virXMLParseStringCtxt(metadata, _("(metadata_xml)"), NULL)))
+                return -1;
+
+            if (virXMLInjectNamespace(doc->children, uri, key) < 0)
+                return -1;
+
+            /* create the root node if needed */
+            if (!def->metadata)
+                def->metadata = virXMLNewNode(NULL, "metadata");
+
+            if (!(new = xmlCopyNode(doc->children, 1))) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("Failed to copy XML node"));
+                return -1;
+            }
+        }
+
+        /* remove possible other nodes sharing the namespace */
+        while ((old = virXMLFindChildNodeByNs(def->metadata, uri))) {
+            xmlUnlinkNode(old);
+            xmlFreeNode(old);
+        }
+
+        if (new) {
+            if (!(xmlAddChild(def->metadata, new))) {
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("failed to add metadata to XML document"));
+                return -1;
+            }
+            new = NULL;
+        }
+        break;
+
+    case VIR_NETWORK_METADATA_LAST:
+        break;
+    }
+
+    return 0;
+}
+
+
+int
+virNetworkObjSetMetadata(virNetworkObj *net,
+                        int type,
+                        const char *metadata,
+                        const char *key,
+                        const char *uri,
+                        virNetworkXMLOption *xmlopt,
+                        const char *stateDir,
+                        const char *configDir,
+                        unsigned int flags)
+{
+    virNetworkDef *def;
+    virNetworkDef *persistentDef;
+
+    virCheckFlags(VIR_NETWORK_UPDATE_AFFECT_LIVE |
+                  VIR_NETWORK_UPDATE_AFFECT_CONFIG, -1);
+
+    if (virNetworkObjGetDefs(net, flags, &def, &persistentDef) < 0)
+        return -1;
+
+    if (def) {
+        if (virNetworkDefSetMetadata(def, type, metadata, key, uri) < 0)
+            return -1;
+
+        if (virNetworkObjSaveStatus(stateDir, net, xmlopt) < 0)
+            return -1;
+    }
+
+    if (persistentDef) {
+        if (virNetworkDefSetMetadata(persistentDef, type, metadata, key,
+                                    uri) < 0)
+            return -1;
+
+        if (virNetworkSaveConfig(configDir, persistentDef, xmlopt) < 0)
+            return -1;
     }
 
     return 0;

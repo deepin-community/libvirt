@@ -39,7 +39,6 @@
 #include "virusb.h"
 #include "virscsi.h"
 #include "virscsivhost.h"
-#include "virstoragefile.h"
 #include "virstring.h"
 #include "virutil.h"
 
@@ -48,7 +47,6 @@
 VIR_LOG_INIT("security.security_dac");
 
 #define SECURITY_DAC_NAME "dac"
-#define DEV_SEV "/dev/sev"
 
 typedef struct _virSecurityDACData virSecurityDACData;
 struct _virSecurityDACData {
@@ -691,7 +689,7 @@ virSecurityDACSetOwnershipInternal(const virSecurityDACData *priv,
             return 0;
 
         if (stat(path, &sb) < 0) {
-            virReportSystemError(errno, _("unable to stat: %s"), path);
+            virReportSystemError(errno, _("unable to stat: %1$s"), path);
             return -1;
         }
 
@@ -723,8 +721,7 @@ virSecurityDACSetOwnershipInternal(const virSecurityDACData *priv,
                      (long)uid, (long)gid, NULLSTR(path));
         } else {
             virReportSystemError(errno,
-                                 _("unable to set user and group to '%ld:%ld' "
-                                   "on '%s'"),
+                                 _("unable to set user and group to '%1$ld:%2$ld' on '%3$s'"),
                                  (long)uid, (long)gid, NULLSTR(path));
             return -1;
         }
@@ -762,7 +759,7 @@ virSecurityDACSetOwnership(virSecurityManager *mgr,
 
     if (remember && path) {
         if (stat(path, &sb) < 0) {
-            virReportSystemError(errno, _("unable to stat: %s"), path);
+            virReportSystemError(errno, _("unable to stat: %1$s"), path);
             return -1;
         }
 
@@ -780,8 +777,8 @@ virSecurityDACSetOwnership(virSecurityManager *mgr,
              * XATTRs so decrease it. */
             if (sb.st_uid != uid || sb.st_gid != gid) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
-                               _("Setting different DAC user or group on %s "
-                                 "which is already in use"), path);
+                               _("Setting different DAC user or group on %1$s which is already in use"),
+                               path);
                 goto error;
             }
         }
@@ -878,6 +875,10 @@ virSecurityDACSetImageLabelInternal(virSecurityManager *mgr,
     gid_t group;
 
     if (!priv->dynamicOwnership)
+        return 0;
+
+    /* Images passed via FD don't need DAC seclabel change */
+    if (virStorageSourceIsFD(src))
         return 0;
 
     secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
@@ -989,6 +990,10 @@ virSecurityDACRestoreImageLabelSingle(virSecurityManager *mgr,
      * not work for clustered filesystems, since we can't see running VMs using
      * the file on other nodes. Safest bet is thus to skip the restore step. */
     if (src->readonly || src->shared)
+        return 0;
+
+    /* Images passed via FD don't need DAC seclabel change */
+    if (virStorageSourceIsFD(src))
         return 0;
 
     secdef = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
@@ -1111,10 +1116,14 @@ virSecurityDACMoveImageMetadata(virSecurityManager *mgr,
     if (!priv->dynamicOwnership)
         return 0;
 
-    if (src && virStorageSourceIsLocalStorage(src))
+    if (src &&
+        virStorageSourceIsLocalStorage(src) &&
+        !virStorageSourceIsFD(src))
         data.src = src->path;
 
-    if (dst && virStorageSourceIsLocalStorage(dst))
+    if (dst &&
+        virStorageSourceIsLocalStorage(dst) &&
+        !virStorageSourceIsFD(dst))
         data.dst = dst->path;
 
     if (!data.src)
@@ -1221,7 +1230,7 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
     if (cbdata.secdef && !cbdata.secdef->relabel)
         return 0;
 
-    switch ((virDomainHostdevSubsysType)dev->source.subsys.type) {
+    switch (dev->source.subsys.type) {
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
         g_autoptr(virUSBDevice) usb = NULL;
 
@@ -1300,7 +1309,7 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
         if (!(vfiodev = virMediatedDeviceGetIOMMUGroupDev(mdevsrc->uuidstr)))
             return -1;
 
-        ret = virSecurityDACSetHostdevLabelHelper(vfiodev, true, &cbdata);
+        ret = virSecurityDACSetHostdevLabelHelper(vfiodev, false, &cbdata);
         break;
     }
 
@@ -1384,7 +1393,7 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         scsisrc->protocol == VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI)
         return 0;
 
-    switch ((virDomainHostdevSubsysType)dev->source.subsys.type) {
+    switch (dev->source.subsys.type) {
     case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_USB: {
         g_autoptr(virUSBDevice) usb = NULL;
 
@@ -1456,7 +1465,7 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         if (!(vfiodev = virMediatedDeviceGetIOMMUGroupDev(mdevsrc->uuidstr)))
             return -1;
 
-        ret = virSecurityDACRestoreFileLabel(mgr, vfiodev);
+        ret = virSecurityDACRestoreFileLabelInternal(mgr, NULL, vfiodev, false);
         break;
     }
 
@@ -1555,6 +1564,8 @@ virSecurityDACSetChardevLabelHelper(virSecurityManager *mgr,
     case VIR_DOMAIN_CHR_TYPE_TCP:
     case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
     case VIR_DOMAIN_CHR_TYPE_NMDM:
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
     case VIR_DOMAIN_CHR_TYPE_LAST:
         break;
     }
@@ -1639,6 +1650,8 @@ virSecurityDACRestoreChardevLabelHelper(virSecurityManager *mgr,
     case VIR_DOMAIN_CHR_TYPE_SPICEVMC:
     case VIR_DOMAIN_CHR_TYPE_SPICEPORT:
     case VIR_DOMAIN_CHR_TYPE_NMDM:
+    case VIR_DOMAIN_CHR_TYPE_QEMU_VDAGENT:
+    case VIR_DOMAIN_CHR_TYPE_DBUS:
     case VIR_DOMAIN_CHR_TYPE_LAST:
         break;
     }
@@ -1694,6 +1707,7 @@ virSecurityDACSetTPMFileLabel(virSecurityManager *mgr,
                                                   tpm->data.emulator.source,
                                                   false, false);
         break;
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
     }
@@ -1717,6 +1731,7 @@ virSecurityDACRestoreTPMFileLabel(virSecurityManager *mgr,
         break;
     case VIR_DOMAIN_TPM_TYPE_EMULATOR:
         /* swtpm will have removed the Unix socket upon termination */
+    case VIR_DOMAIN_TPM_TYPE_EXTERNAL:
     case VIR_DOMAIN_TPM_TYPE_LAST:
         break;
     }
@@ -1840,23 +1855,25 @@ virSecurityDACRestoreMemoryLabel(virSecurityManager *mgr,
                                  virDomainDef *def G_GNUC_UNUSED,
                                  virDomainMemoryDef *mem)
 {
-    int ret = -1;
-
     switch (mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        return virSecurityDACRestoreFileLabel(mgr, mem->source.nvdimm.path);
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-        ret = virSecurityDACRestoreFileLabel(mgr, mem->nvdimmPath);
+        return virSecurityDACRestoreFileLabel(mgr, mem->source.virtio_pmem.path);
+
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        /* We set label on SGX /dev nodes iff running with namespaces, so we
+         * don't need to restore anything. */
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
-        ret = 0;
         break;
     }
 
-    return ret;
+    return 0;
 }
 
 
@@ -1970,9 +1987,11 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
             rc = -1;
     }
 
-    if (def->os.loader && def->os.loader->nvram &&
-        virSecurityDACRestoreFileLabel(mgr, def->os.loader->nvram) < 0)
-        rc = -1;
+    if (def->os.loader && def->os.loader->nvram) {
+        if (virSecurityDACRestoreImageLabelInt(mgr, def, def->os.loader->nvram,
+                                               migrated) < 0)
+            rc = -1;
+    }
 
     if (def->os.kernel &&
         virSecurityDACRestoreFileLabel(mgr, def->os.kernel) < 0)
@@ -2014,34 +2033,47 @@ virSecurityDACSetMemoryLabel(virSecurityManager *mgr,
 {
     virSecurityDACData *priv = virSecurityManagerGetPrivateData(mgr);
     virSecurityLabelDef *seclabel;
-    int ret = -1;
     uid_t user;
     gid_t group;
 
+    seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
+    if (seclabel && !seclabel->relabel)
+        return 0;
+
+    if (virSecurityDACGetIds(seclabel, priv, &user, &group, NULL, NULL) < 0)
+        return -1;
+
     switch (mem->model) {
     case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        return virSecurityDACSetOwnership(mgr, NULL,
+                                          mem->source.nvdimm.path,
+                                          user, group, true);
+
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-        seclabel = virDomainDefGetSecurityLabelDef(def, SECURITY_DAC_NAME);
-        if (seclabel && !seclabel->relabel)
-            return 0;
+        return virSecurityDACSetOwnership(mgr, NULL,
+                                          mem->source.virtio_pmem.path,
+                                          user, group, true);
 
-        if (virSecurityDACGetIds(seclabel, priv, &user, &group, NULL, NULL) < 0)
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        /* Skip chowning SGX if namespaces are disabled. */
+        if (priv->mountNamespace &&
+            (virSecurityDACSetOwnership(mgr, NULL,
+                                        DEV_SGX_VEPC,
+                                        user, group, true) < 0 ||
+             virSecurityDACSetOwnership(mgr, NULL,
+                                        DEV_SGX_PROVISION,
+                                        user, group, true) < 0))
             return -1;
-
-        ret = virSecurityDACSetOwnership(mgr, NULL,
-                                         mem->nvdimmPath,
-                                         user, group, true);
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
-        ret = 0;
         break;
     }
 
-    return ret;
+    return 0;
 }
 
 
@@ -2181,11 +2213,12 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
             return -1;
     }
 
-    if (def->os.loader && def->os.loader->nvram &&
-        virSecurityDACSetOwnership(mgr, NULL,
-                                   def->os.loader->nvram,
-                                   user, group, true) < 0)
-        return -1;
+    if (def->os.loader && def->os.loader->nvram) {
+        if (virSecurityDACSetImageLabel(mgr, def, def->os.loader->nvram,
+                                        VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN |
+                                        VIR_SECURITY_DOMAIN_IMAGE_PARENT_CHAIN_TOP) < 0)
+            return -1;
+    }
 
     if (def->os.kernel &&
         virSecurityDACSetOwnership(mgr, NULL,
@@ -2244,6 +2277,7 @@ virSecurityDACSetProcessLabel(virSecurityManager *mgr,
 static int
 virSecurityDACSetChildProcessLabel(virSecurityManager *mgr,
                                    virDomainDef *def,
+                                   bool useBinarySpecificLabel G_GNUC_UNUSED,
                                    virCommand *cmd)
 {
     virSecurityDACData *priv = virSecurityManagerGetPrivateData(mgr);
@@ -2286,16 +2320,14 @@ virSecurityDACGenLabel(virSecurityManager *mgr,
 
     if (seclabel->imagelabel) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("security image label already "
-                         "defined for VM"));
+                       _("security image label already defined for VM"));
         return rc;
     }
 
     if (seclabel->model
         && STRNEQ(seclabel->model, SECURITY_DAC_NAME)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("security label model %s is not supported "
-                         "with selinux"),
+                       _("security label model %1$s is not supported with selinux"),
                        seclabel->model);
             return rc;
     }
@@ -2304,8 +2336,8 @@ virSecurityDACGenLabel(virSecurityManager *mgr,
     case VIR_DOMAIN_SECLABEL_STATIC:
         if (seclabel->label == NULL) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("missing label for static security "
-                             "driver in domain %s"), def->name);
+                           _("missing label for static security driver in domain %1$s"),
+                           def->name);
             return rc;
         }
         break;
@@ -2314,8 +2346,8 @@ virSecurityDACGenLabel(virSecurityManager *mgr,
                                           (unsigned int)priv->group);
         if (seclabel->label == NULL) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("cannot generate dac user and group id "
-                             "for domain %s"), def->name);
+                           _("cannot generate dac user and group id for domain %1$s"),
+                           def->name);
             return rc;
         }
         break;
@@ -2325,7 +2357,7 @@ virSecurityDACGenLabel(virSecurityManager *mgr,
     case VIR_DOMAIN_SECLABEL_DEFAULT:
     case VIR_DOMAIN_SECLABEL_LAST:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected security label type '%s'"),
+                       _("unexpected security label type '%1$s'"),
                        virDomainSeclabelTypeToString(seclabel->type));
         return rc;
     }
@@ -2365,7 +2397,7 @@ virSecurityDACGetProcessLabelInternal(pid_t pid,
 
     if (g_lstat(path, &sb) < 0) {
         virReportSystemError(errno,
-                             _("unable to get uid and gid for PID %d via procfs"),
+                             _("unable to get uid and gid for PID %1$d via procfs"),
                              pid);
         return -1;
     }
@@ -2390,7 +2422,7 @@ virSecurityDACGetProcessLabelInternal(pid_t pid,
 
     if (sysctl(mib, 4, &p, &len, NULL, 0) < 0) {
         virReportSystemError(errno,
-                             _("unable to get PID %d uid and gid via sysctl"),
+                             _("unable to get PID %1$d uid and gid via sysctl"),
                              pid);
         return -1;
     }

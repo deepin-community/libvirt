@@ -19,10 +19,8 @@
 #pragma once
 
 #include "virconftypes.h"
-#include "datatypes.h"
 
 #include "qemu_conf.h"
-#include "qemu_domainjob.h"
 #include "qemu_domain.h"
 
 /* It would be nice to replace 'Qemud' with 'Qemu' but
@@ -68,7 +66,7 @@ qemuSaveImageStartVM(virConnectPtr conn,
                      const char *path,
                      bool start_paused,
                      bool reset_nvram,
-                     qemuDomainAsyncJob asyncJob)
+                     virDomainAsyncJob asyncJob)
     ATTRIBUTE_NONNULL(4) ATTRIBUTE_NONNULL(5) ATTRIBUTE_NONNULL(6);
 
 int
@@ -97,7 +95,7 @@ qemuSaveImageCreate(virQEMUDriver *driver,
                     virQEMUSaveData *data,
                     virCommand *compressor,
                     unsigned int flags,
-                    qemuDomainAsyncJob asyncJob);
+                    virDomainAsyncJob asyncJob);
 
 int
 virQEMUSaveDataWrite(virQEMUSaveData *data,

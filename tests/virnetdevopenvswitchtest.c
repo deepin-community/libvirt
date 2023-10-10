@@ -175,10 +175,7 @@ testVirNetDevOpenvswitchInterfaceSetQos(const void *data)
          * Maybe that's expected, actually. */
     }
 
-    if (STRNEQ_NULLABLE(info->exp_cmd, actual_cmd)) {
-        virTestDifference(stderr,
-                          NULLSTR(info->exp_cmd),
-                          NULLSTR(actual_cmd));
+    if (virTestCompareToString(info->exp_cmd, actual_cmd) < 0) {
         return -1;
     }
 
@@ -206,10 +203,7 @@ testVirNetDevOpenvswitchInterfaceClearQos(const void *data)
          * Maybe that's expected, actually. */
     }
 
-    if (STRNEQ_NULLABLE(info->exp_cmd, actual_cmd)) {
-        virTestDifference(stderr,
-                          NULLSTR(info->exp_cmd),
-                          NULLSTR(actual_cmd));
+    if (virTestCompareToString(info->exp_cmd, actual_cmd) < 0) {
         return -1;
     }
 

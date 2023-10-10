@@ -22,24 +22,50 @@
 
 #include "internal.h"
 #include "virjson.h"
-
-typedef struct _virLogHandler virLogHandler;
-
+#include "log_daemon_config.h"
+#include "virobject.h"
+#include "virrotatingfile.h"
 
 typedef void (*virLogHandlerShutdownInhibitor)(bool inhibit,
                                                void *opaque);
 
+typedef struct _virLogHandlerLogFile virLogHandlerLogFile;
+struct _virLogHandlerLogFile {
+    virRotatingFileWriter *file;
+    int watch;
+    int pipefd; /* Read from QEMU via this */
+    bool drained;
+
+    char *driver;
+    unsigned char domuuid[VIR_UUID_BUFLEN];
+    char *domname;
+};
+
+typedef struct _virLogHandler virLogHandler;
+struct _virLogHandler {
+    virObjectLockable parent;
+
+    bool privileged;
+    virLogDaemonConfig *config;
+
+    int cleanup_log_timer;
+
+    virLogHandlerLogFile **files;
+    size_t nfiles;
+
+    virLogHandlerShutdownInhibitor inhibitor;
+    void *opaque;
+};
+
 virLogHandler *virLogHandlerNew(bool privileged,
-                                  size_t max_size,
-                                  size_t max_backups,
-                                  virLogHandlerShutdownInhibitor inhibitor,
-                                  void *opaque);
+                                virLogDaemonConfig *config,
+                                virLogHandlerShutdownInhibitor inhibitor,
+                                void *opaque);
 virLogHandler *virLogHandlerNewPostExecRestart(virJSONValue *child,
-                                                 bool privileged,
-                                                 size_t max_size,
-                                                 size_t max_backups,
-                                                 virLogHandlerShutdownInhibitor inhibitor,
-                                                 void *opaque);
+                                               bool privileged,
+                                               virLogDaemonConfig *config,
+                                               virLogHandlerShutdownInhibitor inhibitor,
+                                               void *opaque);
 
 void virLogHandlerFree(virLogHandler *handler);
 

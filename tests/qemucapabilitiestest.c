@@ -39,9 +39,18 @@ struct _testQemuData {
     const char *prefix;
     const char *version;
     const char *archName;
+    const char *variant;
     const char *suffix;
     int ret;
 };
+
+bool isHVF = false;
+
+bool
+virQEMUCapsProbeHVF(virQEMUCaps *qemuCaps G_GNUC_UNUSED)
+{
+    return isHVF;
+}
 
 
 static int
@@ -78,16 +87,18 @@ testQemuCaps(const void *opaque)
     unsigned int fakeMicrocodeVersion = 0;
     const char *p;
 
-    repliesFile = g_strdup_printf("%s/%s_%s.%s.%s",
+    repliesFile = g_strdup_printf("%s/%s_%s_%s%s.%s",
                                   data->inputDir, data->prefix, data->version,
-                                  data->archName, data->suffix);
-    capsFile = g_strdup_printf("%s/%s_%s.%s.xml",
+                                  data->archName, data->variant, data->suffix);
+    capsFile = g_strdup_printf("%s/%s_%s_%s%s.xml",
                                data->outputDir, data->prefix, data->version,
-                               data->archName);
+                               data->archName, data->variant);
 
     if (!(mon = qemuMonitorTestNewFromFileFull(repliesFile, &data->driver, NULL,
                                                NULL)))
         return -1;
+
+    isHVF = STREQ(data->variant, "+hvf");
 
     if (qemuProcessQMPInitMonitor(qemuMonitorTestGetMonitor(mon)) < 0)
         return -1;
@@ -95,12 +106,13 @@ testQemuCaps(const void *opaque)
     binary = g_strdup_printf("/usr/bin/qemu-system-%s",
                              data->archName);
 
-    if (!(capsActual = virQEMUCapsNewBinary(binary)) ||
-        virQEMUCapsInitQMPMonitor(capsActual,
-                                  qemuMonitorTestGetMonitor(mon)) < 0)
+    capsActual = virQEMUCapsNewBinary(binary);
+
+    if (virQEMUCapsInitQMPMonitor(capsActual, qemuMonitorTestGetMonitor(mon)) < 0)
         return -1;
 
-    if (virQEMUCapsGet(capsActual, QEMU_CAPS_KVM)) {
+    if (virQEMUCapsHaveAccel(capsActual) &&
+        virQEMUCapsGet(capsActual, QEMU_CAPS_TCG)) {
         qemuMonitorResetCommandID(qemuMonitorTestGetMonitor(mon));
 
         if (qemuProcessQMPInitMonitor(qemuMonitorTestGetMonitor(mon)) < 0)
@@ -142,16 +154,15 @@ testQemuCapsCopy(const void *opaque)
     g_autoptr(virQEMUCaps) copy = NULL;
     g_autofree char *actual = NULL;
 
-    capsFile = g_strdup_printf("%s/%s_%s.%s.xml",
+    capsFile = g_strdup_printf("%s/%s_%s_%s%s.xml",
                                data->outputDir, data->prefix, data->version,
-                               data->archName);
+                               data->archName, data->variant);
 
     if (!(orig = qemuTestParseCapabilitiesArch(
               virArchFromString(data->archName), capsFile)))
         return -1;
 
-    if (!(copy = virQEMUCapsNewCopy(orig)))
-        return -1;
+    copy = virQEMUCapsNewCopy(orig);
 
     if (!(actual = virQEMUCapsFormatCache(copy)))
         return -1;
@@ -168,6 +179,7 @@ doCapsTest(const char *inputDir,
            const char *prefix,
            const char *version,
            const char *archName,
+           const char *variant,
            const char *suffix,
            void *opaque)
 {
@@ -182,6 +194,7 @@ doCapsTest(const char *inputDir,
     data->prefix = prefix;
     data->version = version;
     data->archName = archName;
+    data->variant = variant,
     data->suffix = suffix;
 
     if (virTestRun(title, testQemuCaps, data) < 0)
@@ -207,27 +220,12 @@ mymain(void)
     if (testQemuCapsIterate(".replies", doCapsTest, &data) < 0)
         return EXIT_FAILURE;
 
-    /*
-     * Run "tests/qemucapsprobe /path/to/qemu/binary >foo.replies"
-     * to generate updated or new *.replies data files.
-     *
-     * If you manually edit replies files you can run
-     * VIR_TEST_REGENERATE_OUTPUT=1 tests/qemucapabilitiesnumbering
-     * to fix the replies ids. The tool also allows for programmatic
-     * modification of the replies file.
-     *
-     * Once a replies file has been generated and tweaked if necessary,
-     * you can drop it into tests/qemucapabilitiesdata/ (with a sensible
-     * name - look at what's already there for inspiration) and test
-     * programs will automatically pick it up.
-     *
-     * To generate the corresponding output files after a new replies
-     * file has been added, run "VIR_TEST_REGENERATE_OUTPUT=1 ninja test".
-     */
+    /* See documentation in qemucapabilitiesdata/README.rst */
 
     testQemuDataReset(&data);
 
     return (data.ret == 0) ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-VIR_TEST_MAIN(mymain)
+VIR_TEST_MAIN_PRELOAD(mymain,
+                      VIR_TEST_MOCK("domaincaps"))

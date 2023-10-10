@@ -82,7 +82,7 @@ virDevMapperGetMajor(unsigned int *major)
 
     if (!lines[i]) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to find major for %s"),
+                       _("Unable to find major for %1$s"),
                        DM_NAME);
         return -1;
     }
@@ -128,11 +128,9 @@ static int
 virDMOpen(void)
 {
     VIR_AUTOCLOSE controlFD = -1;
-    struct dm_ioctl dm;
+    struct dm_ioctl dm = { 0 };
     g_autofree char *tmp = NULL;
     int ret;
-
-    memset(&dm, 0, sizeof(dm));
 
     if ((controlFD = open(CONTROL_PATH, O_RDWR)) < 0) {
         /* We can't talk to devmapper. Produce a warning and let
@@ -154,7 +152,7 @@ virDMOpen(void)
 
     if (dm.version[0] != DM_VERSION_MAJOR) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("Unsupported device-mapper version. Expected %d got %d"),
+                       _("Unsupported device-mapper version. Expected %1$d got %2$d"),
                        DM_VERSION_MAJOR, dm.version[0]);
         return -1;
     }
@@ -185,7 +183,7 @@ virDMSanitizepath(const char *path)
     /* It's a path. Check if the last component is DM name */
     if (stat(path, &sb[0]) < 0) {
         virReportError(errno,
-                       _("Unable to stat %p"),
+                       _("Unable to stat %1$p"),
                        path);
         return NULL;
     }
@@ -223,11 +221,9 @@ virDevMapperGetTargetsImpl(int controlFD,
 {
     g_autofree char *sanitizedPath = NULL;
     g_autofree char *buf = NULL;
-    struct dm_ioctl dm;
+    struct dm_ioctl dm = { 0 };
     struct dm_target_deps *deps = NULL;
     size_t i;
-
-    memset(&dm, 0, sizeof(dm));
 
     if (ttl == 0) {
         errno = ELOOP;
@@ -252,7 +248,7 @@ virDevMapperGetTargetsImpl(int controlFD,
             return 0;
 
         virReportSystemError(errno,
-                             _("Unable to query dependencies for %s"),
+                             _("Unable to query dependencies for %1$s"),
                              path);
         return -1;
     }

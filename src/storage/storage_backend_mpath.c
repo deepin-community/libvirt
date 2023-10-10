@@ -33,7 +33,6 @@
 #include "viralloc.h"
 #include "virlog.h"
 #include "virfile.h"
-#include "virstring.h"
 #include "virutil.h"
 #include "storage_util.h"
 
@@ -166,7 +165,7 @@ virStorageBackendCreateVols(virStoragePoolObj *pool,
 
             if (virStorageBackendGetMinorNumber(names->name, &minor) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Failed to get %s minor number"),
+                               _("Failed to get %1$s minor number"),
                                names->name);
                 return -1;
             }

@@ -24,96 +24,12 @@
 
 #include "qemu_monitor_text.h"
 #include "qemu_monitor_json.h"
-#include "viralloc.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
 
 VIR_LOG_INIT("qemu.qemu_monitor_text");
-
-int qemuMonitorTextAddDrive(qemuMonitor *mon,
-                            const char *drivestr)
-{
-    g_autofree char *cmd = NULL;
-    g_autofree char *reply = NULL;
-
-    /* 'dummy' here is just a placeholder since there is no PCI
-     * address required when attaching drives to a controller */
-    cmd = g_strdup_printf("drive_add dummy %s", drivestr);
-
-    if (qemuMonitorJSONHumanCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (strstr(reply, "unknown command:")) {
-        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                       _("drive hotplug is not supported"));
-        return -1;
-    }
-
-    if (strstr(reply, "could not open disk image")) {
-        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                       _("open disk image file failed"));
-        return -1;
-    }
-
-    if (strstr(reply, "Could not open")) {
-        size_t len = strlen(reply);
-        if (reply[len - 1] == '\n')
-            reply[len - 1] = '\0';
-
-        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                       reply);
-        return -1;
-    }
-
-    if (strstr(reply, "Image is not in")) {
-        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                       _("Incorrect disk format"));
-        return -1;
-    }
-
-    if (strstr(reply, "IOMMU") ||
-        strstr(reply, "VFIO")) {
-        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                       reply);
-        return -1;
-    }
-
-    return 0;
-}
-
-
-int qemuMonitorTextDriveDel(qemuMonitor *mon,
-                            const char *drivestr)
-{
-    g_autofree char *cmd = NULL;
-    g_autofree char *reply = NULL;
-
-    cmd = g_strdup_printf("drive_del %s", drivestr);
-
-    if (qemuMonitorJSONHumanCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (strstr(reply, "unknown command:")) {
-        VIR_ERROR(_("deleting drive is not supported.  "
-                    "This may leak data if disk is reassigned"));
-        return 1;
-
-    /* (qemu) drive_del wark
-     * Device 'wark' not found */
-    } else if (strstr(reply, "Device '") && strstr(reply, "not found")) {
-        /* NB: device not found errors mean the drive was auto-deleted and we
-         * ignore the error */
-    } else if (STRNEQ(reply, "")) {
-        virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("deleting %s drive failed: %s"), drivestr, reply);
-        return -1;
-    }
-
-    return 0;
-}
 
 int
 qemuMonitorTextCreateSnapshot(qemuMonitor *mon,
@@ -124,7 +40,7 @@ qemuMonitorTextCreateSnapshot(qemuMonitor *mon,
 
     cmd = g_strdup_printf("savevm \"%s\"", name);
 
-    if (qemuMonitorJSONHumanCommand(mon, cmd, &reply))
+    if (qemuMonitorJSONHumanCommand(mon, cmd, -1, &reply))
         return -1;
 
     if (strstr(reply, "Error while creating snapshot") ||
@@ -133,7 +49,7 @@ qemuMonitorTextCreateSnapshot(qemuMonitor *mon,
         strstr(reply, "Error: ") ||
         (strstr(reply, "Error") && strstr(reply, "while writing VM"))) {
         virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("Failed to take snapshot: %s"), reply);
+                       _("Failed to take snapshot: %1$s"), reply);
         return -1;
     } else if (strstr(reply, "No block device can accept snapshots")) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
@@ -150,7 +66,7 @@ int qemuMonitorTextDeleteSnapshot(qemuMonitor *mon, const char *name)
     g_autofree char *reply = NULL;
 
     cmd = g_strdup_printf("delvm \"%s\"", name);
-    if (qemuMonitorJSONHumanCommand(mon, cmd, &reply))
+    if (qemuMonitorJSONHumanCommand(mon, cmd, -1, &reply))
         return -1;
 
     if (strstr(reply, "No block device supports snapshots")) {
@@ -164,7 +80,7 @@ int qemuMonitorTextDeleteSnapshot(qemuMonitor *mon, const char *name)
                (strstr(reply, "Error") &&
                 strstr(reply, "while deleting snapshot"))) {
         virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("Failed to delete snapshot: %s"), reply);
+                       _("Failed to delete snapshot: %1$s"), reply);
         return -1;
     }
 

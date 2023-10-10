@@ -11,9 +11,7 @@
 
 # include "internal.h"
 # include "qemu/qemu_conf.h"
-# include "qemu/qemu_domain.h"
 # include "testutilsqemu.h"
-# include "virstring.h"
 
 # define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -32,9 +30,8 @@ testCompareXMLToXMLFiles(const char *inxml,
                          unsigned int flags)
 {
     g_autofree char *inXmlData = NULL;
-    g_autofree char *outXmlData = NULL;
     g_autofree char *actual = NULL;
-    unsigned int parseflags = VIR_DOMAIN_SNAPSHOT_PARSE_DISKS;
+    unsigned int parseflags = 0;
     unsigned int formatflags = VIR_DOMAIN_SNAPSHOT_FORMAT_SECURE;
     bool cur = false;
     g_autoptr(virDomainSnapshotDef) def = NULL;
@@ -48,9 +45,6 @@ testCompareXMLToXMLFiles(const char *inxml,
         parseflags |= VIR_DOMAIN_SNAPSHOT_PARSE_REDEFINE;
 
     if (virTestLoadFile(inxml, &inXmlData) < 0)
-        return -1;
-
-    if (virTestLoadFile(outxml, &outXmlData) < 0)
         return -1;
 
     if (!(def = virDomainSnapshotDefParseString(inXmlData,
@@ -73,10 +67,8 @@ testCompareXMLToXMLFiles(const char *inxml,
                                               formatflags)))
         return -1;
 
-    if (STRNEQ(outXmlData, actual)) {
-        virTestDifferenceFull(stderr, outXmlData, outxml, actual, inxml);
+    if (virTestCompareToFile(actual, outxml) < 0)
         return -1;
-    }
 
     return 0;
 }
@@ -117,9 +109,15 @@ testCompareXMLToXMLHelper(const void *data)
 static int
 mymain(void)
 {
+    g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
+    g_autoptr(GHashTable) capscache = virHashNew(virObjectUnref);
     int ret = 0;
 
     if (qemuTestDriverInit(&driver) < 0)
+        return EXIT_FAILURE;
+
+    if (testQemuInsertRealCaps(driver.qemuCapsCache, "x86_64", "latest", "",
+                               capslatest, capscache, NULL, NULL) < 0)
         return EXIT_FAILURE;
 
     virDomainXMLOptionSetMomentPostParse(driver.xmlopt,
@@ -167,6 +165,8 @@ mymain(void)
     DO_TEST_OUT("metadata", "c7a5fdbd-edaf-9455-926a-d65c16db1809", 0);
     DO_TEST_OUT("external_vm_redefine", "c7a5fdbd-edaf-9455-926a-d65c16db1809",
                 0);
+
+    DO_TEST_OUT("memory-snapshot-inactivedomain", "14beef2c-8cae-4ea8-bf55-e48fe0cd4b73", 0);
 
     DO_TEST_INOUT("empty", "9d37b878-a7cc-9f9a-b78f-49b3abad25a8",
                   1386166249, 0);

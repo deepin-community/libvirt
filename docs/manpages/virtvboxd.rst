@@ -30,33 +30,33 @@ This daemon runs on virtualization hosts to provide management for VirtualBox
 virtual machines.
 
 The ``virtvboxd`` daemon only listens for requests on a local Unix domain
-socket. Remote off-host access and backwards compatibility with legacy
-clients expecting ``libvirtd`` is provided by the ``virtproxy`` daemon.
+socket. Remote access via TLS/TCP and backwards compatibility with legacy
+clients expecting ``libvirtd`` is provided by the ``virtproxyd`` daemon.
 
 Restarting ``virtvboxd`` does not interrupt running guests. Guests continue to
 operate and changes in their state will generally be picked up automatically
 during startup.
 
-SYSTEM SOCKET ACTIVATION
-========================
+
+DAEMON STARTUP MODES
+====================
 
 The ``virtvboxd`` daemon is capable of starting in two modes.
 
-In the traditional mode, it will create and listen on UNIX sockets itself.
 
-In socket activation mode, it will rely on systemd to create and listen
-on the UNIX sockets and pass them as pre-opened file descriptors. In this
-mode most of the socket related config options in
+Socket activation mode
+----------------------
+
+On hosts with systemd it is started in socket activation mode and it will rely
+on systemd to create and listen on the UNIX sockets and pass them as pre-opened
+file descriptors. In this mode most of the socket related config options in
 ``/etc/libvirt/virtvboxd.conf`` will no longer have any effect.
 
-Socket activation mode is generally the default when running on a host
-OS that uses systemd. To revert to the traditional mode, all the socket
-unit files must be masked:
 
-::
+Traditional service mode
+------------------------
 
-   $ systemctl mask virtvboxd.socket virtvboxd-ro.socket \
-      virtvboxd-admin.socket
+On hosts without systemd, it will create and listen on UNIX sockets itself.
 
 
 OPTIONS
@@ -80,8 +80,8 @@ Use this name for the PID file, overriding the default value.
 
 ``-t``, ``--timeout *SECONDS*``
 
-Exit after timeout period (in seconds), provided there are neither any client
-connections nor any running domains.
+Exit after timeout period (in seconds), provided there are no client
+connections.
 
 ``-v``, ``--verbose``
 
@@ -209,5 +209,5 @@ SEE ALSO
 ========
 
 virsh(1), libvirtd(8),
-`https://www.libvirt.org/daemons.html <https://www.libvirt.org/daemons.html>`_,
-`https://www.libvirt.org/drvvbox.html <https://www.libvirt.org/drvvbox.html>`_
+`https://libvirt.org/daemons.html <https://libvirt.org/daemons.html>`_,
+`https://libvirt.org/drvvbox.html <https://libvirt.org/drvvbox.html>`_

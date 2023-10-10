@@ -11,7 +11,7 @@ access_polkit_sources = [
 
 access_perm_h = files('viraccessperm.h')
 
-remote_path = meson.source_root() / 'src' / 'remote'
+remote_path = meson.project_source_root() / 'src' / 'remote'
 
 access_gen_headers = []
 access_gen_sources = []
@@ -23,12 +23,10 @@ foreach name : [ 'remote', 'qemu', 'lxc' ]
     header_file = 'viraccessapicheck.h'
     source_file = 'viraccessapicheck.c'
     syms_file = 'libvirt_access.syms'
-    xml_file = 'libvirt_access.xml'
   else
     header_file = 'viraccessapicheck@0@.h'.format(name)
     source_file = 'viraccessapicheck@0@.c'.format(name)
     syms_file = 'libvirt_access_@0@.syms'.format(name)
-    xml_file = 'libvirt_access_@0@.xml'.format(name)
   endif
   protocol_file = remote_path / '@0@_protocol.x'.format(name)
 
@@ -61,16 +59,6 @@ foreach name : [ 'remote', 'qemu', 'lxc' ]
     command: [
       gendispatch_prog, '--mode=aclsym', name, name.to_upper(), '@INPUT@',
     ]
-  )
-
-  access_gen_xml += custom_target(
-    xml_file,
-    input: protocol_file,
-    output: xml_file,
-    capture: true,
-    command: [
-      gendispatch_prog, '--mode=aclapi', name, name.to_upper(), '@INPUT@',
-    ],
   )
 endforeach
 
@@ -120,6 +108,7 @@ generated_sym_files += access_gen_sym
 test(
   'check-aclperms',
   python3_prog,
-  args: [ check_aclperms_prog.path(), access_perm_h, files('viraccessperm.c') ],
+  args: [ check_aclperms_prog.full_path(), access_perm_h, files('viraccessperm.c') ],
   env: runutf8,
+  suite: 'script'
 )

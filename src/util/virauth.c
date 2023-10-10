@@ -31,7 +31,7 @@
 #include "virerror.h"
 #include "configmake.h"
 #include "virauthconfig.h"
-#include "virstring.h"
+#include "virsecureerase.h"
 
 #define VIR_FROM_THIS VIR_FROM_AUTH
 
@@ -99,7 +99,7 @@ virAuthGetConfigFilePath(virConnectPtr conn,
 }
 
 
-static int
+int
 virAuthGetCredential(const char *servicename,
                      const char *hostname,
                      const char *credname,
@@ -135,7 +135,7 @@ virAuthGetUsernamePath(const char *path,
                        const char *hostname)
 {
     unsigned int ncred;
-    virConnectCredential cred;
+    virConnectCredential cred = { 0 };
     g_autofree char *prompt = NULL;
     char *ret = NULL;
 
@@ -150,13 +150,11 @@ virAuthGetUsernamePath(const char *path,
         return NULL;
     }
 
-    memset(&cred, 0, sizeof(virConnectCredential));
-
     if (defaultUsername != NULL) {
-        prompt = g_strdup_printf(_("Enter username for %s [%s]"), hostname,
+        prompt = g_strdup_printf(_("Enter username for %1$s [%2$s]"), hostname,
                                  defaultUsername);
     } else {
-        prompt = g_strdup_printf(_("Enter username for %s"), hostname);
+        prompt = g_strdup_printf(_("Enter username for %1$s"), hostname);
     }
 
     for (ncred = 0; ncred < auth->ncredtype; ncred++) {
@@ -176,7 +174,8 @@ virAuthGetUsernamePath(const char *path,
         cred.result = NULL;
         cred.resultlen = 0;
 
-        if ((*(auth->cb))(&cred, 1, auth->cbdata) < 0) {
+        if ((*(auth->cb))(&cred, 1, auth->cbdata) < 0 ||
+            !cred.result) {
             virReportError(VIR_ERR_AUTH_FAILED, "%s",
                            _("Username request failed"));
             VIR_FREE(cred.result);
@@ -215,8 +214,7 @@ virAuthGetPasswordPath(const char *path,
                        const char *username,
                        const char *hostname)
 {
-    unsigned int ncred;
-    virConnectCredential cred;
+    g_autoptr(virConnectCredential) cred = NULL;
     g_autofree char *prompt = NULL;
     char *ret = NULL;
 
@@ -231,42 +229,12 @@ virAuthGetPasswordPath(const char *path,
         return NULL;
     }
 
-    memset(&cred, 0, sizeof(virConnectCredential));
+    prompt = g_strdup_printf(_("Enter %1$s's password for %2$s"), username, hostname);
 
-    prompt = g_strdup_printf(_("Enter %s's password for %s"), username, hostname);
+    if (!(cred = virAuthAskCredential(auth, prompt, false)))
+        return NULL;
 
-    for (ncred = 0; ncred < auth->ncredtype; ncred++) {
-        if (auth->credtype[ncred] != VIR_CRED_PASSPHRASE &&
-            auth->credtype[ncred] != VIR_CRED_NOECHOPROMPT) {
-            continue;
-        }
-
-        if (!auth->cb) {
-            virReportError(VIR_ERR_INVALID_ARG, "%s",
-                           _("Missing authentication callback"));
-            return NULL;
-        }
-
-        cred.type = auth->credtype[ncred];
-        cred.prompt = prompt;
-        cred.challenge = hostname;
-        cred.defresult = NULL;
-        cred.result = NULL;
-        cred.resultlen = 0;
-
-        if ((*(auth->cb))(&cred, 1, auth->cbdata) < 0) {
-            virReportError(VIR_ERR_AUTH_FAILED, "%s",
-                           _("Password request failed"));
-            VIR_FREE(cred.result);
-        }
-
-        return cred.result;
-    }
-
-    virReportError(VIR_ERR_AUTH_FAILED, "%s",
-                   _("Missing VIR_CRED_PASSPHRASE or VIR_CRED_NOECHOPROMPT "
-                     "credential type"));
-    return NULL;
+    return g_steal_pointer(&cred->result);
 }
 
 
@@ -283,4 +251,70 @@ virAuthGetPassword(virConnectPtr conn,
         return NULL;
 
     return virAuthGetPasswordPath(path, auth, servicename, username, hostname);
+}
+
+
+void
+virAuthConnectCredentialFree(virConnectCredential *cred)
+{
+    if (cred->result) {
+        virSecureErase(cred->result, cred->resultlen);
+        g_free(cred->result);
+    }
+    g_free(cred);
+}
+
+
+/**
+ * virAuthAskCredential:
+ * @auth: authentication callback data
+ * @prompt: question string to ask the user
+ * @echo: false if user's reply should be considered sensitive and not echoed
+ *
+ * Invoke the authentication callback for the connection @auth and ask the user
+ * the question in @prompt. If @echo is false user's reply should be collected
+ * as sensitive (user's input not printed on screen).
+ */
+virConnectCredential *
+virAuthAskCredential(virConnectAuthPtr auth,
+                     const char *prompt,
+                     bool echo)
+{
+    g_autoptr(virConnectCredential) ret = g_new0(virConnectCredential, 1);
+    size_t i;
+
+    ret->type = -1;
+
+    for (i = 0; i < auth->ncredtype; ++i) {
+        int type = auth->credtype[i];
+        if (echo) {
+            if (type == VIR_CRED_ECHOPROMPT) {
+                ret->type = type;
+                break;
+            }
+        } else {
+            if (type == VIR_CRED_PASSPHRASE ||
+                type == VIR_CRED_NOECHOPROMPT) {
+                ret->type = type;
+                break;
+            }
+        }
+    }
+
+    if (ret->type == -1) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                       _("no suitable callback authentication callback was found"));
+        return NULL;
+    }
+
+    ret->prompt = prompt;
+
+    if (auth->cb(ret, 1, auth->cbdata) < 0 ||
+        !ret->result) {
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       _("failed to retrieve user response for authentication callback"));
+        return NULL;
+    }
+
+    return g_steal_pointer(&ret);
 }

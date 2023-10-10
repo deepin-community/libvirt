@@ -23,8 +23,6 @@ usr/sbin/virtlogd
 usr/share/augeas/lenses/libvirt_lockd.aug
 usr/share/augeas/lenses/libvirt_sanlock.aug
 usr/share/augeas/lenses/libvirtd.aug
-usr/share/augeas/lenses/tests/test_libvirt_lockd.aug
-usr/share/augeas/lenses/tests/test_libvirt_sanlock.aug
 usr/share/augeas/lenses/tests/test_libvirtd.aug
 usr/share/augeas/lenses/tests/test_virtlockd.aug
 usr/share/augeas/lenses/tests/test_virtlogd.aug

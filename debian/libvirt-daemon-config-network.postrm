@@ -3,15 +3,16 @@
 set -e
 
 # summary of how this script can be called:
-#        * <postrm> `remove'
-#        * <postrm> `purge'
-#        * <old-postrm> `upgrade' <new-version>
-#        * <new-postrm> `failed-upgrade' <old-version>
-#        * <new-postrm> `abort-install'
-#        * <new-postrm> `abort-install' <old-version>
-#        * <new-postrm> `abort-upgrade' <old-version>
-#        * <disappearer's-postrm> `disappear' <overwriter>
-#          <overwriter-version>
+#
+#   * <postrm> `remove'
+#   * <postrm> `purge'
+#   * <old-postrm> `upgrade' <new-version>
+#   * <disappearer's-postrm> `disappear' <overwriter> <overwriter-version>
+#   * <new-postrm> `failed-upgrade' <old-version> <new-version>
+#   * <new-postrm> `abort-install'
+#   * <new-postrm> `abort-install' <old-version> <new-version>
+#   * <new-postrm> `abort-upgrade' <old-version> <new-version>
+#
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
@@ -43,6 +44,22 @@ remove_config_from_template() {
     fi
 }
 
+systemd_daemon_reload() {
+    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+        systemctl --system daemon-reload >/dev/null || true
+    fi
+}
+
+systemd_unit_restart_if_active() {
+    if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
+        for unit in "$@"; do
+            if systemctl is-active -q "$unit"; then
+                deb-systemd-invoke restart "$unit" >/dev/null || true
+            fi
+        done
+    fi
+}
+
 case "$1" in
     remove|purge)
         remove_config_from_template \
@@ -54,17 +71,11 @@ case "$1" in
 
         # Since we might have changed the on-disk configuration for some
         # services, restart them so that they can pick up the new settings
-        if [ -d /run/systemd/system ]; then
-            if systemctl is-active -q virtnetworkd; then
-                systemctl restart virtnetworkd
-            fi
-            if systemctl is-active -q libvirtd; then
-                systemctl restart libvirtd
-            fi
-        fi
+        systemd_daemon_reload
+        systemd_unit_restart_if_active libvirtd.service
     ;;
 
-    upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    upgrade|disappear|failed-upgrade|abort-install|abort-upgrade)
     ;;
 
     *)

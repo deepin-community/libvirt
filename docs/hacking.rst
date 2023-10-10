@@ -3,7 +3,7 @@ Contributing
 ============
 
 These are the basics steps you need to follow to contribute to
-libvirt.
+libvirt software development.
 
 Repositories and external resources
 ===================================
@@ -19,11 +19,25 @@ If you want to contribute to translations of libvirt, join the appropriate
 language team in Weblate.  Translation updates to libvirt will be merged
 during the feature freeze window.
 
+Working with the code
+=====================
+
+In general you should base your work upon the git master branch.
+
+The `"Git checkout" section <compiling.html#git-checkout>`__
+of the libvirt installation instructions give an overview of the
+compilation process.
+
+Optionally, `Clangd with libvirt <clangd.html>`__ can be used to
+navigate the code base etc. within most code editors (and IDEs).
+
 Preparing patches
 =================
 
-Make sure your patches apply against libvirt git. Developers
-only follow git and don't care much about released versions.
+Make sure your patches apply against the libvirt git master
+branch. The backporting of changes to existing releases is
+typically carried out by downstream users at their discretion
+after code is merged into the upstream git.
 
 Run the automated tests on your code before submitting any
 changes. That is:
@@ -43,6 +57,14 @@ Update tests and/or documentation, particularly if you are
 adding a new feature or changing the output of a program, and
 don't forget to update the `release notes <news.html>`__ if your
 changes are significant and user-visible.
+
+To test across a variety of build platforms prior to submitting
+your changes, you may create your own fork of the project on
+gitlab. This will give you access to (a subset of) libvirt's
+`continuous integration <ci.html>`__ test suite.
+
+Please note that you should still follow the instructions below,
+rather than following gitlab's prompts to open a "merge request".
 
 Submitting patches
 ==================
@@ -72,7 +94,7 @@ This page only covers the very basics, so it's recommended that
 you also take a look at the following documents:
 
 -  `Programming languages <programming-languages.html>`__
--  `Developer tooling <developer-tooling.html>`__
 -  `Advanced test suite usage <advanced-tests.html>`__
 -  `Adoption of GLib APIs <glib-adoption.html>`__
 -  `Committer guidelines <committer-guidelines.html>`__
+-  `Contributing to libvirt <contribute.html>`__

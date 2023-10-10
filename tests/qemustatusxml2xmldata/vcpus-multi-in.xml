@@ -306,8 +306,10 @@
   </devices>
   <numad nodeset='0-2' cpuset='1,3'/>
   <libDir path='/tmp'/>
-  <channelTargetDir path='/tmp/channel'/>
+  <channelTargetDir path='/var/lib/libvirt/qemu/channel/target'/>
   <allowReboot value='yes'/>
+  <nodename index='0'/>
+  <fdset index='0'/>
   <blockjobs active='no'/>
   <agentTimeout>-2</agentTimeout>
   <domain type='kvm' id='1729'>
@@ -336,6 +338,7 @@
       <input type='mouse' bus='ps2'/>
       <input type='keyboard' bus='ps2'/>
       <audio id='1' type='none'/>
+      <watchdog model='itco' action='reset'/>
       <memballoon model='none'/>
       <iommu model='intel'>
         <driver intremap='on' eim='on'/>

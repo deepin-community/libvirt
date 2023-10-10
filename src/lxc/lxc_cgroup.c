@@ -27,9 +27,6 @@
 #include "virfile.h"
 #include "virerror.h"
 #include "virlog.h"
-#include "virstring.h"
-#include "virsystemd.h"
-#include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -133,10 +130,10 @@ static int virLXCCgroupGetMemStat(virCgroup *cgroup,
 {
     return virCgroupGetMemoryStat(cgroup,
                                   &meminfo->cached,
-                                  &meminfo->inactive_anon,
                                   &meminfo->active_anon,
-                                  &meminfo->inactive_file,
+                                  &meminfo->inactive_anon,
                                   &meminfo->active_file,
+                                  &meminfo->inactive_file,
                                   &meminfo->unevictable);
 }
 
@@ -312,10 +309,13 @@ static int virLXCCgroupSetupDeviceACL(virDomainDef *def,
                                              VIR_CGROUP_DEVICE_MKNOD, false) < 0)
                     return -1;
                 break;
+            case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
+            case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_LAST:
             default:
                 break;
             }
         default:
+        case VIR_DOMAIN_HOSTDEV_MODE_LAST:
             break;
         }
     }
@@ -385,7 +385,7 @@ virCgroup *virLXCCgroupCreate(virDomainDef *def,
 
     if (!g_path_is_absolute(def->resource->partition)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Resource partition '%s' must start with '/'"),
+                       _("Resource partition '%1$s' must start with '/'"),
                        def->resource->partition);
         return NULL;
     }

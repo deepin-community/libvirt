@@ -20,15 +20,11 @@
 
 #include <config.h>
 #include "virerror.h"
-#include "datatypes.h"
 
 #include "interface_conf.h"
 
-#include "viralloc.h"
 #include "virxml.h"
-#include "viruuid.h"
 #include "virbuffer.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_INTERFACE
 
@@ -36,9 +32,6 @@ VIR_ENUM_IMPL(virInterface,
               VIR_INTERFACE_TYPE_LAST,
               "ethernet", "bridge", "bond", "vlan",
 );
-
-static virInterfaceDef *
-virInterfaceDefParseXML(xmlXPathContextPtr ctxt, int parentIfType);
 
 static int
 virInterfaceDefDevFormat(virBuffer *buf, const virInterfaceDef *def,
@@ -120,17 +113,15 @@ static int
 virInterfaceDefParseMtu(virInterfaceDef *def,
                         xmlXPathContextPtr ctxt)
 {
-    unsigned long mtu;
-    int ret;
-
-    ret = virXPathULong("string(./mtu/@size)", ctxt, &mtu);
-    if ((ret == -2) || ((ret == 0) && (mtu > 100000))) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       "%s", _("interface mtu value is improper"));
+    if (virXPathUInt("string(./mtu/@size)", ctxt, &def->mtu) == -2)
         return -1;
-    } else if (ret == 0) {
-        def->mtu = (unsigned int) mtu;
+
+    if (def->mtu > 100000) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("value of the 'size' attribute of 'mtu' element must be at most 100000"));
+        return -1;
     }
+
     return 0;
 }
 
@@ -151,7 +142,7 @@ virInterfaceDefParseStartMode(virInterfaceDef *def,
         def->startmode = VIR_INTERFACE_START_NONE;
     } else {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("unknown interface startmode %s"), tmp);
+                       _("unknown interface startmode %1$s"), tmp);
         return -1;
     }
     return 0;
@@ -181,7 +172,7 @@ virInterfaceDefParseBondMode(xmlXPathContextPtr ctxt)
         return VIR_INTERFACE_BOND_BALALB;
     }
 
-    virReportError(VIR_ERR_XML_ERROR, _("unknown bonding mode %s"), tmp);
+    virReportError(VIR_ERR_XML_ERROR, _("unknown bonding mode %1$s"), tmp);
     return -1;
 }
 
@@ -199,7 +190,7 @@ virInterfaceDefParseBondMiiCarrier(xmlXPathContextPtr ctxt)
         return VIR_INTERFACE_BOND_MII_NETIF;
     }
 
-    virReportError(VIR_ERR_XML_ERROR, _("unknown mii bonding carrier %s"), tmp);
+    virReportError(VIR_ERR_XML_ERROR, _("unknown mii bonding carrier %1$s"), tmp);
     return -1;
 }
 
@@ -219,7 +210,7 @@ virInterfaceDefParseBondArpValid(xmlXPathContextPtr ctxt)
         return VIR_INTERFACE_BOND_ARP_ALL;
     }
 
-    virReportError(VIR_ERR_XML_ERROR, _("unknown arp bonding validate %s"), tmp);
+    virReportError(VIR_ERR_XML_ERROR, _("unknown arp bonding validate %1$s"), tmp);
     return -1;
 }
 
@@ -233,7 +224,7 @@ virInterfaceDefParseDhcp(virInterfaceProtocolDef *def,
     def->dhcp = 1;
     def->peerdns = -1;
 
-    if (virXMLPropTristateBool(dhcp, "peerdns", VIR_XML_PROP_NONZERO, &peerdns) < 0)
+    if (virXMLPropTristateBool(dhcp, "peerdns", VIR_XML_PROP_NONE, &peerdns) < 0)
         return -1;
 
     if (peerdns != VIR_TRISTATE_BOOL_ABSENT) {
@@ -379,7 +370,8 @@ virInterfaceDefParseIfAdressing(virInterfaceDef *def,
                 return -1;
         } else {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("unsupported protocol family '%s'"), proto->family);
+                           _("unsupported protocol family '%1$s'"),
+                           proto->family);
             return -1;
         }
         def->protos[def->nprotos++] = g_steal_pointer(&proto);
@@ -408,7 +400,7 @@ virInterfaceDefParseBridge(virInterfaceDef *def,
             def->data.bridge.stp = 0;
         } else {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("bridge interface stp should be on or off got %s"),
+                           _("bridge interface stp should be on or off got %1$s"),
                            tmp);
             return 0;
         }
@@ -569,7 +561,7 @@ virInterfaceDefParseVlan(virInterfaceDef *def,
 }
 
 
-static virInterfaceDef *
+virInterfaceDef *
 virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
                         int parentIfType)
 {
@@ -594,7 +586,7 @@ virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
         || (parentIfType == VIR_INTERFACE_TYPE_VLAN))
         {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("interface has unsupported type '%s'"),
+                       _("interface has unsupported type '%1$s'"),
                        virInterfaceTypeToString(type));
         return NULL;
     }
@@ -677,55 +669,18 @@ virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
 
 
 virInterfaceDef *
-virInterfaceDefParseNode(xmlDocPtr xml,
-                         xmlNodePtr root)
-{
-    g_autoptr(xmlXPathContext) ctxt = NULL;
-
-    if (!virXMLNodeNameEqual(root, "interface")) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("unexpected root element <%s>, "
-                         "expecting <interface>"),
-                       root->name);
-        return NULL;
-    }
-
-    if (!(ctxt = virXMLXPathContextNew(xml)))
-        return NULL;
-
-    ctxt->node = root;
-    return virInterfaceDefParseXML(ctxt, VIR_INTERFACE_TYPE_LAST);
-}
-
-
-static virInterfaceDef *
-virInterfaceDefParse(const char *xmlStr,
-                     const char *filename,
-                     unsigned int flags)
-{
-    g_autoptr(xmlDoc) xml = NULL;
-
-    xml = virXMLParse(filename, xmlStr, _("(interface_definition)"),
-                      "interface.rng", flags & VIR_INTERFACE_DEFINE_VALIDATE);
-    if (!xml)
-        return NULL;
-
-    return virInterfaceDefParseNode(xml, xmlDocGetRootElement(xml));
-}
-
-
-virInterfaceDef *
 virInterfaceDefParseString(const char *xmlStr,
                            unsigned int flags)
 {
-    return virInterfaceDefParse(xmlStr, NULL, flags);
-}
+    g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    bool validate = flags & VIR_INTERFACE_DEFINE_VALIDATE;
 
+    if (!(xml = virXMLParse(NULL, xmlStr, _("(interface_definition)"),
+                            "interface", &ctxt, "interface.rng", validate)))
+        return NULL;
 
-virInterfaceDef *
-virInterfaceDefParseFile(const char *filename)
-{
-    return virInterfaceDefParse(NULL, filename, 0);
+    return virInterfaceDefParseXML(ctxt, VIR_INTERFACE_TYPE_LAST);
 }
 
 
@@ -941,7 +896,7 @@ virInterfaceDefDevFormat(virBuffer *buf,
 
     if (!(type = virInterfaceTypeToString(def->type))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected interface type %d"), def->type);
+                       _("unexpected interface type %1$d"), def->type);
         return -1;
     }
 

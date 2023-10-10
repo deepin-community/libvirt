@@ -31,12 +31,7 @@
 #if defined(WITH_LIBXL) && defined(WITH_YAJL)
 
 # include "internal.h"
-# include "viralloc.h"
 # include "libxl/libxl_conf.h"
-# include "datatypes.h"
-# include "virstring.h"
-# include "virmock.h"
-# include "virjson.h"
 # include "testutilsxen.h"
 
 # define VIR_FROM_THIS VIR_FROM_LIBXL
@@ -188,6 +183,7 @@ mymain(void)
 
     DO_TEST("basic-pv");
     DO_TEST("basic-hvm");
+    DO_TEST("efi-hvm");
 # ifdef WITH_XEN_PVH
     DO_TEST("basic-pvh");
 # endif

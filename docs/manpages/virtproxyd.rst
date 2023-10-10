@@ -48,20 +48,20 @@ and can be restarted at any time. Clients should expect to reconnect after
 the restart.
 
 
-SYSTEM SOCKET ACTIVATION
-========================
+DAEMON STARTUP MODES
+====================
 
 The ``virtproxyd`` daemon is capable of starting in two modes.
 
-In the traditional mode, it will create and listen on UNIX sockets itself.
-It will also listen on TCP/IP socket(s), according to the ``listen_tcp``
-and ``listen_tls`` options in ``/etc/libvirt/virtproxyd.conf``
 
-In socket activation mode, it will rely on systemd to create and listen
-on the UNIX, and optionally TCP/IP, sockets and pass them as pre-opened
-file descriptors. In this mode most of the socket related config options in
-``/etc/libvirt/virtproxyd.conf`` will no longer have any effect. To enable
-TCP or TLS sockets use either
+Socket activation mode
+----------------------
+
+On hosts with systemd it is started in socket activation mode and it will rely
+on systemd to create and listen on the UNIX, and optionally TCP/IP, sockets and
+pass them as pre-opened file descriptors. In this mode most of the socket
+related config options in ``/etc/libvirt/virtproxyd.conf`` will no longer have
+any effect. To enable TCP or TLS sockets use either
 
 ::
 
@@ -73,14 +73,16 @@ Or
 
    $ systemctl start virtproxyd-tcp.socket
 
-Socket activation mode is generally the default when running on a host
-OS that uses systemd. To revert to the traditional mode, all the socket
-unit files must be masked:
+**Note**: The TCP socket uses plain unencrypted TCP connection and thus is
+insecure and should not be used.
 
-::
 
-   $ systemctl mask virtproxyd.socket virtproxyd-ro.socket \
-      virtproxyd-admin.socket virtproxyd-tls.socket virtproxyd-tcp.socket
+Traditional service mode
+------------------------
+
+On hosts without systemd, it will create and listen on UNIX sockets itself.
+It will also listen on TCP/IP socket(s), according to the ``listen_tcp``
+and ``listen_tls`` options in ``/etc/libvirt/virtproxyd.conf``
 
 
 OPTIONS
@@ -104,8 +106,8 @@ Use this name for the PID file, overriding the default value.
 
 ``-t``, ``--timeout *SECONDS*``
 
-Exit after timeout period (in seconds), provided there are neither any client
-connections nor any running domains.
+Exit after timeout period (in seconds), provided there are no client
+connections.
 
 ``-v``, ``--verbose``
 
@@ -253,4 +255,4 @@ SEE ALSO
 ========
 
 virsh(1), libvirtd(8),
-`https://www.libvirt.org/daemons.html <https://www.libvirt.org/daemons.html>`_,
+`https://libvirt.org/daemons.html <https://libvirt.org/daemons.html>`_,

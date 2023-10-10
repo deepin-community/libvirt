@@ -21,7 +21,6 @@
 
 #include <config.h>
 
-#include "viralloc.h"
 #include "virfile.h"
 #include "viriptables.h"
 #include "virstring.h"
@@ -87,9 +86,9 @@ static int
 networkHasRunningNetworksWithFWHelper(virNetworkObj *obj,
                                 void *opaque)
 {
+    VIR_LOCK_GUARD lock = virObjectLockGuard(obj);
     bool *activeWithFW = opaque;
 
-    virObjectLock(obj);
     if (virNetworkObjIsActive(obj)) {
         virNetworkDef *def = virNetworkObjGetDef(obj);
 
@@ -110,8 +109,6 @@ networkHasRunningNetworksWithFWHelper(virNetworkObj *obj,
             break;
         }
     }
-
-    virObjectUnlock(obj);
 
     /*
      * terminate ForEach early once we find an active network that
@@ -269,7 +266,7 @@ int networkCheckRouteCollision(virNetworkDef *def)
             if ((net_dest == addr_val) &&
                 (netmask.data.inet4.sin_addr.s_addr == mask_val)) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Network is already in use by interface %s"),
+                               _("Network is already in use by interface %1$s"),
                                iface);
                 return -1;
             }
@@ -294,8 +291,7 @@ int networkCheckRouteCollision(virNetworkDef *def)
                 if (!addr_str)
                     virResetLastError();
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Route address '%s' conflicts "
-                                 "with IP address for '%s'"),
+                               _("Route address '%1$s' conflicts with IP address for '%2$s'"),
                                NULLSTR(addr_str), iface);
                 return -1;
             }
@@ -320,7 +316,7 @@ networkAddMasqueradingFirewallRules(virFirewall *fw,
 
     if (prefix < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Invalid prefix or netmask for '%s'"),
+                       _("Invalid prefix or netmask for '%1$s'"),
                        def->bridge);
         return -1;
     }
@@ -509,7 +505,7 @@ networkAddRoutingFirewallRules(virFirewall *fw,
 
     if (prefix < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Invalid prefix or netmask for '%s'"),
+                       _("Invalid prefix or netmask for '%1$s'"),
                        def->bridge);
         return -1;
     }
@@ -836,8 +832,7 @@ int networkAddFirewallRules(virNetworkDef *def)
          */
         if (virFirewallDIsRegistered() < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("zone %s requested for network %s "
-                             "but firewalld is not active"),
+                           _("zone %1$s requested for network %2$s but firewalld is not active"),
                            def->bridgeZone, def->name);
             return -1;
         }
@@ -860,12 +855,21 @@ int networkAddFirewallRules(virNetworkDef *def)
              * nftables + default zone means that traffic cannot be
              * forwarded (and even DHCP and DNS from guest to host
              * will probably no be permitted by the default zone
+             *
+             * Routed networks use a different zone and policy which we also
+             * need to verify exist. Probing for the policy guarantees the
+             * running firewalld has support for policies (firewalld >= 0.9.0).
              */
-            if (virFirewallDZoneExists("libvirt")) {
+            if (def->forward.type == VIR_NETWORK_FORWARD_ROUTE &&
+                virFirewallDPolicyExists("libvirt-routed-out") &&
+                virFirewallDZoneExists("libvirt-routed")) {
+                if (virFirewallDInterfaceSetZone(def->bridge, "libvirt-routed") < 0)
+                    return -1;
+            } else if (virFirewallDZoneExists("libvirt")) {
                 if (virFirewallDInterfaceSetZone(def->bridge, "libvirt") < 0)
                     return -1;
             } else {
-                unsigned long version;
+                unsigned long long version;
                 int vresult = virFirewallDGetVersion(&version);
 
                 if (vresult < 0)
@@ -880,15 +884,7 @@ int networkAddFirewallRules(virNetworkDef *def)
                 if (version >= 6000 &&
                     virFirewallDGetBackend() == VIR_FIREWALLD_BACKEND_NFTABLES) {
                     virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                                   _("firewalld is set to use the nftables "
-                                     "backend, but the required firewalld "
-                                     "'libvirt' zone is missing. Either set "
-                                     "the firewalld backend to 'iptables', or "
-                                     "ensure that firewalld has a 'libvirt' "
-                                     "zone by upgrading firewalld to a "
-                                     "version supporting rule priorities "
-                                     "(0.7.0+) and/or rebuilding "
-                                     "libvirt with --with-firewalld-zone"));
+                                   _("firewalld is set to use the nftables backend, but the required firewalld 'libvirt' zone is missing. Either set the firewalld backend to 'iptables', or ensure that firewalld has a 'libvirt' zone by upgrading firewalld to a version supporting rule priorities (0.7.0+) and/or rebuilding libvirt with --with-firewalld-zone"));
                     return -1;
                 }
             }

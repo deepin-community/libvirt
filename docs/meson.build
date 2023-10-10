@@ -17,25 +17,41 @@ docs_assets = [
   'mstile-150x150.png',
 ]
 
-docs_html_in_files = [
-  '404',
+docs_rst_files = [
+  'aclpolkit',
+  'advanced-tests',
+  'api',
+  'api_extension',
+  'apps',
+  'auditlog',
+  'auth',
+  'best-practices',
+  'bindings',
   'bugs',
   'cgroups',
+  'ci',
+  'ci-dashboard',
+  'ci-runners',
+  'clangd',
+  'coding-style',
+  'committer-guidelines',
+  'compiling',
   'contact',
   'contribute',
   'csharp',
+  'daemons',
   'dbus',
-  'devguide',
   'docs',
   'downloads',
   'drivers',
   'drvbhyve',
+  'drvch',
   'drvesx',
   'drvhyperv',
   'drvlxc',
   'drvnodedev',
   'drvopenvz',
-  'drvremote',
+  'drvqemu',
   'drvsecret',
   'drvtest',
   'drvvbox',
@@ -44,76 +60,53 @@ docs_html_in_files = [
   'drvxen',
   'errors',
   'firewall',
-  'formatcaps',
-  'formatdomaincaps',
   'format',
+  'formatbackup',
+  'formatcaps',
+  'formatcheckpoint',
+  'formatdomain',
+  'formatdomaincaps',
   'formatnetwork',
   'formatnetworkport',
   'formatnode',
   'formatnwfilter',
   'formatsecret',
   'formatsnapshot',
+  'formatstorage',
   'formatstoragecaps',
   'formatstorageencryption',
+  'glib-adoption',
   'goals',
+  'golang',
   'governance',
+  'hacking',
   'hooks',
   'index',
-  'internals',
-  'java',
+  'issue-handling',
+  'libvirt-go',
+  'libvirt-go-xml',
   'logging',
+  'macos',
+  'migration',
+  'newreposetup',
   'nss',
+  'pci-addresses',
   'pci-hotplug',
-  'php',
+  'platforms',
+  'programming-languages',
   'python',
   'remote',
   'securityprocess',
   'storage',
   'strategy',
-  'support',
-  'testapi',
-  'testsuites',
-  'testtck',
-  'tlscerts',
-  'uri',
-  'virshcmdref',
-  'windows',
-]
-
-docs_rst_files = [
-  'aclpolkit',
-  'advanced-tests',
-  'api_extension',
-  'api',
-  'apps',
-  'auditlog',
-  'auth',
-  'bindings',
-  'best-practices',
-  'ci',
-  'coding-style',
-  'committer-guidelines',
-  'compiling',
-  'daemons',
-  'developer-tooling',
-  'drvqemu',
-  'drvch',
-  'formatbackup',
-  'formatcheckpoint',
-  'formatdomain',
-  'formatstorage',
-  'glib-adoption',
-  'hacking',
-  'libvirt-go',
-  'libvirt-go-xml',
-  'macos',
-  'migration',
-  'newreposetup',
-  'pci-addresses',
-  'platforms',
-  'programming-languages',
   'styleguide',
   'submitting-patches',
+  'support',
+  'testapi',
+  'testing',
+  'testtck',
+  'uri',
+  'windows',
 ]
 
 # list of web targets to build for docs/web rule
@@ -127,17 +120,16 @@ aclperms_gen = custom_target(
   input: access_perm_h,
   output: 'aclperms.htmlinc',
   command: [
-    meson_python_prog, python3_prog, genaclperms_prog, '@INPUT@',
+    genaclperms_prog, '@INPUT@',
   ],
   capture: true,
 )
 
 docs_timestamp = run_command(
-  python3_prog, meson_timestamp_prog.path(), env: runutf8, check: true,
+  python3_prog, meson_timestamp_prog.full_path(), env: runutf8, check: true,
 ).stdout().strip()
 
 site_xsl = files('site.xsl')
-subsite_xsl = files('subsite.xsl')
 page_xsl = files('page.xsl')
 newapi_xsl = files('newapi.xsl')
 
@@ -150,7 +142,7 @@ docs_api_generated = custom_target(
     'libvirt-admin-api.xml',
   ],
   command: [
-    meson_python_prog, python3_prog, apibuild_prog,
+    apibuild_prog,
     meson.current_source_dir(),
     meson.current_build_dir(),
   ],
@@ -164,6 +156,9 @@ docs_api_generated = custom_target(
     libvirt_lxc_sources,
     admin_sources,
     util_public_sources,
+    meson.project_source_root() / 'src' / 'remote' / 'remote_protocol.x',
+    meson.project_source_root() / 'src' / 'remote' / 'qemu_protocol.x',
+    meson.project_source_root() / 'src' / 'remote' / 'lxc_protocol.x',
   ],
 )
 
@@ -180,7 +175,7 @@ docs_programs_groups = [
 foreach item : docs_programs_groups
   prog = find_program(item.get('prog'), dirs: libvirt_sbin_path)
   varname = item.get('name').underscorify()
-  conf.set_quoted(varname.to_upper(), prog.path())
+  conf.set_quoted(varname.to_upper(), prog.full_path())
   set_variable('@0@_prog'.format(varname), prog)
 endforeach
 
@@ -216,14 +211,13 @@ endif
 docs_rst2html5_gen = generator(
   rst2html5_prog,
   output: '@BASENAME@.html.in',
-  arguments: [ '--stylesheet=', '--strict', '@INPUT@' ],
+  arguments: [ '--exit-status=1', '--stylesheet=', '--strict', '@INPUT@' ],
   capture: true,
 )
 
 
 # html_xslt_gen config
 
-html_xslt_gen_xslt = site_xsl
 html_xslt_gen_install_dir = docs_html_dir
 
 html_xslt_gen = []
@@ -233,13 +227,6 @@ html_xslt_gen = []
 #   file - input file (optional, 'name.html.in' assumed if missing)
 # source - source filename relative to repository root (optional, if there is no source)
 # depends - explicit dependency on other input (optional)
-
-foreach name : docs_html_in_files
-  html_xslt_gen += {
-    'name': name,
-    'source': 'docs' / name + '.html.in',
-  }
-endforeach
 
 foreach name : docs_rst_files
   rst_file = '@0@.rst'.format(name)
@@ -252,19 +239,25 @@ endforeach
 
 html_xslt_gen += {
   'name': 'acl',
-  'source': 'docs' / 'acl.html.in',
+  'file': docs_rst2html5_gen.process('acl.rst'),
+  'source': 'docs' / 'acl.rst',
   'depends': aclperms_gen,
+}
+
+html_xslt_gen += {
+  'name': '404',
+  'file': docs_rst2html5_gen.process('404.rst'),
+  'source': 'docs' / '404.rst',
+  'href_base': '/',
 }
 
 hvsupport_html_in = custom_target(
   'hvsupport.html.in',
   output: 'hvsupport.html.in',
   command: [
-    meson_python_prog,
-    python3_prog,
     hvsupport_prog,
-    meson.source_root(),
-    meson.build_root(),
+    meson.project_source_root(),
+    meson.project_build_root(),
   ],
   capture: true,
   depend_files: [
@@ -282,7 +275,7 @@ html_xslt_gen += {
   'file': hvsupport_html_in,
 }
 
-news_html_in = docs_rst2html5_gen.process(meson.source_root() / 'NEWS.rst')
+news_html_in = docs_rst2html5_gen.process(meson.project_source_root() / 'NEWS.rst')
 html_xslt_gen += {
   'name': 'news',
   'file': news_html_in,
@@ -305,10 +298,11 @@ foreach data : html_xslt_gen
     command: [
       xsltproc_prog,
       '--stringparam', 'pagesrc', data.get('source', ''),
-      '--stringparam', 'builddir', meson.build_root(),
+      '--stringparam', 'builddir', meson.project_build_root(),
       '--stringparam', 'timestamp', docs_timestamp,
+      '--stringparam', 'href_base', data.get('href_base', ''),
       '--nonet',
-      html_xslt_gen_xslt,
+      site_xsl,
       '@INPUT@',
     ],
     depends: data.get('depends', []),
@@ -331,18 +325,19 @@ subdir('fonts')
 subdir('go')
 subdir('html')
 subdir('images')
-subdir('internals')
 subdir('js')
 subdir('kbase')
 subdir('logos')
 subdir('manpages')
-subdir('schemas')
-
 
 foreach file : docs_assets
   # This hack enables us to view the web pages
   # from within the uninstalled build tree
-  configure_file(input: file, output: file, copy: true)
+  if meson.version().version_compare('>=0.64.0')
+    fs.copyfile(file)
+  else
+    configure_file(input: file, output: file, copy: true)
+  endif
 
   install_web_files += '@0@:@1@'.format(meson.current_source_dir() / file, docs_html_dir)
 endforeach
@@ -350,8 +345,20 @@ endforeach
 run_target(
   'install-web',
   command: [
-    meson_python_prog, python3_prog.path(), meson_install_web_prog.path(),
+    meson_python_prog, python3_prog.full_path(), meson_install_web_prog.full_path(),
     install_web_files,
   ],
   depends: install_web_deps,
+)
+
+test(
+  'check-html-references',
+  python3_prog,
+  args: [
+    check_html_references_prog.full_path(),
+    '--webroot',
+    meson.project_build_root() / 'docs'
+  ],
+  env: runutf8,
+  suite: 'script'
 )

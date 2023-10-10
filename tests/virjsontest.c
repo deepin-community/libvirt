@@ -93,8 +93,7 @@ testJSONFromString(const void *data)
         return -1;
     }
 
-    if (STRNEQ(expectstr, formatted)) {
-        virTestDifference(stderr, expectstr, formatted);
+    if (virTestCompareToString(expectstr, formatted) < 0) {
         return -1;
     }
 
@@ -424,8 +423,7 @@ testJSONEscapeObj(const void *data G_GNUC_UNUSED)
         return -1;
     }
 
-    if (STRNEQ(parsednestedstr, neststr)) {
-        virTestDifference(stderr, neststr, parsednestedstr);
+    if (virTestCompareToString(neststr, parsednestedstr) < 0) {
         return -1;
     }
 
@@ -555,6 +553,7 @@ mymain(void)
     DO_TEST_PARSE("integer", "1", NULL);
     DO_TEST_PARSE("boolean", "true", NULL);
     DO_TEST_PARSE("null", "null", NULL);
+    DO_TEST_PARSE("[]", "[]", NULL);
 
     DO_TEST_PARSE("escaping symbols", "[\"\\\"\\t\\n\\\\\"]", NULL);
     DO_TEST_PARSE("escaped strings", "[\"{\\\"blurb\\\":\\\"test\\\"}\"]", NULL);

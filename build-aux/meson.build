@@ -1,14 +1,7 @@
-syntax_check_conf = configuration_data()
-syntax_check_conf.set('top_srcdir', meson.source_root())
-syntax_check_conf.set('top_builddir', meson.build_root())
-
 flake8_path = ''
 if flake8_prog.found()
-  flake8_path = flake8_prog.path()
+  flake8_path = flake8_prog.full_path()
 endif
-syntax_check_conf.set('flake8_path', flake8_path)
-syntax_check_conf.set('runutf8', ' '.join(runutf8))
-syntax_check_conf.set('PYTHON3', python3_prog.path())
 
 if host_machine.system() == 'freebsd' or host_machine.system() == 'darwin'
   make_prog = find_program('gmake')
@@ -33,8 +26,18 @@ else
   grep_prog = find_program('grep')
 endif
 
-syntax_check_conf.set('GREP', grep_prog.path())
-syntax_check_conf.set('SED', sed_prog.path())
+awk_prog = find_program('awk')
+
+syntax_check_conf = configuration_data({
+  'top_srcdir': meson.project_source_root(),
+  'top_builddir': meson.project_build_root(),
+  'flake8_path': flake8_path,
+  'runutf8': ' '.join(runutf8),
+  'PYTHON3': python3_prog.full_path(),
+  'GREP': grep_prog.full_path(),
+  'SED': sed_prog.full_path(),
+  'AWK': awk_prog.full_path(),
+})
 
 configure_file(
   input: 'Makefile.in',
@@ -44,7 +47,7 @@ configure_file(
 
 rc = run_command(
   'sed', '-n',
-  's/^\\(sc_[a-zA-Z0-9_-]*\\):.*/\\1/p',
+  's/^sc_\\([a-zA-Z0-9_-]*\\):.*/\\1/p',
   meson.current_source_dir() / 'syntax-check.mk',
   check: true,
 )
@@ -59,7 +62,7 @@ if git
     test(
       target,
       make_prog,
-      args: [ '-C', meson.current_build_dir(), target ],
+      args: [ '-C', meson.current_build_dir(), 'sc_@0@'.format(target) ],
       depends: [
         potfiles_dep,
       ],

@@ -1,18 +1,18 @@
 LC_ALL=C \
 PATH=/bin \
-HOME=/tmp/lib/domain--1-default-video-type-a \
+HOME=/var/lib/libvirt/qemu/domain--1-default-video-type-a \
 USER=test \
 LOGNAME=test \
-XDG_DATA_HOME=/tmp/lib/domain--1-default-video-type-a/.local/share \
-XDG_CACHE_HOME=/tmp/lib/domain--1-default-video-type-a/.cache \
-XDG_CONFIG_HOME=/tmp/lib/domain--1-default-video-type-a/.config \
+XDG_DATA_HOME=/var/lib/libvirt/qemu/domain--1-default-video-type-a/.local/share \
+XDG_CACHE_HOME=/var/lib/libvirt/qemu/domain--1-default-video-type-a/.cache \
+XDG_CONFIG_HOME=/var/lib/libvirt/qemu/domain--1-default-video-type-a/.config \
 /usr/bin/qemu-system-aarch64 \
 -name guest=default-video-type-aarch64-test,debug-threads=on \
 -S \
--object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/tmp/lib/domain--1-default-video-type-a/master-key.aes"}' \
--machine virt,usb=off,dump-guest-core=off,gic-version=3,memory-backend=mach-virt.ram \
+-object '{"qom-type":"secret","id":"masterKey0","format":"raw","file":"/var/lib/libvirt/qemu/domain--1-default-video-type-a/master-key.aes"}' \
+-machine virt,usb=off,gic-version=3,dump-guest-core=off,memory-backend=mach-virt.ram \
 -accel kvm \
--m 1024 \
+-m size=1048576k \
 -object '{"qom-type":"memory-backend-ram","id":"mach-virt.ram","size":1073741824}' \
 -overcommit mem-lock=off \
 -smp 1,sockets=1,cores=1,threads=1 \
@@ -25,10 +25,10 @@ XDG_CONFIG_HOME=/tmp/lib/domain--1-default-video-type-a/.config \
 -no-shutdown \
 -no-acpi \
 -boot strict=on \
--device pcie-root-port,port=8,chassis=1,id=pci.1,bus=pcie.0,multifunction=on,addr=0x1 \
--device pcie-root-port,port=9,chassis=2,id=pci.2,bus=pcie.0,addr=0x1.0x1 \
+-device '{"driver":"pcie-root-port","port":8,"chassis":1,"id":"pci.1","bus":"pcie.0","multifunction":true,"addr":"0x1"}' \
+-device '{"driver":"pcie-root-port","port":9,"chassis":2,"id":"pci.2","bus":"pcie.0","addr":"0x1.0x1"}' \
 -audiodev '{"id":"audio1","driver":"none"}' \
 -vnc 127.0.0.1:0,audiodev=audio1 \
--device virtio-gpu-pci,id=video0,max_outputs=1,bus=pci.1,addr=0x0 \
+-device '{"driver":"virtio-gpu-pci","id":"video0","max_outputs":1,"bus":"pci.1","addr":"0x0"}' \
 -sandbox on,obsolete=deny,elevateprivileges=deny,spawn=deny,resourcecontrol=deny \
 -msg timestamp=on

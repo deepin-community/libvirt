@@ -1,9 +1,10 @@
 install_data(
   [
-    'rpc-monitor.stp',
-    'qemu-monitor.stp',
-    'lock-debug.stp',
+    'amd-sev-es-vmsa.stp',
     'events.stp',
+    'lock-debug.stp',
+    'qemu-monitor.stp',
+    'rpc-monitor.stp',
   ],
   install_dir: example_dir / 'systemtap',
 )

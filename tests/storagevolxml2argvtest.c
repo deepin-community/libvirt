@@ -2,10 +2,7 @@
 
 #include "internal.h"
 #include "testutils.h"
-#include "datatypes.h"
 #include "storage/storage_util.h"
-#include "testutilsqemu.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -51,7 +48,7 @@ testCompareXMLToArgvFiles(bool shouldFail,
     g_autoptr(virStorageVolDef) inputvol = NULL;
     g_autoptr(virStoragePoolDef) inputpool = NULL;
 
-    if (!(def = virStoragePoolDefParseFile(poolxml)))
+    if (!(def = virStoragePoolDefParse(NULL, poolxml, 0)))
         goto cleanup;
 
     if (!(obj = virStoragePoolObjNew())) {
@@ -61,18 +58,18 @@ testCompareXMLToArgvFiles(bool shouldFail,
     virStoragePoolObjSetDef(obj, def);
 
     if (inputpoolxml) {
-        if (!(inputpool = virStoragePoolDefParseFile(inputpoolxml)))
+        if (!(inputpool = virStoragePoolDefParse(NULL, inputpoolxml, 0)))
             goto cleanup;
     }
 
     if (inputvolxml)
         parse_flags |= VIR_VOL_XML_PARSE_NO_CAPACITY;
 
-    if (!(vol = virStorageVolDefParseFile(def, volxml, parse_flags)))
+    if (!(vol = virStorageVolDefParse(def, NULL, volxml, parse_flags)))
         goto cleanup;
 
     if (inputvolxml &&
-        !(inputvol = virStorageVolDefParseFile(inputpool, inputvolxml, 0)))
+        !(inputvol = virStorageVolDefParse(inputpool, NULL, inputvolxml, 0)))
         goto cleanup;
 
     testSetVolumeType(vol, def);

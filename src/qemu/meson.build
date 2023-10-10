@@ -21,6 +21,7 @@ qemu_driver_sources = [
   'qemu_hotplug.c',
   'qemu_interface.c',
   'qemu_interop_config.c',
+  'qemu_logcontext.c',
   'qemu_migration.c',
   'qemu_migration_cookie.c',
   'qemu_migration_params.c',
@@ -28,6 +29,8 @@ qemu_driver_sources = [
   'qemu_monitor_json.c',
   'qemu_monitor_text.c',
   'qemu_namespace.c',
+  'qemu_nbdkit.c',
+  'qemu_passt.c',
   'qemu_process.c',
   'qemu_qapi.c',
   'qemu_saveimage.c',
@@ -96,6 +99,7 @@ if conf.has('WITH_QEMU')
       access_dep,
       capng_dep,
       gnutls_dep,
+      libnbd_dep,
       libnl_dep,
       log_dep,
       selinux_dep,
@@ -130,12 +134,36 @@ if conf.has('WITH_QEMU')
     ],
   }
 
-  virt_conf_files += files('qemu.conf')
+  qemu_user_group_conf = configuration_data({
+    'QEMU_USER': qemu_user,
+    'QEMU_GROUP': qemu_group,
+  })
+  qemu_conf = configure_file(
+    input: 'qemu.conf.in',
+    output: 'qemu.conf',
+    configuration: qemu_user_group_conf,
+  )
+
+  qemu_user_group_hack_conf = configuration_data({
+    'QEMU_USER': qemu_user,
+    'QEMU_GROUP': qemu_group,
+    # This hack is necessary because the output file is going to be
+    # used as input for another configure_file() call later, which
+    # will take care of substituting @CONFIG@ with useful data
+    'CONFIG': '@CONFIG@',
+  })
+  test_libvirtd_qemu_aug_tmp = configure_file(
+    input: 'test_libvirtd_qemu.aug.in',
+    output: 'test_libvirtd_qemu.aug.tmp',
+    configuration: qemu_user_group_hack_conf,
+  )
+
+  virt_conf_files += qemu_conf
   virt_aug_files += files('libvirtd_qemu.aug')
   virt_test_aug_files += {
     'name': 'test_libvirtd_qemu.aug',
-    'aug': files('test_libvirtd_qemu.aug.in'),
-    'conf': files('qemu.conf'),
+    'aug': test_libvirtd_qemu_aug_tmp,
+    'conf': qemu_conf,
     'test_name': 'libvirtd_qemu',
     'test_srcdir': meson.current_source_dir(),
     'test_builddir': meson.current_build_dir(),
@@ -157,8 +185,6 @@ if conf.has('WITH_QEMU')
     'service': 'virtqemud',
     'service_in': files('virtqemud.service.in'),
     'name': 'Libvirt qemu',
-    'sockprefix': 'virtqemud',
-    'sockets': [ 'main', 'ro', 'admin' ],
   }
 
   openrc_init_files += {
@@ -192,6 +218,7 @@ if conf.has('WITH_QEMU')
     localstatedir / 'log' / 'swtpm' / 'libvirt' / 'qemu',
     runstatedir / 'libvirt' / 'qemu',
     runstatedir / 'libvirt' / 'qemu' / 'dbus',
+    runstatedir / 'libvirt' / 'qemu' / 'passt',
     runstatedir / 'libvirt' / 'qemu' / 'slirp',
     runstatedir / 'libvirt' / 'qemu' / 'swtpm',
   ]

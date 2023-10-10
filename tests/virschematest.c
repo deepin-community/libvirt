@@ -21,8 +21,6 @@
 
 #include "testutils.h"
 
-#include "virerror.h"
-#include "viralloc.h"
 #include "virlog.h"
 #include "virxml.h"
 
@@ -50,10 +48,12 @@ static int
 testSchemaValidateXML(const void *args)
 {
     const struct testSchemaData *data = args;
-    bool shouldFail = virStringHasSuffix(data->xml_path, "-invalid.xml");
+    /* invalid XMLs have a '-invalid.' suffix, but not necessarily at the end
+     * of the file name e.g. in case of qemuxml2xmltest with real capabilities */
+    bool shouldFail = !!strstr(data->xml_path, "-invalid.");
     g_autoptr(xmlDoc) xml = NULL;
 
-    if (!(xml = virXMLParseFile(data->xml_path)))
+    if (!(xml = virXMLParseFileCtxt(data->xml_path, NULL)))
         return -1;
 
     if ((virXMLValidatorValidate(data->validator, xml) < 0) != shouldFail)
@@ -153,13 +153,10 @@ testSchemaGrammarReport(const void *opaque)
 static virXMLValidator *
 testSchemaGrammarLoad(const char *schema)
 {
-    g_autofree char *schema_path = NULL;
     g_autofree char *testname = NULL;
     virXMLValidator *ret;
 
-    schema_path = g_strdup_printf("%s/%s", abs_top_srcdir, schema);
-
-    ret = virXMLValidatorInit(schema_path);
+    ret = virXMLValidatorInit(schema);
 
     testname = g_strdup_printf("test schema grammar file: '%s'", schema);
 
@@ -240,6 +237,8 @@ static const struct testSchemaEntry schemaDomain[] = {
     { .dir = "tests/xml2vmxdata" },
     { .dir = "tests/bhyveargv2xmldata" },
     { .dir = "tests/qemuagentdata" },
+    { .dir = "tests/chxml2xmlin" },
+    { .dir = "tests/chxml2xmlout" },
 };
 
 static const struct testSchemaEntry schemaDomainCaps[] = {
@@ -282,6 +281,7 @@ static const struct testSchemaEntry schemaNetworkport[] = {
 
 static const struct testSchemaEntry schemaNodedev[] = {
     { .dir = "tests/nodedevschemadata" },
+    { .dir = "tests/nodedevxml2xmlout" },
     { .file = "examples/xml/test/testdev.xml" },
 };
 
@@ -322,13 +322,14 @@ static const struct testSchemaEntry schemaStorageVol[] = {
     { .file = "examples/xml/test/testvol.xml" },
 };
 
-static const struct testSchemaEntry schemaCpu[] = {
-    { . dir = "tests/cputestdata",
-      . dirRegex = "^[^-]+-cpuid-.*(-host|-guest|-json)\\.xml$" },
-    { . dir = "tests/cputestdata",
-      . dirRegex = "^[^-]+-baseline-.*-result\\.xml$" },
-    { . dir = "tests/cputestdata",
-      . dirRegex = "^[^-]+-(?!cpuid|baseline).*$" },
+static const struct testSchemaEntry testsCpuBaseline[] = {
+    { . dir = "tests/cputestdata" },
+};
+
+static const struct testSchemaEntry testDevice[] = {
+    { .dir = "tests/qemuhotplugtestdevices" },
+    { .dir = "tests/qemublocktestdata/imagecreate" },
+    { .dir = "tests/qemublocktestdata/xml2json" },
 };
 
 static int
@@ -336,27 +337,32 @@ mymain(void)
 {
     int ret = 0;
 
+#define SCHEMAS_PATH abs_top_srcdir "/src/conf/schemas/"
+#define INTERNAL_SCHEMAS_PATH abs_builddir "/schemas/"
+
 #define DO_TEST(sch, ent) \
     if (testSchemaEntries((sch), (ent), G_N_ELEMENTS(ent)) < 0) \
         ret = -1;
 
-    DO_TEST("docs/schemas/capability.rng", schemaCapability);
-    DO_TEST("docs/schemas/domain.rng", schemaDomain);
-    DO_TEST("docs/schemas/domaincaps.rng", schemaDomainCaps);
-    DO_TEST("docs/schemas/domainbackup.rng", schemaDomainBackup);
-    DO_TEST("docs/schemas/domaincheckpoint.rng", schemaDomainCheckpoint);
-    DO_TEST("docs/schemas/domainsnapshot.rng", schemaDomainSnapshot);
-    DO_TEST("docs/schemas/interface.rng", schemaInterface);
-    DO_TEST("docs/schemas/network.rng", schemaNetwork);
-    DO_TEST("docs/schemas/networkport.rng", schemaNetworkport);
-    DO_TEST("docs/schemas/nodedev.rng", schemaNodedev);
-    DO_TEST("docs/schemas/nwfilter.rng", schemaNwfilter);
-    DO_TEST("docs/schemas/nwfilterbinding.rng", schemaNwfilterbinding);
-    DO_TEST("docs/schemas/secret.rng", schemaSecret);
-    DO_TEST("docs/schemas/storagepoolcaps.rng", schemaStoragepoolcaps);
-    DO_TEST("docs/schemas/storagepool.rng", schemaStoragePool);
-    DO_TEST("docs/schemas/storagevol.rng", schemaStorageVol);
-    DO_TEST("docs/schemas/cpu.rng", schemaCpu);
+    DO_TEST(SCHEMAS_PATH "capability.rng", schemaCapability);
+    DO_TEST(SCHEMAS_PATH "domain.rng", schemaDomain);
+    DO_TEST(SCHEMAS_PATH "domaincaps.rng", schemaDomainCaps);
+    DO_TEST(SCHEMAS_PATH "domainbackup.rng", schemaDomainBackup);
+    DO_TEST(SCHEMAS_PATH "domaincheckpoint.rng", schemaDomainCheckpoint);
+    DO_TEST(SCHEMAS_PATH "domainsnapshot.rng", schemaDomainSnapshot);
+    DO_TEST(SCHEMAS_PATH "interface.rng", schemaInterface);
+    DO_TEST(SCHEMAS_PATH "network.rng", schemaNetwork);
+    DO_TEST(SCHEMAS_PATH "networkport.rng", schemaNetworkport);
+    DO_TEST(SCHEMAS_PATH "nodedev.rng", schemaNodedev);
+    DO_TEST(SCHEMAS_PATH "nwfilter.rng", schemaNwfilter);
+    DO_TEST(SCHEMAS_PATH "nwfilterbinding.rng", schemaNwfilterbinding);
+    DO_TEST(SCHEMAS_PATH "secret.rng", schemaSecret);
+    DO_TEST(SCHEMAS_PATH "storagepoolcaps.rng", schemaStoragepoolcaps);
+    DO_TEST(SCHEMAS_PATH "storagepool.rng", schemaStoragePool);
+    DO_TEST(SCHEMAS_PATH "storagevol.rng", schemaStorageVol);
+
+    DO_TEST(INTERNAL_SCHEMAS_PATH "cpu-baseline.rng", testsCpuBaseline);
+    DO_TEST(INTERNAL_SCHEMAS_PATH "device.rng", testDevice);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

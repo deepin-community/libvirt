@@ -24,11 +24,9 @@
 #define VIR_PARENT_REQUIRED /* empty, to allow virObject to have no parent */
 #include "virobject.h"
 #include "virthread.h"
-#include "viralloc.h"
 #include "virerror.h"
 #include "virlog.h"
 #include "virprobe.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -183,7 +181,7 @@ virClassNew(virClass *parent,
     } else if (objectSize <= parentSize ||
                parentSize != (parent ? parent->objectSize : 0)) {
         virReportInvalidArg(objectSize,
-                            _("object size %zu of %s is not larger than parent class %zu"),
+                            _("object size %1$zu of %2$s is not larger than parent class %3$zu"),
                             objectSize, name, parent->objectSize);
         return NULL;
     }
@@ -268,7 +266,7 @@ virObjectLockableNew(virClass *klass)
 
     if (!virClassIsDerivedFrom(klass, virClassForObjectLockable())) {
         virReportInvalidArg(klass,
-                            _("Class %s must derive from virObjectLockable"),
+                            _("Class %1$s must derive from virObjectLockable"),
                             virClassName(klass));
         return NULL;
     }
@@ -294,7 +292,7 @@ virObjectRWLockableNew(virClass *klass)
 
     if (!virClassIsDerivedFrom(klass, virClassForObjectRWLockable())) {
         virReportInvalidArg(klass,
-                            _("Class %s must derive from virObjectRWLockable"),
+                            _("Class %1$s must derive from virObjectRWLockable"),
                             virClassName(klass));
         return NULL;
     }
@@ -597,36 +595,6 @@ const char *
 virClassName(virClass *klass)
 {
     return klass->name;
-}
-
-
-/**
- * virObjectFreeCallback:
- * @opaque: a pointer to a virObject instance
- *
- * Provides identical functionality to virObjectUnref,
- * but with the signature matching the virFreeCallback
- * typedef.
- */
-void virObjectFreeCallback(void *opaque)
-{
-    virObjectUnref(opaque);
-}
-
-
-/**
- * virObjectFreeHashData:
- * @opaque: a pointer to a virObject instance
- * @name: ignored, name of the hash key being deleted
- *
- * Provides identical functionality to virObjectUnref,
- * but with the signature matching the GDestroyNotify
- * typedef used with hash tables.
- */
-void
-virObjectFreeHashData(void *opaque)
-{
-    virObjectUnref(opaque);
 }
 
 

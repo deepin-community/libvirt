@@ -125,8 +125,8 @@ virHashAtomicDispose(void *obj)
  * Add the @userdata to the hash @table. This can later be retrieved
  * by using @name. Duplicate entries generate errors.
  *
- * Deprecated: Consider using g_hash_table_insert insert. Note that
- * g_hash_table_instead doesn't fail if entry exists. Also note that
+ * Deprecated: Consider using g_hash_table_insert instead. Note that
+ * g_hash_table_insert doesn't fail if entry exists. Also note that
  * g_hash_table_insert doesn't copy the key.
  *
  * Returns 0 the addition succeeded and -1 in case of error.
@@ -139,7 +139,7 @@ virHashAddEntry(GHashTable *table, const char *name, void *userdata)
 
     if (g_hash_table_contains(table, name)) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Duplicate hash table key '%s'"), name);
+                       _("Duplicate hash table key '%1$s'"), name);
         return -1;
     }
 
@@ -242,24 +242,19 @@ virHashHasEntry(GHashTable *table,
  * Find the userdata specified by @name
  * and remove it from the hash without freeing it.
  *
- * Deprecated: consider using g_hash_table_steal_extended once we upgrade to
- * glib 2.58
+ * Deprecated: consider using g_hash_table_steal_extended instead
  *
  * Returns a pointer to the userdata
  */
 void *virHashSteal(GHashTable *table, const char *name)
 {
-    g_autofree void *orig_name = NULL;
+    g_autofree void *orig_name = NULL; /* the original key needs to be freed */
     void *val = NULL;
 
     if (!table || !name)
         return NULL;
 
-    /* we can replace this by g_hash_table_steal_extended with glib 2.58 */
-    if (!(g_hash_table_lookup_extended(table, name, &orig_name, &val)))
-        return NULL;
-
-    g_hash_table_steal(table, name);
+    g_hash_table_steal_extended(table, name, &orig_name, &val);
 
     return val;
 }

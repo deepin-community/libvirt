@@ -24,6 +24,14 @@
 #include "internal.h"
 #include "virbuffer.h"
 
+typedef struct _virCommandSendBuffer virCommandSendBuffer;
+struct _virCommandSendBuffer {
+    int fd;
+    unsigned char *buffer;
+    size_t buflen;
+    off_t offset;
+};
+
 typedef struct _virCommand virCommand;
 
 /* This will execute in the context of the first child
@@ -54,15 +62,7 @@ typedef enum {
 
 void virCommandPassFD(virCommand *cmd,
                       int fd,
-                      unsigned int flags) G_GNUC_NO_INLINE;
-
-void virCommandPassFDIndex(virCommand *cmd,
-                           int fd,
-                           unsigned int flags,
-                           size_t *idx) G_GNUC_NO_INLINE;
-
-int virCommandPassFDGetFDIndex(virCommand *cmd,
-                               int fd);
+                      unsigned int flags) G_NO_INLINE;
 
 void virCommandSetPidFile(virCommand *cmd,
                           const char *pidfile) ATTRIBUTE_NONNULL(2);
@@ -140,7 +140,7 @@ void virCommandSetWorkingDirectory(virCommand *cmd,
                                    const char *pwd) ATTRIBUTE_NONNULL(2);
 
 int virCommandSetSendBuffer(virCommand *cmd,
-                            unsigned char *buffer,
+                            unsigned char **buffer,
                             size_t buflen)
     ATTRIBUTE_NONNULL(2);
 
@@ -178,6 +178,7 @@ int virCommandToStringBuf(virCommand *cmd,
                           bool linebreaks,
                           bool stripCommandPath);
 
+const char *virCommandGetBinaryPath(virCommand *cmd);
 int virCommandGetArgList(virCommand *cmd, char ***args);
 
 int virCommandExec(virCommand *cmd, gid_t *groups, int ngroups) G_GNUC_WARN_UNUSED_RESULT;
@@ -224,5 +225,10 @@ int virCommandRunNul(virCommand *cmd,
                      size_t n_columns,
                      virCommandRunNulFunc func,
                      void *data);
+
+void virCommandSetRunAlone(virCommand *cmd);
+
+void virCommandSetRunAmong(virCommand *cmd,
+                           pid_t pid);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCommand, virCommandFree);

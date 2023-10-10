@@ -24,8 +24,6 @@
 #include "internal.h"
 
 #include "virbuffer.h"
-#include "virxml.h"
-#include "qemu_monitor.h"
 #include "qemu_conf.h"
 #include "virenum.h"
 
@@ -41,6 +39,7 @@ typedef enum {
     QEMU_MIGRATION_CAP_MULTIFD,
     QEMU_MIGRATION_CAP_BLOCK_DIRTY_BITMAPS,
     QEMU_MIGRATION_CAP_RETURN_PATH,
+    QEMU_MIGRATION_CAP_ZERO_COPY_SEND,
 
     QEMU_MIGRATION_CAP_LAST
 } qemuMigrationCapability;
@@ -60,6 +59,9 @@ typedef enum {
     QEMU_MIGRATION_PARAM_XBZRLE_CACHE_SIZE,
     QEMU_MIGRATION_PARAM_MAX_POSTCOPY_BANDWIDTH,
     QEMU_MIGRATION_PARAM_MULTIFD_CHANNELS,
+    QEMU_MIGRATION_PARAM_MULTIFD_COMPRESSION,
+    QEMU_MIGRATION_PARAM_MULTIFD_ZLIB_LEVEL,
+    QEMU_MIGRATION_PARAM_MULTIFD_ZSTD_LEVEL,
 
     QEMU_MIGRATION_PARAM_LAST
 } qemuMigrationParam;
@@ -78,7 +80,7 @@ qemuMigrationParamsGetAlwaysOnCaps(qemuMigrationParty party);
 qemuMigrationParams *
 qemuMigrationParamsFromFlags(virTypedParameterPtr params,
                              int nparams,
-                             unsigned long flags,
+                             unsigned int flags,
                              qemuMigrationParty party);
 
 int
@@ -86,7 +88,7 @@ qemuMigrationParamsDump(qemuMigrationParams *migParams,
                         virTypedParameterPtr *params,
                         int *nparams,
                         int *maxparams,
-                        unsigned long *flags);
+                        unsigned int *flags);
 
 qemuMigrationParams *
 qemuMigrationParamsNew(void);
@@ -96,10 +98,10 @@ qemuMigrationParamsFree(qemuMigrationParams *migParams);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuMigrationParams, qemuMigrationParamsFree);
 
 int
-qemuMigrationParamsApply(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuMigrationParamsApply(virDomainObj *vm,
                          int asyncJob,
-                         qemuMigrationParams *migParams);
+                         qemuMigrationParams *migParams,
+                         unsigned int apiFlags);
 
 int
 qemuMigrationParamsEnableTLS(virQEMUDriver *driver,
@@ -118,8 +120,7 @@ bool
 qemuMigrationParamsTLSHostnameIsSet(qemuMigrationParams *migParams);
 
 int
-qemuMigrationParamsFetch(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuMigrationParamsFetch(virDomainObj *vm,
                          int asyncJob,
                          qemuMigrationParams **migParams);
 
@@ -138,18 +139,16 @@ qemuMigrationParamsSetBlockDirtyBitmapMapping(qemuMigrationParams *migParams,
                                               virJSONValue **params);
 
 int
-qemuMigrationParamsCheck(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuMigrationParamsCheck(virDomainObj *vm,
                          int asyncJob,
                          qemuMigrationParams *migParams,
                          virBitmap *remoteCaps);
 
 void
-qemuMigrationParamsReset(virQEMUDriver *driver,
-                         virDomainObj *vm,
+qemuMigrationParamsReset(virDomainObj *vm,
                          int asyncJob,
                          qemuMigrationParams *origParams,
-                         unsigned long apiFlags);
+                         unsigned int apiFlags);
 
 void
 qemuMigrationParamsFormat(virBuffer *buf,
@@ -160,10 +159,13 @@ qemuMigrationParamsParse(xmlXPathContextPtr ctxt,
                          qemuMigrationParams **migParams);
 
 int
-qemuMigrationCapsCheck(virQEMUDriver *driver,
-                       virDomainObj *vm,
-                       int asyncJob);
+qemuMigrationCapsCheck(virDomainObj *vm,
+                       int asyncJob,
+                       bool reconnect);
 
 bool
 qemuMigrationCapsGet(virDomainObj *vm,
                      qemuMigrationCapability cap);
+
+const char *
+qemuMigrationParamsGetTLSHostname(qemuMigrationParams *migParams);

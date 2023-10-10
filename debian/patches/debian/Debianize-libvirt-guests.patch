@@ -5,11 +5,11 @@ Subject: Debianize libvirt-guests
 Forwarded: not-needed
 ---
  docs/manpages/libvirt-guests.rst |  4 ++--
- tools/libvirt-guests.sh.in       | 21 ++++++++++-----------
- 2 files changed, 12 insertions(+), 13 deletions(-)
+ tools/libvirt-guests.sh.in       | 17 ++++++++---------
+ 2 files changed, 10 insertions(+), 11 deletions(-)
 
 diff --git a/docs/manpages/libvirt-guests.rst b/docs/manpages/libvirt-guests.rst
-index bea08e3..e52c8c1 100644
+index f27eaad..62b279c 100644
 --- a/docs/manpages/libvirt-guests.rst
 +++ b/docs/manpages/libvirt-guests.rst
 @@ -51,7 +51,7 @@ The following variables are supported:
@@ -31,12 +31,12 @@ index bea08e3..e52c8c1 100644
    Action taken on host shutdown
  
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index 87f96af..9fe1c4c 100644
+index 344b543..9ea221c 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
-@@ -20,30 +20,30 @@ sysconfdir="@sysconfdir@"
+@@ -20,19 +20,19 @@ sysconfdir="@sysconfdir@"
  localstatedir="@localstatedir@"
- libvirtd="@sbindir@"/libvirtd
+ initconfdir="@initconfdir@"
  
 -# Source function library.
 -test ! -r "$sysconfdir"/rc.d/init.d/functions ||
@@ -60,13 +60,8 @@ index 87f96af..9fe1c4c 100644
  SHUTDOWN_TIMEOUT=300
  PARALLEL_SHUTDOWN=0
  START_DELAY=0
- BYPASS_CACHE=0
- SYNC_TIME=0
- 
--test -f "$sysconfdir"/sysconfig/libvirt-guests &&
--    . "$sysconfdir"/sysconfig/libvirt-guests
-+test -f "$sysconfdir"/default/libvirt-guests &&
-+    . "$sysconfdir"/default/libvirt-guests
+@@ -43,7 +43,7 @@ test -f "$initconfdir"/libvirt-guests &&
+     . "$initconfdir"/libvirt-guests
  
  LISTFILE="$localstatedir"/lib/libvirt/libvirt-guests
 -VAR_SUBSYS_LIBVIRT_GUESTS="$localstatedir"/lock/subsys/libvirt-guests

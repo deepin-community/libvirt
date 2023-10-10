@@ -56,12 +56,14 @@ int virPidFileDelete(const char *dir,
                      const char *name);
 
 
+int virPidFileAcquirePathFull(const char *path,
+                              bool waitForLock,
+                              bool quiet,
+                              pid_t pid) G_GNUC_WARN_UNUSED_RESULT;
 int virPidFileAcquirePath(const char *path,
-                          bool waitForLock,
                           pid_t pid) G_GNUC_WARN_UNUSED_RESULT;
 int virPidFileAcquire(const char *dir,
                       const char *name,
-                      bool waitForLock,
                       pid_t pid) G_GNUC_WARN_UNUSED_RESULT;
 
 int virPidFileReleasePath(const char *path,

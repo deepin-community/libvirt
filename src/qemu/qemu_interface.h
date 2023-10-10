@@ -21,7 +21,6 @@
 
 #pragma once
 
-#include "domain_conf.h"
 #include "qemu_conf.h"
 #include "qemu_domain.h"
 #include "qemu_slirp.h"
@@ -51,13 +50,8 @@ int qemuInterfaceBridgeConnect(virDomainDef *def,
                                size_t *tapfdSize)
     ATTRIBUTE_NONNULL(2);
 
-int qemuInterfaceOpenVhostNet(virDomainDef *def,
-                              virDomainNetDef *net,
-                              int *vhostfd,
-                              size_t *vhostfdSize) G_GNUC_NO_INLINE;
+int qemuInterfaceOpenVhostNet(virDomainObj *def,
+                              virDomainNetDef *net) G_NO_INLINE;
 
 int qemuInterfacePrepareSlirp(virQEMUDriver *driver,
-                              virDomainNetDef *net,
-                              qemuSlirp **slirp);
-
-int qemuInterfaceVDPAConnect(virDomainNetDef *net) G_GNUC_NO_INLINE;
+                              virDomainNetDef *net);

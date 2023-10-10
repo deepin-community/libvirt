@@ -16,6 +16,24 @@ server side that matters as nearly all interesting work takes place there.
 Moreover, libvirt catches stderr of all running domains. These can be useful as
 well.
 
+TL;DR - Enable debug logs for most common scenario
+===================================================
+
+This applies to the most common scenario of ``system`` instance of
+``virtqemud``. Log setting is not persisted, so a restart of ``virtqemud`` or
+the system clears this setting::
+
+   # virt-admin -c virtqemud:///system daemon-log-outputs "3:journald 1:file:/var/log/libvirt/libvirtd.log"
+   # virt-admin -c virtqemud:///system daemon-log-filters "3:remote 4:event 3:util.json 3:util.object 3:util.dbus 3:util.netlink 3:node_device 3:rpc 3:access 1:*"
+   # virt-admin -c virtqemud:///system daemon-timeout 0
+
+The last command disabling timeout of the daemon is available since
+``libvirt-8.6.0``. With older versions make sure to reproduce the issue within
+120 seconds or have a VM running which prevents the daemon from timing out.
+
+For any other configuration please read the rest of the document. If you want
+to persist the log level and log outputs settings edit
+``/etc/libvirt/virtqemud.conf`` and look for ``log-filters`` and ``log-outputs``
 
 Logging settings in libvirt
 ===========================
@@ -193,6 +211,26 @@ package manager provided by your distribution to install this package.
 **Important**: Substitute ``virt-admin -c $ADMIN_URI`` according to the
 guideline in the sections above in place of ``virt-admin`` in the examples
 below if needed.
+
+
+Timeout of the configured daemon
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Common deployments of libvirt start the libvirt daemons via socket activation
+and with automatic shutdown timeout of 120 seconds when no client or object is
+handled by the daemon. When a timeout is reached the daemon stops and all
+settings done during runtime via ``virt-admin`` are discarded. The daemon then
+is re-started with another command.
+
+To prevent auto-shutdown of the daemon you can use the following command::
+
+  virt-admin daemon-timeout 0
+
+The above is introduced in libvirt-8.6.0.
+
+
+Adding filters and outputs
+~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The following command allows to query the list of currently active log filters:
 

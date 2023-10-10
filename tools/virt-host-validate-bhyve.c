@@ -28,12 +28,12 @@
 #include "virt-host-validate-common.h"
 
 #define MODULE_STATUS(mod, err_msg, err_code) \
-    virHostMsgCheck("BHYVE", _("for %s module"), #mod); \
+    virHostMsgCheck("BHYVE", _("for %1$s module"), #mod); \
     if (mod ## _loaded) { \
         virHostMsgPass(); \
     } else { \
         virHostMsgFail(err_code, \
-                       _("%s module is not loaded, " err_msg), \
+                       _("%1$s module is not loaded, " err_msg), \
                         #mod); \
         ret = -1; \
     }
@@ -49,22 +49,24 @@ int virHostValidateBhyve(void)
 {
     int ret = 0;
     int fileid = 0;
-    struct kld_file_stat stat;
-    bool vmm_loaded = false, if_tap_loaded = false;
-    bool if_bridge_loaded = false, nmdm_loaded = false;
+    g_autofree struct kld_file_stat *stat = g_new0(struct kld_file_stat, 1);
+    bool vmm_loaded = false;
+    bool if_tap_loaded = false;
+    bool if_bridge_loaded = false;
+    bool nmdm_loaded = false;
 
     for (fileid = kldnext(0); fileid > 0; fileid = kldnext(fileid)) {
-        stat.version = sizeof(struct kld_file_stat);
-        if (kldstat(fileid, &stat) < 0)
+        stat->version = sizeof(struct kld_file_stat);
+        if (kldstat(fileid, stat) < 0)
             continue;
 
-        if (STREQ(stat.name, "vmm.ko"))
+        if (STREQ(stat->name, "vmm.ko"))
             vmm_loaded = true;
-        else if (STREQ(stat.name, "if_tap.ko"))
+        else if (STREQ(stat->name, "if_tap.ko"))
             if_tap_loaded = true;
-        else if (STREQ(stat.name, "if_bridge.ko"))
+        else if (STREQ(stat->name, "if_bridge.ko"))
             if_bridge_loaded = true;
-        else if (STREQ(stat.name, "nmdm.ko"))
+        else if (STREQ(stat->name, "nmdm.ko"))
             nmdm_loaded = true;
     }
 

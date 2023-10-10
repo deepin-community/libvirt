@@ -1,11 +1,9 @@
 #include <config.h>
 
-#include "viralloc.h"
 #include "virerror.h"
 #include "virfile.h"
 #include "storage_backend_vstorage.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "virutil.h"
 #include <mntent.h>
 #include <paths.h>
@@ -96,7 +94,7 @@ virStorageBackendVzIsMounted(virStoragePoolObj *pool)
 
     if ((mtab = fopen(_PATH_MOUNTED, "r")) == NULL) {
         virReportSystemError(errno,
-                             _("cannot read mount list '%s'"),
+                             _("cannot read mount list '%1$s'"),
                              _PATH_MOUNTED);
         goto cleanup;
     }

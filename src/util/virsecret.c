@@ -26,7 +26,6 @@
 #include "virerror.h"
 #include "virlog.h"
 #include "virsecret.h"
-#include "virstring.h"
 #include "viruuid.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -85,7 +84,7 @@ virSecretLookupParseSecret(xmlNodePtr secretnode,
     if (uuid) {
         if (virUUIDParse(uuid, def->u.uuid) < 0) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("invalid secret uuid '%s'"), uuid);
+                           _("invalid secret uuid '%1$s'"), uuid);
             return -1;
         }
         def->type = VIR_SECRET_LOOKUP_TYPE_UUID;
@@ -140,8 +139,7 @@ virSecretGetSecretString(virConnectPtr conn,
                          uint8_t **secret,
                          size_t *secret_size)
 {
-    virSecretPtr sec = NULL;
-    int ret = -1;
+    g_autoptr(virSecret) sec = NULL;
 
     switch (seclookupdef->type) {
     case VIR_SECRET_LOOKUP_TYPE_UUID:
@@ -155,7 +153,7 @@ virSecretGetSecretString(virConnectPtr conn,
     }
 
     if (!sec)
-        goto cleanup;
+        return -1;
 
     /* NB: NONE is a byproduct of the qemuxml2argvtest test mocking
      * for UUID lookups. Normal secret XML processing would fail if
@@ -167,21 +165,14 @@ virSecretGetSecretString(virConnectPtr conn,
 
         virUUIDFormat(seclookupdef->u.uuid, uuidstr);
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("secret with uuid %s is of type '%s' not "
-                         "expected '%s' type"),
+                       _("secret with uuid %1$s is of type '%2$s' not expected '%3$s' type"),
                        uuidstr, virSecretUsageTypeToString(sec->usageType),
                        virSecretUsageTypeToString(secretUsageType));
-        goto cleanup;
+        return -1;
     }
 
-    *secret = conn->secretDriver->secretGetValue(sec, secret_size, 0);
+    if (!(*secret = conn->secretDriver->secretGetValue(sec, secret_size, 0)))
+        return -1;
 
-    if (!*secret)
-        goto cleanup;
-
-    ret = 0;
-
- cleanup:
-    virObjectUnref(sec);
-    return ret;
+    return 0;
 }

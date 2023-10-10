@@ -26,10 +26,7 @@
 #include "internal.h"
 #include "virinitctl.h"
 #include "virerror.h"
-#include "virutil.h"
-#include "viralloc.h"
 #include "virfile.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_INITCTL
 
@@ -127,13 +124,11 @@ int
 virInitctlSetRunLevel(const char *fifo,
                       virInitctlRunLevel level)
 {
-    struct virInitctlRequest req;
+    struct virInitctlRequest req = { 0 };
     int fd = -1;
     int ret = -1;
     const int open_flags = O_WRONLY|O_NONBLOCK|O_CLOEXEC|O_NOCTTY;
     size_t i = 0;
-
-    memset(&req, 0, sizeof(req));
 
     req.magic = VIR_INITCTL_MAGIC;
     req.sleeptime = 0;
@@ -144,7 +139,7 @@ virInitctlSetRunLevel(const char *fifo,
     if (fifo) {
         if ((fd = open(fifo, open_flags)) < 0) {
             virReportSystemError(errno,
-                                 _("Cannot open init control %s"),
+                                 _("Cannot open init control %1$s"),
                                  fifo);
             goto cleanup;
         }
@@ -157,7 +152,7 @@ virInitctlSetRunLevel(const char *fifo,
 
             if (errno != ENOENT) {
                 virReportSystemError(errno,
-                                     _("Cannot open init control %s"),
+                                     _("Cannot open init control %1$s"),
                                      fifo);
                 goto cleanup;
             }
@@ -172,7 +167,7 @@ virInitctlSetRunLevel(const char *fifo,
 
     if (safewrite(fd, &req, sizeof(req)) != sizeof(req)) {
         virReportSystemError(errno,
-                             _("Failed to send request to init control %s"),
+                             _("Failed to send request to init control %1$s"),
                              fifo);
         goto cleanup;
     }

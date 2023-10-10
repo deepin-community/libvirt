@@ -23,7 +23,6 @@
 #ifdef WITH_NSS
 
 # include "libvirt_nss.h"
-# include "virsocket.h"
 
 # define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -40,13 +39,11 @@ testGetHostByName(const void *opaque)
 {
     const struct testNSSData *data = opaque;
     const bool existent = data->hostname && data->ipAddr && data->ipAddr[0];
-    struct hostent resolved;
+    struct hostent resolved = { 0 };
     char buf[BUF_SIZE] = { 0 };
     char **addrList;
     int rv, tmp_errno = 0, tmp_herrno = 0;
     size_t i = 0;
-
-    memset(&resolved, 0, sizeof(resolved));
 
     rv = NSS_NAME(gethostbyname2)(data->hostname,
                                   data->af,
@@ -117,11 +114,9 @@ testGetHostByName(const void *opaque)
     addrList = resolved.h_addr_list;
     i = 0;
     while (*addrList) {
-        virSocketAddr sa;
+        virSocketAddr sa = { 0 };
         g_autofree char *ipAddr = NULL;
         void *address = *addrList;
-
-        memset(&sa, 0, sizeof(sa));
 
         if (resolved.h_addrtype == AF_INET) {
             virSocketAddrSetIPv4AddrNetOrder(&sa, *((uint32_t *) address));
@@ -173,6 +168,7 @@ mymain(void)
 # if !defined(LIBVIRT_NSS_GUEST)
     DO_TEST("fedora", AF_INET, "192.168.122.197", "192.168.122.198", "192.168.122.199", "192.168.122.3");
     DO_TEST("gentoo", AF_INET, "192.168.122.254");
+    DO_TEST("Gentoo", AF_INET, "192.168.122.254");
     DO_TEST("gentoo", AF_INET6, "2001:1234:dead:beef::2");
     DO_TEST("gentoo", AF_UNSPEC, "192.168.122.254");
     DO_TEST("non-existent", AF_UNSPEC, NULL);

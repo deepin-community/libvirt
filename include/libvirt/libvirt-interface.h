@@ -31,6 +31,8 @@
  * virInterface:
  *
  * a virInterface is a private structure representing a virtual interface.
+ *
+ * Since: 0.6.4
  */
 typedef struct _virInterface virInterface;
 
@@ -39,6 +41,8 @@ typedef struct _virInterface virInterface;
  *
  * a virInterfacePtr is pointer to a virInterface private structure, this is the
  * type used to reference a virtual interface in the API.
+ *
+ * Since: 0.6.4
  */
 typedef virInterface *virInterfacePtr;
 
@@ -53,14 +57,16 @@ int                     virConnectNumOfDefinedInterfaces (virConnectPtr conn);
 int                     virConnectListDefinedInterfaces  (virConnectPtr conn,
                                                           char **const names,
                                                           int maxnames);
-/*
- * virConnectListAllInterfaces:
+/**
+ * virConnectListAllInterfacesFlags:
  *
  * Flags used to filter the returned interfaces.
+ *
+ * Since: 0.10.2
  */
 typedef enum {
-    VIR_CONNECT_LIST_INTERFACES_INACTIVE      = 1 << 0,
-    VIR_CONNECT_LIST_INTERFACES_ACTIVE        = 1 << 1,
+    VIR_CONNECT_LIST_INTERFACES_INACTIVE      = 1 << 0, /* (Since: 0.10.2) */
+    VIR_CONNECT_LIST_INTERFACES_ACTIVE        = 1 << 1, /* (Since: 0.10.2) */
 } virConnectListAllInterfacesFlags;
 
 int                     virConnectListAllInterfaces (virConnectPtr conn,
@@ -75,12 +81,22 @@ virInterfacePtr         virInterfaceLookupByMACString (virConnectPtr conn,
 const char*             virInterfaceGetName       (virInterfacePtr iface);
 const char*             virInterfaceGetMACString  (virInterfacePtr iface);
 
+/**
+ * virInterfaceXMLFlags:
+ *
+ * Since: 0.7.3
+ */
 typedef enum {
-    VIR_INTERFACE_XML_INACTIVE = 1 << 0 /* dump inactive interface information */
+    VIR_INTERFACE_XML_INACTIVE = 1 << 0 /* dump inactive interface information (Since: 0.7.3) */
 } virInterfaceXMLFlags;
 
+/**
+ * virInterfaceDefineFlags:
+ *
+ * Since: 7.7.0
+ */
 typedef enum {
-    VIR_INTERFACE_DEFINE_VALIDATE = 1 << 0, /* Validate the XML document against schema */
+    VIR_INTERFACE_DEFINE_VALIDATE = 1 << 0, /* Validate the XML document against schema (Since: 7.7.0) */
 } virInterfaceDefineFlags;
 
 char *                  virInterfaceGetXMLDesc    (virInterfacePtr iface,

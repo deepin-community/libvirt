@@ -83,7 +83,7 @@ bhyveAutostartDomain(virDomainObj *vm, void *opaque)
                                    VIR_DOMAIN_RUNNING_BOOTED, 0);
         if (ret < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Failed to autostart VM '%s': %s"),
+                           _("Failed to autostart VM '%1$s': %2$s"),
                            vm->def->name, virGetLastErrorMessage());
         }
     }
@@ -153,7 +153,7 @@ bhyveDomObjFromDomain(virDomainPtr domain)
     if (!vm) {
         virUUIDFormat(domain->uuid, uuidstr);
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s' (%s)"),
+                       _("no domain with matching uuid '%1$s' (%2$s)"),
                        uuidstr, domain->name);
         return NULL;
     }
@@ -183,7 +183,7 @@ bhyveConnectOpen(virConnectPtr conn,
 
     if (STRNEQ(conn->uri->path, "/system")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unexpected bhyve URI path '%s', try bhyve:///system"),
+                       _("Unexpected bhyve URI path '%1$s', try bhyve:///system"),
                        conn->uri->path);
         return VIR_DRV_OPEN_ERROR;
     }
@@ -207,7 +207,7 @@ bhyveConnectClose(virConnectPtr conn)
 {
     struct _bhyveConn *privconn = conn->privateData;
 
-    virCloseCallbacksRun(privconn->closeCallbacks, conn, privconn->domains, privconn);
+    virCloseCallbacksDomainRunForConn(privconn->domains, conn);
     conn->privateData = NULL;
 
     return 0;
@@ -248,6 +248,7 @@ bhyveConnectGetSysinfo(virConnectPtr conn, unsigned int flags)
 static int
 bhyveConnectGetVersion(virConnectPtr conn, unsigned long *version)
 {
+    unsigned long long tmpver;
     struct utsname ver;
 
     if (virConnectGetVersionEnsureACL(conn) < 0)
@@ -255,11 +256,13 @@ bhyveConnectGetVersion(virConnectPtr conn, unsigned long *version)
 
     uname(&ver);
 
-    if (virStringParseVersion(version, ver.release, true) < 0) {
+    if (virStringParseVersion(&tmpver, ver.release, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unknown release: %s"), ver.release);
+                       _("Unknown release: %1$s"), ver.release);
         return -1;
     }
+
+    *version = tmpver;
 
     return 0;
 }
@@ -369,21 +372,21 @@ bhyveDomainSetAutostart(virDomainPtr domain, int autostart)
         if (autostart) {
             if (g_mkdir_with_parents(BHYVE_AUTOSTART_DIR, 0777) < 0) {
                 virReportSystemError(errno,
-                                     _("cannot create autostart directory %s"),
+                                     _("cannot create autostart directory %1$s"),
                                      BHYVE_AUTOSTART_DIR);
                 goto cleanup;
             }
 
             if (symlink(configFile, autostartLink) < 0) {
                 virReportSystemError(errno,
-                                     _("Failed to create symlink '%s' to '%s'"),
+                                     _("Failed to create symlink '%1$s' to '%2$s'"),
                                      autostartLink, configFile);
                 goto cleanup;
             }
         } else {
             if (unlink(autostartLink) < 0 && errno != ENOENT && errno != ENOTDIR) {
                 virReportSystemError(errno,
-                                     _("Failed to delete symlink '%s'"),
+                                     _("Failed to delete symlink '%1$s'"),
                                      autostartLink);
                 goto cleanup;
             }
@@ -669,7 +672,7 @@ bhyveConnectDomainXMLToNative(virConnectPtr conn,
 
     if (STRNEQ(format, BHYVE_CONFIG_FORMAT_ARGV)) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Unsupported config type %s"), format);
+                       _("Unsupported config type %1$s"), format);
         return NULL;
     }
 
@@ -691,8 +694,7 @@ bhyveConnectDomainXMLToNative(virConnectPtr conn,
 
         if ((bhyveDriverGetBhyveCaps(privconn) & BHYVE_CAP_LPC_BOOTROM) == 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Installed bhyve binary does not support "
-                          "bootrom"));
+                           _("Installed bhyve binary does not support bootrom"));
             return NULL;
         }
     } else {
@@ -742,7 +744,7 @@ bhyveDomainLookupByUUID(virConnectPtr conn,
         char uuidstr[VIR_UUID_STRING_BUFLEN];
         virUUIDFormat(uuid, uuidstr);
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("No domain with matching uuid '%s'"), uuidstr);
+                       _("No domain with matching uuid '%1$s'"), uuidstr);
         goto cleanup;
     }
 
@@ -767,7 +769,7 @@ static virDomainPtr bhyveDomainLookupByName(virConnectPtr conn,
 
     if (!vm) {
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching name '%s'"), name);
+                       _("no domain with matching name '%1$s'"), name);
         goto cleanup;
     }
 
@@ -793,7 +795,7 @@ bhyveDomainLookupByID(virConnectPtr conn,
 
     if (!vm) {
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("No domain with matching ID '%d'"), id);
+                       _("No domain with matching ID '%1$d'"), id);
         goto cleanup;
     }
 
@@ -1161,7 +1163,6 @@ bhyveStateCleanup(void)
     virObjectUnref(bhyve_driver->caps);
     virObjectUnref(bhyve_driver->xmlopt);
     virSysinfoDefFree(bhyve_driver->hostsysinfo);
-    virObjectUnref(bhyve_driver->closeCallbacks);
     virObjectUnref(bhyve_driver->domainEventState);
     virObjectUnref(bhyve_driver->config);
     virPortAllocatorRangeFree(bhyve_driver->remotePorts);
@@ -1178,6 +1179,7 @@ bhyveStateCleanup(void)
 static int
 bhyveStateInitialize(bool privileged,
                      const char *root,
+                     bool monolithic G_GNUC_UNUSED,
                      virStateInhibitCallback callback G_GNUC_UNUSED,
                      void *opaque G_GNUC_UNUSED)
 {
@@ -1201,9 +1203,6 @@ bhyveStateInitialize(bool privileged,
         VIR_FREE(bhyve_driver);
         return VIR_DRV_STATE_INIT_ERROR;
     }
-
-    if (!(bhyve_driver->closeCallbacks = virCloseCallbacksNew()))
-        goto cleanup;
 
     if (!(bhyve_driver->caps = virBhyveCapsBuild()))
         goto cleanup;
@@ -1237,20 +1236,20 @@ bhyveStateInitialize(bool privileged,
 
     if (g_mkdir_with_parents(BHYVE_LOG_DIR, 0777) < 0) {
         virReportSystemError(errno,
-                             _("Failed to mkdir %s"),
+                             _("Failed to mkdir %1$s"),
                              BHYVE_LOG_DIR);
         goto cleanup;
     }
 
     if (g_mkdir_with_parents(BHYVE_STATE_DIR, 0777) < 0) {
         virReportSystemError(errno,
-                             _("Failed to mkdir %s"),
+                             _("Failed to mkdir %1$s"),
                              BHYVE_STATE_DIR);
         goto cleanup;
     }
 
     if ((bhyve_driver->lockFD =
-         virPidFileAcquire(BHYVE_STATE_DIR, "driver", false, getpid())) < 0)
+         virPidFileAcquire(BHYVE_STATE_DIR, "driver", getpid())) < 0)
         goto cleanup;
 
     if (virDomainObjListLoadAllConfigs(bhyve_driver->domains,
@@ -1312,7 +1311,7 @@ bhyveConnectGetMaxVcpus(virConnectPtr conn,
     if (!type || STRCASEEQ(type, "bhyve"))
         return 16;
 
-    virReportError(VIR_ERR_INVALID_ARG, _("unknown type '%s'"), type);
+    virReportError(VIR_ERR_INVALID_ARG, _("unknown type '%1$s'"), type);
     return -1;
 }
 
@@ -1546,7 +1545,7 @@ bhyveConnectDomainXMLFromNative(virConnectPtr conn,
 
     if (STRNEQ(nativeFormat, BHYVE_CONFIG_FORMAT_ARGV)) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("unsupported config type %s"), nativeFormat);
+                       _("unsupported config type %1$s"), nativeFormat);
         return NULL;
     }
 
@@ -1579,28 +1578,28 @@ bhyveConnectGetDomainCapabilities(virConnectPtr conn,
     if (virttype_str &&
         (virttype = virDomainVirtTypeFromString(virttype_str)) < 0) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("unknown virttype: %s"),
+                       _("unknown virttype: %1$s"),
                        virttype_str);
         goto cleanup;
     }
 
     if (virttype != VIR_DOMAIN_VIRT_BHYVE) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("unknown virttype: %s"),
+                       _("unknown virttype: %1$s"),
                        virttype_str);
         goto cleanup;
     }
 
     if (arch_str && (arch = virArchFromString(arch_str)) == VIR_ARCH_NONE) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("unknown architecture: %s"),
+                       _("unknown architecture: %1$s"),
                        arch_str);
         goto cleanup;
     }
 
     if (!ARCH_IS_X86(arch)) {
         virReportError(VIR_ERR_NO_SUPPORT,
-                       _("unsupported architecture: %s"),
+                       _("unsupported architecture: %1$s"),
                        virArchToString(arch));
         goto cleanup;
     }

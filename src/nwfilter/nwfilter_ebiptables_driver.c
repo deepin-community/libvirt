@@ -33,13 +33,9 @@
 #include "viralloc.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "domain_conf.h"
 #include "nwfilter_conf.h"
-#include "nwfilter_driver.h"
-#include "nwfilter_gentech_driver.h"
 #include "nwfilter_ebiptables_driver.h"
 #include "virfile.h"
-#include "vircommand.h"
 #include "configmake.h"
 #include "virstring.h"
 #include "virfirewall.h"
@@ -64,17 +60,6 @@ VIR_LOG_INIT("nwfilter.nwfilter_ebiptables_driver");
 
 #define BRIDGE_NF_CALL_ALERT_INTERVAL  10 /* seconds */
 
-/*
- * --ctdir original vs. --ctdir reply's meaning was inverted in netfilter
- * at some point (Linux 2.6.39)
- */
-enum ctdirStatus {
-    CTDIR_STATUS_UNKNOWN    = 0,
-    CTDIR_STATUS_CORRECTED  = 1,
-    CTDIR_STATUS_OLD        = 2,
-};
-static enum ctdirStatus iptables_ctdir_corrected;
-
 #define PRINT_ROOT_CHAIN(buf, prefix, ifname) \
     g_snprintf(buf, sizeof(buf), "libvirt-%c-%s", prefix, ifname)
 #define PRINT_CHAIN(buf, prefix, ifname, suffix) \
@@ -87,8 +72,6 @@ static enum ctdirStatus iptables_ctdir_corrected;
 
 #define PRINT_IPT_ROOT_CHAIN(buf, prefix, ifname) \
     g_snprintf(buf, sizeof(buf), "%c%c-%s", prefix[0], prefix[1], ifname)
-
-static bool newMatchState;
 
 #define MATCH_PHYSDEV_IN_FW   "-m", "physdev", "--physdev-in"
 #define MATCH_PHYSDEV_OUT_FW  "-m", "physdev", "--physdev-is-bridged", "--physdev-out"
@@ -170,8 +153,8 @@ printVar(virNWFilterVarCombIter *vars,
 
             varName = virNWFilterVarAccessGetVarName(item->varAccess);
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Buffer too small to print variable "
-                             "'%s' into"), varName);
+                           _("Buffer too small to print variable '%1$s' into"),
+                           varName);
             return -1;
         }
 
@@ -312,7 +295,7 @@ _printDataType(virNWFilterVarCombIter *vars,
     case DATATYPE_STRINGCOPY:
     case DATATYPE_BOOLEAN:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Cannot print data type %x"), item->datatype);
+                       _("Cannot print data type %1$x"), item->datatype);
         return -1;
     case DATATYPE_LAST:
     default:
@@ -1090,24 +1073,13 @@ iptablesEnforceDirection(virFirewall *fw,
                          bool directionIn,
                          virNWFilterRuleDef *rule)
 {
-    switch (iptables_ctdir_corrected) {
-    case CTDIR_STATUS_UNKNOWN:
-        /* could not be determined or s.th. is seriously wrong */
-        return;
-    case CTDIR_STATUS_CORRECTED:
-        directionIn = !directionIn;
-        break;
-    case CTDIR_STATUS_OLD:
-        break;
-    }
-
     if (rule->tt != VIR_NWFILTER_RULE_DIRECTION_INOUT)
         virFirewallRuleAddArgList(fw, fwrule,
                                   "-m", "conntrack",
                                   "--ctdir",
                                   (directionIn ?
-                                   "Original" :
-                                   "Reply"),
+                                   "Reply" :
+                                   "Original"),
                                   NULL);
 }
 
@@ -1469,7 +1441,7 @@ _iptablesCreateRuleInstance(virFirewall *fw,
 
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unexpected protocol %d"),
+                       _("Unexpected protocol %1$d"),
                        rule->prtclType);
         return -1;
     }
@@ -1489,16 +1461,10 @@ _iptablesCreateRuleInstance(virFirewall *fw,
     }
 
     if (match && !skipMatch) {
-        if (newMatchState)
-            virFirewallRuleAddArgList(fw, fwrule,
-                                      "-m", "conntrack",
-                                      "--ctstate", match,
-                                      NULL);
-        else
-            virFirewallRuleAddArgList(fw, fwrule,
-                                      "-m", "state",
-                                      "--state", match,
-                                      NULL);
+        virFirewallRuleAddArgList(fw, fwrule,
+                                  "-m", "conntrack",
+                                  "--ctstate", match,
+                                  NULL);
     }
 
     if (defMatch && match != NULL && !skipMatch && !hasICMPType)
@@ -1880,8 +1846,7 @@ ebtablesCreateRuleInstance(virFirewall *fw,
         if (reverse &&
             HAS_ENTRY_ITEM(&rule->p.stpHdrFilter.ethHdr.dataSrcMACAddr)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("STP filtering in %s direction with "
-                             "source MAC address set is not supported"),
+                           _("STP filtering in %1$s direction with source MAC address set is not supported"),
                            virNWFilterRuleDirectionTypeToString(
                                VIR_NWFILTER_RULE_DIRECTION_INOUT));
             return -1;
@@ -2385,7 +2350,7 @@ ebtablesCreateRuleInstance(virFirewall *fw,
 
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unexpected rule protocol %d"),
+                       _("Unexpected rule protocol %1$d"),
                        rule->prtclType);
         return -1;
     }
@@ -2396,6 +2361,11 @@ ebtablesCreateRuleInstance(virFirewall *fw,
         target = virNWFilterJumpTargetTypeToString(
                                      VIR_NWFILTER_RULE_ACTION_DROP);
         break;
+    case VIR_NWFILTER_RULE_ACTION_DROP:
+    case VIR_NWFILTER_RULE_ACTION_ACCEPT:
+    case VIR_NWFILTER_RULE_ACTION_RETURN:
+    case VIR_NWFILTER_RULE_ACTION_CONTINUE:
+    case VIR_NWFILTER_RULE_ACTION_LAST:
     default:
         target = virNWFilterJumpTargetTypeToString(rule->action);
     }
@@ -3160,8 +3130,7 @@ iptablesCheckBridgeNFCallEnabled(bool isIPv6)
                 if (buffer[0] == '0') {
                     char msg[256];
                     g_snprintf(msg, sizeof(msg),
-                               _("To enable ip%stables filtering for the VM do "
-                                "'echo 1 > %s'"),
+                               _("To enable ip%1$stables filtering for the VM do 'echo 1 > %2$s'"),
                                isIPv6 ? "6" : "",
                                pathname);
                     VIR_WARN("%s", msg);
@@ -3641,97 +3610,11 @@ virNWFilterTechDriver ebiptables_driver = {
     .removeBasicRules    = ebtablesRemoveBasicRules,
 };
 
-static void
-ebiptablesDriverProbeCtdir(void)
-{
-    struct utsname utsname;
-    unsigned long thisversion;
-
-    iptables_ctdir_corrected = CTDIR_STATUS_UNKNOWN;
-
-    if (uname(&utsname) < 0) {
-        VIR_ERROR(_("Call to utsname failed: %d"), errno);
-        return;
-    }
-
-    /* following Linux lxr, the logic was inverted in 2.6.39 */
-    if (virStringParseVersion(&thisversion, utsname.release, true) < 0) {
-        VIR_ERROR(_("Could not determine kernel version from string %s"),
-                  utsname.release);
-        return;
-    }
-
-    if (thisversion >= 2 * 1000000 + 6 * 1000 + 39)
-        iptables_ctdir_corrected = CTDIR_STATUS_CORRECTED;
-    else
-        iptables_ctdir_corrected = CTDIR_STATUS_OLD;
-}
-
-
-static int
-ebiptablesDriverProbeStateMatchQuery(virFirewall *fw G_GNUC_UNUSED,
-                                     virFirewallLayer layer G_GNUC_UNUSED,
-                                     const char *const *lines,
-                                     void *opaque)
-{
-    unsigned long *version = opaque;
-    char *tmp;
-
-    if (!lines || !lines[0]) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("No output from iptables --version"));
-        return -1;
-    }
-
-    /*
-     * we expect output in the format
-     * 'iptables v1.4.16'
-     */
-    if (!(tmp = strchr(lines[0], 'v')) ||
-        virStringParseVersion(version, tmp + 1, true) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Cannot parse version string '%s'"),
-                       lines[0]);
-        return -1;
-    }
-
-    return 0;
-}
-
-
-static int
-ebiptablesDriverProbeStateMatch(void)
-{
-    unsigned long version;
-    g_autoptr(virFirewall) fw = virFirewallNew();
-
-    virFirewallStartTransaction(fw, 0);
-    virFirewallAddRuleFull(fw, VIR_FIREWALL_LAYER_IPV4,
-                           false, ebiptablesDriverProbeStateMatchQuery, &version,
-                           "--version", NULL);
-
-    if (virFirewallApply(fw) < 0)
-        return -1;
-
-    /*
-     * since version 1.4.16 '-m state --state ...' will be converted to
-     * '-m conntrack --ctstate ...'
-     */
-    if (version >= 1 * 1000000 + 4 * 1000 + 16)
-        newMatchState = true;
-
-    return 0;
-}
-
 static int
 ebiptablesDriverInit(bool privileged)
 {
     if (!privileged)
         return 0;
-
-    ebiptablesDriverProbeCtdir();
-    if (ebiptablesDriverProbeStateMatch() < 0)
-        return -1;
 
     ebiptables_driver.flags = TECHDRV_FLAG_INITIALIZED;
 

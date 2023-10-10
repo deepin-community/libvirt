@@ -23,11 +23,11 @@
 #include <config.h>
 
 #include <fcntl.h>
+#include <limits.h>
 #include <signal.h>
 #ifndef WIN32
 # include <sys/wait.h>
 #endif
-#include <unistd.h>
 #if WITH_SYS_MOUNT_H
 # include <sys/mount.h>
 #endif
@@ -39,7 +39,7 @@
 # include <sched.h>
 #endif
 
-#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || WITH_BSD_CPU_AFFINITY
+#if defined(__FreeBSD__) || defined(__FreeBSD_kernel__) || WITH_BSD_CPU_AFFINITY || defined(__APPLE__)
 # include <sys/param.h>
 #endif
 
@@ -57,6 +57,14 @@
 # include <windows.h>
 #endif
 
+#ifdef __linux__
+# include <sys/prctl.h>
+#endif
+
+#if defined(__APPLE__)
+# include <sys/syslimits.h>
+#endif
+
 #include "virprocess.h"
 #include "virerror.h"
 #include "viralloc.h"
@@ -69,49 +77,6 @@
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 VIR_LOG_INIT("util.process");
-
-#ifdef __linux__
-/*
- * Workaround older glibc. While kernel may support the setns
- * syscall, the glibc wrapper might not exist. If that's the
- * case, use our own.
- */
-# ifndef __NR_setns
-#  if defined(__x86_64__)
-#   define __NR_setns 308
-#  elif defined(__i386__)
-#   define __NR_setns 346
-#  elif defined(__arm__)
-#   define __NR_setns 375
-#  elif defined(__aarch64__)
-#   define __NR_setns 375
-#  elif defined(__powerpc__)
-#   define __NR_setns 350
-#  elif defined(__s390__)
-#   define __NR_setns 339
-#  endif
-# endif
-
-# ifndef WITH_SETNS
-#  if defined(__NR_setns)
-#   include <sys/syscall.h>
-
-static inline int setns(int fd, int nstype)
-{
-    return syscall(__NR_setns, fd, nstype);
-}
-#  else /* !__NR_setns */
-#   error Please determine the syscall number for setns on your architecture
-#  endif
-# endif
-#else /* !__linux__ */
-static inline int setns(int fd G_GNUC_UNUSED, int nstype G_GNUC_UNUSED)
-{
-    virReportSystemError(ENOSYS, "%s",
-                         _("Namespaces are not supported on this platform."));
-    return -1;
-}
-#endif
 
 VIR_ENUM_IMPL(virProcessSchedPolicy,
               VIR_PROC_POLICY_LAST,
@@ -137,13 +102,13 @@ virProcessTranslateStatus(int status)
 {
     char *buf;
     if (WIFEXITED(status)) {
-        buf = g_strdup_printf(_("exit status %d"),
+        buf = g_strdup_printf(_("exit status %1$d"),
                               WEXITSTATUS(status));
     } else if (WIFSIGNALED(status)) {
-        buf = g_strdup_printf(_("fatal signal %d"),
+        buf = g_strdup_printf(_("fatal signal %1$d"),
                               WTERMSIG(status));
     } else {
-        buf = g_strdup_printf(_("invalid value %d"), status);
+        buf = g_strdup_printf(_("invalid value %1$d"), status);
     }
     return buf;
 }
@@ -240,7 +205,7 @@ virProcessWait(pid_t pid, int *exitstatus, bool raw)
 
     if (pid <= 0) {
         if (pid != -1)
-            virReportSystemError(EINVAL, _("unable to wait for process %lld"),
+            virReportSystemError(EINVAL, _("unable to wait for process %1$lld"),
                                  (long long) pid);
         return -1;
     }
@@ -250,7 +215,7 @@ virProcessWait(pid_t pid, int *exitstatus, bool raw)
            errno == EINTR);
 
     if (ret == -1) {
-        virReportSystemError(errno, _("unable to wait for process %lld"),
+        virReportSystemError(errno, _("unable to wait for process %1$lld"),
                              (long long) pid);
         return -1;
     }
@@ -271,7 +236,7 @@ virProcessWait(pid_t pid, int *exitstatus, bool raw)
  error:
     st = virProcessTranslateStatus(status);
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Child process (%lld) unexpected %s"),
+                   _("Child process (%1$lld) unexpected %2$s"),
                    (long long) pid, NULLSTR(st));
     return -1;
 }
@@ -281,7 +246,7 @@ virProcessWait(pid_t pid, int *exitstatus, bool raw)
 char *
 virProcessTranslateStatus(int status)
 {
-    return g_strdup_printf(_("invalid value %d"), status);
+    return g_strdup_printf(_("invalid value %1$d"), status);
 }
 
 
@@ -296,7 +261,7 @@ virProcessAbort(pid_t pid)
 int
 virProcessWait(pid_t pid, int *exitstatus G_GNUC_UNUSED, bool raw G_GNUC_UNUSED)
 {
-    virReportSystemError(ENOSYS, _("unable to wait for process %lld"),
+    virReportSystemError(ENOSYS, _("unable to wait for process %1$lld"),
                          (long long) pid);
     return -1;
 }
@@ -457,7 +422,7 @@ virProcessKillPainfullyDelay(pid_t pid, bool force, unsigned int extradelay, boo
         if (rc < 0) {
             if (errno != ESRCH) {
                 virReportSystemError(errno,
-                                     _("Failed to terminate process %lld with SIG%s"),
+                                     _("Failed to terminate process %1$lld with SIG%2$s"),
                                      (long long)pid, signame);
                 return -1;
             }
@@ -468,10 +433,10 @@ virProcessKillPainfullyDelay(pid_t pid, bool force, unsigned int extradelay, boo
     }
 
     virReportSystemError(EBUSY,
-                         _("Failed to terminate process %lld with SIG%s"),
+                         _("Failed to terminate process %1$lld with SIG%2$s"),
                          (long long)pid, signame);
 
-    return 0;
+    return -1;
 }
 
 
@@ -526,7 +491,7 @@ int virProcessSetAffinity(pid_t pid, virBitmap *map, bool quiet)
                       pid, g_strerror(errno));
         } else {
             virReportSystemError(errno,
-                                 _("cannot set CPU affinity on process %d"), pid);
+                                 _("cannot set CPU affinity on process %1$d"), pid);
             return -1;
         }
     }
@@ -555,7 +520,7 @@ virProcessGetAffinity(pid_t pid)
 
     if (sched_getaffinity(pid, masklen, mask) < 0) {
         virReportSystemError(errno,
-                             _("cannot get CPU affinity of process %d"), pid);
+                             _("cannot get CPU affinity of process %1$d"), pid);
         goto cleanup;
     }
 
@@ -594,7 +559,7 @@ int virProcessSetAffinity(pid_t pid,
                       pid, g_strerror(errno));
         } else {
             virReportSystemError(errno,
-                                 _("cannot set CPU affinity on process %d"), pid);
+                                 _("cannot set CPU affinity on process %1$d"), pid);
             return -1;
         }
     }
@@ -613,7 +578,7 @@ virProcessGetAffinity(pid_t pid)
     if (cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, pid,
                            sizeof(mask), &mask) != 0) {
         virReportSystemError(errno,
-                             _("cannot get CPU affinity of process %d"), pid);
+                             _("cannot get CPU affinity of process %1$d"), pid);
         return NULL;
     }
 
@@ -714,6 +679,7 @@ int virProcessGetNamespaces(pid_t pid,
 }
 
 
+#ifdef __linux__
 int virProcessSetNamespaces(size_t nfdlist,
                             int *fdlist)
 {
@@ -742,6 +708,16 @@ int virProcessSetNamespaces(size_t nfdlist,
     }
     return 0;
 }
+#else
+int virProcessSetNamespaces(size_t nfdlist G_GNUC_UNUSED,
+                            int *fdlist G_GNUC_UNUSED)
+{
+    virReportSystemError(ENOSYS, "%s",
+                         _("Namespaces are not supported on this platform"));
+    return -1;
+}
+#endif
+
 
 #if WITH_PRLIMIT
 static int
@@ -763,24 +739,6 @@ virProcessPrLimit(pid_t pid G_GNUC_UNUSED,
     return -1;
 }
 #endif
-
-#if WITH_GETRLIMIT
-static int
-virProcessGetRLimit(int resource,
-                    struct rlimit *old_limit)
-{
-    return getrlimit(resource, old_limit);
-}
-#endif /* WITH_GETRLIMIT */
-
-#if WITH_SETRLIMIT
-static int
-virProcessSetRLimit(int resource,
-                    const struct rlimit *new_limit)
-{
-    return setrlimit(resource, new_limit);
-}
-#endif /* WITH_SETRLIMIT */
 
 #if WITH_GETRLIMIT
 static const char*
@@ -904,7 +862,7 @@ virProcessGetLimit(pid_t pid,
     if (virProcessGetLimitFromProc(pid, resource, old_limit) == 0)
         return 0;
 
-    if (same_process && virProcessGetRLimit(resource, old_limit) == 0)
+    if (same_process && getrlimit(resource, old_limit) == 0)
         return 0;
 
     return -1;
@@ -923,7 +881,7 @@ virProcessSetLimit(pid_t pid,
     if (virProcessPrLimit(pid, resource, new_limit, NULL) == 0)
         return 0;
 
-    if (same_process && virProcessSetRLimit(resource, new_limit) == 0)
+    if (same_process && setrlimit(resource, new_limit) == 0)
         return 0;
 
     return -1;
@@ -956,9 +914,9 @@ virProcessSetMaxMemLock(pid_t pid, unsigned long long bytes)
 
     if (virProcessSetLimit(pid, RLIMIT_MEMLOCK, &rlim) < 0) {
         virReportSystemError(errno,
-                             _("cannot limit locked memory "
-                               "of process %lld to %llu"),
+                             _("cannot limit locked memory of process %1$lld to %2$llu"),
                              (long long int)pid, bytes);
+        return -1;
     }
 
     VIR_DEBUG("Locked memory for process %lld limited to %llu bytes",
@@ -997,8 +955,7 @@ virProcessGetMaxMemLock(pid_t pid,
 
     if (virProcessGetLimit(pid, RLIMIT_MEMLOCK, &rlim) < 0) {
         virReportSystemError(errno,
-                             _("cannot get locked memory limit "
-                               "of process %lld"),
+                             _("cannot get locked memory limit of process %1$lld"),
                              (long long int) pid);
         return -1;
     }
@@ -1045,8 +1002,7 @@ virProcessSetMaxProcesses(pid_t pid, unsigned int procs)
 
     if (virProcessSetLimit(pid, RLIMIT_NPROC, &rlim) < 0) {
         virReportSystemError(errno,
-                _("cannot limit number of subprocesses "
-                  "of process %lld to %u"),
+                _("cannot limit number of subprocesses of process %1$lld to %2$u"),
                 (long long int)pid, procs);
         return -1;
     }
@@ -1089,14 +1045,55 @@ virProcessSetMaxFiles(pid_t pid, unsigned int files)
 
     if (virProcessSetLimit(pid, RLIMIT_NOFILE, &rlim) < 0) {
         virReportSystemError(errno,
-                             _("cannot limit number of open files "
-                               "of process %lld to %u"),
+                             _("cannot limit number of open files of process %1$lld to %2$u"),
                              (long long int)pid, files);
         return -1;
     }
 
     return 0;
 }
+
+void
+virProcessActivateMaxFiles(void)
+{
+    struct rlimit maxfiles = {0};
+
+    /*
+     * Ignore errors since we might be inside a container with seccomp
+     * filters and limits preset to suitable values.
+     */
+    if (getrlimit(RLIMIT_NOFILE, &maxfiles) < 0) {
+        VIR_DEBUG("Unable to fetch process max files limit: %s",
+                  g_strerror(errno));
+        return;
+    }
+
+    VIR_DEBUG("Initial max files was %llu", (unsigned long long)maxfiles.rlim_cur);
+
+# if defined(__APPLE__)
+    /*
+     * rlim_max may be RLIM_INFINITY, and macOS 12.6.3 getrlimit(2) says
+     *
+     * COMPATIBILITY
+     *      setrlimit() now returns with errno set to EINVAL in places
+     *      that historically succeeded.  It no longer accepts
+     *      "rlim_cur = RLIM_INFINITY" for RLIM_NOFILE.
+     *      Use "rlim_cur = min(OPEN_MAX, rlim_max)".
+     */
+    maxfiles.rlim_cur = MIN(OPEN_MAX, maxfiles.rlim_max);
+# else
+    maxfiles.rlim_cur = maxfiles.rlim_max;
+# endif
+
+    if (setrlimit(RLIMIT_NOFILE, &maxfiles) < 0) {
+        VIR_DEBUG("Unable to set process max files limit to %llu: %s",
+                  (unsigned long long)maxfiles.rlim_cur, g_strerror(errno));
+        return;
+    }
+
+    VIR_DEBUG("Raised max files to %llu", (unsigned long long)maxfiles.rlim_cur);
+}
+
 #else /* ! (WITH_SETRLIMIT && defined(RLIMIT_NOFILE)) */
 int
 virProcessSetMaxFiles(pid_t pid G_GNUC_UNUSED,
@@ -1104,6 +1101,11 @@ virProcessSetMaxFiles(pid_t pid G_GNUC_UNUSED,
 {
     virReportSystemError(ENOSYS, "%s", _("Not supported on this platform"));
     return -1;
+}
+
+void
+virProcessActivateMaxFiles(void)
+{
 }
 #endif /* ! (WITH_SETRLIMIT && defined(RLIMIT_NOFILE)) */
 
@@ -1126,8 +1128,7 @@ virProcessSetMaxCoreSize(pid_t pid, unsigned long long bytes)
 
     if (virProcessSetLimit(pid, RLIMIT_CORE, &rlim) < 0) {
         virReportSystemError(errno,
-                _("cannot limit core file size "
-                  "of process %lld to %llu"),
+                _("cannot limit core file size of process %1$lld to %2$llu"),
                 (long long int)pid, bytes);
         return -1;
     }
@@ -1158,14 +1159,14 @@ int virProcessGetStartTime(pid_t pid,
 
     if (!proc_stat || g_strv_length(proc_stat) < 22) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Cannot find start time for pid %d"), (int)pid);
+                       _("Cannot find start time for pid %1$d"), (int)pid);
         return -1;
     }
 
     starttime_str = proc_stat[VIR_PROCESS_STAT_STARTTIME];
     if (virStrToLong_ull(starttime_str, NULL, 10, timestamp) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Cannot parse start time %s for pid %d"),
+                       _("Cannot parse start time %1$s for pid %2$d"),
                        starttime_str, (int)pid);
         return -1;
     }
@@ -1391,7 +1392,7 @@ virProcessRunInFork(virProcessForkCallback cb,
                     memcpy(bin->bindata, buf, sizeof(*bin));
 
                     virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("child reported (status=%d): %s"),
+                                   _("child reported (status=%1$d): %2$s"),
                                    status, NULLSTR(bin->data.message));
 
                     virRaiseErrorFull(__FILE__, __FUNCTION__, __LINE__,
@@ -1406,7 +1407,7 @@ virProcessRunInFork(virProcessForkCallback cb,
                                       "%s", bin->data.message);
                 } else {
                     virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("child didn't write error (status=%d)"),
+                                   _("child didn't write error (status=%1$d)"),
                                    status);
                 }
             }
@@ -1519,7 +1520,7 @@ int
 virProcessSetupPrivateMountNS(void)
 {
     virReportSystemError(ENOSYS, "%s",
-                         _("Namespaces are not supported on this platform."));
+                         _("Namespaces are not supported on this platform"));
     return -1;
 }
 
@@ -1527,7 +1528,7 @@ int
 virProcessNamespaceAvailable(unsigned int ns G_GNUC_UNUSED)
 {
     virReportSystemError(ENOSYS, "%s",
-                         _("Namespaces are not supported on this platform."));
+                         _("Namespaces are not supported on this platform"));
     return -1;
 }
 
@@ -1555,13 +1556,12 @@ virProcessExitWithStatus(int status)
     if (WIFEXITED(status)) {
         value = WEXITSTATUS(status);
     } else if (WIFSIGNALED(status)) {
-        struct sigaction act;
+        struct sigaction act = { 0 };
         sigset_t sigs;
 
         if (sigemptyset(&sigs) == 0 &&
             sigaddset(&sigs, WTERMSIG(status)) == 0)
             sigprocmask(SIG_UNBLOCK, &sigs, NULL);
-        memset(&act, 0, sizeof(act));
         act.sa_handler = SIG_DFL;
         sigfillset(&act.sa_mask);
         sigaction(WTERMSIG(status), &act, NULL);
@@ -1627,7 +1627,7 @@ virProcessSetScheduler(pid_t pid,
 
     if (pol < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Scheduler '%s' is not supported on this platform"),
+                       _("Scheduler '%1$s' is not supported on this platform"),
                        virProcessSchedPolicyTypeToString(policy));
         return -1;
     }
@@ -1638,21 +1638,19 @@ virProcessSetScheduler(pid_t pid,
 
         if ((min = sched_get_priority_min(pol)) < 0) {
             virReportSystemError(errno, "%s",
-                                 _("Cannot get minimum scheduler "
-                                   "priority value"));
+                                 _("Cannot get minimum scheduler priority value"));
             return -1;
         }
 
         if ((max = sched_get_priority_max(pol)) < 0) {
             virReportSystemError(errno, "%s",
-                                 _("Cannot get maximum scheduler "
-                                   "priority value"));
+                                 _("Cannot get maximum scheduler priority value"));
             return -1;
         }
 
         if (priority < min || priority > max) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Scheduler priority %d out of range [%d, %d]"),
+                           _("Scheduler priority %1$d out of range [%2$d, %3$d]"),
                            priority, min, max);
             return -1;
         }
@@ -1662,7 +1660,7 @@ virProcessSetScheduler(pid_t pid,
 
     if (sched_setscheduler(pid, pol, &param) < 0) {
         virReportSystemError(errno,
-                             _("Cannot set scheduler parameters for pid %lld"),
+                             _("Cannot set scheduler parameters for pid %1$lld"),
                              (long long) pid);
         return -1;
     }
@@ -1681,8 +1679,7 @@ virProcessSetScheduler(pid_t pid G_GNUC_UNUSED,
         return 0;
 
     virReportSystemError(ENOSYS, "%s",
-                         _("Process CPU scheduling is not supported "
-                           "on this platform"));
+                         _("Process CPU scheduling is not supported on this platform"));
     return -1;
 }
 
@@ -1769,41 +1766,48 @@ virProcessGetStat(pid_t pid,
 #ifdef __linux__
 int
 virProcessGetStatInfo(unsigned long long *cpuTime,
+                      unsigned long long *userTime,
+                      unsigned long long *sysTime,
                       int *lastCpu,
-                      long *vm_rss,
+                      unsigned long long *vm_rss,
                       pid_t pid,
                       pid_t tid)
 {
     g_auto(GStrv) proc_stat = virProcessGetStat(pid, tid);
-    unsigned long long usertime = 0, systime = 0;
-    long rss = 0;
+    unsigned long long utime = 0;
+    unsigned long long stime = 0;
+    const unsigned long long jiff2nsec = 1000ull * 1000ull * 1000ull /
+                                         (unsigned long long) sysconf(_SC_CLK_TCK);
+    const long pagesize = virGetSystemPageSizeKB();
+    unsigned long long rss = 0;
     int cpu = 0;
 
     if (!proc_stat ||
-        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_UTIME], NULL, 10, &usertime) < 0 ||
-        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_STIME], NULL, 10, &systime) < 0 ||
-        virStrToLong_l(proc_stat[VIR_PROCESS_STAT_RSS], NULL, 10, &rss) < 0 ||
-        virStrToLong_i(proc_stat[VIR_PROCESS_STAT_PROCESSOR], NULL, 10, &cpu) < 0) {
+        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_UTIME], NULL, 10, &utime) < 0 ||
+        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_STIME], NULL, 10, &stime) < 0 ||
+        virStrToLong_ullp(proc_stat[VIR_PROCESS_STAT_RSS], NULL, 10, &rss) < 0 ||
+        virStrToLong_i(proc_stat[VIR_PROCESS_STAT_PROCESSOR], NULL, 10, &cpu) < 0 ||
+        rss > ULLONG_MAX / pagesize) {
         VIR_WARN("cannot parse process status data");
     }
 
-    /* We got jiffies
-     * We want nanoseconds
-     * _SC_CLK_TCK is jiffies per second
-     * So calculate thus....
-     */
+    utime *= jiff2nsec;
+    stime *= jiff2nsec;
     if (cpuTime)
-        *cpuTime = 1000ull * 1000ull * 1000ull * (usertime + systime)
-            / (unsigned long long) sysconf(_SC_CLK_TCK);
+        *cpuTime = utime + stime;
+    if (userTime)
+        *userTime = utime;
+    if (sysTime)
+        *sysTime = stime;
     if (lastCpu)
         *lastCpu = cpu;
 
     if (vm_rss)
-        *vm_rss = rss * virGetSystemPageSizeKB();
+        *vm_rss = rss * pagesize;
 
 
-    VIR_DEBUG("Got status for %d/%d user=%llu sys=%llu cpu=%d rss=%ld",
-              (int) pid, tid, usertime, systime, cpu, rss);
+    VIR_DEBUG("Got status for %d/%d user=%llu sys=%llu cpu=%d rss=%lld",
+              (int) pid, tid, utime, stime, cpu, rss);
 
     return 0;
 }
@@ -1850,7 +1854,7 @@ virProcessGetSchedInfo(unsigned long long *cpuWait,
             line = strchr(line, ':');
             if (!line) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Missing separator in sched info '%s'"),
+                               _("Missing separator in sched info '%1$s'"),
                                lines[i]);
                 return -1;
             }
@@ -1860,7 +1864,7 @@ virProcessGetSchedInfo(unsigned long long *cpuWait,
 
             if (virStrToDouble(line, NULL, &val) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Unable to parse sched info value '%s'"),
+                               _("Unable to parse sched info value '%1$s'"),
                                line);
                 return -1;
             }
@@ -1875,23 +1879,160 @@ virProcessGetSchedInfo(unsigned long long *cpuWait,
 
 #else
 int
-virProcessGetStatInfo(unsigned long long *cpuTime G_GNUC_UNUSED,
-                      int *lastCpu G_GNUC_UNUSED,
-                      long *vm_rss G_GNUC_UNUSED,
+virProcessGetStatInfo(unsigned long long *cpuTime,
+                      unsigned long long *userTime,
+                      unsigned long long *sysTime,
+                      int *lastCpu,
+                      unsigned long long *vm_rss,
                       pid_t pid G_GNUC_UNUSED,
                       pid_t tid G_GNUC_UNUSED)
+{
+    /* We don't have a way to collect this information on non-Linux
+     * platforms, so just report neutral values */
+    if (cpuTime)
+        *cpuTime = 0;
+    if (userTime)
+        *userTime = 0;
+    if (sysTime)
+        *sysTime = 0;
+    if (lastCpu)
+        *lastCpu = 0;
+    if (vm_rss)
+        *vm_rss = 0;
+
+    return 0;
+}
+
+int
+virProcessGetSchedInfo(unsigned long long *cpuWait,
+                       pid_t pid G_GNUC_UNUSED,
+                       pid_t tid G_GNUC_UNUSED)
+{
+    /* We don't have a way to collect this information on non-Linux
+     * platforms, so just report neutral values */
+    if (cpuWait)
+        *cpuWait = 0;
+
+    return 0;
+}
+#endif /* __linux__ */
+
+#ifdef __linux__
+# ifndef PR_SCHED_CORE
+/* Copied from linux/prctl.h */
+#  define PR_SCHED_CORE             62
+#  define PR_SCHED_CORE_GET         0
+#  define PR_SCHED_CORE_CREATE      1 /* create unique core_sched cookie */
+#  define PR_SCHED_CORE_SHARE_TO    2 /* push core_sched cookie to pid */
+#  define PR_SCHED_CORE_SHARE_FROM  3 /* pull core_sched cookie to pid */
+# endif
+
+/* Unfortunately, kernel-headers forgot to export these. */
+# ifndef PR_SCHED_CORE_SCOPE_THREAD
+#  define PR_SCHED_CORE_SCOPE_THREAD 0
+#  define PR_SCHED_CORE_SCOPE_THREAD_GROUP 1
+#  define PR_SCHED_CORE_SCOPE_PROCESS_GROUP 2
+# endif
+
+/**
+ * virProcessSchedCoreAvailable:
+ *
+ * Check whether kernel supports Core Scheduling (CONFIG_SCHED_CORE), i.e. only
+ * a defined set of PIDs/TIDs can run on sibling Hyper Threads at the same
+ * time.
+ *
+ * Returns: 1 if Core Scheduling is available,
+ *          0 if Core Scheduling is NOT available,
+ *         -1 otherwise.
+ */
+int
+virProcessSchedCoreAvailable(void)
+{
+    unsigned long cookie = 0;
+    int rc;
+
+    /* Let's just see if we can get our own sched cookie, and if yes we can
+     * safely assume CONFIG_SCHED_CORE kernel is available. */
+    rc = prctl(PR_SCHED_CORE, PR_SCHED_CORE_GET, 0,
+               PR_SCHED_CORE_SCOPE_THREAD, &cookie);
+
+    return rc == 0 ? 1 : errno == EINVAL ? 0 : -1;
+}
+
+/**
+ * virProcessSchedCoreCreate:
+ *
+ * Creates a new trusted group for the caller process.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise, with errno set.
+ */
+int
+virProcessSchedCoreCreate(void)
+{
+    /* pid = 0 (3rd argument) means the calling process. */
+    return prctl(PR_SCHED_CORE, PR_SCHED_CORE_CREATE, 0,
+                 PR_SCHED_CORE_SCOPE_THREAD_GROUP, 0);
+}
+
+/**
+ * virProcessSchedCoreShareFrom:
+ * @pid: PID to share group with
+ *
+ * Places the current caller process into the trusted group of @pid.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise, with errno set.
+ */
+int
+virProcessSchedCoreShareFrom(pid_t pid)
+{
+    return prctl(PR_SCHED_CORE, PR_SCHED_CORE_SHARE_FROM, pid,
+                 PR_SCHED_CORE_SCOPE_THREAD, 0);
+}
+
+/**
+ * virProcessSchedCoreShareTo:
+ * @pid: PID to share group with
+ *
+ * Places foreign @pid into the trusted group of the current caller process.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise, with errno set.
+ */
+int
+virProcessSchedCoreShareTo(pid_t pid)
+{
+    return prctl(PR_SCHED_CORE, PR_SCHED_CORE_SHARE_TO, pid,
+                 PR_SCHED_CORE_SCOPE_THREAD, 0);
+}
+
+#else /* !__linux__ */
+
+int
+virProcessSchedCoreAvailable(void)
+{
+    return 0;
+}
+
+int
+virProcessSchedCoreCreate(void)
 {
     errno = ENOSYS;
     return -1;
 }
 
 int
-virProcessGetSchedInfo(unsigned long long *cpuWait G_GNUC_UNUSED,
-                       pid_t pid G_GNUC_UNUSED,
-                       pid_t tid G_GNUC_UNUSED)
+virProcessSchedCoreShareFrom(pid_t pid G_GNUC_UNUSED)
 {
-    virReportSystemError(ENOSYS, "%s",
-                         _("scheduler information is not supported on this platform"));
+    errno = ENOSYS;
     return -1;
 }
-#endif /* __linux__ */
+
+int
+virProcessSchedCoreShareTo(pid_t pid G_GNUC_UNUSED)
+{
+    errno = ENOSYS;
+    return -1;
+}
+#endif /* !__linux__ */

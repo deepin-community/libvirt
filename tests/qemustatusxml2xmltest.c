@@ -23,11 +23,7 @@ testCompareStatusXMLToXMLFiles(const void *opaque)
     g_autofree char *actual = NULL;
     int ret = -1;
 
-    if (testQemuInfoInitArgs((struct testQemuInfo *) data) < 0)
-        return -1;
-
-    if (qemuTestCapsCacheInsert(driver.qemuCapsCache, data->qemuCaps) < 0)
-        return -1;
+    /* this test suite doesn't yet need testQemuInfoInitArgs() */
 
     if (!(obj = virDomainObjParseFile(data->infile, driver.xmlopt,
                                       VIR_DOMAIN_DEF_PARSE_STATUS |
@@ -70,36 +66,15 @@ testInfoSetStatusPaths(struct testQemuInfo *info)
 }
 
 
-#define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
-
 static int
 mymain(void)
 {
     int ret = 0;
-    g_autofree char *fakerootdir = NULL;
-    g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
-    g_autoptr(GHashTable) capscache = virHashNew(virObjectFreeHashData);
     g_autoptr(virConnect) conn = NULL;
-    struct testQemuConf testConf = { .capslatest = capslatest,
-                                     .capscache = capscache,
-                                     .qapiSchemaCache = NULL };
-
-    if (!capslatest)
-        return EXIT_FAILURE;
-
-    fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
-
-    if (!g_mkdtemp(fakerootdir)) {
-        fprintf(stderr, "Cannot create fakerootdir");
-        abort();
-    }
-
-    g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
+    struct testQemuConf testConf = { NULL, NULL, NULL };
 
     if (qemuTestDriverInit(&driver) < 0)
         return EXIT_FAILURE;
-
-    driver.privileged = true;
 
     if (!(conn = virGetConnect()))
         goto cleanup;
@@ -142,9 +117,6 @@ mymain(void)
     DO_TEST_STATUS("backup-pull");
 
  cleanup:
-    if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
-        virFileDeleteTree(fakerootdir);
-
     qemuTestDriverFree(&driver);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

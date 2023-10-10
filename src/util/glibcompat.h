@@ -70,6 +70,14 @@
 
 gchar * vir_g_canonicalize_filename(const gchar *filename,
                                     const gchar *relative_to);
+
+gboolean
+vir_g_hash_table_steal_extended(GHashTable *hash_table,
+                                gconstpointer lookup_key,
+                                gpointer *stolen_key,
+                                gpointer *stolen_value);
+#define g_hash_table_steal_extended vir_g_hash_table_steal_extended
+
 gint vir_g_fsync(gint fd);
 char *vir_g_strdup_printf(const char *msg, ...)
     G_GNUC_PRINTF(1, 2);
@@ -86,3 +94,24 @@ char *vir_g_strdup_vprintf(const char *msg, va_list args)
 #define g_fsync vir_g_fsync
 
 void vir_g_source_unref(GSource *src, GMainContext *ctx);
+
+#if !GLIB_CHECK_VERSION(2, 73, 2)
+# if (defined(__has_attribute) && __has_attribute(__noinline__)) || G_GNUC_CHECK_VERSION (2, 96)
+#  if defined (__cplusplus) && __cplusplus >= 201103L
+    /* Use ISO C++11 syntax when the compiler supports it. */
+#   define G_NO_INLINE [[gnu::noinline]]
+#  else
+#   define G_NO_INLINE __attribute__ ((__noinline__))
+#  endif
+# elif defined (_MSC_VER) && (1200 <= _MSC_VER)
+   /* Use MSVC specific syntax.  */
+#  if defined (__cplusplus) && __cplusplus >= 201103L
+    /* Use ISO C++11 syntax when the compiler supports it. */
+#   define G_NO_INLINE [[msvc::noinline]]
+#  else
+#   define G_NO_INLINE __declspec (noinline)
+#  endif
+# else
+#  define G_NO_INLINE /* empty */
+# endif
+#endif /* GLIB_CHECK_VERSION(2, 73, 0) */

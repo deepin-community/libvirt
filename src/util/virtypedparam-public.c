@@ -35,13 +35,13 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
                                const char *val)
 {
     if (!val) {
-        virReportError(VIR_ERR_INVALID_ARG, _("NULL value for field '%s'"),
+        virReportError(VIR_ERR_INVALID_ARG, _("NULL value for field '%1$s'"),
                        name);
         return -1;
     }
 
     if (virStrcpyStatic(param->field, name) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, _("Field name '%s' too long"),
+        virReportError(VIR_ERR_INTERNAL_ERROR, _("Field name '%1$s' too long"),
                        name);
         return -1;
     }
@@ -51,7 +51,7 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
     case VIR_TYPED_PARAM_INT:
         if (virStrToLong_i(val, NULL, 10, &param->value.i) < 0) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Invalid value for field '%s': expected int"),
+                           _("Invalid value for field '%1$s': expected int"),
                            name);
             return -1;
         }
@@ -59,8 +59,7 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
     case VIR_TYPED_PARAM_UINT:
         if (virStrToLong_ui(val, NULL, 10, &param->value.ui) < 0) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Invalid value for field '%s': "
-                             "expected unsigned int"),
+                           _("Invalid value for field '%1$s': expected unsigned int"),
                            name);
             return -1;
         }
@@ -68,8 +67,7 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
     case VIR_TYPED_PARAM_LLONG:
         if (virStrToLong_ll(val, NULL, 10, &param->value.l) < 0) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Invalid value for field '%s': "
-                             "expected long long"),
+                           _("Invalid value for field '%1$s': expected long long"),
                            name);
             return -1;
         }
@@ -77,8 +75,7 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
     case VIR_TYPED_PARAM_ULLONG:
         if (virStrToLong_ull(val, NULL, 10, &param->value.ul) < 0) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Invalid value for field '%s': "
-                             "expected unsigned long long"),
+                           _("Invalid value for field '%1$s': expected unsigned long long"),
                            name);
             return -1;
         }
@@ -86,8 +83,7 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
     case VIR_TYPED_PARAM_DOUBLE:
         if (virStrToDouble(val, NULL, &param->value.d) < 0) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Invalid value for field '%s': "
-                             "expected double"),
+                           _("Invalid value for field '%1$s': expected double"),
                            name);
             return -1;
         }
@@ -99,7 +95,7 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
             param->value.b = false;
         } else {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Invalid boolean value for field '%s'"), name);
+                           _("Invalid boolean value for field '%1$s'"), name);
             return -1;
         }
         break;
@@ -108,7 +104,7 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
         break;
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected type %d for field %s"), type, name);
+                       _("unexpected type %1$d for field %2$s"), type, name);
         return -1;
     }
 
@@ -127,6 +123,8 @@ virTypedParameterAssignFromStr(virTypedParameterPtr param,
  *
  * Returns pointer to the parameter or NULL if it does not exist in @params.
  * This function does not raise an error, even when returning NULL.
+ *
+ * Since: 1.0.2
  */
 virTypedParameterPtr
 virTypedParamsGet(virTypedParameterPtr params,
@@ -152,8 +150,7 @@ virTypedParamsGet(virTypedParameterPtr params,
 #define VIR_TYPED_PARAM_CHECK_TYPE(check_type) \
     do { if (param->type != check_type) { \
         virReportError(VIR_ERR_INVALID_ARG, \
-                       _("Invalid type '%s' requested for parameter '%s', " \
-                         "actual type is '%s'"), \
+                       _("Invalid type '%1$s' requested for parameter '%2$s', actual type is '%3$s'"), \
                        virTypedParameterTypeToString(check_type), \
                        name, \
                        virTypedParameterTypeToString(param->type)); \
@@ -176,6 +173,8 @@ virTypedParamsGet(virTypedParameterPtr params,
  *
  * Returns 1 on success, 0 when the parameter does not exist in @params, or
  * -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsGetInt(virTypedParameterPtr params,
@@ -212,6 +211,8 @@ virTypedParamsGetInt(virTypedParameterPtr params,
  *
  * Returns 1 on success, 0 when the parameter does not exist in @params, or
  * -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsGetUInt(virTypedParameterPtr params,
@@ -248,6 +249,8 @@ virTypedParamsGetUInt(virTypedParameterPtr params,
  *
  * Returns 1 on success, 0 when the parameter does not exist in @params, or
  * -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsGetLLong(virTypedParameterPtr params,
@@ -284,6 +287,8 @@ virTypedParamsGetLLong(virTypedParameterPtr params,
  *
  * Returns 1 on success, 0 when the parameter does not exist in @params, or
  * -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsGetULLong(virTypedParameterPtr params,
@@ -320,6 +325,8 @@ virTypedParamsGetULLong(virTypedParameterPtr params,
  *
  * Returns 1 on success, 0 when the parameter does not exist in @params, or
  * -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsGetDouble(virTypedParameterPtr params,
@@ -356,6 +363,8 @@ virTypedParamsGetDouble(virTypedParameterPtr params,
  *
  * Returns 1 on success, 0 when the parameter does not exist in @params, or
  * -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsGetBoolean(virTypedParameterPtr params,
@@ -394,6 +403,8 @@ virTypedParamsGetBoolean(virTypedParameterPtr params,
  *
  * Returns 1 on success, 0 when the parameter does not exist in @params, or
  * -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsGetString(virTypedParameterPtr params,
@@ -433,6 +444,8 @@ virTypedParamsGetString(virTypedParameterPtr params,
  * if the parameter already exists in @params.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsAddInt(virTypedParameterPtr *params,
@@ -479,6 +492,8 @@ virTypedParamsAddInt(virTypedParameterPtr *params,
  * error if the parameter already exists in @params.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsAddUInt(virTypedParameterPtr *params,
@@ -525,6 +540,8 @@ virTypedParamsAddUInt(virTypedParameterPtr *params,
  * error if the parameter already exists in @params.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsAddLLong(virTypedParameterPtr *params,
@@ -571,6 +588,8 @@ virTypedParamsAddLLong(virTypedParameterPtr *params,
  * error if the parameter already exists in @params.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsAddULLong(virTypedParameterPtr *params,
@@ -617,6 +636,8 @@ virTypedParamsAddULLong(virTypedParameterPtr *params,
  * error if the parameter already exists in @params.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsAddDouble(virTypedParameterPtr *params,
@@ -663,6 +684,8 @@ virTypedParamsAddDouble(virTypedParameterPtr *params,
  * error if the parameter already exists in @params.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsAddBoolean(virTypedParameterPtr *params,
@@ -711,6 +734,8 @@ virTypedParamsAddBoolean(virTypedParameterPtr *params,
  * already exists in @params.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsAddString(virTypedParameterPtr *params,
@@ -757,6 +782,8 @@ virTypedParamsAddString(virTypedParameterPtr *params,
  * key @name.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.2.17
  */
 int
 virTypedParamsAddStringList(virTypedParameterPtr *params,
@@ -802,6 +829,8 @@ virTypedParamsAddStringList(virTypedParameterPtr *params,
  * exists in @params.
  *
  * Returns 0 on success, -1 on error.
+ *
+ * Since: 1.0.2
  */
 int
 virTypedParamsAddFromString(virTypedParameterPtr *params,
@@ -840,6 +869,8 @@ virTypedParamsAddFromString(virTypedParameterPtr *params,
  * is not freed; use virTypedParamsFree if you want it to be freed too.
  *
  * Returns nothing.
+ *
+ * Since: 1.0.2
  */
 void
 virTypedParamsClear(virTypedParameterPtr params,
@@ -866,6 +897,8 @@ virTypedParamsClear(virTypedParameterPtr params,
  * @params.
  *
  * Returns nothing.
+ *
+ * Since: 1.0.2
  */
 void
 virTypedParamsFree(virTypedParameterPtr params,

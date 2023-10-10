@@ -22,11 +22,8 @@
 
 #include "internal.h"
 #include "virbuffer.h"
-#include "datatypes.h"
 #include "virlog.h"
-#include "viralloc.h"
 #include "secret_conf.h"
-#include "virsecretobj.h"
 #include "virerror.h"
 #include "virsecret.h"
 #include "virstring.h"
@@ -64,7 +61,7 @@ virSecretDefParseUsage(xmlXPathContextPtr ctxt,
     type = virSecretUsageTypeFromString(type_str);
     if (type < 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown secret usage type %s"), type_str);
+                       _("unknown secret usage type %1$s"), type_str);
         return -1;
     }
     def->usage_type = type;
@@ -119,34 +116,21 @@ virSecretDefParseUsage(xmlXPathContextPtr ctxt,
 
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected secret usage type %d"),
+                       _("unexpected secret usage type %1$d"),
                        def->usage_type);
         return -1;
     }
     return 0;
 }
 
+
 static virSecretDef *
-secretXMLParseNode(xmlDocPtr xml, xmlNodePtr root)
+virSecretParseXML(xmlXPathContext *ctxt)
 {
-    g_autoptr(xmlXPathContext) ctxt = NULL;
     g_autoptr(virSecretDef) def = NULL;
     g_autofree char *ephemeralstr = NULL;
     g_autofree char *privatestr = NULL;
     g_autofree char *uuidstr = NULL;
-
-    if (!virXMLNodeNameEqual(root, "secret")) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("unexpected root element <%s>, "
-                         "expecting <secret>"),
-                       root->name);
-        return NULL;
-    }
-
-    if (!(ctxt = virXMLXPathContextNew(xml)))
-        return NULL;
-
-    ctxt->node = root;
 
     def = g_new0(virSecretDef, 1);
 
@@ -189,34 +173,23 @@ secretXMLParseNode(xmlDocPtr xml, xmlNodePtr root)
     return g_steal_pointer(&def);
 }
 
-static virSecretDef *
+
+virSecretDef *
 virSecretDefParse(const char *xmlStr,
                   const char *filename,
                   unsigned int flags)
 {
     g_autoptr(xmlDoc) xml = NULL;
-    virSecretDef *ret = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    bool validate = flags & VIR_SECRET_DEFINE_VALIDATE;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(definition_of_secret)"), "secret.rng",
-                           flags & VIR_SECRET_DEFINE_VALIDATE))) {
-        ret = secretXMLParseNode(xml, xmlDocGetRootElement(xml));
-    }
+    if (!(xml = virXMLParse(filename, xmlStr, _("(definition_of_secret)"),
+                            "secret", &ctxt, "secret.rng", validate)))
+        return NULL;
 
-    return ret;
+    return virSecretParseXML(ctxt);
 }
 
-virSecretDef *
-virSecretDefParseString(const char *xmlStr,
-                        unsigned int flags)
-{
-    return virSecretDefParse(xmlStr, NULL, flags);
-}
-
-virSecretDef *
-virSecretDefParseFile(const char *filename)
-{
-    return virSecretDefParse(NULL, filename, 0);
-}
 
 static int
 virSecretDefFormatUsage(virBuffer *buf,
@@ -227,7 +200,7 @@ virSecretDefFormatUsage(virBuffer *buf,
     type = virSecretUsageTypeToString(def->usage_type);
     if (type == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected secret usage type %d"),
+                       _("unexpected secret usage type %1$d"),
                        def->usage_type);
         return -1;
     }
@@ -259,7 +232,7 @@ virSecretDefFormatUsage(virBuffer *buf,
 
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected secret usage type %d"),
+                       _("unexpected secret usage type %1$d"),
                        def->usage_type);
         return -1;
     }

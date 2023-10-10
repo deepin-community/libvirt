@@ -33,9 +33,7 @@
 #include "esx_private.h"
 #include "esx_vi.h"
 #include "esx_vi_methods.h"
-#include "esx_util.h"
 #include "vircrypto.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_ESX
 
@@ -304,11 +302,9 @@ esxStoragePoolGetXMLDesc(virStoragePoolPtr pool, unsigned int flags)
     esxPrivate *priv = pool->conn->privateData;
     esxVI_HostInternetScsiHba *hostInternetScsiHba = NULL;
     esxVI_HostInternetScsiHbaStaticTarget *target;
-    virStoragePoolDef def;
+    virStoragePoolDef def = { 0 };
 
     virCheckFlags(0, NULL);
-
-    memset(&def, 0, sizeof(def));
 
     if (esxVI_LookupHostInternetScsiHba(priv->primary, &hostInternetScsiHba))
         goto cleanup;
@@ -322,7 +318,7 @@ esxStoragePoolGetXMLDesc(virStoragePoolPtr pool, unsigned int flags)
     if (!target) {
         /* pool not found */
         virReportError(VIR_ERR_NO_STORAGE_POOL,
-                       _("Could not find storage pool with name '%s'"),
+                       _("Could not find storage pool with name '%1$s'"),
                        pool->name);
         goto cleanup;
     }
@@ -640,7 +636,7 @@ esxStorageVolGetInfo(virStorageVolPtr volume,
 
     if (!hostScsiDisk) {
         virReportError(VIR_ERR_NO_STORAGE_VOL,
-                       _("Could not find volume with name: %s"),
+                       _("Could not find volume with name: %1$s"),
                        volume->name);
         goto cleanup;
     }
@@ -666,19 +662,16 @@ esxStorageVolGetXMLDesc(virStorageVolPtr volume,
 {
     char *xml = NULL;
     esxPrivate *priv = volume->conn->privateData;
-    virStoragePoolDef pool;
+    virStoragePoolDef pool = { 0 };
     esxVI_ScsiLun *scsiLunList = NULL;
     esxVI_ScsiLun *scsiLun;
     esxVI_HostScsiDisk *hostScsiDisk = NULL;
-    virStorageVolDef def;
+    virStorageVolDef def = { 0 };
     /* VIR_CRYPTO_HASH_SIZE_MD5 = VIR_UUID_BUFLEN = 16 */
     unsigned char md5[VIR_CRYPTO_HASH_SIZE_MD5];
     char uuid_string[VIR_UUID_STRING_BUFLEN] = "";
 
     virCheckFlags(0, NULL);
-
-    memset(&pool, 0, sizeof(pool));
-    memset(&def, 0, sizeof(def));
 
     if (esxVI_LookupScsiLunList(priv->primary, &scsiLunList) < 0)
         goto cleanup;
@@ -695,7 +688,7 @@ esxStorageVolGetXMLDesc(virStorageVolPtr volume,
 
     if (!scsiLun) {
         virReportError(VIR_ERR_NO_STORAGE_VOL,
-                       _("Could find volume with name: %s"), volume->name);
+                       _("Could find volume with name: %1$s"), volume->name);
         goto cleanup;
     }
 

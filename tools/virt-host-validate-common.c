@@ -26,6 +26,7 @@
 #include <sys/utsname.h>
 #include <sys/stat.h>
 
+#include "viracpi.h"
 #include "viralloc.h"
 #include "vircgroup.h"
 #include "virfile.h"
@@ -56,7 +57,7 @@ void virHostMsgCheck(const char *prefix,
                      ...)
 {
     va_list args;
-    char *msg;
+    g_autofree char *msg = NULL;
 
     if (quiet)
         return;
@@ -65,8 +66,7 @@ void virHostMsgCheck(const char *prefix,
     msg = g_strdup_vprintf(format, args);
     va_end(args);
 
-    fprintf(stdout, _("%6s: Checking %-60s: "), prefix, msg);
-    VIR_FREE(msg);
+    fprintf(stdout, _("%1$6s: Checking %2$-60s: "), prefix, msg);
 }
 
 static bool virHostMsgWantEscape(void)
@@ -114,7 +114,7 @@ void virHostMsgFail(virHostValidateLevel level,
                     ...)
 {
     va_list args;
-    char *msg;
+    g_autofree char *msg = NULL;
 
     if (quiet)
         return;
@@ -129,7 +129,6 @@ void virHostMsgFail(virHostValidateLevel level,
     else
         fprintf(stdout, "%s (%s)\n",
                 _(failMessages[level]), msg);
-    VIR_FREE(msg);
 }
 
 
@@ -253,11 +252,11 @@ int virHostValidateLinuxKernel(const char *hvname,
                                const char *hint)
 {
     struct utsname uts;
-    unsigned long thisversion;
+    unsigned long long thisversion;
 
     uname(&uts);
 
-    virHostMsgCheck(hvname, _("for Linux >= %d.%d.%d"),
+    virHostMsgCheck(hvname, _("for Linux >= %1$d.%2$d.%3$d"),
                     ((version >> 16) & 0xff),
                     ((version >> 8) & 0xff),
                     (version & 0xff));
@@ -390,6 +389,26 @@ int virHostValidateIOMMU(const char *hvname,
             return VIR_HOST_VALIDATE_FAILURE(VIR_HOST_VALIDATE_NOTE);
         }
         virHostMsgPass();
+    } else if (ARCH_IS_ARM(arch)) {
+        if (access("/sys/firmware/acpi/tables/IORT", F_OK) != 0) {
+            virHostMsgFail(level,
+                           "No ACPI IORT table found, IOMMU not "
+                           "supported by this hardware platform");
+            return VIR_HOST_VALIDATE_FAILURE(level);
+        } else {
+            rc = virAcpiHasSMMU();
+            if (rc < 0) {
+                virHostMsgFail(level,
+                               "Failed to parse ACPI IORT table");
+                return VIR_HOST_VALIDATE_FAILURE(level);
+            } else if (rc == 0) {
+                virHostMsgFail(level,
+                               "No SMMU found");
+                return VIR_HOST_VALIDATE_FAILURE(level);
+            } else {
+                virHostMsgPass();
+            }
+        }
     } else {
         virHostMsgFail(level,
                        "Unknown if this platform has IOMMU support");

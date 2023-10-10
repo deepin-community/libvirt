@@ -3,15 +3,16 @@
 set -e
 
 # summary of how this script can be called:
-#        * <postrm> `remove'
-#        * <postrm> `purge'
-#        * <old-postrm> `upgrade' <new-version>
-#        * <new-postrm> `failed-upgrade' <old-version>
-#        * <new-postrm> `abort-install'
-#        * <new-postrm> `abort-install' <old-version>
-#        * <new-postrm> `abort-upgrade' <old-version>
-#        * <disappearer's-postrm> `disappear' <overwriter>
-#          <overwriter-version>
+#
+#   * <postrm> `remove'
+#   * <postrm> `purge'
+#   * <old-postrm> `upgrade' <new-version>
+#   * <disappearer's-postrm> `disappear' <overwriter> <overwriter-version>
+#   * <new-postrm> `failed-upgrade' <old-version> <new-version>
+#   * <new-postrm> `abort-install'
+#   * <new-postrm> `abort-install' <old-version> <new-version>
+#   * <new-postrm> `abort-upgrade' <old-version> <new-version>
+#
 # for details, see https://www.debian.org/doc/debian-policy/ or
 # the debian-policy package
 
@@ -56,7 +57,7 @@ case "$1" in
             "$@"
     ;;
 
-    remove|purge|upgrade|failed-upgrade|disappear)
+    remove|purge|upgrade|disappear|failed-upgrade)
     ;;
 
     *)

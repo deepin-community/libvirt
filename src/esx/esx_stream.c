@@ -24,7 +24,6 @@
 #include "internal.h"
 #include "datatypes.h"
 #include "viralloc.h"
-#include "virstring.h"
 #include "esx_stream.h"
 
 #define VIR_FROM_THIS VIR_FROM_ESX
@@ -177,14 +176,14 @@ esxStreamTransfer(esxStreamPrivate *priv, bool blocking)
 
         if (status < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not complete transfer: %s (%d)"),
+                           _("Could not complete transfer: %1$s (%2$d)"),
                            curl_easy_strerror(errorCode), errorCode);
             return -1;
         }
 
         if (responseCode != 200 && responseCode != 206) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unexpected HTTP response code %lu"),
+                           _("Unexpected HTTP response code %1$lu"),
                            responseCode);
             return -1;
         }
@@ -200,7 +199,6 @@ esxStreamSend(virStreamPtr stream, const char *data, size_t nbytes)
 {
     int result = -1;
     esxStreamPrivate *priv = stream->privateData;
-    int status;
 
     if (nbytes == 0)
         return 0;
@@ -215,36 +213,31 @@ esxStreamSend(virStreamPtr stream, const char *data, size_t nbytes)
         return -1;
     }
 
-    virMutexLock(&priv->curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&priv->curl->lock) {
+        priv->buffer = (char *)data;
+        priv->buffer_size = nbytes;
+        priv->buffer_used = nbytes;
 
-    priv->buffer = (char *)data;
-    priv->buffer_size = nbytes;
-    priv->buffer_used = nbytes;
+        if (stream->flags & VIR_STREAM_NONBLOCK) {
+            if (esxStreamTransfer(priv, false) < 0)
+                return -1;
 
-    if (stream->flags & VIR_STREAM_NONBLOCK) {
-        if (esxStreamTransfer(priv, false) < 0)
-            goto cleanup;
+            if (priv->buffer_used >= priv->buffer_size)
+                return -2;
+        } else /* blocking */ {
+            do {
+                int status = esxStreamTransfer(priv, true);
 
-        if (priv->buffer_used < priv->buffer_size)
-            result = priv->buffer_size - priv->buffer_used;
-        else
-            result = -2;
-    } else /* blocking */ {
-        do {
-            status = esxStreamTransfer(priv, true);
+                if (status < 0)
+                    return -1;
 
-            if (status < 0)
-                goto cleanup;
-
-            if (status > 0)
-                break;
-        } while (priv->buffer_used > 0);
+                if (status > 0)
+                    break;
+            } while (priv->buffer_used > 0);
+        }
 
         result = priv->buffer_size - priv->buffer_used;
     }
-
- cleanup:
-    virMutexUnlock(&priv->curl->lock);
 
     return result;
 }
@@ -257,7 +250,6 @@ esxStreamRecvFlags(virStreamPtr stream,
 {
     int result = -1;
     esxStreamPrivate *priv = stream->privateData;
-    int status;
 
     virCheckFlags(0, -1);
 
@@ -274,48 +266,42 @@ esxStreamRecvFlags(virStreamPtr stream,
         return -1;
     }
 
-    virMutexLock(&priv->curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&priv->curl->lock) {
+        priv->buffer = data;
+        priv->buffer_size = nbytes;
+        priv->buffer_used = 0;
 
-    priv->buffer = data;
-    priv->buffer_size = nbytes;
-    priv->buffer_used = 0;
+        if (priv->backlog_used > 0) {
+            if (priv->buffer_size > priv->backlog_used)
+                priv->buffer_used = priv->backlog_used;
+            else
+                priv->buffer_used = priv->buffer_size;
 
-    if (priv->backlog_used > 0) {
-        if (priv->buffer_size > priv->backlog_used)
-            priv->buffer_used = priv->backlog_used;
-        else
-            priv->buffer_used = priv->buffer_size;
+            memcpy(priv->buffer, priv->backlog, priv->buffer_used);
+            memmove(priv->backlog, priv->backlog + priv->buffer_used,
+                    priv->backlog_used - priv->buffer_used);
 
-        memcpy(priv->buffer, priv->backlog, priv->buffer_used);
-        memmove(priv->backlog, priv->backlog + priv->buffer_used,
-                priv->backlog_used - priv->buffer_used);
+            priv->backlog_used -= priv->buffer_used;
+        } else if (stream->flags & VIR_STREAM_NONBLOCK) {
+            if (esxStreamTransfer(priv, false) < 0)
+                return -1;
 
-        priv->backlog_used -= priv->buffer_used;
-        result = priv->buffer_used;
-    } else if (stream->flags & VIR_STREAM_NONBLOCK) {
-        if (esxStreamTransfer(priv, false) < 0)
-            goto cleanup;
+            if (priv->buffer_used == 0)
+                return -2;
+        } else /* blocking */ {
+            do {
+                int status = esxStreamTransfer(priv, true);
 
-        if (priv->buffer_used > 0)
-            result = priv->buffer_used;
-        else
-            result = -2;
-    } else /* blocking */ {
-        do {
-            status = esxStreamTransfer(priv, true);
+                if (status < 0)
+                    return -1;
 
-            if (status < 0)
-                goto cleanup;
-
-            if (status > 0)
-                break;
-        } while (priv->buffer_used < priv->buffer_size);
+                if (status > 0)
+                    break;
+            } while (priv->buffer_used < priv->buffer_size);
+        }
 
         result = priv->buffer_used;
     }
-
- cleanup:
-    virMutexUnlock(&priv->curl->lock);
 
     return result;
 }
@@ -348,17 +334,15 @@ esxStreamClose(virStreamPtr stream, bool finish)
     if (!priv)
         return 0;
 
-    virMutexLock(&priv->curl->lock);
+    VIR_WITH_MUTEX_LOCK_GUARD(&priv->curl->lock) {
+        if (finish && priv->backlog_used > 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Stream has untransferred data left"));
+            result = -1;
+        }
 
-    if (finish && priv->backlog_used > 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Stream has untransferred data left"));
-        result = -1;
+        stream->privateData = NULL;
     }
-
-    stream->privateData = NULL;
-
-    virMutexUnlock(&priv->curl->lock);
 
     esxFreeStreamPrivate(&priv);
 

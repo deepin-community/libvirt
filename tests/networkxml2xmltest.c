@@ -8,8 +8,6 @@
 #include "internal.h"
 #include "testutils.h"
 #include "network_conf.h"
-#include "testutilsqemu.h"
-#include "virstring.h"
 #include "network/bridge_driver.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -29,13 +27,13 @@ testCompareXMLToXMLFiles(const char *inxml, const char *outxml,
     g_autofree char *actual = NULL;
     int ret;
     testCompareNetXML2XMLResult result = TEST_COMPARE_NET_XML2XML_RESULT_SUCCESS;
-    virNetworkDef *dev = NULL;
+    g_autoptr(virNetworkDef) dev = NULL;
     g_autoptr(virNetworkXMLOption) xmlopt = NULL;
 
     if (!(xmlopt = networkDnsmasqCreateXMLConf()))
         goto cleanup;
 
-    if (!(dev = virNetworkDefParseFile(inxml, xmlopt))) {
+    if (!(dev = virNetworkDefParse(NULL, inxml, xmlopt, false))) {
         result = TEST_COMPARE_NET_XML2XML_RESULT_FAIL_PARSE;
         goto cleanup;
     }
@@ -70,7 +68,6 @@ testCompareXMLToXMLFiles(const char *inxml, const char *outxml,
     }
     virResetLastError();
 
-    virNetworkDefFree(dev);
     return ret;
 }
 
@@ -127,6 +124,7 @@ mymain(void)
     DO_TEST("nat-network");
     DO_TEST("netboot-network");
     DO_TEST("netboot-proxy-network");
+    DO_TEST("netboot-tftp");
     DO_TEST("nat-network-dns-txt-record");
     DO_TEST("nat-network-dns-srv-record");
     DO_TEST("nat-network-dns-srv-records");

@@ -32,6 +32,9 @@
       <driver name='qemu' type='raw'/>
       <source protocol='ftps' name='/url/path/file.iso'>
         <host name='host.name' port='990'/>
+        <auth username='testuser'>
+          <secret type='iscsi' usage='mycluster_myname'/>
+        </auth>
       </source>
       <target dev='hdb' bus='ide'/>
       <readonly/>
@@ -41,6 +44,9 @@
       <driver name='qemu' type='raw'/>
       <source protocol='https' name='/url/path/file.iso' query='test=val'>
         <host name='host.name' port='443'/>
+        <auth username='testuser'>
+          <secret type='iscsi' usage='mycluster_myname'/>
+        </auth>
       </source>
       <target dev='hdc' bus='ide'/>
       <readonly/>

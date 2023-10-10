@@ -25,9 +25,7 @@
 
 #include "viralloc.h"
 #include "virerror.h"
-#include "datatypes.h"
 #include "nwfilter_params.h"
-#include "domain_conf.h"
 #include "virlog.h"
 #include "virstring.h"
 
@@ -340,7 +338,7 @@ virNWFilterVarCombIterAddVariable(virNWFilterVarCombIterEntry *cie,
     varValue = virHashLookup(hash, varName);
     if (varValue == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find value for variable '%s'"),
+                       _("Could not find value for variable '%1$s'"),
                        varName);
         return -1;
     }
@@ -364,10 +362,8 @@ virNWFilterVarCombIterAddVariable(virNWFilterVarCombIterEntry *cie,
         cie->curValue = minValue;
     } else {
         if (cie->maxValue != maxValue) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Cardinality of list items must be "
-                             "the same for processing them in "
-                             "parallel"));
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("Cardinality of list items must be the same for processing them in parallel"));
             return -1;
         }
     }
@@ -411,8 +407,8 @@ virNWFilterVarCombIterEntryAreUniqueEntries(virNWFilterVarCombIterEntry *cie,
 
     value = virNWFilterVarValueGetNthValue(varValue, cie->curValue);
     if (!value) {
-        VIR_ERROR(_("Lookup of value at index %u resulted in a NULL "
-                  "pointer"), cie->curValue);
+        VIR_ERROR(_("Lookup of value at index %1$u resulted in a NULL pointer"),
+                  cie->curValue);
         return true;
     }
 
@@ -552,8 +548,8 @@ virNWFilterVarCombIterGetVarValue(virNWFilterVarCombIter *ci,
         iterIndex = virNWFilterVarCombIterGetIndexByIterId(ci, iterId);
         if (iterIndex < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not get iterator index for "
-                             "iterator ID %u"), iterId);
+                           _("Could not get iterator index for iterator ID %1$u"),
+                           iterId);
             return NULL;
         }
         break;
@@ -562,8 +558,8 @@ virNWFilterVarCombIterGetVarValue(virNWFilterVarCombIter *ci,
         iterIndex = virNWFilterVarCombIterGetIndexByIterId(ci, iterId);
         if (iterIndex < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not get iterator index for "
-                             "(internal) iterator ID %u"), iterId);
+                           _("Could not get iterator index for (internal) iterator ID %1$u"),
+                           iterId);
             return NULL;
         }
         break;
@@ -580,7 +576,7 @@ virNWFilterVarCombIterGetVarValue(virNWFilterVarCombIter *ci,
 
     if (!found) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find variable '%s' in iterator"),
+                       _("Could not find variable '%1$s' in iterator"),
                        varName);
         return NULL;
     }
@@ -588,7 +584,7 @@ virNWFilterVarCombIterGetVarValue(virNWFilterVarCombIter *ci,
     value = virHashLookup(ci->hashTable, varName);
     if (!value) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find value for variable '%s'"),
+                       _("Could not find value for variable '%1$s'"),
                        varName);
         return NULL;
     }
@@ -596,8 +592,7 @@ virNWFilterVarCombIterGetVarValue(virNWFilterVarCombIter *ci,
     res = virNWFilterVarValueGetNthValue(value, ci->iter[iterIndex].curValue);
     if (!res) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not get nth (%u) value of "
-                         "variable '%s'"),
+                       _("Could not get nth (%1$u) value of variable '%2$s'"),
                        ci->iter[iterIndex].curValue, varName);
         return NULL;
     }
@@ -734,45 +729,34 @@ virNWFilterFormatParamAttributes(virBuffer *buf,
                                  GHashTable *table,
                                  const char *filterref)
 {
-    virHashKeyValuePair *items;
-    size_t i, j;
-    int card, numKeys;
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
+    g_autofree virHashKeyValuePair *items = NULL;
+    size_t i;
+    size_t nitems;
 
-    numKeys = virHashSize(table);
-
-    if (numKeys < 0) {
+    if (!(items = virHashGetItems(table, &nitems, true))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("missing filter parameter table"));
         return -1;
     }
 
-    items = virHashGetItems(table, NULL, true);
-    if (!items)
-        return -1;
+    virBufferAsprintf(&attrBuf, " filter='%s'", filterref);
 
-    virBufferAsprintf(buf, "<filterref filter='%s'", filterref);
-    if (numKeys) {
-        virBufferAddLit(buf, ">\n");
-        virBufferAdjustIndent(buf, 2);
-        for (i = 0; i < numKeys; i++) {
-            const virNWFilterVarValue *value = items[i].value;
+    for (i = 0; i < nitems; i++) {
+        const virNWFilterVarValue *value = items[i].value;
+        size_t npar = virNWFilterVarValueGetCardinality(value);
+        size_t j;
 
-            card = virNWFilterVarValueGetCardinality(value);
+        for (j = 0; j < npar; j++)
+            virBufferAsprintf(&childBuf,
+                              "<parameter name='%s' value='%s'/>\n",
+                              (const char *)items[i].key,
+                              virNWFilterVarValueGetNthValue(value, j));
 
-            for (j = 0; j < card; j++)
-                virBufferAsprintf(buf,
-                                  "<parameter name='%s' value='%s'/>\n",
-                                  (const char *)items[i].key,
-                                  virNWFilterVarValueGetNthValue(value, j));
-
-        }
-        virBufferAdjustIndent(buf, -2);
-        virBufferAddLit(buf, "</filterref>\n");
-    } else {
-        virBufferAddLit(buf, "/>\n");
     }
 
-    VIR_FREE(items);
+    virXMLFormatElement(buf, "filterref", &attrBuf, &childBuf);
 
     return 0;
 }
@@ -879,8 +863,8 @@ virNWFilterVarAccessParse(const char *varAccess)
         case VIR_NWFILTER_VAR_ACCESS_ITERATOR:
             if (result > VIR_NWFILTER_MAX_ITERID) {
                 virReportError(VIR_ERR_INVALID_ARG,
-                               _("Iterator ID exceeds maximum ID "
-                                 "of %u"), VIR_NWFILTER_MAX_ITERID);
+                               _("Iterator ID exceeds maximum ID of %1$u"),
+                               VIR_NWFILTER_MAX_ITERID);
                 goto err_exit;
             }
             dest->u.iterId = result;

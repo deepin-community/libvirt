@@ -33,6 +33,7 @@ struct _testQemuData {
     const char *prefix;
     const char *version;
     const char *archName;
+    const char *variant;
     const char *suffix;
     int ret;
 };
@@ -64,8 +65,7 @@ testQemuGetCaps(char *caps)
         return NULL;
     }
 
-    if (!(qemuCaps = virQEMUCapsNew()))
-        return NULL;
+    qemuCaps = virQEMUCapsNew();
 
     for (i = 0; i < n; i++) {
         g_autofree char *str = virXMLPropString(nodes[i], "name");
@@ -102,13 +102,7 @@ testGetCaps(char *capsData, const testQemuData *data)
         return NULL;
     }
 
-    if (virQEMUCapsInitGuestFromBinary(caps,
-                                       binary,
-                                       qemuCaps,
-                                       arch) < 0) {
-        fprintf(stderr, "failed to create the capabilities from qemu");
-        return NULL;
-    }
+    virQEMUCapsInitGuestFromBinary(caps, binary, qemuCaps, arch);
 
     return g_steal_pointer(&caps);
 }
@@ -123,11 +117,11 @@ testQemuCapsXML(const void *opaque)
     g_autofree char *capsXml = NULL;
     g_autoptr(virCaps) capsProvided = NULL;
 
-    xmlFile = g_strdup_printf("%s/caps.%s.xml", data->outputDir, data->archName);
+    xmlFile = g_strdup_printf("%s/caps.%s%s.xml", data->outputDir, data->archName, data->variant);
 
-    capsFile = g_strdup_printf("%s/%s_%s.%s.%s",
+    capsFile = g_strdup_printf("%s/%s_%s_%s%s.%s",
                                data->inputDir, data->prefix, data->version,
-                               data->archName, data->suffix);
+                               data->archName, data->variant, data->suffix);
 
     if (virTestLoadFile(capsFile, &capsData) < 0)
         return -1;
@@ -150,6 +144,7 @@ doCapsTest(const char *inputDir,
            const char *prefix,
            const char *version,
            const char *archName,
+           const char *variant,
            const char *suffix,
            void *opaque)
 {
@@ -162,6 +157,7 @@ doCapsTest(const char *inputDir,
     data->prefix = prefix;
     data->version = version;
     data->archName = archName;
+    data->variant = variant;
     data->suffix = suffix;
 
     if (virTestRun(title, testQemuCapsXML, data) < 0)

@@ -22,16 +22,12 @@
 
 #include <config.h>
 
-#include "domain_event.h"
-#include "network_event.h"
 #include "object_event.h"
 #include "object_event_private.h"
 #include "virlog.h"
-#include "datatypes.h"
 #include "viralloc.h"
 #include "virerror.h"
 #include "virobject.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -258,7 +254,7 @@ virObjectEventCallbackListRemoveID(virConnectPtr conn,
     }
 
     virReportError(VIR_ERR_INVALID_ARG,
-                   _("could not find event callback %d for deletion"),
+                   _("could not find event callback %1$d for deletion"),
                    callbackID);
     return -1;
 }
@@ -285,7 +281,7 @@ virObjectEventCallbackListMarkDeleteID(virConnectPtr conn,
     }
 
     virReportError(VIR_ERR_INVALID_ARG,
-                   _("could not find event callback %d for deletion"),
+                   _("could not find event callback %1$d for deletion"),
                    callbackID);
     return -1;
 }
@@ -600,7 +596,7 @@ virObjectEventNew(virClass *klass,
 
     if (!virClassIsDerivedFrom(klass, virObjectEventClass)) {
         virReportInvalidArg(klass,
-                            _("Class %s must derive from virObjectEvent"),
+                            _("Class %1$s must derive from virObjectEvent"),
                             virClassName(klass));
         return NULL;
     }
@@ -880,7 +876,7 @@ virObjectEventStateRegisterID(virConnectPtr conn,
         if ((state->timer = virEventAddTimeout(-1,
                                                virObjectEventTimer,
                                                state,
-                                               virObjectFreeCallback)) < 0) {
+                                               virObjectUnref)) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("could not initialize domain event timer"));
             goto cleanup;
@@ -977,7 +973,7 @@ virObjectEventStateCallbackID(virConnectPtr conn,
 
     if (ret < 0)
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("event callback function %p not registered"),
+                       _("event callback function %1$p not registered"),
                        callback);
     return ret;
 }
@@ -1025,7 +1021,7 @@ virObjectEventStateEventID(virConnectPtr conn,
 
     if (ret < 0)
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("event callback id %d not registered"),
+                       _("event callback id %1$d not registered"),
                        callbackID);
     return ret;
 }

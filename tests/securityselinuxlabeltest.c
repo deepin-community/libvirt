@@ -30,13 +30,11 @@
 #include "internal.h"
 #include "testutils.h"
 #include "testutilsqemu.h"
-#include "qemu/qemu_domain.h"
 #include "viralloc.h"
 #include "virerror.h"
 #include "virfile.h"
 #include "virlog.h"
 #include "security/security_manager.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -301,7 +299,8 @@ mymain(void)
 {
     int ret = 0;
     int rc = testUserXattrEnabled();
-    g_autoptr(virQEMUCaps) qemuCaps = NULL;
+    g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
+    g_autoptr(GHashTable) capscache = virHashNew(virObjectUnref);
 
     if (rc < 0) {
         VIR_TEST_VERBOSE("failed to determine xattr support");
@@ -324,13 +323,10 @@ mymain(void)
     if (qemuTestDriverInit(&driver) < 0)
         return EXIT_FAILURE;
 
-    if (!(qemuCaps = virQEMUCapsNew()))
-        return EXIT_FAILURE;
+    qemuTestSetHostArch(&driver, VIR_ARCH_X86_64);
 
-    virQEMUCapsSet(qemuCaps, QEMU_CAPS_DEVICE_CIRRUS_VGA);
-    virQEMUCapsSet(qemuCaps, QEMU_CAPS_VNC);
-
-    if (qemuTestCapsCacheInsert(driver.qemuCapsCache, qemuCaps) < 0)
+    if (testQemuInsertRealCaps(driver.qemuCapsCache, "x86_64", "latest", "",
+                               capslatest, capscache, NULL, NULL) < 0)
         return EXIT_FAILURE;
 
 #define DO_TEST_LABELING(name) \

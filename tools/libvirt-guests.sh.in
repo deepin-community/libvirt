@@ -18,7 +18,7 @@
 
 sysconfdir="@sysconfdir@"
 localstatedir="@localstatedir@"
-libvirtd="@sbindir@"/libvirtd
+initconfdir="@initconfdir@"
 
 # Source function library.
 test ! -r "$sysconfdir"/rc.d/init.d/functions ||
@@ -39,8 +39,8 @@ START_DELAY=0
 BYPASS_CACHE=0
 SYNC_TIME=0
 
-test -f "$sysconfdir"/sysconfig/libvirt-guests &&
-    . "$sysconfdir"/sysconfig/libvirt-guests
+test -f "$initconfdir"/libvirt-guests &&
+    . "$initconfdir"/libvirt-guests
 
 LISTFILE="$localstatedir"/lib/libvirt/libvirt-guests
 VAR_SUBSYS_LIBVIRT_GUESTS="$localstatedir"/lock/subsys/libvirt-guests

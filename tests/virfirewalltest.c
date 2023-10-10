@@ -31,7 +31,6 @@
 # include "vircommandpriv.h"
 # define LIBVIRT_VIRFIREWALLDPRIV_H_ALLOW
 # include "virfirewalldpriv.h"
-# include "virmock.h"
 
 # define VIR_FROM_THIS VIR_FROM_FIREWALL
 
@@ -90,9 +89,8 @@ testFirewallSingleGroup(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -137,9 +135,8 @@ testFirewallRemoveRule(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -191,9 +188,8 @@ testFirewallManyGroups(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -266,9 +262,8 @@ testFirewallIgnoreFailGroup(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -319,9 +314,8 @@ testFirewallIgnoreFailRule(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -366,9 +360,8 @@ testFirewallNoRollback(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -432,9 +425,8 @@ testFirewallSingleRollback(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -501,9 +493,8 @@ testFirewallManyRollback(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -600,9 +591,8 @@ testFirewallChainedRollback(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferCurrentContent(&cmdbuf);
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -764,9 +754,8 @@ testFirewallQuery(const void *opaque G_GNUC_UNUSED)
         return -1;
     }
 
-    if (STRNEQ_NULLABLE(expected, actual)) {
+    if (virTestCompareToString(expected, actual) < 0) {
         fprintf(stderr, "Unexpected command execution\n");
-        virTestDifference(stderr, expected, actual);
         return -1;
     }
 
@@ -799,10 +788,6 @@ mymain(void)
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }
 
-# if 0
-VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virgdbus"),
-                      VIR_TEST_MOCK("virfirewall"))
-# endif
 VIR_TEST_MAIN_PRELOAD(mymain, VIR_TEST_MOCK("virfirewall"))
 
 #else /* ! defined (__linux__) */

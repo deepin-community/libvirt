@@ -34,12 +34,14 @@
  * a virEventHandleType is used similar to POLLxxx FD events, but is specific
  * to libvirt. A client app must translate to, and from POLL events when using
  * this construct.
+ *
+ * Since: 0.5.0
  */
 typedef enum {
-    VIR_EVENT_HANDLE_READABLE  = (1 << 0),
-    VIR_EVENT_HANDLE_WRITABLE  = (1 << 1),
-    VIR_EVENT_HANDLE_ERROR     = (1 << 2),
-    VIR_EVENT_HANDLE_HANGUP    = (1 << 3),
+    VIR_EVENT_HANDLE_READABLE  = (1 << 0), /* (Since: 0.5.0) */
+    VIR_EVENT_HANDLE_WRITABLE  = (1 << 1), /* (Since: 0.5.0) */
+    VIR_EVENT_HANDLE_ERROR     = (1 << 2), /* (Since: 0.5.0) */
+    VIR_EVENT_HANDLE_HANGUP    = (1 << 3), /* (Since: 0.5.0) */
 } virEventHandleType;
 
 /**
@@ -52,6 +54,8 @@ typedef enum {
  *
  * Callback for receiving file handle events. The callback will
  * be invoked once for each event which is pending.
+ *
+ * Since: 0.5.0
  */
 typedef void (*virEventHandleCallback)(int watch, int fd, int events, void *opaque);
 
@@ -79,6 +83,8 @@ typedef void (*virEventHandleCallback)(int watch, int fd, int events, void *opaq
  *
  * Returns -1 if the file handle cannot be registered, otherwise a handle
  * watch number to be used for updating and unregistering for events
+ *
+ * Since: 0.5.0
  */
 typedef int (*virEventAddHandleFunc)(int fd, int event,
                                      virEventHandleCallback cb,
@@ -92,6 +98,8 @@ typedef int (*virEventAddHandleFunc)(int fd, int event,
  *
  * Part of the EventImpl, this user-provided callback is notified when
  * events to listen on change
+ *
+ * Since: 0.5.0
  */
 typedef void (*virEventUpdateHandleFunc)(int watch, int event);
 
@@ -107,6 +115,8 @@ typedef void (*virEventUpdateHandleFunc)(int watch, int event);
  * function call, when it is safe to release the user data.
  *
  * Returns -1 if the file handle was not registered, 0 upon success
+ *
+ * Since: 0.5.0
  */
 typedef int (*virEventRemoveHandleFunc)(int watch);
 
@@ -117,6 +127,8 @@ typedef int (*virEventRemoveHandleFunc)(int watch);
  * @opaque: user data registered with handle
  *
  * callback for receiving timer events
+ *
+ * Since: 0.5.0
  */
 typedef void (*virEventTimeoutCallback)(int timer, void *opaque);
 
@@ -135,6 +147,8 @@ typedef void (*virEventTimeoutCallback)(int timer, void *opaque);
  * this purpose.
  *
  * Returns a timer value
+ *
+ * Since: 0.5.0
  */
 typedef int (*virEventAddTimeoutFunc)(int timeout,
                                       virEventTimeoutCallback cb,
@@ -148,6 +162,8 @@ typedef int (*virEventAddTimeoutFunc)(int timeout,
  *
  * Part of the EventImpl, this user-defined callback updates an
  * event timeout.
+ *
+ * Since: 0.5.0
  */
 typedef void (*virEventUpdateTimeoutFunc)(int timer, int timeout);
 
@@ -162,6 +178,8 @@ typedef void (*virEventUpdateTimeoutFunc)(int timer, int timeout);
  * function call, when it is safe to release the user data.
  *
  * Returns 0 on success, -1 on failure
+ *
+ * Since: 0.5.0
  */
 typedef int (*virEventRemoveTimeoutFunc)(int timer);
 

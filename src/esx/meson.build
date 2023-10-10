@@ -25,9 +25,9 @@ esx_gen_headers = custom_target(
     'esx_vi_types.generated.typeenum',
   ],
   command: [
-    meson_python_prog, python3_prog, esx_vi_generator_prog,
-    meson.source_root() / 'src',
-    meson.build_root() / 'src',
+    esx_vi_generator_prog,
+    meson.project_source_root() / 'src',
+    meson.project_build_root() / 'src',
     'header',
   ],
 )
@@ -46,9 +46,9 @@ esx_gen_sources = custom_target(
     'esx_vi_types.generated.typetostring',
   ],
   command: [
-    meson_python_prog, python3_prog, esx_vi_generator_prog,
-    meson.source_root() / 'src',
-    meson.build_root() / 'src',
+    esx_vi_generator_prog,
+    meson.project_source_root() / 'src',
+    meson.project_build_root() / 'src',
     'source',
   ],
 )

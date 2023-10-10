@@ -30,15 +30,12 @@
 #include "driver.h"
 #include "storage_backend_iscsi.h"
 #include "viralloc.h"
-#include "vircommand.h"
 #include "virerror.h"
 #include "virfile.h"
 #include "viriscsi.h"
 #include "viridentity.h"
 #include "virlog.h"
 #include "virobject.h"
-#include "virstring.h"
-#include "viruuid.h"
 #include "virsecret.h"
 #include "storage_util.h"
 #include "virutil.h"
@@ -108,7 +105,7 @@ virStorageBackendISCSIGetHostNumber(const char *sysfs_path,
                 return 0;
             } else {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Failed to parse target '%s'"), dirent->d_name);
+                               _("Failed to parse target '%1$s'"), dirent->d_name);
                 return -1;
             }
         }
@@ -116,8 +113,8 @@ virStorageBackendISCSIGetHostNumber(const char *sysfs_path,
 
     if (direrr == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Failed to get host number for iSCSI session "
-                         "with path '%s'"), sysfs_path);
+                       _("Failed to get host number for iSCSI session with path '%1$s'"),
+                       sysfs_path);
         return -1;
     }
 
@@ -259,8 +256,8 @@ virStorageBackendISCSISetAuth(const char *portal,
     size_t secret_size;
     g_autofree char *secret_str = NULL;
     virStorageAuthDef *authdef = source->auth;
-    int ret = -1;
-    virConnectPtr conn = NULL;
+    int ret = 0;
+    g_autoptr(virConnect) conn = NULL;
     VIR_IDENTITY_AUTORESTORE virIdentity *oldident = NULL;
 
     if (!authdef || authdef->authType == VIR_STORAGE_AUTH_TYPE_NONE)
@@ -284,12 +281,10 @@ virStorageBackendISCSISetAuth(const char *portal,
     if (virSecretGetSecretString(conn, &authdef->seclookupdef,
                                  VIR_SECRET_USAGE_TYPE_ISCSI,
                                  &secret_value, &secret_size) < 0)
-        goto cleanup;
+        return -1;
 
-    secret_str = g_new0(char, secret_size + 1);
-    memcpy(secret_str, secret_value, secret_size);
+    secret_str = g_strndup((char *) secret_value, secret_size);
     virSecureErase(secret_value, secret_size);
-    secret_str[secret_size] = '\0';
 
     if (virISCSINodeUpdate(portal,
                            source->devices[0].path,
@@ -303,13 +298,9 @@ virStorageBackendISCSISetAuth(const char *portal,
                            source->devices[0].path,
                            "node.session.auth.password",
                            secret_str) < 0)
-        goto cleanup;
+        ret = -1;
 
-    ret = 0;
-
- cleanup:
     virSecureErase(secret_str, secret_size);
-    virObjectUnref(conn);
     return ret;
 }
 

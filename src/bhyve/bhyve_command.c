@@ -60,8 +60,7 @@ bhyveBuildNetArgStr(const virDomainDef *def,
             nic_model = g_strdup("e1000");
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("NIC model 'e1000' is not supported "
-                             "by given bhyve binary"));
+                           _("NIC model 'e1000' is not supported by given bhyve binary"));
             return -1;
         }
     } else {
@@ -74,7 +73,7 @@ bhyveBuildNetArgStr(const virDomainDef *def,
         brname = g_strdup(virDomainNetGetActualBridgeName(net));
     } else {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Network type %d is not supported"),
+                       _("Network type %1$d is not supported"),
                        virDomainNetGetActualType(net));
         goto cleanup;
     }
@@ -190,8 +189,7 @@ bhyveBuildAHCIControllerArgStr(const virDomainDef *def,
         if ((disk->device == VIR_DOMAIN_DISK_DEVICE_CDROM) &&
             (disk_source == NULL)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("cdrom device without source path "
-                             "not supported"));
+                           _("cdrom device without source path not supported"));
             return -1;
         }
 
@@ -341,8 +339,7 @@ bhyveBuildControllerArgStr(const virDomainDef *def,
     case VIR_DOMAIN_CONTROLLER_TYPE_PCI:
         if (controller->model != VIR_DOMAIN_CONTROLLER_MODEL_PCI_ROOT) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("unsupported PCI controller model: "
-                             "only PCI root supported"));
+                           _("unsupported PCI controller model: only PCI root supported"));
             return -1;
         }
         break;
@@ -370,6 +367,18 @@ bhyveBuildControllerArgStr(const virDomainDef *def,
         virCommandAddArgFormat(cmd, "%d:0,lpc",
                                 controller->info.addr.pci.slot);
         break;
+    case VIR_DOMAIN_CONTROLLER_TYPE_IDE:
+    case VIR_DOMAIN_CONTROLLER_TYPE_FDC:
+    case VIR_DOMAIN_CONTROLLER_TYPE_SCSI:
+    case VIR_DOMAIN_CONTROLLER_TYPE_VIRTIO_SERIAL:
+    case VIR_DOMAIN_CONTROLLER_TYPE_CCID:
+    case VIR_DOMAIN_CONTROLLER_TYPE_XENBUS:
+    case VIR_DOMAIN_CONTROLLER_TYPE_LAST:
+    default:
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                       _("unsupported controller device"));
+        return -1;
+
     }
     return 0;
 }
@@ -391,8 +400,7 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
         def->os.bootloader ||
         !def->os.loader) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Graphics are only supported"
-                         " when booting using UEFI"));
+                       _("Graphics are only supported when booting using UEFI"));
         return -1;
     }
 
@@ -465,8 +473,7 @@ bhyveBuildGraphicsArgStr(const virDomainDef *def,
     if (graphics->data.vnc.auth.passwd) {
         if (!(bhyveDriverGetBhyveCaps(driver) & BHYVE_CAP_VNC_PASSWORD)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("VNC Password authentication not supported "
-                             "by bhyve"));
+                           _("VNC Password authentication not supported by bhyve"));
             return -1;
         }
 
@@ -510,8 +517,7 @@ bhyveBuildSoundArgStr(const virDomainDef *def G_GNUC_UNUSED,
         /* Currently, bhyve only supports "hda" sound devices, so
            if it's not supported, sound devices are not supported at all */
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                       _("Sound devices emulation is not supported "
-                         "by given bhyve binary"));
+                       _("Sound devices emulation is not supported by given bhyve binary"));
         return -1;
     }
 
@@ -551,8 +557,9 @@ bhyveBuildSoundArgStr(const virDomainDef *def G_GNUC_UNUSED,
         case VIR_DOMAIN_AUDIO_TYPE_SDL:
         case VIR_DOMAIN_AUDIO_TYPE_SPICE:
         case VIR_DOMAIN_AUDIO_TYPE_FILE:
+        case VIR_DOMAIN_AUDIO_TYPE_DBUS:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unsupported audio backend '%s'"),
+                           _("unsupported audio backend '%1$s'"),
                            virDomainAudioTypeTypeToString(audio->type));
             return -1;
         case VIR_DOMAIN_AUDIO_TYPE_LAST:
@@ -588,7 +595,7 @@ bhyveBuildFSArgStr(const virDomainDef *def G_GNUC_UNUSED,
     case VIR_DOMAIN_FS_TYPE_VOLUME:
     case VIR_DOMAIN_FS_TYPE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unsupported filesystem type '%s'"),
+                       _("unsupported filesystem type '%1$s'"),
                        virDomainFSTypeToString(fs->type));
         return -1;
     }
@@ -605,7 +612,7 @@ bhyveBuildFSArgStr(const virDomainDef *def G_GNUC_UNUSED,
     case VIR_DOMAIN_FS_DRIVER_TYPE_PLOOP:
     case VIR_DOMAIN_FS_DRIVER_TYPE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unsupported filesystem driver '%s'"),
+                       _("unsupported filesystem driver '%1$s'"),
                        virDomainFSDriverTypeToString(fs->fsdriver));
         return -1;
     }
@@ -619,7 +626,7 @@ bhyveBuildFSArgStr(const virDomainDef *def G_GNUC_UNUSED,
     case VIR_DOMAIN_FS_ACCESSMODE_DEFAULT:
     case VIR_DOMAIN_FS_ACCESSMODE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unsupported filesystem accessmode '%s'"),
+                       _("unsupported filesystem accessmode '%1$s'"),
                        virDomainFSAccessModeTypeToString(fs->accessmode));
         return -1;
     }
@@ -666,9 +673,7 @@ virBhyveProcessBuildBhyveCmd(struct _bhyveConn *driver, virDomainDef *def,
         }
         if (nvcpus != def->cpu->sockets * def->cpu->cores * def->cpu->threads) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Invalid CPU topology: total number of vCPUs "
-                             "must equal the product of sockets, cores, "
-                             "and threads"));
+                           _("Invalid CPU topology: total number of vCPUs must equal the product of sockets, cores, and threads"));
             return NULL;
         }
 
@@ -680,8 +685,7 @@ virBhyveProcessBuildBhyveCmd(struct _bhyveConn *driver, virDomainDef *def,
                                    def->cpu->threads);
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Installed bhyve binary does not support "
-                             "defining CPU topology"));
+                           _("Installed bhyve binary does not support defining CPU topology"));
             return NULL;
         }
     } else {
@@ -715,14 +719,13 @@ virBhyveProcessBuildBhyveCmd(struct _bhyveConn *driver, virDomainDef *def,
             virCommandAddArg(cmd, "-u");
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Installed bhyve binary does not support "
-                          "UTC clock"));
+                           _("Installed bhyve binary does not support UTC clock"));
             return NULL;
         }
         break;
     default:
          virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                        _("unsupported clock offset '%s'"),
+                        _("unsupported clock offset '%1$s'"),
                         virDomainClockOffsetTypeToString(def->clock.offset));
          return NULL;
     }
@@ -750,8 +753,7 @@ virBhyveProcessBuildBhyveCmd(struct _bhyveConn *driver, virDomainDef *def,
             virCommandAddArgFormat(cmd, "bootrom,%s", def->os.loader->path);
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Installed bhyve binary does not support "
-                             "UEFI loader"));
+                           _("Installed bhyve binary does not support UEFI loader"));
             return NULL;
         }
     }
@@ -873,7 +875,7 @@ virBhyveProcessBuildCustomLoaderCmd(virDomainDef *def)
 
     if (def->os.bootloaderArgs == NULL) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Custom loader requires explicit %s configuration"),
+                       _("Custom loader requires explicit %1$s configuration"),
                        "bootloader_args");
         return NULL;
     }
@@ -1058,7 +1060,7 @@ virBhyveGetBootDisk(virDomainDef *def)
         case VIR_DOMAIN_BOOT_LAST:
         default:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Cannot boot from device %s"),
+                           _("Cannot boot from device %1$s"),
                            virDomainBootTypeToString(def->os.bootDevs[0]));
             return NULL;
         }
@@ -1079,7 +1081,7 @@ virBhyveGetBootDisk(virDomainDef *def)
 
         if (match == NULL) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Cannot find boot device of requested type %s"),
+                           _("Cannot find boot device of requested type %1$s"),
                            virDomainBootTypeToString(def->os.bootDevs[0]));
             return NULL;
         }

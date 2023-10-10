@@ -24,14 +24,12 @@
 #define DNS_RECORD_LENGTH_SRV  (512 - 30)  /* Limit minus overhead as mentioned in RFC-2782 */
 
 #include "internal.h"
-#include "virthread.h"
 #include "virsocketaddr.h"
 #include "virnetdevbandwidth.h"
 #include "virnetdevvportprofile.h"
 #include "virnetdevvlan.h"
 #include "virmacaddr.h"
 #include "device_conf.h"
-#include "virbitmap.h"
 #include "networkcommon_conf.h"
 #include "virobject.h"
 #include "virmacmap.h"
@@ -251,6 +249,8 @@ struct _virNetworkDef {
     unsigned char uuid[VIR_UUID_BUFLEN];
     bool uuid_specified;
     char *name;
+    char *title;
+    char *description;
     int   connections; /* # of guest interfaces connected to this network */
 
     char *bridge;       /* Name of bridge device */
@@ -327,18 +327,10 @@ virNetworkDefParseXML(xmlXPathContextPtr ctxt,
                       virNetworkXMLOption *xmlopt);
 
 virNetworkDef *
-virNetworkDefParseString(const char *xmlStr,
-                         virNetworkXMLOption *xmlopt,
-                         bool validate);
-
-virNetworkDef *
-virNetworkDefParseFile(const char *filename,
-                       virNetworkXMLOption *xmlopt);
-
-virNetworkDef *
-virNetworkDefParseNode(xmlDocPtr xml,
-                       xmlNodePtr root,
-                       virNetworkXMLOption *xmlopt);
+virNetworkDefParse(const char *xmlStr,
+                   const char *filename,
+                   virNetworkXMLOption *xmlopt,
+                   bool validate);
 
 char *
 virNetworkDefFormat(const virNetworkDef *def,

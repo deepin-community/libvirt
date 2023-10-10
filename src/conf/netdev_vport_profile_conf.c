@@ -20,7 +20,6 @@
 
 #include "netdev_vport_profile_conf.h"
 #include "virerror.h"
-#include "viralloc.h"
 #include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -37,14 +36,14 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
     g_autofree char *virtPortProfileID = NULL;
     g_autofree char *virtPortInterfaceID = NULL;
     g_autofree virNetDevVPortProfile *virtPort = NULL;
-    xmlNodePtr cur = node->children;
+    xmlNodePtr parameters;
 
     virtPort = g_new0(virNetDevVPortProfile, 1);
 
     if ((virtPortType = virXMLPropString(node, "type")) &&
         (virtPort->virtPortType = virNetDevVPortTypeFromString(virtPortType)) <= 0) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown virtualport type %s"), virtPortType);
+                       _("unknown virtualport type %1$s"), virtPortType);
         return NULL;
     }
 
@@ -55,17 +54,13 @@ virNetDevVPortProfileParse(xmlNodePtr node, unsigned int flags)
         return NULL;
     }
 
-    while (cur != NULL) {
-        if (virXMLNodeNameEqual(cur, "parameters")) {
-            virtPortManagerID = virXMLPropString(cur, "managerid");
-            virtPortTypeID = virXMLPropString(cur, "typeid");
-            virtPortTypeIDVersion = virXMLPropString(cur, "typeidversion");
-            virtPortInstanceID = virXMLPropString(cur, "instanceid");
-            virtPortProfileID = virXMLPropString(cur, "profileid");
-            virtPortInterfaceID = virXMLPropString(cur, "interfaceid");
-            break;
-        }
-        cur = cur->next;
+    if ((parameters = virXMLNodeGetSubelement(node, "parameters"))) {
+        virtPortManagerID = virXMLPropString(parameters, "managerid");
+        virtPortTypeID = virXMLPropString(parameters, "typeid");
+        virtPortTypeIDVersion = virXMLPropString(parameters, "typeidversion");
+        virtPortInstanceID = virXMLPropString(parameters, "instanceid");
+        virtPortProfileID = virXMLPropString(parameters, "profileid");
+        virtPortInterfaceID = virXMLPropString(parameters, "interfaceid");
     }
 
     if (virtPortManagerID) {

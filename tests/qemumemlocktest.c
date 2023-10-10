@@ -9,9 +9,7 @@
 
 #ifdef WITH_QEMU
 
-# include "datatypes.h"
 # include "internal.h"
-# include "virstring.h"
 # include "conf/domain_conf.h"
 # include "qemu/qemu_domain.h"
 
@@ -41,31 +39,18 @@ testCompareMemLock(const void *data)
         return -1;
     }
 
-    return virTestCompareToULL(info->memlock, qemuDomainGetMemLockLimitBytes(def, false));
+    return virTestCompareToULL(info->memlock, qemuDomainGetMemLockLimitBytes(def));
 }
-
-# define FAKEROOTDIRTEMPLATE abs_builddir "/fakerootdir-XXXXXX"
 
 static int
 mymain(void)
 {
+    g_autoptr(GHashTable) capslatest = testQemuGetLatestCaps();
+    g_autoptr(GHashTable) capscache = virHashNew(virObjectUnref);
     int ret = 0;
-    g_autofree char *fakerootdir = NULL;
-    g_autoptr(virQEMUCaps) qemuCaps = NULL;
-
-    fakerootdir = g_strdup(FAKEROOTDIRTEMPLATE);
-
-    if (!g_mkdtemp(fakerootdir)) {
-        fprintf(stderr, "Cannot create fakerootdir");
-        abort();
-    }
-
-    g_setenv("LIBVIRT_FAKE_ROOT_DIR", fakerootdir, TRUE);
 
     if (qemuTestDriverInit(&driver) < 0)
         return EXIT_FAILURE;
-
-    driver.privileged = true;
 
 # define DO_TEST(name, memlock) \
     do { \
@@ -94,24 +79,19 @@ mymain(void)
 
     qemuTestSetHostArch(&driver, VIR_ARCH_X86_64);
 
-    DO_TEST("pc-kvm", 0);
-    DO_TEST("pc-tcg", 0);
-
-    if (!(qemuCaps = virQEMUCapsNew())) {
+    if (testQemuInsertRealCaps(driver.qemuCapsCache, "x86_64", "latest", "",
+                               capslatest, capscache, NULL, NULL) < 0) {
         ret = -1;
         goto cleanup;
     }
 
-    virQEMUCapsSet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI);
-
-    if (qemuTestCapsCacheInsert(driver.qemuCapsCache, qemuCaps) < 0) {
-        ret = -1;
-        goto cleanup;
-    };
+    DO_TEST("pc-kvm", 0);
+    DO_TEST("pc-tcg", 0);
 
     DO_TEST("pc-hardlimit", 2147483648);
     DO_TEST("pc-locked", VIR_DOMAIN_MEMORY_PARAM_UNLIMITED);
     DO_TEST("pc-hostdev", 2147483648);
+    DO_TEST("pc-hostdev-nvme", 3221225472);
 
     DO_TEST("pc-hardlimit+locked", 2147483648);
     DO_TEST("pc-hardlimit+hostdev", 2147483648);
@@ -120,11 +100,11 @@ mymain(void)
 
     qemuTestSetHostArch(&driver, VIR_ARCH_PPC64);
 
-    virQEMUCapsSet(qemuCaps, QEMU_CAPS_DEVICE_SPAPR_PCI_HOST_BRIDGE);
-    if (qemuTestCapsCacheInsert(driver.qemuCapsCache, qemuCaps) < 0) {
+    if (testQemuInsertRealCaps(driver.qemuCapsCache, "ppc64", "latest", "",
+                               capslatest, capscache, NULL, NULL) < 0) {
         ret = -1;
         goto cleanup;
-    };
+    }
 
     DO_TEST("pseries-kvm", 20971520);
     DO_TEST("pseries-tcg", 0);
@@ -139,9 +119,6 @@ mymain(void)
     DO_TEST("pseries-locked+hostdev", VIR_DOMAIN_MEMORY_PARAM_UNLIMITED);
 
  cleanup:
-    if (getenv("LIBVIRT_SKIP_CLEANUP") == NULL)
-        virFileDeleteTree(fakerootdir);
-
     qemuTestDriverFree(&driver);
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

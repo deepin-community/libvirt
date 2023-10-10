@@ -79,6 +79,23 @@ unit files must be masked:
    $ systemctl mask libvirtd.socket libvirtd-ro.socket \
       libvirtd-admin.socket libvirtd-tls.socket libvirtd-tcp.socket
 
+On top of that make sure that the --timeout argument is not used for the daemon
+since it would not be started upon any later connection.
+
+If using libvirt-guests service then the ordering for that service needs to be
+adapted so that it is ordered after the service unit instead of the socket unit.
+Since dependencies and ordering cannot be changed with drop-in overrides, the
+whole libvirt-guests unit file needs to be changed.  In order to preserve such
+change copy the installed ``/usr/lib/systemd/system/libvirt-guests.service`` to
+``/etc/systemd/system/libvirt-guests.service`` and make the change there,
+specifically make sure the ``After=`` ordering mentions ``libvirtd.service`` and
+not ``libvirtd.socket``:
+
+::
+
+   [Unit]
+   After=libvirtd.service
+
 
 OPTIONS
 =======
@@ -279,4 +296,4 @@ SEE ALSO
 ========
 
 virsh(1), virt-install(1), virt-xml-validate(1), virt-top(1),
-virt-df(1), `https://www.libvirt.org/ <https://www.libvirt.org/>`_
+virt-df(1), `https://libvirt.org/ <https://libvirt.org/>`_

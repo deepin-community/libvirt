@@ -22,10 +22,7 @@
 #include <config.h>
 
 #include "virerror.h"
-#include "datatypes.h"
 #include "networkcommon_conf.h"
-#include "viralloc.h"
-#include "virstring.h"
 #include "virxml.h"
 
 #define VIR_FROM_THIS VIR_FROM_NETWORK
@@ -57,32 +54,28 @@ virNetDevIPRouteCreate(const char *errorDetail,
 
     if (!address) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("%s: Missing required address attribute "
-                         "in route definition"),
+                       _("%1$s: Missing required address attribute in route definition"),
                        errorDetail);
         return NULL;
     }
 
     if (!gateway) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("%s: Missing required gateway attribute "
-                         "in route definition"),
+                       _("%1$s: Missing required gateway attribute in route definition"),
                        errorDetail);
         return NULL;
     }
 
     if (virSocketAddrParse(&def->address, address, AF_UNSPEC) < 0) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("%s: Bad network address '%s' "
-                         "in route definition"),
+                       _("%1$s: Bad network address '%2$s' in route definition"),
                        errorDetail, address);
         return NULL;
     }
 
     if (virSocketAddrParse(&def->gateway, gateway, AF_UNSPEC) < 0) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("%s: Bad gateway address '%s' "
-                         "in route definition"),
+                       _("%1$s: Bad gateway address '%2$s' in route definition"),
                        errorDetail, gateway);
         return NULL;
     }
@@ -93,89 +86,74 @@ virNetDevIPRouteCreate(const char *errorDetail,
               VIR_SOCKET_ADDR_IS_FAMILY(&def->address, AF_UNSPEC))) {
             virReportError(VIR_ERR_XML_ERROR,
                            def->family == NULL ?
-                           _("%s: No family specified for non-IPv4 address '%s' "
-                             "in route definition") :
-                           _("%s: IPv4 family specified for non-IPv4 address '%s' "
-                             "in route definition"),
+                           _("%1$s: No family specified for non-IPv4 address '%2$s' in route definition") :
+                           _("%1$s: IPv4 family specified for non-IPv4 address '%2$s' in route definition"),
                            errorDetail, address);
             return NULL;
         }
         if (!VIR_SOCKET_ADDR_IS_FAMILY(&def->gateway, AF_INET)) {
             virReportError(VIR_ERR_XML_ERROR,
                            def->family == NULL ?
-                           _("%s: No family specified for non-IPv4 gateway '%s' "
-                             "in route definition") :
-                           _("%s: IPv4 family specified for non-IPv4 gateway '%s' "
-                             "in route definition"),
+                           _("%1$s: No family specified for non-IPv4 gateway '%2$s' in route definition") :
+                           _("%1$s: IPv4 family specified for non-IPv4 gateway '%2$s' in route definition"),
                            errorDetail, address);
             return NULL;
         }
         if (netmask) {
             if (virSocketAddrParse(&def->netmask, netmask, AF_UNSPEC) < 0) {
                 virReportError(VIR_ERR_XML_ERROR,
-                               _("%s: Bad netmask address '%s' "
-                                 "in route definition"),
+                               _("%1$s: Bad netmask address '%2$s' in route definition"),
                                errorDetail, netmask);
                 return NULL;
             }
             if (!VIR_SOCKET_ADDR_IS_FAMILY(&def->netmask, AF_INET)) {
                 virReportError(VIR_ERR_XML_ERROR,
-                               _("%s: Invalid netmask '%s' "
-                                 "for address '%s' (both must be IPv4)"),
+                               _("%1$s: Invalid netmask '%2$s' for address '%3$s' (both must be IPv4)"),
                                errorDetail, netmask, address);
                 return NULL;
             }
             if (def->has_prefix) {
                 /* can't have both netmask and prefix at the same time */
                 virReportError(VIR_ERR_XML_ERROR,
-                               _("%s: Route definition cannot have both "
-                                 "a prefix and a netmask"),
+                               _("%1$s: Route definition cannot have both a prefix and a netmask"),
                                errorDetail);
                 return NULL;
             }
         }
         if (def->prefix > 32) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("%s: Invalid prefix %u specified "
-                             "in route definition, "
-                             "must be 0 - 32"),
+                           _("%1$s: Invalid prefix %2$u specified in route definition, must be 0 - 32"),
                            errorDetail, def->prefix);
             return NULL;
         }
     } else if (STREQ(def->family, "ipv6")) {
         if (!VIR_SOCKET_ADDR_IS_FAMILY(&def->address, AF_INET6)) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("%s: ipv6 family specified for non-IPv6 address '%s' "
-                             "in route definition"),
+                           _("%1$s: ipv6 family specified for non-IPv6 address '%2$s' in route definition"),
                            errorDetail, address);
             return NULL;
         }
         if (netmask) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("%s: Specifying netmask invalid for IPv6 address '%s' "
-                             "in route definition"),
+                           _("%1$s: Specifying netmask invalid for IPv6 address '%2$s' in route definition"),
                            errorDetail, address);
             return NULL;
         }
         if (!VIR_SOCKET_ADDR_IS_FAMILY(&def->gateway, AF_INET6)) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("%s: ipv6 specified for non-IPv6 gateway address '%s' "
-                             "in route definition"),
+                           _("%1$s: ipv6 specified for non-IPv6 gateway address '%2$s' in route definition"),
                            errorDetail, gateway);
             return NULL;
         }
         if (def->prefix > 128) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("%s: Invalid prefix %u specified "
-                             "in route definition, "
-                             "must be 0 - 128"),
+                           _("%1$s: Invalid prefix %2$u specified in route definition, must be 0 - 128"),
                            errorDetail, def->prefix);
             return NULL;
         }
     } else {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("%s: Unrecognized family '%s' "
-                         "in route definition"),
+                       _("%1$s: Unrecognized family '%2$s' in route definition"),
                        errorDetail, def->family);
         return NULL;
     }
@@ -184,9 +162,7 @@ virNetDevIPRouteCreate(const char *errorDetail,
     if (netmask) {
         if (virSocketAddrMask(&def->address, &def->netmask, &testAddr) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("%s: Error converting address '%s' with netmask '%s' "
-                             "to network-address "
-                             "in route definition"),
+                           _("%1$s: Error converting address '%2$s' with netmask '%3$s' to network-address in route definition"),
                            errorDetail, address, netmask);
             return NULL;
         }
@@ -194,17 +170,14 @@ virNetDevIPRouteCreate(const char *errorDetail,
         if (virSocketAddrMaskByPrefix(&def->address,
                                       def->prefix, &testAddr) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("%s: Error converting address '%s' with prefix %u "
-                             "to network-address "
-                             "in route definition"),
+                           _("%1$s: Error converting address '%2$s' with prefix %3$u to network-address in route definition"),
                            errorDetail, address, def->prefix);
             return NULL;
         }
     }
     if (!virSocketAddrEqual(&def->address, &testAddr)) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("%s: Address '%s' in route definition "
-                         "is not a network address"),
+                       _("%1$s: Address '%2$s' in route definition is not a network address"),
                        errorDetail, address);
         return NULL;
     }
@@ -214,58 +187,29 @@ virNetDevIPRouteCreate(const char *errorDetail,
 
 virNetDevIPRoute *
 virNetDevIPRouteParseXML(const char *errorDetail,
-                         xmlNodePtr node,
-                         xmlXPathContextPtr ctxt)
+                         xmlNodePtr node)
 {
-    /*
-     * virNetDevIPRoute object is already allocated as part
-     * of an array.  On failure clear: it out, but don't free it.
-     */
-
-    VIR_XPATH_NODE_AUTORESTORE(ctxt)
-    g_autofree char *family = NULL;
-    g_autofree char *address = NULL;
-    g_autofree char *netmask = NULL;
-    g_autofree char *gateway = NULL;
-    unsigned long prefix = 0, metric = 0;
-    int prefixRc, metricRc;
+    g_autofree char *family = virXMLPropString(node, "family");
+    g_autofree char *address = virXMLPropString(node, "address");
+    g_autofree char *netmask = virXMLPropString(node, "netmask");
+    g_autofree char *gateway = virXMLPropString(node, "gateway");
+    unsigned int prefix = 0;
+    unsigned int metric = 0;
     bool hasPrefix = false;
     bool hasMetric = false;
+    int rc;
 
-    ctxt->node = node;
+    if ((rc = virXMLPropUInt(node, "prefix", 10, VIR_XML_PROP_NONE, &prefix)) < 0)
+        return NULL;
 
-    /* grab raw data from XML */
-    family = virXPathString("string(./@family)", ctxt);
-    address = virXPathString("string(./@address)", ctxt);
-    netmask = virXPathString("string(./@netmask)", ctxt);
-    gateway = virXPathString("string(./@gateway)", ctxt);
-    prefixRc = virXPathULong("string(./@prefix)", ctxt, &prefix);
-    if (prefixRc == -2) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("%s: Invalid prefix specified "
-                         "in route definition"),
-                       errorDetail);
+    if (rc == 1)
+        hasPrefix = true;
+
+    if ((rc = virXMLPropUInt(node, "metric", 10, VIR_XML_PROP_NONZERO, &metric)) < 0)
         return NULL;
-    }
-    hasPrefix = (prefixRc == 0);
-    metricRc = virXPathULong("string(./@metric)", ctxt, &metric);
-    if (metricRc == -2) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("%s: Invalid metric specified "
-                         "in route definition"),
-                       errorDetail);
-        return NULL;
-    }
-    if (metricRc == 0) {
+
+    if (rc == 1)
         hasMetric = true;
-        if (metric == 0) {
-            virReportError(VIR_ERR_XML_ERROR,
-                           _("%s: Invalid metric value, must be > 0 "
-                             "in route definition"),
-                           errorDetail);
-            return NULL;
-        }
-    }
 
     return virNetDevIPRouteCreate(errorDetail, family, address, netmask,
                                   gateway, prefix, hasPrefix, metric,

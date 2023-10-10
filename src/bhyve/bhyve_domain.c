@@ -34,9 +34,13 @@
 VIR_LOG_INIT("bhyve.bhyve_domain");
 
 static void *
-bhyveDomainObjPrivateAlloc(void *opaque G_GNUC_UNUSED)
+bhyveDomainObjPrivateAlloc(void *opaque)
 {
-    return g_new0(bhyveDomainObjPrivate, 1);
+    bhyveDomainObjPrivate *priv = g_new0(bhyveDomainObjPrivate, 1);
+
+    priv->driver = opaque;
+
+    return priv;
 }
 
 static void
@@ -110,7 +114,7 @@ bhyveDomainDiskDefAssignAddress(struct _bhyveConn *driver,
 
     if (idx < 0) {
         virReportError(VIR_ERR_XML_ERROR,
-                       _("Unknown disk name '%s' and no address specified"),
+                       _("Unknown disk name '%1$s' and no address specified"),
                        def->dst);
         return -1;
     }
@@ -170,8 +174,7 @@ bhyveDomainDeviceDefPostParse(virDomainDeviceDef *dev,
              cont->model == VIR_DOMAIN_CONTROLLER_MODEL_PCIE_ROOT) &&
             cont->idx != 0) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
-                           _("pci-root and pcie-root controllers "
-                             "should have index 0"));
+                           _("pci-root and pcie-root controllers should have index 0"));
             return -1;
         }
     }
@@ -213,11 +216,18 @@ bhyveDomainDefAssignAddresses(virDomainDef *def,
 virDomainXMLOption *
 virBhyveDriverCreateXMLConf(struct _bhyveConn *driver)
 {
+    virDomainXMLOption *ret = NULL;
+
     virBhyveDriverDomainDefParserConfig.priv = driver;
-    return virDomainXMLOptionNew(&virBhyveDriverDomainDefParserConfig,
-                                 &virBhyveDriverPrivateDataCallbacks,
-                                 &virBhyveDriverDomainXMLNamespace,
-                                 NULL, NULL);
+
+    ret = virDomainXMLOptionNew(&virBhyveDriverDomainDefParserConfig,
+                                &virBhyveDriverPrivateDataCallbacks,
+                                &virBhyveDriverDomainXMLNamespace,
+                                NULL, NULL, NULL);
+
+    virDomainXMLOptionSetCloseCallbackAlloc(ret, virCloseCallbacksDomainAlloc);
+
+    return ret;
 }
 
 

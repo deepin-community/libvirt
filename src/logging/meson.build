@@ -30,6 +30,7 @@ log_daemon_sources = files(
   'log_daemon_config.c',
   'log_daemon_dispatch.c',
   'log_handler.c',
+  'log_cleaner.c',
 )
 
 if conf.has('WITH_REMOTE')
@@ -90,8 +91,7 @@ if conf.has('WITH_LIBVIRTD')
   virt_daemon_units += {
     'service': 'virtlogd',
     'service_in': files('virtlogd.service.in'),
-    'name': '',
-    'sockprefix': '',
+    'name': 'Libvirt logging',
     'sockets': [ 'main', 'admin' ],
     'socket_in': files('virtlogd.socket.in'),
     'socket_admin_in': files('virtlogd-admin.socket.in'),

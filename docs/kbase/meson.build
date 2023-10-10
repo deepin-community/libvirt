@@ -2,7 +2,6 @@ docs_kbase_files = [
   'backing_chains',
   'debuglogs',
   'domainstatecapture',
-  'incrementalbackupinternals',
   'index',
   'kvm-realtime',
   'launch_security_sev',
@@ -12,17 +11,18 @@ docs_kbase_files = [
   'locking-sanlock',
   'memorydevices',
   'merging_disk_image_chains',
-  'migrationinternals',
   'qemu-core-dump',
   'qemu-passthrough-security',
   'rpm-deployment',
   's390_protected_virt',
+  'secureboot',
   'secureusage',
+  'snapshots',
   'systemtap',
+  'tlscerts',
   'virtiofs',
 ]
 
-html_xslt_gen_xslt = subsite_xsl
 html_xslt_gen_install_dir = docs_html_dir / 'kbase'
 html_xslt_gen = []
 
@@ -33,10 +33,10 @@ foreach name : docs_kbase_files
     'name': name,
     'file': docs_rst2html5_gen.process(rst_file),
     'source': 'docs' / 'kbase' / rst_file,
+    'href_base': '../',
   }
 endforeach
 
-# keep the XSLT processing code block in sync with docs/meson.build
 
 # --- begin of XSLT processing ---
 
@@ -50,10 +50,11 @@ foreach data : html_xslt_gen
     command: [
       xsltproc_prog,
       '--stringparam', 'pagesrc', data.get('source', ''),
-      '--stringparam', 'builddir', meson.build_root(),
+      '--stringparam', 'builddir', meson.project_build_root(),
       '--stringparam', 'timestamp', docs_timestamp,
+      '--stringparam', 'href_base', data.get('href_base', ''),
       '--nonet',
-      html_xslt_gen_xslt,
+      site_xsl,
       '@INPUT@',
     ],
     depends: data.get('depends', []),
@@ -70,3 +71,5 @@ endforeach
 html_xslt_gen = []
 
 # --- end of XSLT processing ---
+
+subdir('internals')

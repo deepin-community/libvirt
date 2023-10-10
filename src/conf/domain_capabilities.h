@@ -127,6 +127,21 @@ struct _virDomainCapsDeviceTPM {
     virTristateBool supported;
     virDomainCapsEnum model;   /* virDomainTPMModel */
     virDomainCapsEnum backendModel;   /* virDomainTPMBackendType */
+    virDomainCapsEnum backendVersion; /* virDomainTPMVersion */
+};
+
+STATIC_ASSERT_ENUM(VIR_DOMAIN_REDIRDEV_BUS_LAST);
+typedef struct _virDomainCapsDeviceRedirdev virDomainCapsDeviceRedirdev;
+struct _virDomainCapsDeviceRedirdev {
+    virTristateBool supported;
+    virDomainCapsEnum bus;   /* virDomainRedirdevBus */
+};
+
+STATIC_ASSERT_ENUM(VIR_DOMAIN_CHR_TYPE_LAST);
+typedef struct _virDomainCapsDeviceChannel virDomainCapsDeviceChannel;
+struct _virDomainCapsDeviceChannel {
+    virTristateBool supported;
+    virDomainCapsEnum type;   /* virDomainChrType */
 };
 
 STATIC_ASSERT_ENUM(VIR_DOMAIN_FS_DRIVER_TYPE_LAST);
@@ -141,6 +156,13 @@ typedef struct _virDomainCapsFeatureGIC virDomainCapsFeatureGIC;
 struct _virDomainCapsFeatureGIC {
     virTristateBool supported;
     virDomainCapsEnum version; /* Info about virGICVersion */
+};
+
+STATIC_ASSERT_ENUM(VIR_DOMAIN_HYPERV_LAST);
+typedef struct _virDomainCapsFeatureHyperv virDomainCapsFeatureHyperv;
+struct _virDomainCapsFeatureHyperv {
+    virTristateBool supported;
+    virDomainCapsEnum features; /* Info about supported virDomainHyperv features */
 };
 
 typedef enum {
@@ -158,6 +180,7 @@ struct _virDomainCapsCPUModel {
     virDomainCapsCPUUsable usable;
     char **blockers; /* NULL-terminated list of usability blockers */
     bool deprecated;
+    char *vendor;
 };
 
 typedef struct _virDomainCapsCPUModels virDomainCapsCPUModels;
@@ -185,10 +208,38 @@ typedef struct _virSEVCapability virSEVCapability;
 struct _virSEVCapability {
     char *pdh;
     char *cert_chain;
+    char *cpu0_id;
     unsigned int cbitpos;
     unsigned int reduced_phys_bits;
     unsigned int max_guests;
     unsigned int max_es_guests;
+};
+
+typedef struct _virSGXSection virSGXSection;
+struct _virSGXSection {
+    unsigned long long size;
+    unsigned int node;
+};
+
+typedef struct _virSGXCapability virSGXCapability;
+struct _virSGXCapability {
+    bool flc;
+    bool sgx1;
+    bool sgx2;
+    unsigned long long section_size;
+    size_t nSgxSections;
+    virSGXSection *sgxSections;
+};
+
+STATIC_ASSERT_ENUM(VIR_DOMAIN_CRYPTO_MODEL_LAST);
+STATIC_ASSERT_ENUM(VIR_DOMAIN_CRYPTO_TYPE_LAST);
+STATIC_ASSERT_ENUM(VIR_DOMAIN_CRYPTO_BACKEND_LAST);
+typedef struct _virDomainCapsDeviceCrypto virDomainCapsDeviceCrypto;
+struct _virDomainCapsDeviceCrypto {
+    virTristateBool supported;
+    virDomainCapsEnum model;   /* virDomainCryptoModel */
+    virDomainCapsEnum type;   /* virDomainCryptoType */
+    virDomainCapsEnum backendModel;   /* virDomainCryptoBackend */
 };
 
 typedef enum {
@@ -197,6 +248,7 @@ typedef enum {
     VIR_DOMAIN_CAPS_FEATURE_GENID,
     VIR_DOMAIN_CAPS_FEATURE_BACKING_STORE_INPUT,
     VIR_DOMAIN_CAPS_FEATURE_BACKUP,
+    VIR_DOMAIN_CAPS_FEATURE_ASYNC_TEARDOWN,
     VIR_DOMAIN_CAPS_FEATURE_S390_PV,
 
     VIR_DOMAIN_CAPS_FEATURE_LAST
@@ -223,10 +275,15 @@ struct _virDomainCaps {
     virDomainCapsDeviceRNG rng;
     virDomainCapsDeviceFilesystem filesystem;
     virDomainCapsDeviceTPM tpm;
+    virDomainCapsDeviceRedirdev redirdev;
+    virDomainCapsDeviceChannel channel;
+    virDomainCapsDeviceCrypto crypto;
     /* add new domain devices here */
 
     virDomainCapsFeatureGIC gic;
     virSEVCapability *sev;
+    virSGXCapability *sgx;
+    virDomainCapsFeatureHyperv *hyperv;
     /* add new domain features here */
 
     virTristateBool features[VIR_DOMAIN_CAPS_FEATURE_LAST];
@@ -242,11 +299,13 @@ virDomainCaps *virDomainCapsNew(const char *path,
 
 virDomainCapsCPUModels *virDomainCapsCPUModelsNew(size_t nmodels);
 virDomainCapsCPUModels *virDomainCapsCPUModelsCopy(virDomainCapsCPUModels *old);
-int virDomainCapsCPUModelsAdd(virDomainCapsCPUModels *cpuModels,
-                              const char *name,
-                              virDomainCapsCPUUsable usable,
-                              char **blockers,
-                              bool deprecated);
+void
+virDomainCapsCPUModelsAdd(virDomainCapsCPUModels *cpuModels,
+                          const char *name,
+                          virDomainCapsCPUUsable usable,
+                          char **blockers,
+                          bool deprecated,
+                          const char *vendor);
 virDomainCapsCPUModel *
 virDomainCapsCPUModelsGet(virDomainCapsCPUModels *cpuModels,
                           const char *name);
@@ -275,3 +334,8 @@ void
 virSEVCapabilitiesFree(virSEVCapability *capabilities);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virSEVCapability, virSEVCapabilitiesFree);
+
+void
+virSGXCapabilitiesFree(virSGXCapability *capabilities);
+
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virSGXCapability, virSGXCapabilitiesFree);

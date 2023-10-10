@@ -23,12 +23,10 @@
 #include "internal.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "virconf.h"
 #include "datatypes.h"
 #include "virfile.h"
 #include "viralloc.h"
 #include "viruuid.h"
-#include "vircommand.h"
 #include "virstring.h"
 #include "virobject.h"
 #include "virthread.h"
@@ -36,7 +34,6 @@
 #include "rpc/virnetsocket.h"
 #include "libxl_api_wrapper.h"
 #include "libxl_domain.h"
-#include "libxl_driver.h"
 #include "libxl_conf.h"
 #include "libxl_migration.h"
 #include "locking/domain_lock.h"
@@ -332,7 +329,7 @@ libxlMigrateDstReceive(virNetSocket *sock,
 static int
 libxlDoMigrateSrcSend(libxlDriverPrivate *driver,
                       virDomainObj *vm,
-                      unsigned long flags,
+                      unsigned int flags,
                       int sockfd)
 {
     libxlDriverConfig *cfg = libxlDriverConfigGet(driver);
@@ -386,7 +383,7 @@ libxlDomainMigrationSrcBegin(virConnectPtr conn,
      * terminated in the confirm phase. Errors in the begin or perform
      * phase will also terminate the job.
      */
-    if (libxlDomainObjBeginJob(driver, vm, LIBXL_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (!(mig = libxlMigrationCookieNew(vm)))
@@ -420,7 +417,7 @@ libxlDomainMigrationSrcBegin(virConnectPtr conn,
         goto cleanup;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     libxlMigrationCookieFree(mig);
@@ -474,7 +471,7 @@ libxlDomainMigrationPrepareAny(virConnectPtr dconn,
 
     if ((*mig)->xenMigStreamVer > LIBXL_SAVE_VERSION) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("Xen migration stream version '%d' is not supported on this host"),
+                       _("Xen migration stream version '%1$d' is not supported on this host"),
                        (*mig)->xenMigStreamVer);
         return -1;
     }
@@ -556,7 +553,7 @@ libxlDomainMigrationDstPrepareTunnel3(virConnectPtr dconn,
      * Unless an error is encountered in this function, the job will
      * be terminated in the finish phase.
      */
-    if (libxlDomainObjBeginJob(driver, vm, LIBXL_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto error;
 
     priv = vm->privateData;
@@ -607,7 +604,7 @@ libxlDomainMigrationDstPrepareTunnel3(virConnectPtr dconn,
     goto done;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  error:
     libxlMigrationCookieFree(mig);
@@ -640,7 +637,7 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
     char *xmlout = NULL;
     unsigned short port;
     char portstr[100];
-    virURI *uri = NULL;
+    g_autoptr(virURI) uri = NULL;
     virNetSocket **socks = NULL;
     size_t nsocks = 0;
     int nsocks_listen = 0;
@@ -665,7 +662,7 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
      * Unless an error is encountered in this function, the job will
      * be terminated in the finish phase.
      */
-    if (libxlDomainObjBeginJob(driver, vm, LIBXL_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto error;
 
     priv = vm->privateData;
@@ -682,8 +679,7 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
 
         if (STRPREFIX(hostname, "localhost")) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("hostname on destination resolved to localhost,"
-                             " but migration requires an FQDN"));
+                           _("hostname on destination resolved to localhost, but migration requires an FQDN"));
             goto endjob;
         }
 
@@ -705,14 +701,14 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
 
         if (uri == NULL) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("unable to parse URI: %s"),
+                           _("unable to parse URI: %1$s"),
                            uri_in);
             goto endjob;
         }
 
         if (uri->server == NULL) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("missing host in migration URI: %s"),
+                           _("missing host in migration URI: %1$s"),
                            uri_in);
             goto endjob;
         }
@@ -777,7 +773,7 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
     goto done;
 
  endjob:
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
 
  error:
     for (i = 0; i < nsocks; i++) {
@@ -798,8 +794,6 @@ libxlDomainMigrationDstPrepare(virConnectPtr dconn,
     libxlMigrationCookieFree(mig);
     if (!uri_in)
         VIR_FREE(hostname);
-    else
-        virURIFree(uri);
     virObjectUnref(args);
     virDomainObjEndAPI(&vm);
     virObjectUnref(cfg);
@@ -882,7 +876,7 @@ struct libxlTunnelControl {
 static int
 libxlMigrationSrcStartTunnel(libxlDriverPrivate *driver,
                              virDomainObj *vm,
-                             unsigned long flags,
+                             unsigned int flags,
                              virStreamPtr st,
                              struct libxlTunnelControl **tnl)
 {
@@ -1147,8 +1141,7 @@ libxlDomainMigrationSrcPerformP2P(libxlDriverPrivate *driver,
     if (useParams <= 0) {
         if (useParams == 0)
             virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                           _("Destination libvirt does not support migration"
-                             " with extensible parameters"));
+                           _("Destination libvirt does not support migration with extensible parameters"));
         goto cleanup;
     }
 
@@ -1160,7 +1153,7 @@ libxlDomainMigrationSrcPerformP2P(libxlDriverPrivate *driver,
          * Confirm phase will not be executed if perform fails. End the
          * job started in begin phase.
          */
-        libxlDomainObjEndJob(driver, vm);
+        virDomainObjEndJob(vm);
     }
 
  cleanup:
@@ -1186,15 +1179,15 @@ libxlDomainMigrationSrcPerform(libxlDriverPrivate *driver,
     char *hostname = NULL;
     unsigned short port = 0;
     char portstr[100];
-    virURI *uri = NULL;
+    g_autoptr(virURI) uri = NULL;
     virNetSocket *sock;
-    int sockfd = -1;
+    VIR_AUTOCLOSE sockfd = -1;
     int ret = -1;
 
     /* parse dst host:port from uri */
     uri = virURIParse(uri_str);
     if (uri == NULL || uri->server == NULL || uri->port == 0)
-        goto cleanup;
+        return -1;
 
     hostname = uri->server;
     port = uri->port;
@@ -1204,11 +1197,11 @@ libxlDomainMigrationSrcPerform(libxlDriverPrivate *driver,
     if (virNetSocketNewConnectTCP(hostname, portstr,
                                   AF_UNSPEC,
                                   &sock) < 0)
-        goto cleanup;
+        return -1;
 
     if (virNetSocketSetBlocking(sock, true) < 0) {
         virObjectUnref(sock);
-        goto cleanup;
+        return -1;
     }
 
     sockfd = virNetSocketDupFD(sock, true);
@@ -1231,12 +1224,9 @@ libxlDomainMigrationSrcPerform(libxlDriverPrivate *driver,
          * Confirm phase will not be executed if perform fails. End the
          * job started in begin phase.
          */
-        libxlDomainObjEndJob(driver, vm);
+        virDomainObjEndJob(vm);
     }
 
- cleanup:
-    VIR_FORCE_CLOSE(sockfd);
-    virURIFree(uri);
     return ret;
 }
 
@@ -1268,9 +1258,8 @@ libxlDomainMigrationDstFinish(virConnectPtr dconn,
     /* Check if domain is alive */
     if (!virDomainObjIsActive(vm)) {
         /* Migration failed if domain is inactive */
-        virReportError(VIR_ERR_OPERATION_FAILED,
-                       "%s", _("Migration failed. Domain is not running "
-                               "on destination host"));
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       _("Migration failed. Domain is not running on destination host"));
         goto cleanup;
     }
 
@@ -1335,7 +1324,7 @@ libxlDomainMigrationDstFinish(virConnectPtr dconn,
     }
 
     /* EndJob for corresponding BeginJob in prepare phase */
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
     virObjectEventStateQueue(driver->domainEventState, event);
     virObjectUnref(cfg);
     return dom;
@@ -1350,7 +1339,6 @@ libxlDomainMigrationSrcConfirm(libxlDriverPrivate *driver,
     libxlDriverConfig *cfg = libxlDriverConfigGet(driver);
     libxlDomainObjPrivate *priv = vm->privateData;
     virObjectEvent *event = NULL;
-    int ret = -1;
 
     if (cancelled) {
         /* Resume lock process that was paused in MigrationSrcPerform */
@@ -1359,17 +1347,6 @@ libxlDomainMigrationSrcConfirm(libxlDriverPrivate *driver,
                                    vm,
                                    priv->lockState);
         priv->lockProcessRunning = true;
-        if (libxl_domain_resume(cfg->ctx, vm->def->id, 1, 0) == 0) {
-            ret = 0;
-        } else {
-            VIR_DEBUG("Unable to resume domain '%s' after failed migration",
-                      vm->def->name);
-            virDomainObjSetState(vm, VIR_DOMAIN_PAUSED,
-                                 VIR_DOMAIN_PAUSED_MIGRATION);
-            event = virDomainEventLifecycleNewFromObj(vm, VIR_DOMAIN_EVENT_SUSPENDED,
-                                     VIR_DOMAIN_EVENT_SUSPENDED_MIGRATED);
-            ignore_value(virDomainObjSave(vm, driver->xmlopt, cfg->stateDir));
-        }
         goto cleanup;
     }
 
@@ -1388,12 +1365,10 @@ libxlDomainMigrationSrcConfirm(libxlDriverPrivate *driver,
     if (!vm->persistent || (flags & VIR_MIGRATE_UNDEFINE_SOURCE))
         virDomainObjListRemove(driver->domains, vm);
 
-    ret = 0;
-
  cleanup:
     /* EndJob for corresponding BeginJob in begin phase */
-    libxlDomainObjEndJob(driver, vm);
+    virDomainObjEndJob(vm);
     virObjectEventStateQueue(driver->domainEventState, event);
     virObjectUnref(cfg);
-    return ret;
+    return 0;
 }

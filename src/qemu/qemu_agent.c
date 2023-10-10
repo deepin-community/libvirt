@@ -34,12 +34,10 @@
 #include "virerror.h"
 #include "virjson.h"
 #include "virfile.h"
-#include "virprocess.h"
 #include "virtime.h"
 #include "virobject.h"
 #include "virstring.h"
 #include "virenum.h"
-#include "virsocket.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
@@ -92,7 +90,6 @@ struct _qemuAgent {
     GSource *watch;
 
     bool running;
-    bool singleSync;
     bool inSync;
 
     virDomainObj *vm;
@@ -152,7 +149,7 @@ static void qemuAgentDispose(void *obj)
 static int
 qemuAgentOpenUnix(const char *socketpath)
 {
-    struct sockaddr_un addr;
+    struct sockaddr_un addr = { 0 };
     int agentfd;
 
     if ((agentfd = socket(AF_UNIX, SOCK_STREAM, 0)) < 0) {
@@ -163,16 +160,14 @@ qemuAgentOpenUnix(const char *socketpath)
 
     if (virSetCloseExec(agentfd) < 0) {
         virReportSystemError(errno, "%s",
-                             _("Unable to set agent "
-                               "close-on-exec flag"));
+                             _("Unable to set agent close-on-exec flag"));
         goto error;
     }
 
-    memset(&addr, 0, sizeof(addr));
     addr.sun_family = AF_UNIX;
     if (virStrcpyStatic(addr.sun_path, socketpath) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Socket path %s too big for destination"), socketpath);
+                       _("Socket path %1$s too big for destination"), socketpath);
         goto error;
     }
 
@@ -229,16 +224,16 @@ qemuAgentIOProcessLine(qemuAgent *agent,
 
     if (virJSONValueGetType(obj) != VIR_JSON_TYPE_OBJECT) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Parsed JSON reply '%s' isn't an object"), line);
+                       _("Parsed JSON reply '%1$s' isn't an object"), line);
         return -1;
     }
 
-    if (virJSONValueObjectHasKey(obj, "QMP") == 1) {
+    if (virJSONValueObjectHasKey(obj, "QMP")) {
         return 0;
-    } else if (virJSONValueObjectHasKey(obj, "event") == 1) {
+    } else if (virJSONValueObjectHasKey(obj, "event")) {
         return qemuAgentIOProcessEvent(agent, obj);
-    } else if (virJSONValueObjectHasKey(obj, "error") == 1 ||
-               virJSONValueObjectHasKey(obj, "return") == 1) {
+    } else if (virJSONValueObjectHasKey(obj, "error") ||
+               virJSONValueObjectHasKey(obj, "return")) {
         if (msg) {
             if (msg->sync) {
                 unsigned long long id;
@@ -267,7 +262,7 @@ qemuAgentIOProcessLine(qemuAgent *agent,
     }
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Unknown JSON reply '%s'"), line);
+                   _("Unknown JSON reply '%1$s'"), line);
     return -1;
 }
 
@@ -378,7 +373,7 @@ qemuAgentIORead(qemuAgent *agent)
     if (avail < 1024) {
         if (agent->bufferLength >= QEMU_AGENT_MAX_RESPONSE) {
             virReportSystemError(ERANGE,
-                                 _("No complete agent response found in %d bytes"),
+                                 _("No complete agent response found in %1$d bytes"),
                                  QEMU_AGENT_MAX_RESPONSE);
             return -1;
         }
@@ -452,8 +447,9 @@ static void
 qemuAgentUnregister(qemuAgent *agent)
 {
     if (agent->watch) {
+        g_source_destroy(agent->watch);
         vir_g_source_unref(agent->watch, agent->context);
-        g_clear_pointer(&agent->watch, g_source_destroy);
+        agent->watch = NULL;
     }
 }
 
@@ -588,8 +584,7 @@ qemuAgent *
 qemuAgentOpen(virDomainObj *vm,
               const virDomainChrSourceDef *config,
               GMainContext *context,
-              qemuAgentCallbacks *cb,
-              bool singleSync)
+              qemuAgentCallbacks *cb)
 {
     qemuAgent *agent;
     g_autoptr(GError) gerr = NULL;
@@ -616,11 +611,10 @@ qemuAgentOpen(virDomainObj *vm,
     }
     agent->vm = virObjectRef(vm);
     agent->cb = cb;
-    agent->singleSync = singleSync;
 
     if (config->type != VIR_DOMAIN_CHR_TYPE_UNIX) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to handle agent type: %s"),
+                       _("unable to handle agent type: %1$s"),
                        virDomainChrTypeToString(config->type));
         goto cleanup;
     }
@@ -637,7 +631,7 @@ qemuAgentOpen(virDomainObj *vm,
     agent->socket = g_socket_new_from_fd(agent->fd, &gerr);
     if (!agent->socket) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to create socket object: %s"),
+                       _("Unable to create socket object: %1$s"),
                        gerr->message);
         goto cleanup;
     }
@@ -679,9 +673,9 @@ qemuAgentNotifyClose(qemuAgent *agent)
 
     VIR_DEBUG("agent=%p", agent);
 
-    virObjectLock(agent);
-    qemuAgentNotifyCloseLocked(agent);
-    virObjectUnlock(agent);
+    VIR_WITH_OBJECT_LOCK_GUARD(agent) {
+        qemuAgentNotifyCloseLocked(agent);
+    }
 }
 
 
@@ -692,16 +686,15 @@ void qemuAgentClose(qemuAgent *agent)
 
     VIR_DEBUG("agent=%p", agent);
 
-    virObjectLock(agent);
+    VIR_WITH_OBJECT_LOCK_GUARD(agent) {
+        if (agent->socket) {
+            qemuAgentUnregister(agent);
+            g_clear_pointer(&agent->socket, g_object_unref);
+            agent->fd = -1;
+        }
 
-    if (agent->socket) {
-        qemuAgentUnregister(agent);
-        g_clear_pointer(&agent->socket, g_object_unref);
-        agent->fd = -1;
+        qemuAgentNotifyCloseLocked(agent);
     }
-
-    qemuAgentNotifyCloseLocked(agent);
-    virObjectUnlock(agent);
 
     virObjectUnref(agent);
 }
@@ -763,8 +756,7 @@ static int qemuAgentSend(qemuAgent *agent,
                 ret = -2;
             } else {
                 virReportSystemError(errno, "%s",
-                                     _("Unable to wait on agent socket "
-                                       "condition"));
+                                     _("Unable to wait on agent socket condition"));
             }
             agent->inSync = false;
             goto cleanup;
@@ -808,10 +800,8 @@ qemuAgentGuestSyncSend(qemuAgent *agent,
     g_autofree char *txMsg = NULL;
     g_autoptr(virJSONValue) rxObj = NULL;
     unsigned long long id;
-    qemuAgentMessage sync_msg;
+    qemuAgentMessage sync_msg = { 0 };
     int rc;
-
-    memset(&sync_msg, 0, sizeof(sync_msg));
 
     if (virTimeMillisNow(&id) < 0)
         return -1;
@@ -859,7 +849,7 @@ qemuAgentGuestSync(qemuAgent *agent)
     int timeout = VIR_DOMAIN_QEMU_AGENT_COMMAND_DEFAULT;
     int rc;
 
-    if (agent->singleSync && agent->inSync)
+    if (agent->inSync)
         return 0;
 
     /* if user specified a custom agent timeout that is lower than the
@@ -871,16 +861,20 @@ qemuAgentGuestSync(qemuAgent *agent)
         return -1;
 
     /* successfully sync'd */
-    if (rc == 1)
+    if (rc == 1) {
+        agent->inSync = true;
         return 0;
+    }
 
     /* send another sync */
     if ((rc = qemuAgentGuestSyncSend(agent, timeout, false)) < 0)
         return -1;
 
     /* successfully sync'd */
-    if (rc == 1)
+    if (rc == 1) {
+        agent->inSync = true;
         return 0;
+    }
 
     if (agent->running)
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -974,7 +968,7 @@ qemuAgentCheckError(virJSONValue *cmd,
         /* Only send the user the command name + friendly error */
         if (!error) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unable to execute QEMU agent command '%s'"),
+                           _("unable to execute QEMU agent command '%1$s'"),
                            qemuAgentCommandName(cmd));
             return -1;
         }
@@ -988,7 +982,7 @@ qemuAgentCheckError(virJSONValue *cmd,
         }
 
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to execute QEMU agent command '%s': %s"),
+                       _("unable to execute QEMU agent command '%1$s': %2$s"),
                        qemuAgentCommandName(cmd),
                        qemuAgentStringifyError(error));
 
@@ -1001,7 +995,7 @@ qemuAgentCheckError(virJSONValue *cmd,
         VIR_DEBUG("Neither 'return' nor 'error' is set in the JSON reply %s: %s",
                   NULLSTR(cmdstr), NULLSTR(replystr));
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to execute QEMU agent command '%s'"),
+                       _("unable to execute QEMU agent command '%1$s'"),
                        qemuAgentCommandName(cmd));
         return -1;
     }
@@ -1016,12 +1010,11 @@ qemuAgentCommandFull(qemuAgent *agent,
                      bool report_unsupported)
 {
     int ret = -1;
-    qemuAgentMessage msg;
+    qemuAgentMessage msg = { 0 };
     g_autofree char *cmdstr = NULL;
     int await_event = agent->await_event;
 
     *reply = NULL;
-    memset(&msg, 0, sizeof(msg));
 
     if (!agent->running) {
         virReportError(VIR_ERR_AGENT_UNRESPONSIVE, "%s",
@@ -1125,7 +1118,7 @@ qemuAgentMakeStringsArray(const char **strings, unsigned int len)
 void qemuAgentNotifyEvent(qemuAgent *agent,
                           qemuAgentEvent event)
 {
-    virObjectLock(agent);
+    VIR_LOCK_GUARD lock = virObjectLockGuard(agent);
 
     VIR_DEBUG("agent=%p event=%d await_event=%d", agent, event, agent->await_event);
     if (agent->await_event == event) {
@@ -1136,8 +1129,6 @@ void qemuAgentNotifyEvent(qemuAgent *agent,
             virCondSignal(&agent->notify);
         }
     }
-
-    virObjectUnlock(agent);
 }
 
 VIR_ENUM_DECL(qemuAgentShutdownMode);
@@ -1286,8 +1277,7 @@ qemuAgentArbitraryCommand(qemuAgent *agent,
     *result = NULL;
     if (timeout < VIR_DOMAIN_QEMU_AGENT_COMMAND_MIN) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("guest agent timeout '%d' is "
-                         "less than the minimum '%d'"),
+                       _("guest agent timeout '%1$d' is less than the minimum '%2$d'"),
                        timeout, VIR_DOMAIN_QEMU_AGENT_COMMAND_MIN);
         return -1;
     }
@@ -1352,8 +1342,7 @@ qemuAgentGetVCPUs(qemuAgent *agent,
 
         if (!entry) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("array element missing in guest-get-vcpus return "
-                             "value"));
+                           _("array element missing in guest-get-vcpus return value"));
             return -1;
         }
 
@@ -1369,12 +1358,8 @@ qemuAgentGetVCPUs(qemuAgent *agent,
             return -1;
         }
 
-        if (virJSONValueObjectGetBoolean(entry, "can-offline",
-                                         &in->offlinable) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("'can-offline' missing in reply of guest-get-vcpus"));
-            return -1;
-        }
+        in->offlinable = false;
+        ignore_value(virJSONValueObjectGetBoolean(entry, "can-offline", &in->offlinable));
     }
 
     return ndata;
@@ -1661,7 +1646,7 @@ qemuAgentSetTime(qemuAgent *agent,
          * not ULLONG_MAX. */
         if (seconds > LLONG_MAX / 1000000000LL) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("Time '%lld' is too big for guest agent"),
+                           _("Time '%1$lld' is too big for guest agent"),
                            seconds);
             return -1;
         }
@@ -1746,7 +1731,7 @@ qemuAgentGetDiskAddress(virJSONValue *json)
     do { \
         if (virJSONValueObjectGetNumberUint(jsonObject, name, var) < 0) { \
             virReportError(VIR_ERR_INTERNAL_ERROR, \
-                           _("'%s' missing"), name); \
+                           _("'%1$s' missing"), name); \
             return NULL; \
         } \
     } while (0)
@@ -1767,9 +1752,9 @@ qemuAgentGetDiskAddress(virJSONValue *json)
     GET_DISK_ADDR(pci, &addr->pci_controller.function, "function");
 
     if ((ccw = virJSONValueObjectGet(json, "ccw-address"))) {
-        g_autofree virDomainDeviceCCWAddress *ccw_addr = NULL;
+        g_autofree virCCWDeviceAddress *ccw_addr = NULL;
 
-        ccw_addr = g_new0(virDomainDeviceCCWAddress, 1);
+        ccw_addr = g_new0(virCCWDeviceAddress, 1);
 
         GET_DISK_ADDR(ccw, &ccw_addr->cssid, "cssid");
         if (ccw_addr->cssid == 0)  /* Guest CSSID 0 is 0xfe on host */
@@ -1792,12 +1777,6 @@ qemuAgentGetFSInfoFillDisks(virJSONValue *jsondisks,
     size_t ndisks;
     size_t i;
 
-    if (!virJSONValueIsArray(jsondisks)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Malformed guest-get-fsinfo 'disk' data array"));
-        return -1;
-    }
-
     ndisks = virJSONValueArraySize(jsondisks);
 
     if (ndisks)
@@ -1809,8 +1788,7 @@ qemuAgentGetFSInfoFillDisks(virJSONValue *jsondisks,
 
         if (!jsondisk) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("array element '%zd' of '%zd' missing in "
-                             "guest-get-fsinfo 'disk' data"),
+                           _("array element '%1$zd' of '%2$zd' missing in guest-get-fsinfo 'disk' data"),
                            i, fsinfo->ndisks);
             return -1;
         }
@@ -1849,15 +1827,9 @@ qemuAgentGetFSInfo(qemuAgent *agent,
                                    report_unsupported)) < 0)
         return rc;
 
-    if (!(data = virJSONValueObjectGet(reply, "return"))) {
+    if (!(data = virJSONValueObjectGetArray(reply, "return"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("guest-get-fsinfo reply was missing return data"));
-        goto cleanup;
-    }
-
-    if (!virJSONValueIsArray(data)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Malformed guest-get-fsinfo data array"));
+                       _("guest-get-fsinfo reply was missing or not an array"));
         goto cleanup;
     }
 
@@ -1878,8 +1850,7 @@ qemuAgentGetFSInfo(qemuAgent *agent,
 
         if (!entry) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("array element '%zd' of '%zd' missing in "
-                             "guest-get-fsinfo return data"),
+                           _("array element '%1$zd' of '%2$zd' missing in guest-get-fsinfo return data"),
                            i, ndata);
             goto cleanup;
         }
@@ -1888,8 +1859,7 @@ qemuAgentGetFSInfo(qemuAgent *agent,
 
         if (!(result = virJSONValueObjectGetString(entry, "mountpoint"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("'mountpoint' missing in reply of "
-                             "guest-get-fsinfo"));
+                           _("'mountpoint' missing in reply of guest-get-fsinfo"));
             goto cleanup;
         }
 
@@ -1937,9 +1907,9 @@ qemuAgentGetFSInfo(qemuAgent *agent,
             info_ret[i]->total_bytes = -1;
         }
 
-        if (!(disk = virJSONValueObjectGet(entry, "disk"))) {
+        if (!(disk = virJSONValueObjectGetArray(entry, "disk"))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("'disk' missing in reply of guest-get-fsinfo"));
+                           _("'disk' missing or not an array in reply of guest-get-fsinfo"));
             goto cleanup;
         }
 
@@ -1970,14 +1940,14 @@ qemuAgentGetInterfaceOneAddress(virDomainIPAddressPtr ip_addr,
     type = virJSONValueObjectGetString(ip_addr_obj, "ip-address-type");
     if (!type) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("qemu agent didn't provide 'ip-address-type'"
-                         " field for interface '%s'"), name);
+                       _("qemu agent didn't provide 'ip-address-type' field for interface '%1$s'"),
+                       name);
         return -1;
     }
 
     if (STRNEQ(type, "ipv4") && STRNEQ(type, "ipv6")) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown ip address type '%s'"),
+                       _("unknown ip address type '%1$s'"),
                        type);
         return -1;
     }
@@ -1985,8 +1955,8 @@ qemuAgentGetInterfaceOneAddress(virDomainIPAddressPtr ip_addr,
     addr = virJSONValueObjectGetString(ip_addr_obj, "ip-address");
     if (!addr) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("qemu agent didn't provide 'ip-address'"
-                         " field for interface '%s'"), name);
+                       _("qemu agent didn't provide 'ip-address' field for interface '%1$s'"),
+                       name);
         return -1;
     }
 
@@ -2070,15 +2040,8 @@ qemuAgentGetInterfaceAddresses(virDomainInterfacePtr **ifaces_ret,
 
     /* as well as IP address which - moreover -
      * can be presented multiple times */
-    ip_addr_arr = virJSONValueObjectGet(iface_obj, "ip-addresses");
-    if (!ip_addr_arr)
+    if (!(ip_addr_arr = virJSONValueObjectGetArray(iface_obj, "ip-addresses")))
         return 0;
-
-    if (!virJSONValueIsArray(ip_addr_arr)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Malformed ip-addresses array"));
-        return -1;
-    }
 
     /* If current iface already exists, continue with the count */
     addrs_count = iface->naddrs;
@@ -2240,8 +2203,7 @@ qemuAgentGetUsers(qemuAgent *agent,
 
         if (!entry) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("array element missing in guest-get-users return "
-                             "value"));
+                           _("array element missing in guest-get-users return value"));
             return -1;
         }
 
@@ -2416,6 +2378,7 @@ qemuAgentSSHGetAuthorizedKeys(qemuAgent *agent,
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
     virJSONValue *data = NULL;
+    virJSONValue *arr = NULL;
 
     if (!(cmd = qemuAgentMakeCommand("guest-ssh-get-authorized-keys",
                                      "s:username", user,
@@ -2425,13 +2388,14 @@ qemuAgentSSHGetAuthorizedKeys(qemuAgent *agent,
     if (qemuAgentCommand(agent, cmd, &reply, agent->timeout) < 0)
         return -1;
 
-    if (!(data = virJSONValueObjectGetObject(reply, "return"))) {
+    if (!(data = virJSONValueObjectGetObject(reply, "return")) ||
+        !(arr = virJSONValueObjectGetArray(data, "keys"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("qemu agent didn't return an array of keys"));
         return -1;
     }
 
-    if (!(*keys = virJSONValueObjectGetStringArray(data, "keys")))
+    if (!(*keys = virJSONValueArrayToStringList(arr)))
         return -1;
 
     return g_strv_length(*keys);
@@ -2548,12 +2512,12 @@ int qemuAgentGetDisks(qemuAgent *agent,
     for (i = 0; i < ndata; i++) {
         virJSONValue *addr;
         virJSONValue *entry = virJSONValueArrayGet(data, i);
+        virJSONValue *dependencies;
         qemuAgentDiskInfo *disk;
 
         if (!entry) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("array element missing in guest-get-disks return "
-                             "value"));
+                           _("array element missing in guest-get-disks return value"));
             goto error;
         }
 
@@ -2573,7 +2537,11 @@ int qemuAgentGetDisks(qemuAgent *agent,
             goto error;
         }
 
-        disk->dependencies = virJSONValueObjectGetStringArray(entry, "dependencies");
+        if ((dependencies = virJSONValueObjectGetArray(entry, "dependencies"))) {
+            if (!(disk->dependencies = virJSONValueArrayToStringList(dependencies)))
+                goto error;
+        }
+
         disk->alias = g_strdup(virJSONValueObjectGetString(entry, "alias"));
         addr = virJSONValueObjectGetObject(entry, "address");
         if (addr) {

@@ -59,8 +59,6 @@ if conf.has('WITH_CH')
     'service': 'virtchd',
     'service_in': files('virtchd.service.in'),
     'name': 'Libvirt ch',
-    'sockprefix': 'virtchd',
-    'sockets': [ 'main', 'ro', 'admin' ],
   }
 
   virt_install_dirs += [

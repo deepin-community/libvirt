@@ -1,3 +1,5 @@
+.. role:: removed
+
 =======================
 RPM Deployment Guidance
 =======================
@@ -16,6 +18,73 @@ to pick the optimal set for their needs.
 The RHEL and CentOS distributions use the same RPM packaging split, but many
 of the drivers will be disabled at build time, so not all of the packages
 listed on this page will exist.
+
+
+Deployment choices
+==================
+
+Full features for one virt driver
+---------------------------------
+
+This is a common default installation profile when there is no need to minimise
+the on-disk footprint.
+
+This is achieved by installing the `libvirt-daemon-XXXX` package for the
+virtualization driver that is desired. This will also pull in the default
+set of hypervisor packages too.
+
+Since this installs every possible libvirt feature for the virtualization
+driver in question, the on-disk footprint is quite large. The in-memory
+footprint of the daemons is also relatively large since a lot of code is
+loaded.
+
+
+Client only install
+-------------------
+
+If an application is capable of using multiple different virtualization drivers
+it is undesirable to force the installation of a specific set of drivers. In
+this case the application will merely wish to request a client only install
+
+Alternatively if an application is intended to communicate with a hypervisor on
+a remote host there is no need to install drivers locally, only a client is
+needed
+
+The only required package is the `libvirt-libs`, however, it is useful to
+also install `libvirt-client`.
+
+
+Minimal features for one virt driver
+------------------------------------
+
+This is the best installation profile when it is desired to minimize the
+on-disk footprint.
+
+This is achieved by installing the individual `libvirt-daemon-driver-XXX`
+packages needed for the features that will be used.  This will not pull in the
+hypervisor packages, allowing a fine grained set of hypervisor features to be
+chosen separately.
+
+Since this allows fine grained installation of individual libvirt drivers,
+this results in the lowest on-disk footprint. The in-memory footprint of
+the daemons is also minimized by reducing the code loaded.
+
+As an example, the smallest possible installation for running KVM guests can
+be achieved by installing `libvirt-daemon-driver-qemu` and `qemu-kvm-core`.
+This will exclude all the secondary libvirt drivers for storage, networking
+and host devices, leaving only the bare minimum functionality for managing
+KVM guests.
+
+
+Every possible virt driver
+--------------------------
+
+There is rarely a need to install every virt driver at once on a given host.
+In the unlikely event that this is needed, however, the `libvirt` package
+should be installed.
+
+Note that this doesn't actually pull in the hypervisors, only the libvirt
+code to talk to the hypervisors.
 
 
 RPM packages
@@ -40,14 +109,17 @@ RPM packages
   stateful drivers. This package does not contain any drivers, so further
   packages need to be installed to provide the desired drivers.
 
-  In addition to the libvirtd daemon this package also contains the virtlogd,
-  virtlockd and virtproxyd daemons, plus a number of helpers, configuration
-  files and other bits necessary to create and admin a virtualization host.
+  New installations should not use this package, instead opting for one of
+  the modular daemon deployment options.
 
-  The virt-admin tool, also included in this package, is used for
-  administrative operations on any libvirt daemons. Most usefully it allows
-  for logging filters and outputs to be reconfigured on a running daemon
-  without a restart.
+* libvirt-daemon-common
+  This package contains libvirt-guests, virt-host-validate, virt-ssh-helper
+  and other utilities and configuration files necessary to create and
+  administer a virtualization host.
+
+  The virt-admin tool, used for administrative operations on any of the libvirt
+  daemons, is also included in this package. It is most useful for reconfiguring
+  logging filters and outputs on a running daemon without the need for a restart.
 
 * libvirt-daemon-config-network
 
@@ -176,7 +248,9 @@ RPM packages
 * libvirt-daemon-driver-storage-sheepdog
 
   The dynamically loadable driver providing an implementation of the SheepDog
-  network storage pool type, for the storage pool management APIs.
+  network storage pool type, for the storage pool management APIs. This
+  sub-package was :removed:`removed in libvirt-8.8` as the sheepdog backend
+  driver was dropped from upstream.
 
 * libvirt-daemon-driver-storage-zfs
 
@@ -205,6 +279,14 @@ RPM packages
   features, the subset of libvirt-daemon-driver-XXX packages should be used
   instead.
 
+* libvirt-daemon-lock
+  This package provides virtlockd, a server side daemon used to manage locks
+  held against virtual machine resources.
+
+* libvirt-daemon-log
+  This package provides virtlogd, a server side daemon used to manage logs
+  from virtual machine consoles.
+
 * libvirt-daemon-lxc
 
   This is an empty package that exists only as a convenient way to request
@@ -217,6 +299,23 @@ RPM packages
   required features is not known. To have finer grained control over the
   features, the subset of libvirt-daemon-driver-XXX packages should be used
   instead.
+
+* libvirt-daemon-plugin-lockd
+  This package provides the lockd.so module, a daemon plugin that implements
+  disk locking using POSIX fcntl advisory locks via communication with the
+  virtlockd daemon.
+
+* libvirt-daemon-plugin-sanlock
+
+  This package provides the sanlock.so module, a daemon plugin that implements
+  disk locking via communication with the sanlock daemon. It is optional and
+  only relevant to hosts with the QEMU driver and oVirt management application.
+
+* libvirt-daemon-proxy
+  This package provides virtproxyd, a server side daemon providing remote
+  network access to libvirt daemons, as well as backwards compatibility
+  for older libvirt clients expecting to communicate with the traditional,
+  monolithic libvirtd.
 
 * libvirt-daemon-qemu
 
@@ -281,12 +380,6 @@ RPM packages
   take to the libvirt daemons to utilize stateful drivers (QEMU, Xen, BHyve,
   LXC, VZ, etc). This is needed on all libvirt hosts, both client and server.
 
-* libvirt-lock-sanlock
-
-  A plugin for locking disks that communicates with the sanlock daemon. It is
-  optional and only relevant to hosts with the QEMU driver and oVirt management
-  application.
-
 * libvirt-login-shell
 
   A simple login shell that automatically spawns an LXC container for the user
@@ -304,70 +397,3 @@ RPM packages
   between libvirt and its daemons. Since production deployments should all be
   using a TLS encrypted, this only useful for development hosts with a libvirt
   daemon configured without encryption.
-
-
-Deployment choices
-==================
-
-Client only install
--------------------
-
-If an application is capable of using multiple different virtualization drivers
-it is undesirable to force the installation of a specific set of drivers. In
-this case the application will merely wish to request a client only install
-
-Alternatively if an application is intended to communicate with a hypervisor on
-a remote host there is no need to install drivers locally, only a client is
-needed
-
-The only required package is the `libvirt-libs`, however, it is useful to
-also install `libvirt-client`.
-
-
-Every possible virt driver
---------------------------
-
-There is rarely a need to install every virt driver at once on a given host.
-In the unlikely event that this is needed, however, the `libvirt` package
-should be installed.
-
-Note that this doesn't actually pull in the hypervisors, only the libvirt
-code to talk to the hypervisors.
-
-
-Full features for one virt driver
----------------------------------
-
-This is a common default installation profile when there is no need to minimise
-the on-disk footprint.
-
-This is achieved by installing the `libvirt-daemon-XXXX` package for the
-virtualization driver that is desired. This will also pull in the default
-set of hypervisor packages too.
-
-Since this installs every possible libvirt feature for the virtualization
-driver in question, the on-disk footprint is quite large. The in-memory
-footprint of the daemons is also relatively large since a lot of code is
-loaded.
-
-
-Minimal features for one virt driver
-------------------------------------
-
-This is the best installation profile when it is desired to minimize the
-on-disk footprint.
-
-This is achieved by installing the individual `libvirt-daemon-driver-XXX`
-packages needed for the features that will be used.  This will not pull in the
-hypervisor packages, allowing a fine grained set of hypervisor features to be
-chosen separately.
-
-Since this allows fine grained installation of individual libvirt drivers,
-this results in the lowest on-disk footprint. The in-memory footprint of
-the daemons is also minimized by reducing the code loaded.
-
-As an example, the smallest possible installation for running KVM guests can
-be achieved by installing `libvirt-daemon-driver-qemu` and `qemu-kvm-core`.
-This will exclude all the secondary libvirt drivers for storage, networking
-and host devices, leaving only the bare minimum functionality for managing
-KVM guests.

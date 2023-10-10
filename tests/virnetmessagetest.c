@@ -21,10 +21,8 @@
 #include <signal.h>
 
 #include "testutils.h"
-#include "virerror.h"
 #include "viralloc.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "rpc/virnetmessage.h"
 
 #define VIR_FROM_THIS VIR_FROM_RPC
@@ -181,7 +179,7 @@ static int testMessageHeaderDecode(const void *args G_GNUC_UNUSED)
 
 static int testMessagePayloadEncode(const void *args G_GNUC_UNUSED)
 {
-    virNetMessageError err;
+    virNetMessageError err = { 0 };
     virNetMessage *msg = virNetMessageNew(true);
     int ret = -1;
     static const char expect[] = {
@@ -219,8 +217,6 @@ static int testMessagePayloadEncode(const void *args G_GNUC_UNUSED)
 
     if (!msg)
         return -1;
-
-    memset(&err, 0, sizeof(err));
 
     err.code = VIR_ERR_INTERNAL_ERROR;
     err.domain = VIR_FROM_RPC;
@@ -289,7 +285,7 @@ static int testMessagePayloadEncode(const void *args G_GNUC_UNUSED)
 
 static int testMessagePayloadDecode(const void *args G_GNUC_UNUSED)
 {
-    virNetMessageError err;
+    virNetMessageError err = { 0 };
     virNetMessage *msg = virNetMessageNew(true);
     static char input_buffer[] = {
         0x00, 0x00, 0x00, 0x74,  /* Length */
@@ -324,8 +320,6 @@ static int testMessagePayloadDecode(const void *args G_GNUC_UNUSED)
         0x00, 0x00, 0x00, 0x00,  /* Error network pointer */
     };
     int ret = -1;
-
-    memset(&err, 0, sizeof(err));
 
     if (!msg)
         return -1;

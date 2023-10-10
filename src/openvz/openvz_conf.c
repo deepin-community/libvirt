@@ -34,7 +34,6 @@
 #include "openvz_conf.h"
 #include "openvz_util.h"
 #include "viruuid.h"
-#include "virbuffer.h"
 #include "viralloc.h"
 #include "virfile.h"
 #include "vircommand.h"
@@ -65,7 +64,7 @@ strtoI(const char *str)
 static int
 openvzExtractVersionInfo(const char *cmdstr, int *retversion)
 {
-    unsigned long version;
+    unsigned long long version;
     g_autofree char *help = NULL;
     char *tmp;
     g_autoptr(virCommand) cmd = virCommandNewArgList(cmdstr, "--help", NULL);
@@ -175,7 +174,7 @@ openvzReadNetworkConf(virDomainDef *def,
     ret = openvzReadVPSConfigParam(veid, "IP_ADDRESS", &temp);
     if (ret < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not read 'IP_ADDRESS' from config for container %d"),
+                       _("Could not read 'IP_ADDRESS' from config for container %1$d"),
                        veid);
         goto error;
     } else if (ret > 0) {
@@ -201,7 +200,7 @@ openvzReadNetworkConf(virDomainDef *def,
     ret = openvzReadVPSConfigParam(veid, "NETIF", &temp);
     if (ret < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not read 'NETIF' from config for container %d"),
+                       _("Could not read 'NETIF' from config for container %1$d"),
                        veid);
         goto error;
     } else if (ret > 0) {
@@ -284,7 +283,7 @@ openvzReadFSConf(virDomainDef *def,
     ret = openvzReadVPSConfigParam(veid, "OSTEMPLATE", &temp);
     if (ret < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not read 'OSTEMPLATE' from config for container %d"),
+                       _("Could not read 'OSTEMPLATE' from config for container %1$d"),
                        veid);
         goto error;
     } else if (ret > 0) {
@@ -298,7 +297,7 @@ openvzReadFSConf(virDomainDef *def,
         ret = openvzReadVPSConfigParam(veid, "VE_PRIVATE", &temp);
         if (ret <= 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not read 'VE_PRIVATE' from config for container %d"),
+                           _("Could not read 'VE_PRIVATE' from config for container %1$d"),
                            veid);
             goto error;
         }
@@ -320,7 +319,7 @@ openvzReadFSConf(virDomainDef *def,
     if (ret > 0) {
         if (openvzParseBarrierLimit(temp, &barrier, &limit)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not read '%s' from config for container %d"),
+                           _("Could not read '%1$s' from config for container %2$d"),
                            param, veid);
             goto error;
         } else {
@@ -366,15 +365,15 @@ openvzReadMemConf(virDomainDef *def, int veid)
     ret = openvzReadVPSConfigParam(veid, param, &temp);
     if (ret < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not read '%s' from config for container %d"),
+                       _("Could not read '%1$s' from config for container %2$d"),
                        param, veid);
         goto error;
     } else if (ret > 0) {
         ret = openvzParseBarrierLimit(temp, &barrier, NULL);
         if (ret < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not parse barrier of '%s' "
-                             "from config for container %d"), param, veid);
+                           _("Could not parse barrier of '%1$s' from config for container %2$d"),
+                           param, veid);
             goto error;
         }
         if (barrier == LONG_MAX)
@@ -388,15 +387,15 @@ openvzReadMemConf(virDomainDef *def, int veid)
     ret = openvzReadVPSConfigParam(veid, param, &temp);
     if (ret < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not read '%s' from config for container %d"),
+                       _("Could not read '%1$s' from config for container %2$d"),
                        param, veid);
         goto error;
     } else if (ret > 0) {
         ret = openvzParseBarrierLimit(temp, &barrier, &limit);
         if (ret < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not parse barrier and limit of '%s' "
-                             "from config for container %d"), param, veid);
+                           _("Could not parse barrier and limit of '%1$s' from config for container %2$d"),
+                           param, veid);
             goto error;
         }
         if (barrier == LONG_MAX)
@@ -491,7 +490,7 @@ int openvzLoadDomains(struct openvz_driver *driver)
         ret = openvzReadVPSConfigParam(veid, "CPUS", &temp);
         if (ret < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Could not read config for container %d"),
+                           _("Could not read config for container %1$d"),
                            veid);
             return -1;
         } else if (ret > 0) {
@@ -528,7 +527,7 @@ int openvzLoadDomains(struct openvz_driver *driver)
         if (STREQ(status, "stopped")) {
             virDomainObjSetState(dom, VIR_DOMAIN_SHUTOFF,
                                  VIR_DOMAIN_SHUTOFF_UNKNOWN);
-            dom->pid = -1;
+            dom->pid = 0;
         } else {
             virDomainObjSetState(dom, VIR_DOMAIN_RUNNING,
                                  VIR_DOMAIN_RUNNING_UNKNOWN);
@@ -861,7 +860,7 @@ openvzGetVPSUUID(int vpsid, char *uuidstr, size_t len)
         if (iden != NULL && uuidbuf != NULL && STREQ(iden, "#UUID:")) {
             if (virStrcpy(uuidstr, uuidbuf, len) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("invalid uuid %s"), uuidbuf);
+                               _("invalid uuid %1$s"), uuidbuf);
                 goto cleanup;
             }
             break;
@@ -1035,8 +1034,7 @@ openvzDomainDeviceDefPostParse(virDomainDeviceDef *dev,
     if (dev->type == VIR_DOMAIN_DEVICE_HOSTDEV &&
         dev->data.hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_CAPABILITIES) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("hostdev mode 'capabilities' is not "
-                         "supported in %s"),
+                       _("hostdev mode 'capabilities' is not supported in %1$s"),
                        virDomainVirtTypeToString(def->virtType));
         return -1;
     }
@@ -1063,5 +1061,5 @@ virDomainXMLOption *openvzXMLOption(struct openvz_driver *driver)
 {
     openvzDomainDefParserConfig.priv = driver;
     return virDomainXMLOptionNew(&openvzDomainDefParserConfig,
-                                 NULL, NULL, NULL, NULL);
+                                 NULL, NULL, NULL, NULL, NULL);
 }

@@ -21,7 +21,6 @@
 #include <signal.h>
 
 #include "testutils.h"
-#include "virerror.h"
 #include "viralloc.h"
 #include "virlog.h"
 
@@ -46,15 +45,14 @@ struct URIParseData {
 
 static int testURIParse(const void *args)
 {
-    int ret = -1;
-    virURI *uri = NULL;
+    g_autoptr(virURI) uri = NULL;
     const struct URIParseData *data = args;
     g_autofree char *uristr = NULL;
     size_t i;
     bool fail = false;
 
     if (!(uri = virURIParse(data->uri)))
-        goto cleanup;
+        return -1;
 
     if (STRNEQ(uri->scheme, data->scheme)) {
         VIR_TEST_DEBUG("Expected scheme '%s', actual '%s'",
@@ -120,8 +118,7 @@ static int testURIParse(const void *args)
     VIR_FREE(uri->query);
     uri->query = virURIFormatParams(uri);
 
-    if (!(uristr = virURIFormat(uri)))
-        goto cleanup;
+    uristr = virURIFormat(uri);
 
     if (STRNEQ(uristr, data->uri_out)) {
         VIR_TEST_DEBUG("URI did not roundtrip, expect '%s', actual '%s'",
@@ -130,12 +127,9 @@ static int testURIParse(const void *args)
     }
 
     if (fail)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virURIFree(uri);
-    return ret;
+    return 0;
 }
 
 

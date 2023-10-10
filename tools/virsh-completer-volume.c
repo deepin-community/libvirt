@@ -22,10 +22,9 @@
 
 #include "virsh-completer-volume.h"
 #include "virsh-util.h"
-#include "viralloc.h"
 #include "virsh-pool.h"
 #include "virsh.h"
-#include "virstring.h"
+#include "virsh-volume.h"
 
 char **
 virshStorageVolNameCompleter(vshControl *ctl,
@@ -115,4 +114,15 @@ virshStorageVolKeyCompleter(vshControl *ctl,
  cleanup:
     virshStoragePoolListFree(list);
     return ret;
+}
+
+char **
+virshStorageVolWipeAlgorithmCompleter(vshControl *ctl G_GNUC_UNUSED,
+                                      const vshCmd *cmd G_GNUC_UNUSED,
+                                      unsigned int flags)
+{
+    virCheckFlags(0, NULL);
+
+    return virshEnumComplete(VIR_STORAGE_VOL_WIPE_ALG_LAST,
+                             virshStorageVolWipeAlgorithmTypeToString);
 }

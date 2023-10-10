@@ -22,7 +22,6 @@
 #include <config.h>
 
 #include "qemu_alias.h"
-#include "viralloc.h"
 #include "virlog.h"
 #include "virstring.h"
 #include "virutil.h"
@@ -90,6 +89,19 @@ qemuAssignDeviceChrAlias(virDomainDef *def,
 
     if (chr->info.alias)
         return 0;
+
+    /* Some crazy backcompat for consoles. Look into
+     * virDomainDefAddConsoleCompat() for more explanation. */
+    if (chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_CONSOLE &&
+        chr->targetType == VIR_DOMAIN_CHR_CONSOLE_TARGET_TYPE_SERIAL &&
+        def->os.type == VIR_DOMAIN_OSTYPE_HVM &&
+        def->nconsoles &&
+        def->consoles[0] == chr &&
+        def->nserials &&
+        def->serials[0]->info.alias) {
+        chr->info.alias = g_strdup(def->serials[0]->info.alias);
+        return 0;
+    }
 
     switch ((virDomainChrDeviceType)chr->deviceType) {
     case VIR_DOMAIN_CHR_DEVICE_TYPE_PARALLEL:
@@ -193,8 +205,7 @@ qemuAssignDeviceControllerAlias(virDomainDef *domainDef,
 
 int
 qemuAssignDeviceDiskAlias(virDomainDef *def,
-                          virDomainDiskDef *disk,
-                          virQEMUCaps *qemuCaps)
+                          virDomainDiskDef *disk)
 {
     qemuDomainDiskPrivate *diskPriv = QEMU_DOMAIN_DISK_PRIVATE(disk);
     const char *prefix = virDomainDiskBusTypeToString(disk->bus);
@@ -232,9 +243,8 @@ qemuAssignDeviceDiskAlias(virDomainDef *def,
      * on the alias in qemu. While certain disk types use just the alias, some
      * need the full path into /machine/peripheral as a historical artifact.
      */
-    if (!diskPriv->qomName &&
-        virQEMUCapsGet(qemuCaps, QEMU_CAPS_BLOCKDEV)) {
-        switch ((virDomainDiskBus) disk->bus) {
+    if (!diskPriv->qomName) {
+        switch (disk->bus) {
         case VIR_DOMAIN_DISK_BUS_FDC:
         case VIR_DOMAIN_DISK_BUS_IDE:
         case VIR_DOMAIN_DISK_BUS_SATA:
@@ -457,7 +467,6 @@ qemuAssignDeviceRNGAlias(virDomainDef *def,
 static int
 qemuDeviceMemoryGetAliasID(virDomainDef *def,
                            virDomainMemoryDef *mem,
-                           bool oldAlias,
                            const char *prefix)
 {
     size_t i;
@@ -465,9 +474,9 @@ qemuDeviceMemoryGetAliasID(virDomainDef *def,
 
     /* virtio-pmem and virtio-mem go onto PCI bus and thus DIMM address is not
      * valid */
-    if (!oldAlias &&
-        mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM &&
-        mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM)
+    if (mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM &&
+        mem->model != VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM &&
+        mem->model != VIR_DOMAIN_MEMORY_MODEL_SGX_EPC)
         return mem->info.addr.dimm.slot;
 
     for (i = 0; i < def->nmems; i++) {
@@ -484,8 +493,6 @@ qemuDeviceMemoryGetAliasID(virDomainDef *def,
  * qemuAssignDeviceMemoryAlias:
  * @def: domain definition. Necessary only if @oldAlias is true.
  * @mem: memory device definition
- * @oldAlias: Generate the alias according to the order of the device in @def
- *            rather than according to the slot number for legacy reasons.
  *
  * Generates alias for a memory device according to slot number if @oldAlias is
  * false or according to order in @def->mems otherwise.
@@ -494,8 +501,7 @@ qemuDeviceMemoryGetAliasID(virDomainDef *def,
  */
 int
 qemuAssignDeviceMemoryAlias(virDomainDef *def,
-                            virDomainMemoryDef *mem,
-                            bool oldAlias)
+                            virDomainMemoryDef *mem)
 {
     const char *prefix = NULL;
     int idx = 0;
@@ -516,6 +522,9 @@ qemuAssignDeviceMemoryAlias(virDomainDef *def,
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
         prefix = "virtiomem";
         break;
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        prefix = "epc";
+        break;
     case VIR_DOMAIN_MEMORY_MODEL_NONE:
     case VIR_DOMAIN_MEMORY_MODEL_LAST:
     default:
@@ -524,7 +533,7 @@ qemuAssignDeviceMemoryAlias(virDomainDef *def,
         break;
     }
 
-    idx = qemuDeviceMemoryGetAliasID(def, mem, oldAlias, prefix);
+    idx = qemuDeviceMemoryGetAliasID(def, mem, prefix);
     mem->info.alias = g_strdup_printf("%s%d", prefix, idx);
 
     return 0;
@@ -559,12 +568,26 @@ qemuAssignDeviceShmemAlias(virDomainDef *def,
 
 
 void
-qemuAssignDeviceWatchdogAlias(virDomainWatchdogDef *watchdog)
+qemuAssignDeviceWatchdogAlias(virDomainDef *def,
+                              virDomainWatchdogDef *watchdog,
+                              int idx)
 {
-    /* Currently, there's just one watchdog per domain */
+    ssize_t i = 0;
 
-    if (!watchdog->info.alias)
-        watchdog->info.alias = g_strdup("watchdog0");
+    if (watchdog->info.alias)
+        return;
+
+    if (idx == -1) {
+        for (i = 0; i < def->nwatchdogs; i++) {
+            int cur_idx = qemuDomainDeviceAliasIndex(&def->watchdogs[i]->info, "watchdog");
+            if (cur_idx > idx)
+                idx = cur_idx;
+        }
+
+        idx++;
+    }
+
+    watchdog->info.alias = g_strdup_printf("watchdog%d", idx);
 }
 
 
@@ -598,13 +621,41 @@ qemuAssignDeviceVsockAlias(virDomainVsockDef *vsock)
 }
 
 
+static void
+qemuAssignDeviceIOMMUAlias(virDomainIOMMUDef *iommu)
+{
+    if (!iommu->info.alias)
+        iommu->info.alias = g_strdup("iommu0");
+}
+
+
+static void
+qemuAssignDeviceCryptoAlias(virDomainDef *def,
+                            virDomainCryptoDef *crypto)
+{
+    size_t i;
+    int maxidx = 0;
+    int idx;
+
+    if (crypto->info.alias)
+        return;
+
+    for (i = 0; i < def->ncryptos; i++) {
+        if ((idx = qemuDomainDeviceAliasIndex(&def->cryptos[i]->info, "crypto")) >= maxidx)
+            maxidx = idx + 1;
+    }
+
+    crypto->info.alias = g_strdup_printf("crypto%d", maxidx);
+}
+
+
 int
-qemuAssignDeviceAliases(virDomainDef *def, virQEMUCaps *qemuCaps)
+qemuAssignDeviceAliases(virDomainDef *def)
 {
     size_t i;
 
     for (i = 0; i < def->ndisks; i++) {
-        if (qemuAssignDeviceDiskAlias(def, def->disks[i], qemuCaps) < 0)
+        if (qemuAssignDeviceDiskAlias(def, def->disks[i]) < 0)
             return -1;
     }
     for (i = 0; i < def->nnets; i++) {
@@ -662,8 +713,8 @@ qemuAssignDeviceAliases(virDomainDef *def, virQEMUCaps *qemuCaps)
     for (i = 0; i < def->nsmartcards; i++) {
         qemuAssignDeviceSmartcardAlias(def->smartcards[i], i);
     }
-    if (def->watchdog) {
-        qemuAssignDeviceWatchdogAlias(def->watchdog);
+    for (i = 0; i < def->nwatchdogs; i++) {
+        qemuAssignDeviceWatchdogAlias(def, def->watchdogs[i], i);
     }
     if (def->memballoon &&
         def->memballoon->model != VIR_DOMAIN_MEMBALLOON_MODEL_NONE) {
@@ -676,11 +727,16 @@ qemuAssignDeviceAliases(virDomainDef *def, virQEMUCaps *qemuCaps)
         qemuAssignDeviceTPMAlias(def->tpms[i], i);
     }
     for (i = 0; i < def->nmems; i++) {
-        if (qemuAssignDeviceMemoryAlias(def, def->mems[i], false) < 0)
+        if (qemuAssignDeviceMemoryAlias(def, def->mems[i]) < 0)
             return -1;
     }
     if (def->vsock) {
         qemuAssignDeviceVsockAlias(def->vsock);
+    }
+    if (def->iommu)
+        qemuAssignDeviceIOMMUAlias(def->iommu);
+    for (i = 0; i < def->ncryptos; i++) {
+        qemuAssignDeviceCryptoAlias(def, def->cryptos[i]);
     }
 
     return 0;
@@ -758,17 +814,19 @@ qemuDomainGetMasterKeyAlias(void)
 /* qemuAliasForSecret:
  * @parentalias: alias of the parent object
  * @obj: optional sub-object of the parent device the secret is for
+ * @secret_idx: secret index number (0 in the case of a single secret)
  *
  * Generate alias for a secret object used by @parentalias device or one of
  * the dependencies of the device described by @obj.
  */
 char *
 qemuAliasForSecret(const char *parentalias,
-                   const char *obj)
+                   const char *obj,
+                   size_t secret_idx)
 {
     if (obj)
-        return g_strdup_printf("%s-%s-secret0", parentalias, obj);
-    return g_strdup_printf("%s-secret0", parentalias);
+        return g_strdup_printf("%s-%s-secret%zu", parentalias, obj, secret_idx);
+    return g_strdup_printf("%s-secret%zu", parentalias, secret_idx);
 }
 
 /* qemuAliasTLSObjFromSrcAlias

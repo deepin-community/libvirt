@@ -1,14 +1,13 @@
 [Unit]
 Description=Virtualization xen daemon
 Conflicts=libvirtd.service
-Requires=virtlockd.socket
 Requires=virtxend.socket
 Requires=virtxend-ro.socket
 Requires=virtxend-admin.socket
+Wants=virtlockd.socket
 After=network.target
 After=dbus.service
 After=apparmor.service
-After=local-fs.target
 After=remote-fs.target
 After=xencommons.service
 Conflicts=xendomains.service
@@ -19,7 +18,7 @@ ConditionPathExists=/proc/xen/capabilities
 [Service]
 Type=notify
 Environment=VIRTXEND_ARGS="--timeout 120"
-EnvironmentFile=-@sysconfdir@/sysconfig/virtxend
+EnvironmentFile=-@initconfdir@/virtxend
 ExecStart=@sbindir@/virtxend $VIRTXEND_ARGS
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure

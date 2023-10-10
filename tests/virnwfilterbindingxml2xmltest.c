@@ -28,10 +28,7 @@
 
 #include "internal.h"
 #include "testutils.h"
-#include "virxml.h"
 #include "virnwfilterbindingdef.h"
-#include "testutilsqemu.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -44,7 +41,7 @@ testCompareXMLToXMLFiles(const char *xml)
 
     virResetLastError();
 
-    if (!(dev = virNWFilterBindingDefParseFile(xml)))
+    if (!(dev = virNWFilterBindingDefParse(NULL, xml, 0)))
         goto fail;
 
     if (!(actual = virNWFilterBindingDefFormat(dev)))

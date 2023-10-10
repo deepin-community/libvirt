@@ -24,7 +24,6 @@
 #include "virfile.h"
 #include "virstring.h"
 #include "virjson.h"
-#include "capabilities.h"
 #include "domain_conf.h"
 
 #define EXIT_AM_SKIP 77 /* tell Automake we're skipping a test */
@@ -35,7 +34,7 @@
 # error Fix build system
 #endif
 
-extern virArch virTestHostArch;
+void virTestSetHostArch(virArch arch);
 
 int virTestRun(const char *title,
                int (*body)(const void *data),
@@ -101,6 +100,9 @@ void virTestQuiesceLibvirtErrors(bool always);
 
 void virTestCounterReset(const char *prefix);
 const char *virTestCounterNext(void);
+
+char *virTestFakeRootDirInit(void);
+void virTestFakeRootDirCleanup(char *fakerootdir);
 
 /**
  * The @func shall return  EXIT_FAILURE or EXIT_SUCCESS or

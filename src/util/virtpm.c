@@ -22,7 +22,6 @@
 
 #include <sys/stat.h>
 
-#include "virstring.h"
 #include "virerror.h"
 #include "viralloc.h"
 #include "virfile.h"
@@ -40,6 +39,7 @@ VIR_LOG_INIT("util.tpm");
 VIR_ENUM_IMPL(virTPMSwtpmFeature,
               VIR_TPM_SWTPM_FEATURE_LAST,
               "cmdarg-pwd-fd",
+              "cmdarg-migration",
 );
 
 VIR_ENUM_IMPL(virTPMSwtpmSetupFeature,
@@ -48,6 +48,8 @@ VIR_ENUM_IMPL(virTPMSwtpmSetupFeature,
               "cmdarg-create-config-files",
               "tpm12-not-need-root",
               "cmdarg-reconfigure-pcr-banks",
+              "tpm-1.2",
+              "tpm-2.0",
 );
 
 /**
@@ -70,7 +72,7 @@ virTPMCreateCancelPath(const char *devpath)
 
     if (!(dev = strrchr(devpath, '/'))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("TPM device path %s is invalid"), devpath);
+                       _("TPM device path %1$s is invalid"), devpath);
         return NULL;
     }
 
@@ -241,7 +243,7 @@ virTPMExecGetCaps(virCommand *cmd,
 
  error_bad_json:
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("Unexpected JSON format: %s"), outbuf);
+                   _("Unexpected JSON format: %1$s"), outbuf);
     return bitmap;
 }
 
@@ -251,8 +253,7 @@ virTPMGetCaps(virTPMBinaryCapsParse capsParse,
 {
     g_autoptr(virCommand) cmd = NULL;
 
-    if (!(cmd = virCommandNew(exec)))
-        return NULL;
+    cmd = virCommandNew(exec);
 
     if (param1)
         virCommandAddArg(cmd, param1);
@@ -295,21 +296,21 @@ virTPMEmulatorInit(bool quiet)
             if (!path) {
                 if (!quiet)
                     virReportSystemError(ENOENT,
-                                         _("Unable to find '%s' binary in $PATH"),
+                                         _("Unable to find '%1$s' binary in $PATH"),
                                          virTPMBinaryTypeToString(i));
                 return -1;
             }
             if (!virFileIsExecutable(path)) {
                 if (!quiet)
                     virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("%s is not an executable"),
+                                   _("%1$s is not an executable"),
                                    path);
                 return -1;
             }
             if (stat(path, &swtpmBinaries[i].stat) < 0) {
                 if (!quiet)
                     virReportSystemError(errno,
-                                         _("Could not stat %s"), path);
+                                         _("Could not stat %1$s"), path);
                 return -1;
             }
             swtpmBinaries[i].path = g_steal_pointer(&path);
@@ -344,13 +345,13 @@ virTPMBinaryGetCaps(virTPMBinary binary,
 }
 
 bool
-virTPMSwtpmCapsGet(unsigned int cap)
+virTPMSwtpmCapsGet(virTPMSwtpmFeature cap)
 {
     return virTPMBinaryGetCaps(VIR_TPM_BINARY_SWTPM, cap);
 }
 
 bool
-virTPMSwtpmSetupCapsGet(unsigned int cap)
+virTPMSwtpmSetupCapsGet(virTPMSwtpmSetupFeature cap)
 {
     return virTPMBinaryGetCaps(VIR_TPM_BINARY_SWTPM_SETUP, cap);
 }

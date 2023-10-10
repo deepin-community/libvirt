@@ -104,12 +104,6 @@ virObjectIsClass(void *obj,
                  virClass *klass)
     ATTRIBUTE_NONNULL(2);
 
-void
-virObjectFreeCallback(void *opaque);
-
-void
-virObjectFreeHashData(void *opaque);
-
 void *
 virObjectLockableNew(virClass *klass)
     ATTRIBUTE_NONNULL(1);
@@ -120,7 +114,7 @@ virObjectRWLockableNew(virClass *klass)
 
 virLockGuard
 virObjectLockGuard(void *lockableobj)
-    ATTRIBUTE_NONNULL(1);
+    ATTRIBUTE_NONNULL(1) G_GNUC_WARN_UNUSED_RESULT;
 
 void
 virObjectLock(void *lockableobj)

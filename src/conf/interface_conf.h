@@ -25,7 +25,6 @@
 #include <libxml/xpath.h>
 
 #include "internal.h"
-#include "virthread.h"
 #include "device_conf.h"
 #include "virenum.h"
 
@@ -160,11 +159,8 @@ virInterfaceDefParseString(const char *xmlStr,
                            unsigned int flags);
 
 virInterfaceDef *
-virInterfaceDefParseFile(const char *filename);
-
-virInterfaceDef *
-virInterfaceDefParseNode(xmlDocPtr xml,
-                         xmlNodePtr root);
+virInterfaceDefParseXML(xmlXPathContextPtr ctxt,
+                        int parentIfType);
 
 char *
 virInterfaceDefFormat(const virInterfaceDef *def);

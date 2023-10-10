@@ -88,14 +88,16 @@ print('  <body>')
 for obj in sorted(perms.keys()):
     klass = classes[obj]
 
-    olink = "object_" + obj.lower()
+    objname = obj.lower().replace("_", "-")
+    olink = "object_" + objname
 
-    print('    <h3><a id="%s">%s</a></h3>' % (olink, klass))
+    print('    <h3><a id="%s"><code>%s</code> - %s</a></h3>' % (olink, objname, klass))
     print('    <table>')
     print('      <thead>')
     print('        <tr>')
     print('          <th>Permission</th>')
     print('          <th>Description</th>')
+    print('          <th>Anonymous</th>')
     print('        </tr>')
     print('      </thead>')
     print('      <tbody>')
@@ -103,15 +105,20 @@ for obj in sorted(perms.keys()):
     for perm in sorted(perms[obj].keys()):
         description = perms[obj][perm]["desc"]
 
+        if perms[obj][perm]["anonymous"]:
+            anonymous = 'yes'
+        else:
+            anonymous = ''
+
         if description is None:
             raise Exception("missing description for %s.%s" % (obj, perm))
 
-        plink = "perm_" + obj.lower() + "_" + perm.lower()
-        plink = plink.replace("-", "_")
+        plink = "perm_" + objname + "_" + perm.lower()
 
         print('        <tr>')
         print('          <td><a id="%s">%s</a></td>' % (plink, perm))
         print('          <td>%s</td>' % description)
+        print('          <td>%s</td>' % anonymous)
         print('        </tr>')
 
     print('      </tbody>')

@@ -39,7 +39,7 @@ struct _virNWFilterBindingObjList {
     virObjectRWLockable parent;
 
     /* port dev name -> virNWFilterBindingObj  mapping
-     * for O(1), lockless lookup-by-port dev */
+     * for O(1), lookup-by-port dev */
     GHashTable *objs;
 };
 
@@ -66,7 +66,7 @@ virNWFilterBindingObjListNew(void)
     if (!(bindings = virObjectRWLockableNew(virNWFilterBindingObjListClass)))
         return NULL;
 
-    bindings->objs = virHashNew(virObjectFreeHashData);
+    bindings->objs = virHashNew(virObjectUnref);
 
     return bindings;
 }
@@ -131,7 +131,7 @@ virNWFilterBindingObjListFindByPortDev(virNWFilterBindingObjList *bindings,
  * tables. Once successfully added into a table, increase the
  * reference count since upon removal in virHashRemoveEntry
  * the virObjectUnref will be called since the hash tables were
- * configured to call virObjectFreeHashData when the object is
+ * configured to call virObjectUnref when the object is
  * removed from the hash table.
  *
  * Returns 0 on success with 2 references and locked
@@ -169,11 +169,11 @@ virNWFilterBindingObjListAddLocked(virNWFilterBindingObjList *bindings,
     if (binding) {
         if (virNWFilterBindingObjGetRemoving(binding)) {
             virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("binding '%s' is already being removed"),
+                           _("binding '%1$s' is already being removed"),
                            def->portdevname);
         } else {
             virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("binding '%s' already exists"),
+                           _("binding '%1$s' already exists"),
                            def->portdevname);
         }
         goto error;
@@ -266,13 +266,13 @@ virNWFilterBindingObjListLoadStatus(virNWFilterBindingObjList *bindings,
     if ((statusFile = virNWFilterBindingObjConfigFile(statusDir, name)) == NULL)
         goto error;
 
-    if (!(obj = virNWFilterBindingObjParseFile(statusFile)))
+    if (!(obj = virNWFilterBindingObjParse(statusFile)))
         goto error;
 
     def = virNWFilterBindingObjGetDef(obj);
     if (virHashLookup(bindings->objs, def->portdevname) != NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected binding %s already exists"),
+                       _("unexpected binding %1$s already exists"),
                        def->portdevname);
         goto error;
     }
@@ -321,7 +321,7 @@ virNWFilterBindingObjListLoadAllConfigs(virNWFilterBindingObjList *bindings,
         if (binding)
             virNWFilterBindingObjEndAPI(&binding);
         else
-            VIR_ERROR(_("Failed to load config for binding '%s'"), entry->d_name);
+            VIR_ERROR(_("Failed to load config for binding '%1$s'"), entry->d_name);
     }
 
     virObjectRWUnlock(bindings);

@@ -23,8 +23,6 @@
 #include "vircrypto.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "viralloc.h"
-#include "virrandom.h"
 #include "virsecureerase.h"
 
 #include <gnutls/gnutls.h>
@@ -58,14 +56,14 @@ virCryptoHashBuf(virCryptoHash hash,
     int rc;
     if (hash >= VIR_CRYPTO_HASH_LAST) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Unknown crypto hash %d"), hash);
+                       _("Unknown crypto hash %1$d"), hash);
         return -1;
     }
 
     rc = gnutls_hash_fast(hashinfo[hash].algorithm, input, strlen(input), output);
     if (rc < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to compute hash of data: %s"),
+                       _("Unable to compute hash of data: %1$s"),
                        gnutls_strerror(rc));
         return -1;
     }
@@ -127,10 +125,18 @@ virCryptoEncryptDataAESgnutls(gnutls_cipher_algorithm_t gnutls_enc_alg,
     int rc;
     size_t i;
     gnutls_cipher_hd_t handle = NULL;
-    gnutls_datum_t enc_key;
-    gnutls_datum_t iv_buf;
-    uint8_t *ciphertext;
+    gnutls_datum_t enc_key = { .data = enckey, .size = enckeylen };
+    gnutls_datum_t iv_buf = { .data = iv, .size = ivlen };
+    g_autofree uint8_t *ciphertext = NULL;
     size_t ciphertextlen;
+
+    if ((rc = gnutls_cipher_init(&handle, gnutls_enc_alg,
+                                 &enc_key, &iv_buf)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("failed to initialize cipher: '%1$s'"),
+                       gnutls_strerror(rc));
+        return -1;
+    }
 
     /* Allocate a padded buffer, copy in the data.
      *
@@ -148,43 +154,20 @@ virCryptoEncryptDataAESgnutls(gnutls_cipher_algorithm_t gnutls_enc_alg,
     for (i = datalen; i < ciphertextlen; i++)
         ciphertext[i] = ciphertextlen - datalen;
 
-    /* Initialize the gnutls cipher */
-    enc_key.size = enckeylen;
-    enc_key.data = enckey;
-    if (iv) {
-        iv_buf.size = ivlen;
-        iv_buf.data = iv;
-    }
-    if ((rc = gnutls_cipher_init(&handle, gnutls_enc_alg,
-                                 &enc_key, &iv_buf)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to initialize cipher: '%s'"),
-                       gnutls_strerror(rc));
-        goto error;
-    }
-
     /* Encrypt the data and free the memory for cipher operations */
     rc = gnutls_cipher_encrypt(handle, ciphertext, ciphertextlen);
     gnutls_cipher_deinit(handle);
-    virSecureErase(&enc_key, sizeof(gnutls_datum_t));
-    virSecureErase(&iv_buf, sizeof(gnutls_datum_t));
     if (rc < 0) {
+        virSecureErase(ciphertext, ciphertextlen);
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to encrypt the data: '%s'"),
+                       _("failed to encrypt the data: '%1$s'"),
                        gnutls_strerror(rc));
-        goto error;
+        return -1;
     }
 
-    *ciphertextret = ciphertext;
+    *ciphertextret = g_steal_pointer(&ciphertext);
     *ciphertextlenret = ciphertextlen;
     return 0;
-
- error:
-    virSecureErase(ciphertext, ciphertextlen);
-    g_free(ciphertext);
-    virSecureErase(&enc_key, sizeof(gnutls_datum_t));
-    virSecureErase(&iv_buf, sizeof(gnutls_datum_t));
-    return -1;
 }
 
 
@@ -219,14 +202,14 @@ virCryptoEncryptData(virCryptoCipher algorithm,
     case VIR_CRYPTO_CIPHER_AES256CBC:
         if (enckeylen != 32) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("AES256CBC encryption invalid keylen=%zu"),
+                           _("AES256CBC encryption invalid keylen=%1$zu"),
                            enckeylen);
             return -1;
         }
 
         if (ivlen != 16) {
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("AES256CBC initialization vector invalid len=%zu"),
+                           _("AES256CBC initialization vector invalid len=%1$zu"),
                            ivlen);
             return -1;
         }
@@ -247,6 +230,6 @@ virCryptoEncryptData(virCryptoCipher algorithm,
     }
 
     virReportError(VIR_ERR_INVALID_ARG,
-                   _("algorithm=%d is not supported"), algorithm);
+                   _("algorithm=%1$d is not supported"), algorithm);
     return -1;
 }

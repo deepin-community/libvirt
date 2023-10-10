@@ -29,14 +29,8 @@
 #include "internal.h"
 #include "viriptables.h"
 #include "virfirewalld.h"
-#include "vircommand.h"
-#include "viralloc.h"
 #include "virerror.h"
-#include "virfile.h"
 #include "virlog.h"
-#include "virthread.h"
-#include "virstring.h"
-#include "virutil.h"
 #include "virhash.h"
 
 VIR_LOG_INIT("util.iptables");
@@ -169,10 +163,7 @@ iptablesInput(virFirewall *fw,
               int action,
               int tcp)
 {
-    char portstr[32];
-
-    g_snprintf(portstr, sizeof(portstr), "%d", port);
-    portstr[sizeof(portstr) - 1] = '\0';
+    g_autofree char *portstr = g_strdup_printf("%d", port);
 
     virFirewallAddRule(fw, layer,
                        "--table", "filter",
@@ -193,10 +184,7 @@ iptablesOutput(virFirewall *fw,
                int action,
                int tcp)
 {
-    char portstr[32];
-
-    g_snprintf(portstr, sizeof(portstr), "%d", port);
-    portstr[sizeof(portstr) - 1] = '\0';
+    g_autofree char *portstr = g_strdup_printf("%d", port);
 
     virFirewallAddRule(fw, layer,
                        "--table", "filter",
@@ -849,7 +837,7 @@ iptablesForwardMasquerade(virFirewall *fw,
             portRangeStr = g_strdup_printf(":%u-%u", port->start, port->end);
         } else {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Invalid port range '%u-%u'."),
+                           _("Invalid port range '%1$u-%2$u'."),
                            port->start, port->end);
             return -1;
         }
@@ -1034,10 +1022,7 @@ iptablesOutputFixUdpChecksum(virFirewall *fw,
                              int port,
                              int action)
 {
-    char portstr[32];
-
-    g_snprintf(portstr, sizeof(portstr), "%d", port);
-    portstr[sizeof(portstr) - 1] = '\0';
+    g_autofree char *portstr = g_strdup_printf("%d", port);
 
     virFirewallAddRule(fw, VIR_FIREWALL_LAYER_IPV4,
                        "--table", "mangle",

@@ -37,7 +37,6 @@
 #include "virlog.h"
 #include "virnuma.h"
 #include "virstring.h"
-#include "virtypedparam.h"
 #include "viruuid.h"
 #include "virenum.h"
 #include "virutil.h"
@@ -381,45 +380,28 @@ virCapabilitiesHostNUMAAddCell(virCapsHostNUMA *caps,
 
 /**
  * virCapabilitiesAllocMachines:
- * @machines: machine variants for emulator ('pc', or 'isapc', etc)
- * @nmachines: number of machine variants for emulator
+ * @machines: NULL-terminated list of machine variants for emulator ('pc', or 'isapc', etc)
+ * @nmachines: filled with number of machine variants for emulator
  *
  * Allocate a table of virCapsGuestMachine *from the supplied table
  * of machine names.
  */
 virCapsGuestMachine **
-virCapabilitiesAllocMachines(const char *const *names, int nnames)
+virCapabilitiesAllocMachines(const char *const *names,
+                             int *nnames)
 {
     virCapsGuestMachine **machines;
     size_t i;
 
-    machines = g_new0(virCapsGuestMachine *, nnames);
+    *nnames = g_strv_length((gchar **)names);
+    machines = g_new0(virCapsGuestMachine *, *nnames);
 
-    for (i = 0; i < nnames; i++) {
+    for (i = 0; i < *nnames; i++) {
         machines[i] = g_new0(virCapsGuestMachine, 1);
         machines[i]->name = g_strdup(names[i]);
     }
 
     return machines;
-}
-
-/**
- * virCapabilitiesFreeMachines:
- * @machines: table of vircapsGuestMachinePtr
- *
- * Free a table of virCapsGuestMachine *
- */
-void
-virCapabilitiesFreeMachines(virCapsGuestMachine **machines,
-                            int nmachines)
-{
-    size_t i;
-    if (!machines)
-        return;
-    for (i = 0; i < nmachines && machines[i]; i++) {
-        g_clear_pointer(&machines[i], virCapabilitiesFreeGuestMachine);
-    }
-    g_free(machines);
 }
 
 /**
@@ -714,7 +696,7 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
             virBufferAsprintf(&buf, "%s", _("any configuration"));
 
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("could not find capabilities for %s"),
+                       _("could not find capabilities for %1$s"),
                        virBufferCurrentContent(&buf));
         return ret;
     }
@@ -1399,8 +1381,7 @@ virCapabilitiesHostNUMAGetCellCpus(virCapsHostNUMA *caps,
     for (cpu = 0; cell && cpu < cell->ncpus; cpu++) {
         if (virBitmapSetBit(cpumask, cell->cpus[cpu].id) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Cpu '%u' in node '%zu' is out of range "
-                             "of the provided bitmap"),
+                           _("Cpu '%1$u' in node '%2$zu' is out of range of the provided bitmap"),
                            cell->cpus[cpu].id, node);
             return -1;
         }
@@ -1490,15 +1471,14 @@ virCapabilitiesGetNUMADistances(int node,
                                 virNumaDistance **distancesRet,
                                 int *ndistancesRet)
 {
-    virNumaDistance *tmp = NULL;
+    g_autofree virNumaDistance *tmp = NULL;
     int tmp_size = 0;
-    int ret = -1;
-    int *distances = NULL;
+    g_autofree int *distances = NULL;
     int ndistances = 0;
     size_t i;
 
     if (virNumaGetDistances(node, &distances, &ndistances) < 0)
-        goto cleanup;
+        return -1;
 
     if (!distances) {
         *distancesRet = NULL;
@@ -1522,11 +1502,8 @@ virCapabilitiesGetNUMADistances(int node,
     *ndistancesRet = tmp_size;
     *distancesRet = g_steal_pointer(&tmp);
     tmp_size = 0;
-    ret = 0;
- cleanup:
-    VIR_FREE(distances);
-    VIR_FREE(tmp);
-    return ret;
+
+    return 0;
 }
 
 static int
@@ -1534,13 +1511,12 @@ virCapabilitiesGetNUMAPagesInfo(int node,
                                 virCapsHostNUMACellPageInfo **pageinfo,
                                 int *npageinfo)
 {
-    int ret = -1;
-    unsigned int *pages_size = NULL;
-    unsigned long long *pages_avail = NULL;
+    g_autofree unsigned int *pages_size = NULL;
+    g_autofree unsigned long long *pages_avail = NULL;
     size_t npages, i;
 
     if (virNumaGetPages(node, &pages_size, &pages_avail, NULL, &npages) < 0)
-        goto cleanup;
+        return -1;
 
     *pageinfo = g_new0(virCapsHostNUMACellPageInfo, npages);
     *npageinfo = npages;
@@ -1550,20 +1526,15 @@ virCapabilitiesGetNUMAPagesInfo(int node,
         (*pageinfo)[i].avail = pages_avail[i];
     }
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(pages_avail);
-    VIR_FREE(pages_size);
-    return ret;
+    return 0;
 }
 
 
 static int
-virCapabilitiesGetNodeCacheReadFile(const char *prefix,
-                                    const char *dir,
-                                    const char *file,
-                                    unsigned int *value)
+virCapabilitiesGetNodeCacheReadFileUint(const char *prefix,
+                                        const char *dir,
+                                        const char *file,
+                                        unsigned int *value)
 {
     g_autofree char *path = g_build_filename(prefix, dir, file, NULL);
     int rv = virFileReadValueUint(value, "%s", path);
@@ -1571,7 +1542,29 @@ virCapabilitiesGetNodeCacheReadFile(const char *prefix,
     if (rv < 0) {
         if (rv == -2) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("File '%s' does not exist"),
+                           _("File '%1$s' does not exist"),
+                           path);
+        }
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
+virCapabilitiesGetNodeCacheReadFileUllong(const char *prefix,
+                                          const char *dir,
+                                          const char *file,
+                                          unsigned long long *value)
+{
+    g_autofree char *path = g_build_filename(prefix, dir, file, NULL);
+    int rv = virFileReadValueUllong(value, "%s", path);
+
+    if (rv < 0) {
+        if (rv == -2) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("File '%1$s' does not exist"),
                            path);
         }
         return -1;
@@ -1618,23 +1611,23 @@ virCapabilitiesGetNodeCache(int node,
 
         if (virStrToLong_ui(dname, NULL, 10, &cache.level) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unable to parse %s"),
+                           _("unable to parse %1$s"),
                            entry->d_name);
             return -1;
         }
 
-        if (virCapabilitiesGetNodeCacheReadFile(path, entry->d_name,
-                                                "size", &cache.size) < 0)
+        if (virCapabilitiesGetNodeCacheReadFileUllong(path, entry->d_name,
+                                                      "size", &cache.size) < 0)
             return -1;
 
         cache.size >>= 10; /* read in bytes but stored in kibibytes */
 
-        if (virCapabilitiesGetNodeCacheReadFile(path, entry->d_name,
-                                                "line_size", &cache.line) < 0)
+        if (virCapabilitiesGetNodeCacheReadFileUint(path, entry->d_name,
+                                                    "line_size", &cache.line) < 0)
             return -1;
 
-        if (virCapabilitiesGetNodeCacheReadFile(path, entry->d_name,
-                                                "indexing", &indexing) < 0)
+        if (virCapabilitiesGetNodeCacheReadFileUint(path, entry->d_name,
+                                                    "indexing", &indexing) < 0)
             return -1;
 
         /* see enum cache_indexing in kernel */
@@ -1644,13 +1637,13 @@ virCapabilitiesGetNodeCache(int node,
         case 2: cache.associativity = VIR_NUMA_CACHE_ASSOCIATIVITY_NONE; break;
         default:
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("unknown indexing value '%u'"),
+                               _("unknown indexing value '%1$u'"),
                                indexing);
                 return -1;
         }
 
-        if (virCapabilitiesGetNodeCacheReadFile(path, entry->d_name,
-                                                "write_policy", &write_policy) < 0)
+        if (virCapabilitiesGetNodeCacheReadFileUint(path, entry->d_name,
+                                                    "write_policy", &write_policy) < 0)
             return -1;
 
         /* see enum cache_write_policy in kernel */
@@ -1660,7 +1653,7 @@ virCapabilitiesGetNodeCache(int node,
         case 2: cache.policy = VIR_NUMA_CACHE_POLICY_NONE; break;
         default:
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("unknown write_policy value '%u'"),
+                               _("unknown write_policy value '%1$u'"),
                                write_policy);
                 return -1;
         }
@@ -1804,26 +1797,26 @@ virCapabilitiesHostNUMAInitInterconnectsNode(GArray *interconnects,
     if (!virFileExists(path))
         return 0;
 
-    if (virCapabilitiesGetNodeCacheReadFile(path, "initiators",
-                                            "read_bandwidth",
-                                            &read_bandwidth) < 0)
+    if (virCapabilitiesGetNodeCacheReadFileUint(path, "initiators",
+                                                "read_bandwidth",
+                                                &read_bandwidth) < 0)
         return -1;
-    if (virCapabilitiesGetNodeCacheReadFile(path, "initiators",
-                                            "write_bandwidth",
-                                            &write_bandwidth) < 0)
+    if (virCapabilitiesGetNodeCacheReadFileUint(path, "initiators",
+                                                "write_bandwidth",
+                                                &write_bandwidth) < 0)
         return -1;
 
     /* Bandwidths are read in MiB but stored in KiB */
     read_bandwidth <<= 10;
     write_bandwidth <<= 10;
 
-    if (virCapabilitiesGetNodeCacheReadFile(path, "initiators",
-                                            "read_latency",
-                                            &read_latency) < 0)
+    if (virCapabilitiesGetNodeCacheReadFileUint(path, "initiators",
+                                                "read_latency",
+                                                &read_latency) < 0)
         return -1;
-    if (virCapabilitiesGetNodeCacheReadFile(path, "initiators",
-                                            "write_latency",
-                                            &write_latency) < 0)
+    if (virCapabilitiesGetNodeCacheReadFileUint(path, "initiators",
+                                                "write_latency",
+                                                &write_latency) < 0)
         return -1;
 
     initPath = g_strdup_printf("%s/initiators", path);
@@ -1840,7 +1833,7 @@ virCapabilitiesHostNUMAInitInterconnectsNode(GArray *interconnects,
 
         if (virStrToLong_ui(dname, NULL, 10, &initNode) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unable to parse %s"),
+                           _("unable to parse %1$s"),
                            entry->d_name);
             return -1;
         }
@@ -1904,7 +1897,7 @@ virCapabilitiesHostNUMAInitInterconnects(virCapsHostNUMA *caps)
 
         if (virStrToLong_ui(dname, NULL, 10, &node) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unable to parse %s"),
+                           _("unable to parse %1$s"),
                            entry->d_name);
             return -1;
         }
@@ -2035,22 +2028,18 @@ virCapabilitiesHostNUMANewHost(void)
 int
 virCapabilitiesInitPages(virCaps *caps)
 {
-    int ret = -1;
-    unsigned int *pages_size = NULL;
+    g_autofree unsigned int *pages_size = NULL;
     size_t npages;
 
     if (virNumaGetPages(-1 /* Magic constant for overall info */,
                         &pages_size, NULL, NULL, &npages) < 0)
-        goto cleanup;
+        return -1;
 
     caps->host.pagesSize = g_steal_pointer(&pages_size);
     caps->host.nPagesSize = npages;
     npages = 0;
 
-    ret = 0;
- cleanup:
-    VIR_FREE(pages_size);
-    return ret;
+    return 0;
 }
 
 
@@ -2151,9 +2140,7 @@ virCapabilitiesInitCaches(virCaps *caps)
     size_t i = 0;
     g_autoptr(virBitmap) cpus = NULL;
     ssize_t pos = -1;
-    int ret = -1;
     struct dirent *ent = NULL;
-    virCapsHostCacheBank *bank = NULL;
     const virResctrlMonitorType montype = VIR_RESCTRL_MONITOR_TYPE_CACHE;
     const char *prefix = virResctrlMonitorPrefixTypeToString(montype);
 
@@ -2176,15 +2163,17 @@ virCapabilitiesInitCaches(virCaps *caps)
 
         rv = virDirOpenIfExists(&dirp, path);
         if (rv < 0)
-            goto cleanup;
+            return -1;
 
         if (!dirp)
             continue;
 
         while ((rv = virDirRead(dirp, &ent, path)) > 0) {
             g_autofree char *type = NULL;
+            g_autoptr(virCapsHostCacheBank) bank = NULL;
             int kernel_type;
             unsigned int level;
+            int ret;
 
             if (!STRPREFIX(ent->d_name, "index"))
                 continue;
@@ -2192,7 +2181,7 @@ virCapabilitiesInitCaches(virCaps *caps)
             if (virFileReadValueUint(&level,
                                      "%s/cpu/cpu%zd/cache/%s/level",
                                      SYSFS_SYSTEM_PATH, pos, ent->d_name) < 0)
-                goto cleanup;
+                return -1;
 
             if (level < cache_min_level)
                 continue;
@@ -2200,36 +2189,61 @@ virCapabilitiesInitCaches(virCaps *caps)
             bank = g_new0(virCapsHostCacheBank, 1);
             bank->level = level;
 
-            if (virFileReadValueUint(&bank->id,
-                                     "%s/cpu/cpu%zd/cache/%s/id",
-                                     SYSFS_SYSTEM_PATH, pos, ent->d_name) < 0)
-                goto cleanup;
+            ret = virFileReadValueUint(&bank->id,
+                                       "%s/cpu/cpu%zd/cache/%s/id",
+                                       SYSFS_SYSTEM_PATH, pos, ent->d_name);
+            if (ret == -2) {
+                VIR_DEBUG("CPU %zd cache %s 'id' missing", pos, ent->d_name);
+                continue;
+            }
+            if (ret < 0)
+                return -1;
 
-            if (virFileReadValueUint(&bank->level,
-                                     "%s/cpu/cpu%zd/cache/%s/level",
-                                     SYSFS_SYSTEM_PATH, pos, ent->d_name) < 0)
-                goto cleanup;
+            ret = virFileReadValueUint(&bank->level,
+                                       "%s/cpu/cpu%zd/cache/%s/level",
+                                       SYSFS_SYSTEM_PATH, pos, ent->d_name);
+            if (ret == -2) {
+                VIR_DEBUG("CPU %zd cache %s 'level' missing", pos, ent->d_name);
+                continue;
+            }
+            if (ret < 0)
+                return -1;
 
-            if (virFileReadValueString(&type,
-                                       "%s/cpu/cpu%zd/cache/%s/type",
-                                       SYSFS_SYSTEM_PATH, pos, ent->d_name) < 0)
-                goto cleanup;
+            ret = virFileReadValueString(&type,
+                                         "%s/cpu/cpu%zd/cache/%s/type",
+                                         SYSFS_SYSTEM_PATH, pos, ent->d_name);
+            if (ret == -2) {
+                VIR_DEBUG("CPU %zd cache %s 'type' missing", pos, ent->d_name);
+                continue;
+            }
+            if (ret < 0)
+                return -1;
 
-            if (virFileReadValueScaledInt(&bank->size,
-                                          "%s/cpu/cpu%zd/cache/%s/size",
-                                          SYSFS_SYSTEM_PATH, pos, ent->d_name) < 0)
-                goto cleanup;
+            ret = virFileReadValueScaledInt(&bank->size,
+                                            "%s/cpu/cpu%zd/cache/%s/size",
+                                            SYSFS_SYSTEM_PATH, pos, ent->d_name);
+            if (ret == -2) {
+                VIR_DEBUG("CPU %zd cache %s 'size' missing", pos, ent->d_name);
+                continue;
+            }
+            if (ret < 0)
+                return -1;
 
-            if (virFileReadValueBitmap(&bank->cpus,
-                                       "%s/cpu/cpu%zd/cache/%s/shared_cpu_list",
-                                       SYSFS_SYSTEM_PATH, pos, ent->d_name) < 0)
-                goto cleanup;
+            ret = virFileReadValueBitmap(&bank->cpus,
+                                         "%s/cpu/cpu%zd/cache/%s/shared_cpu_list",
+                                         SYSFS_SYSTEM_PATH, pos, ent->d_name);
+            if (ret == -2) {
+                VIR_DEBUG("CPU %zd cache %s 'shared_cpu_list' missing", pos, ent->d_name);
+                continue;
+            }
+            if (ret < 0)
+                return -1;
 
             kernel_type = virCacheKernelTypeFromString(type);
             if (kernel_type < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Unknown cache type '%s'"), type);
-                goto cleanup;
+                               _("Unknown cache type '%1$s'"), type);
+                return -1;
             }
 
             bank->type = kernel_type;
@@ -2245,15 +2259,13 @@ virCapabilitiesInitCaches(virCaps *caps)
                                            bank->size,
                                            &bank->ncontrols,
                                            &bank->controls) < 0)
-                    goto cleanup;
+                    return -1;
 
                 VIR_APPEND_ELEMENT(caps->host.cache.banks, caps->host.cache.nbanks, bank);
             }
-
-            g_clear_pointer(&bank, virCapsHostCacheBankFree);
         }
         if (rv < 0)
-            goto cleanup;
+            return -1;
     }
 
     /* Sort the array in order for the tests to be predictable.  This way we can
@@ -2265,16 +2277,13 @@ virCapabilitiesInitCaches(virCaps *caps)
     }
 
     if (virCapabilitiesInitResctrlMemory(caps) < 0)
-        goto cleanup;
+        return -1;
 
     if (virResctrlInfoGetMonitorPrefix(caps->host.resctrl, prefix,
                                        &caps->host.cache.monitor) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
- cleanup:
-    virCapsHostCacheBankFree(bank);
-    return ret;
+    return 0;
 }
 
 

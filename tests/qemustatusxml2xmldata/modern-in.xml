@@ -261,6 +261,7 @@
   <chardevStdioLogd/>
   <allowReboot value='yes'/>
   <nodename index='123'/>
+  <fdset index='321'/>
   <blockjobs active='no'/>
   <agentTimeout>-2</agentTimeout>
   <domain type='kvm' id='1'>
@@ -340,7 +341,14 @@
                 <secret type='tlskey' alias='tls-certificate-key-alias'/>
                 <TLSx509 alias='transport-alias'/>
               </objects>
+              <fdsets>
+                <fdset type='storage' id='1337'/>
+              </fdsets>
               <thresholdEvent indexUsed='yes'/>
+              <nbdkit>
+                <pidfile>/path/to/nbdkit.pid</pidfile>
+                <socketfile>/path/to/nbdkit.socket</socketfile>
+              </nbdkit>
             </privateData>
           </source>
           <backingStore/>
@@ -355,6 +363,20 @@
           </nodenames>
         </privateData>
         <diskSecretsPlacement auth='true'/>
+      </disk>
+      <disk type='network' device='disk'>
+        <driver name='qemu' type='raw'/>
+        <source protocol='rbd' name='pool/image' tlsFromConfig='0'>
+          <host name='example.org'/>
+          <privateData>
+            <objects>
+              <secret type='encryption' alias='test-encryption-alias'/>
+              <secret type='encryption' alias='test-encryption-alias2'/>
+            </objects>
+          </privateData>
+        </source>
+        <target dev='vdc' bus='virtio'/>
+        <address type='pci' domain='0x0000' bus='0x00' slot='0x0c' function='0x0'/>
       </disk>
       <disk type='file' device='cdrom'>
         <driver name='qemu' type='raw'/>
@@ -478,6 +500,18 @@
         </source>
         <alias name='hostdev0'/>
         <address type='drive' controller='0' bus='0' target='2' unit='4'/>
+      </hostdev>
+      <hostdev mode='subsystem' type='pci' managed='yes'>
+        <driver name='vfio'/>
+        <source>
+          <address domain='0x0005' bus='0x90' slot='0x01' function='0x2'/>
+          <origstates>
+            <unbind/>
+            <removeslot/>
+            <reprobe/>
+          </origstates>
+        </source>
+        <address type='pci' domain='0x0000' bus='0x00' slot='0x0a' function='0x0'/>
       </hostdev>
       <redirdev bus='usb' type='spicevmc'>
         <alias name='redir0'/>

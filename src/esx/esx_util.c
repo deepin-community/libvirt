@@ -24,15 +24,12 @@
 #include <config.h>
 
 #include "internal.h"
-#include "datatypes.h"
-#include "viralloc.h"
 #include "virlog.h"
 #include "viruuid.h"
 #include "vmx.h"
 #include "esx_private.h"
 #include "esx_util.h"
 #include "virstring.h"
-#include "virsocket.h"
 
 #define VIR_FROM_THIS VIR_FROM_ESX
 
@@ -62,8 +59,7 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
             if (STRNEQ((*parsedUri)->transport, "http") &&
                 STRNEQ((*parsedUri)->transport, "https")) {
                 virReportError(VIR_ERR_INVALID_ARG,
-                               _("Query parameter 'transport' has unexpected value "
-                                 "'%s' (should be http|https)"),
+                               _("Query parameter 'transport' has unexpected value '%1$s' (should be http|https)"),
                                (*parsedUri)->transport);
                 goto cleanup;
             }
@@ -75,8 +71,8 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
             if (virStrToLong_i(queryParam->value, NULL, 10, &noVerify) < 0 ||
                 (noVerify != 0 && noVerify != 1)) {
                 virReportError(VIR_ERR_INVALID_ARG,
-                               _("Query parameter 'no_verify' has unexpected value "
-                                 "'%s' (should be 0 or 1)"), queryParam->value);
+                               _("Query parameter 'no_verify' has unexpected value '%1$s' (should be 0 or 1)"),
+                               queryParam->value);
                 goto cleanup;
             }
 
@@ -85,8 +81,8 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
             if (virStrToLong_i(queryParam->value, NULL, 10, &autoAnswer) < 0 ||
                 (autoAnswer != 0 && autoAnswer != 1)) {
                 virReportError(VIR_ERR_INVALID_ARG,
-                               _("Query parameter 'auto_answer' has unexpected "
-                                 "value '%s' (should be 0 or 1)"), queryParam->value);
+                               _("Query parameter 'auto_answer' has unexpected value '%1$s' (should be 0 or 1)"),
+                               queryParam->value);
                 goto cleanup;
             }
 
@@ -111,8 +107,7 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
                 *tmp = '\0';
 
                 virReportError(VIR_ERR_INVALID_ARG,
-                               _("Query parameter 'proxy' contains unexpected "
-                                 "type '%s' (should be (http|socks(|4|4a|5))"),
+                               _("Query parameter 'proxy' contains unexpected type '%1$s' (should be (http|socks(|4|4a|5))"),
                                queryParam->value);
                 goto cleanup;
             } else {
@@ -124,8 +119,7 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
             if ((tmp = strchr((*parsedUri)->proxy_hostname, ':'))) {
                 if (tmp == (*parsedUri)->proxy_hostname) {
                     virReportError(VIR_ERR_INVALID_ARG, "%s",
-                                   _("Query parameter 'proxy' doesn't contain a "
-                                     "hostname"));
+                                   _("Query parameter 'proxy' doesn't contain a hostname"));
                     goto cleanup;
                 }
 
@@ -136,8 +130,7 @@ esxUtil_ParseUri(esxUtil_ParsedUri **parsedUri, virURI *uri)
                     (*parsedUri)->proxy_port < 1 ||
                     (*parsedUri)->proxy_port > 65535) {
                     virReportError(VIR_ERR_INVALID_ARG,
-                                   _("Query parameter 'proxy' has unexpected "
-                                     "port value '%s' (should be [1..65535])"),
+                                   _("Query parameter 'proxy' has unexpected port value '%1$s' (should be [1..65535])"),
                                    tmp);
                     goto cleanup;
                 }
@@ -226,8 +219,8 @@ esxUtil_ParseDatastorePath(const char *datastorePath, char **datastoreName,
     if (!(tmp = STRSKIP(copyOfDatastorePath, "[")) || *tmp == ']' ||
         !(preliminaryDatastoreName = strtok_r(tmp, "]", &saveptr))) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("Datastore path '%s' doesn't have expected format "
-                         "'[<datastore>] <path>'"), datastorePath);
+                       _("Datastore path '%1$s' doesn't have expected format '[<datastore>] <path>'"),
+                       datastorePath);
         goto cleanup;
     }
 
@@ -278,12 +271,10 @@ esxUtil_ParseDatastorePath(const char *datastorePath, char **datastoreName,
 int
 esxUtil_ResolveHostname(const char *hostname, char **ipAddress)
 {
-    struct addrinfo hints;
+    struct addrinfo hints = { 0 };
     struct addrinfo *result = NULL;
     int errcode;
     g_autofree char *address = NULL;
-
-    memset(&hints, 0, sizeof(hints));
 
     hints.ai_flags = AI_ADDRCONFIG;
     hints.ai_family = AF_INET;
@@ -294,14 +285,14 @@ esxUtil_ResolveHostname(const char *hostname, char **ipAddress)
 
     if (errcode != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("IP address lookup for host '%s' failed: %s"), hostname,
+                       _("IP address lookup for host '%1$s' failed: %2$s"), hostname,
                        gai_strerror(errcode));
         return -1;
     }
 
     if (!result) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("No IP address for host '%s' found: %s"), hostname,
+                       _("No IP address for host '%1$s' found: %2$s"), hostname,
                        gai_strerror(errcode));
         return -1;
     }
@@ -313,7 +304,7 @@ esxUtil_ResolveHostname(const char *hostname, char **ipAddress)
 
     if (errcode != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Formatting IP address for host '%s' failed: %s"), hostname,
+                       _("Formatting IP address for host '%1$s' failed: %2$s"), hostname,
                        gai_strerror(errcode));
         return -1;
     }
@@ -332,7 +323,7 @@ esxUtil_ReformatUuid(const char *input, char *output)
 
     if (virUUIDParse(input, uuid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not parse UUID from string '%s'"),
+                       _("Could not parse UUID from string '%1$s'"),
                        input);
         return -1;
     }

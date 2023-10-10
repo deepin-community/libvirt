@@ -5,7 +5,7 @@
 QEMU/KVM/HVF hypervisor driver
 ==============================
 
-The libvirt KVM/QEMU driver can manage any QEMU emulator from version 2.11.0 or
+The libvirt KVM/QEMU driver can manage any QEMU emulator from version 4.2.0 or
 later.
 
 It supports multiple QEMU accelerators: software
@@ -20,7 +20,7 @@ Project Links
 
 -  The `KVM <https://www.linux-kvm.org/>`__ Linux hypervisor
 -  The `QEMU <https://wiki.qemu.org/Index.html>`__ emulator
--  `Hypervisor.framework`<https://developer.apple.com/documentation/hypervisor>__` reference
+-  `Hypervisor.framework <https://developer.apple.com/documentation/hypervisor>`__ reference
 
 Deployment pre-requisites
 -------------------------
@@ -34,8 +34,8 @@ Deployment pre-requisites
    ``qemu-kvm`` and ``/dev/kvm`` device node. If both are found, then KVM fully
    virtualized, hardware accelerated guests will be available.
 -  **Hypervisor.framework (HVF)**: The driver will probe ``sysctl`` for the
-   presence of ``Hypervisor.framework``. If it is found and QEMU is newer than
-   2.12, then it will be possible to create hardware accelerated guests.
+   presence of ``Hypervisor.framework``. If it is found it will be possible to
+   create hardware accelerated guests.
 
 Connections to QEMU driver
 --------------------------
@@ -294,6 +294,13 @@ use the 'context' option when mounting the filesystem to set the default label
 to ``system_u:object_r:virt_image_t``. In the case of NFS, there is an
 alternative option, of enabling the ``virt_use_nfs`` SELinux boolean.
 
+There are some network filesystems, however, that propagate SELinux labels
+properly, just like a local filesystem (e.g. ceph or CIFS). In such case,
+dynamic labelling (described below) might prevent migration of a virtual
+machine as new unique SELinux label is assigned to the virtual machine on the
+migration destination side. Users are advised to use static labels (``<seclabel
+type='static' .../>``).
+
 SELinux sVirt confinement
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -416,6 +423,89 @@ following command should be run as root, prior to starting libvirtd
 libvirt will then place each virtual machine in a cgroup at
 ``/dev/cgroup/libvirt/qemu/$VMNAME/``
 
+
+Live migration compatibility
+----------------------------
+
+Many factors can affect the ability to live migrate a guest between a pair
+of hosts. It is critical that when QEMU is started on the destination host,
+the exposed guest machine ABI matches what was exposed by the existing QEMU
+process on the source host. To facilitate this, when libvirt receives a
+guest configuration document, it will attempt to expand any features that
+were not specified, to ensure a stable guest machine ABI. Mostly this involves
+adding address information to all devices, and adding controllers to attach
+the devices to.
+
+Certain features that affect the guest ABI, however, may only be known at the
+time the guest is started and can be influenced by features of the host OS
+and its hardware. This means that even if the guest XML configuration is the
+same, it may still be impossible to migrate the guest between two hosts.
+
+Migration CPU model compatibility
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The most common problems with migration compatibility surround the use of
+the guest CPU ``host-model`` or ``host-passthrough`` modes. Both of these
+modes attempt to expose the full host CPU featureset to the guest. The
+``host-model`` mode attempts to expose as many features as possible while
+retaining the ability to accurately check compatibility between hosts prior
+to migration running. The ``host-passthrough`` mode attempts to expose the
+host CPU as precisely as possible, but with the cost that it is not possible
+for libvirt to check compatibility prior to migration.
+
+If using ``host-model`` the target host hardware and software deployment
+must expose a superset of the features of the source host CPU. If using
+``host-passthrough`` the target host CPU and software deployment must
+always expose a superset of the features, however, it is further strongly
+recommended that the source and destination hosts be identical in every
+way.
+
+In both cases, there are a number of factors that will influence the CPU
+features available to the guest
+
+* **Physical CPU model** - the core constraint on what features are available.
+  Check ``/proc/cpuinfo`` for CPU model name.
+* **Firmware revision (BIOS/UEFI/etc)** - firmware updates may bundle microcode
+  updates which arbitrarily add or remove CPU features, typically in response
+  to new hardware vulnerabilities. Check ``dmidecode`` for details on ``x86``
+  and ``aarch64`` platforms for firmware version, and ``/proc/cpuinfo`` for
+  associated microcode version (if not updated by the OS).
+* **Firmware settings** - certain firmware settings can affect accessibility of
+  features. For example, turning on/off SMT/HT not only affects the number
+  of logical CPUs available to the OS, but can indirectly influence other
+  factors such as the number of performance counters available for use. Check
+  the firmware specific configuration interface.
+* **Host kernel version** - the host kernel software version may have a
+  need to block certain physical CPU features from use in the guest. It can
+  also emulate certain features that may not exist in the silicon, for example,
+  x2apic. Check ``uname -r`` output for kernel version.
+* **Host kernel settings** - the kernel command line options can be used to
+  block certain physical CPU features from use in the guest, for example,
+  ``tsx=off``, ``l1tf=...`` or ``nosmt``. Check ``/proc/cmdline`` and
+  ``/etc/modprobe.d/*.conf``.
+* **microcode update version** - while the firmware will load the initial
+  microcode in to the CPU, the OS may ship packages providing newer microcode
+  updates since these can be deployed on a more timely manner than firmware
+  updates. These updates can arbitrarily load add or remove CPU features.
+  Check ``/proc/cpuinfo`` for microcode version.
+* **QEMU version** - even when the kernel supports exposing a CPU feature to
+  the guest, an update in the QEMU emulator version will be required to unlock
+  its usage with a guest, except with ``host-passthrough``. Check the output
+  of ``$QEMU -version``.
+* **libvirt version** - even when the kernel and QEMU support exposing a CPU
+  feature to the guest, an update in the libvirt version will be required to
+  unlock its usage with a guest, except with ``host-passthrough``. Check
+  ``virsh version``.
+* **Nested virtualization** - due to the limitations of nested virtualization,
+  a L1 nested host may not be able to expose the same featureset as a bare
+  metal host, even if everything else is the same.
+
+The ``virsh capabilities`` output will provide information on the high level
+CPU model, its features, microcode version. Most of the time this will provide
+enough information to know whether the CPUs of two hosts will be compatible.
+If there are unexpected differences though, checking the above list of
+influencing factors can reveal where the difference arises from.
+
 Import and export of libvirt domain XML configs
 -----------------------------------------------
 
@@ -443,10 +533,16 @@ Converting from domain XML to QEMU args
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The ``virsh domxml-to-native`` provides a way to convert a guest description
-using libvirt Domain XML, into a set of QEMU args that can be run manually. Note
-that currently the command line formatted by libvirt is no longer suited for
-manually running qemu as the configuration expects various resources and open
-file descriptors passed to the process which are usually prepared by libvirtd.
+using libvirt Domain XML, into a set of QEMU args that would be used by libvirt
+to start the qemu process.
+
+Note that currently the command line formatted by libvirt is no longer suited
+for manually running qemu as the configuration expects various resources and
+open file descriptors passed to the process which are usually prepared by
+libvirtd as well as certain features being configured via the monitor.
+
+The qemu arguments as returned by ``virsh domxml-to-native`` thus are not
+trivially usable outside of libvirt.
 
 Pass-through of arbitrary qemu commands
 ---------------------------------------
@@ -579,6 +675,90 @@ silently ignored to allow testing older qemu versions without having to
 reconfigure libvirtd.
 
 *DO NOT* use in production.
+
+Overriding properties of QEMU devices
+-------------------------------------
+
+For development or testing the ``<qemu:override>`` tag allows to override
+specific properties of devices instantiated by libvirt.
+
+The ``<qemu:device>`` sub-element groups overrides for a device identified via
+the ``alias`` attribute. The alias corresponds to the ``<alias name=''>``
+property of a device. It's strongly recommended to use user-specified aliases
+for devices with overridden properties.
+
+Sub element ``<qemu:frontend>`` encapsulates all overrides of properties for the
+device frontend and overrides what libvirt formats via ``-device``.
+:since:`Since 8.2.0`.
+
+The individual properties are overridden by a ``<qemu:property>`` element. The
+``name`` specifies the name of the property to override. In case when libvirt
+doesn't configure the property a property with the name is added to the
+commandline. The ``type`` attribute specifies a type of the argument used. The
+type must correspond semantically (e.g use a numeric type when qemu expects a
+number) with the type that is expected by QEMU. Supported values for the ``type``
+attribute are:
+
+  ``string``
+    Used to override ``qemu`` properties of ``str`` type as well as any
+    enumeration type (e.g. ``OnOffAuto`` in which case the value can be one of
+    ``on``, ``off``, or ``auto``).
+
+  ``unsigned``
+    Used to override numeric properties with an non-negative value. Note that
+    this can be used to also override signed values in qemu.
+
+    Used for any numeric type of a ``qemu`` property such as ``uint32``,
+    ``int32``, ``size``, etc.
+
+    The value is interpreted as a base 10 number, make sure to convert numbers
+    if needed.
+
+  ``signed``
+    Same semantics as ``unsigned`` above but used when a negative value is
+    needed.
+
+  ``bool``
+    Used to override ``qemu`` properties of ``bool`` type. Allowed values for
+    are ``true`` and ``false``.
+
+  ``remove``.
+    The ``remove`` type is special and instructs libvirt to remove the property
+    without replacement.
+
+The overrides are applied only to initial device configuration passed to QEMU
+via the commandline. Later hotplug operations will not apply any modifications.
+
+The properties of a device can be queried directly in qemu (e.g. for the
+``virtio-blk-pci`` device) via ::
+
+  # qemu-system-x86_64 -device virtio-blk-pci,?
+
+*Note:* The libvirt project doesn't guarantee any form of compatibility and
+stability of devices with overridden properties. The domain is tainted when
+such configuration is used.
+
+Example:
+
+::
+
+   <domain type='kvm' xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+     <name>testvm</name>
+
+      [...]
+
+     <qemu:override>
+       <qemu:device alias='ua-devalias'>
+         <qemu:frontend>
+           <qemu:property name='propname1' type='string' value='test'/>
+           <qemu:property name='propname2' type='unsigned' value='123'/>
+           <qemu:property name='propname2' type='signed' value='-123'/>
+           <qemu:property name='propname3' type='bool' value='false'/>
+           <qemu:property name='propname4' type='remove'/>
+         </qemu:frontend>
+       </qemu:device>
+     </qemu:override>
+   </domain>
 
 Example domain XML config
 -------------------------

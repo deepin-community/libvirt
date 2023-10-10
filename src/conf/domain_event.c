@@ -29,8 +29,6 @@
 #include "datatypes.h"
 #include "viralloc.h"
 #include "virerror.h"
-#include "virstring.h"
-#include "virtypedparam.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -286,7 +284,6 @@ struct _virDomainEventMemoryDeviceSizeChange {
     unsigned long long size;
 };
 typedef struct _virDomainEventMemoryDeviceSizeChange virDomainEventMemoryDeviceSizeChange;
-typedef virDomainEventMemoryDeviceSizeChange *virDomainEventMemoryDeviceSizeChangePtr;
 
 static int
 virDomainEventsOnceInit(void)
@@ -556,7 +553,7 @@ virDomainEventMemoryFailureDispose(void *obj)
 static void
 virDomainEventMemoryDeviceSizeChangeDispose(void *obj)
 {
-    virDomainEventMemoryDeviceSizeChangePtr event = obj;
+    virDomainEventMemoryDeviceSizeChange *event = obj;
     VIR_DEBUG("obj=%p", event);
 
     g_free(event->alias);
@@ -577,7 +574,7 @@ virDomainEventNew(virClass *klass,
 
     if (!virClassIsDerivedFrom(klass, virDomainEventClass)) {
         virReportInvalidArg(klass,
-                            _("Class %s must derive from virDomainEvent"),
+                            _("Class %1$s must derive from virDomainEvent"),
                             virClassName(klass));
         return NULL;
     }
@@ -1497,7 +1494,7 @@ static virObjectEvent *
 virDomainEventTunableNew(int id,
                          const char *name,
                          unsigned char *uuid,
-                         virTypedParameterPtr params,
+                         virTypedParameterPtr *params,
                          int nparams)
 {
     virDomainEventTunable *ev;
@@ -1510,19 +1507,20 @@ virDomainEventTunableNew(int id,
                                  id, name, uuid)))
         goto error;
 
-    ev->params = params;
+    ev->params = *params;
     ev->nparams = nparams;
-
+    *params = NULL;
     return (virObjectEvent *)ev;
 
  error:
-    virTypedParamsFree(params, nparams);
+    virTypedParamsFree(*params, nparams);
+    *params = NULL;
     return NULL;
 }
 
 virObjectEvent *
 virDomainEventTunableNewFromObj(virDomainObj *obj,
-                                virTypedParameterPtr params,
+                                virTypedParameterPtr *params,
                                 int nparams)
 {
     return virDomainEventTunableNew(obj->def->id,
@@ -1534,7 +1532,7 @@ virDomainEventTunableNewFromObj(virDomainObj *obj,
 
 virObjectEvent *
 virDomainEventTunableNewFromDom(virDomainPtr dom,
-                                virTypedParameterPtr params,
+                                virTypedParameterPtr *params,
                                 int nparams)
 {
     return virDomainEventTunableNew(dom->id,
@@ -1563,8 +1561,7 @@ virDomainEventMetadataChangeNew(int id,
         return NULL;
 
     ev->type = type;
-    if (nsuri)
-        ev->nsuri = g_strdup(nsuri);
+    ev->nsuri = g_strdup(nsuri);
 
     return (virObjectEvent *)ev;
 }
@@ -1693,7 +1690,7 @@ virDomainEventMemoryDeviceSizeChangeNew(int id,
                                         const char *alias,
                                         unsigned long long size)
 {
-    virDomainEventMemoryDeviceSizeChangePtr ev;
+    virDomainEventMemoryDeviceSizeChange *ev;
 
     if (virDomainEventsInitialize() < 0)
         return NULL;
@@ -2034,9 +2031,9 @@ virDomainEventDispatchDefaultFunc(virConnectPtr conn,
 
     case VIR_DOMAIN_EVENT_ID_MEMORY_DEVICE_SIZE_CHANGE:
         {
-            virDomainEventMemoryDeviceSizeChangePtr memoryDeviceSizeChangeEvent;
+            virDomainEventMemoryDeviceSizeChange *memoryDeviceSizeChangeEvent;
 
-            memoryDeviceSizeChangeEvent = (virDomainEventMemoryDeviceSizeChangePtr)event;
+            memoryDeviceSizeChangeEvent = (virDomainEventMemoryDeviceSizeChange *)event;
             ((virConnectDomainEventMemoryDeviceSizeChangeCallback)cb)(conn, dom,
                                                                       memoryDeviceSizeChangeEvent->alias,
                                                                       memoryDeviceSizeChangeEvent->size,
@@ -2396,7 +2393,7 @@ virDomainQemuMonitorEventStateRegisterID(virConnectPtr conn,
             data->regex = g_regex_new(event, cflags, 0, &err);
             if (!data->regex) {
                 virReportError(VIR_ERR_INVALID_ARG,
-                               _("failed to compile regex '%s': %s"),
+                               _("failed to compile regex '%1$s': %2$s"),
                                event, err->message);
                 VIR_FREE(data);
                 return -1;

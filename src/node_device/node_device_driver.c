@@ -32,17 +32,18 @@
 #include "viralloc.h"
 #include "virfile.h"
 #include "virjson.h"
-#include "virstring.h"
 #include "node_device_conf.h"
 #include "node_device_event.h"
 #include "node_device_driver.h"
-#include "node_device_util.h"
+#if WITH_UDEV
+# include "node_device_udev.h"
+#endif
 #include "virvhba.h"
 #include "viraccessapicheck.h"
-#include "virnetdev.h"
 #include "virutil.h"
 #include "vircommand.h"
 #include "virlog.h"
+#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NODEDEV
 
@@ -136,7 +137,7 @@ nodeDeviceUpdateDriverName(virNodeDeviceDef *def)
 
     if (virFileResolveLink(driver_link, &devpath) < 0) {
         virReportSystemError(errno,
-                             _("cannot resolve driver link %s"), driver_link);
+                             _("cannot resolve driver link %1$s"), driver_link);
         return -1;
     }
 
@@ -236,7 +237,7 @@ nodeDeviceObjFindByName(const char *name)
 
     if (!(obj = virNodeDeviceObjListFindByName(driver->devs, name))) {
         virReportError(VIR_ERR_NO_NODE_DEVICE,
-                       _("no node device with matching name '%s'"),
+                       _("no node device with matching name '%1$s'"),
                        name);
     }
 
@@ -661,18 +662,22 @@ nodeDeviceObjFormatAddress(virNodeDeviceObj *obj)
             }
 
         case VIR_NODE_DEV_CAP_CSS_DEV: {
-            virDomainDeviceCCWAddress ccw_addr = {
+            virCCWDeviceAddress ccw_addr = {
                 .cssid = caps->data.ccw_dev.cssid,
                 .ssid = caps->data.ccw_dev.ssid,
                 .devno = caps->data.ccw_dev.devno
             };
 
-            addr = virDomainCCWAddressAsString(&ccw_addr);
+            addr = virCCWDeviceAddressAsString(&ccw_addr);
             break;
             }
 
         case VIR_NODE_DEV_CAP_AP_MATRIX:
             addr = g_strdup(caps->data.ap_matrix.addr);
+            break;
+
+        case VIR_NODE_DEV_CAP_MDEV_TYPES:
+            addr = g_strdup(caps->data.mdev_parent.address);
             break;
 
         case VIR_NODE_DEV_CAP_SYSTEM:
@@ -687,7 +692,6 @@ nodeDeviceObjFormatAddress(virNodeDeviceObj *obj)
         case VIR_NODE_DEV_CAP_VPORTS:
         case VIR_NODE_DEV_CAP_SCSI_GENERIC:
         case VIR_NODE_DEV_CAP_DRM:
-        case VIR_NODE_DEV_CAP_MDEV_TYPES:
         case VIR_NODE_DEV_CAP_MDEV:
         case VIR_NODE_DEV_CAP_CCW_DEV:
         case VIR_NODE_DEV_CAP_VDPA:
@@ -732,7 +736,7 @@ nodeDeviceGetMdevctlCommand(virNodeDeviceDef *def,
     default:
         /* SHOULD NEVER HAPPEN */
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unknown Command '%i'"), cmd_type);
+                       _("Unknown Command '%1$i'"), cmd_type);
         return NULL;
     }
 
@@ -741,7 +745,7 @@ nodeDeviceGetMdevctlCommand(virNodeDeviceDef *def,
     case MDEVCTL_CMD_DEFINE:
         if (!def->caps->data.mdev.parent_addr) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unable to find parent device '%s'"), def->parent);
+                           _("unable to find parent device '%1$s'"), def->parent);
             return NULL;
         }
 
@@ -799,7 +803,7 @@ virMdevctlCreate(virNodeDeviceDef *def, char **uuid)
 
     if (status != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to start mediated device: %s"),
+                       _("Unable to start mediated device: %1$s"),
                        MDEVCTL_ERROR(errmsg));
         return -1;
     }
@@ -829,7 +833,7 @@ virMdevctlDefine(virNodeDeviceDef *def, char **uuid)
 
     if (status != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to define mediated device: %s"),
+                       _("Unable to define mediated device: %1$s"),
                        MDEVCTL_ERROR(errmsg));
         return -1;
     }
@@ -876,16 +880,17 @@ nodeDeviceCreateXML(virConnectPtr conn,
     g_autofree char *wwpn = NULL;
     virNodeDevicePtr device = NULL;
     const char *virt_type = NULL;
+    bool validate = flags & VIR_NODE_DEVICE_CREATE_XML_VALIDATE;
 
-    virCheckFlags(0, NULL);
+    virCheckFlags(VIR_NODE_DEVICE_CREATE_XML_VALIDATE, NULL);
 
     if (nodeDeviceInitWait() < 0)
         return NULL;
 
     virt_type  = virConnectGetType(conn);
 
-    if (!(def = virNodeDeviceDefParseString(xmlDesc, CREATE_DEVICE, virt_type,
-                                            &driver->parserCallbacks, NULL)))
+    if (!(def = virNodeDeviceDefParse(xmlDesc, NULL, CREATE_DEVICE, virt_type,
+                                      &driver->parserCallbacks, NULL, validate)))
         return NULL;
 
     if (virNodeDeviceCreateXMLEnsureACL(conn, def) < 0)
@@ -909,8 +914,7 @@ nodeDeviceCreateXML(virConnectPtr conn,
 
         if (device == NULL)
             virReportError(VIR_ERR_NO_NODE_DEVICE,
-                           _("no node device for '%s' with matching "
-                             "wwnn '%s' and wwpn '%s'"),
+                           _("no node device for '%1$s' with matching wwnn '%2$s' and wwpn '%3$s'"),
                            def->name, wwnn, wwpn);
     } else if (nodeDeviceHasCapability(def, VIR_NODE_DEV_CAP_MDEV)) {
         device = nodeDeviceCreateXMLMdev(conn, def);
@@ -940,7 +944,7 @@ virMdevctlStop(virNodeDeviceDef *def)
 
     if (status != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to destroy '%s': %s"), def->name,
+                       _("Unable to destroy '%1$s': %2$s"), def->name,
                        MDEVCTL_ERROR(errmsg));
         return -1;
     }
@@ -966,7 +970,7 @@ virMdevctlUndefine(virNodeDeviceDef *def)
 
     if (status != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to undefine mediated device: %s"),
+                       _("Unable to undefine mediated device: %1$s"),
                        MDEVCTL_ERROR(errmsg));
         return -1;
     }
@@ -992,7 +996,7 @@ virMdevctlStart(virNodeDeviceDef *def)
 
     if (status != 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to create mediated device: %s"),
+                       _("Unable to create mediated device: %1$s"),
                        MDEVCTL_ERROR(errmsg));
         return -1;
     }
@@ -1041,6 +1045,15 @@ virMdevctlSetAutostart(virNodeDeviceDef *def, bool autostart, char **errmsg)
 }
 
 
+/**
+ * nodeDeviceGetMdevctlListCommand:
+ * @defined: list mdevctl entries with persistent config
+ * @output: filled with the output of mdevctl once invoked
+ * @errmsg: always allocated, optionally filled with error from 'mdevctl'
+ *
+ * Prepares a virCommand structure to invoke 'mdevctl' caller is responsible to
+ * free the buffers which are filled by the virCommand infrastructure.
+ */
 virCommand*
 nodeDeviceGetMdevctlListCommand(bool defined,
                                 char **output,
@@ -1072,14 +1085,10 @@ static bool
 matchDeviceAddress(virNodeDeviceObj *obj,
                    const void *opaque)
 {
-    g_autofree char *addr = NULL;
-    bool want = false;
+    VIR_LOCK_GUARD lock = virObjectLockGuard(obj);
+    g_autofree char *addr = nodeDeviceObjFormatAddress(obj);
 
-    virObjectLock(obj);
-    addr = nodeDeviceObjFormatAddress(obj);
-    want = STREQ_NULLABLE(addr, opaque);
-    virObjectUnlock(obj);
-    return want;
+    return STREQ_NULLABLE(addr, opaque);
 }
 
 
@@ -1167,6 +1176,12 @@ nodeDeviceParseMdevctlJSON(const char *jsonstring,
     size_t i;
     size_t j;
     virJSONValue *obj;
+
+    if (virStringIsEmpty(jsonstring)) {
+        VIR_DEBUG("mdevctl has no defined mediated devices");
+        *devs = NULL;
+        return 0;
+    }
 
     json_devicelist = virJSONValueFromString(jsonstring);
 
@@ -1279,7 +1294,7 @@ nodeDeviceDestroy(virNodeDevicePtr device)
 
         if (!(obj = virNodeDeviceObjListFindByName(driver->devs, parent))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("cannot find parent '%s' definition"), parent);
+                           _("cannot find parent '%1$s' definition"), parent);
             goto cleanup;
         }
 
@@ -1296,7 +1311,7 @@ nodeDeviceDestroy(virNodeDevicePtr device)
 
         if (!virNodeDeviceObjIsActive(obj)) {
             virReportError(VIR_ERR_OPERATION_INVALID,
-                           _("Device '%s' is not active"), def->name);
+                           _("Device '%1$s' is not active"), def->name);
             goto cleanup;
         }
 
@@ -1317,7 +1332,7 @@ nodeDeviceDestroy(virNodeDevicePtr device)
 
         if (fd < 0 && errno == EBUSY) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unable to destroy '%s': device in use"),
+                           _("Unable to destroy '%1$s': device in use"),
                            def->name);
             goto cleanup;
         }
@@ -1340,11 +1355,12 @@ nodeDeviceDestroy(virNodeDevicePtr device)
 /* takes ownership of @def and potentially frees it. @def should not be used
  * after returning from this function */
 static int
-nodeDeviceUpdateMediatedDevice(virNodeDeviceDef *def)
+nodeDeviceUpdateMediatedDevice(virNodeDeviceDef *def,
+                               bool defined)
 {
     virNodeDeviceObj *obj;
     virObjectEvent *event;
-    bool defined = false;
+    bool was_defined = false;
     g_autoptr(virNodeDeviceDef) owned = def;
     g_autofree char *name = g_strdup(owned->name);
 
@@ -1360,13 +1376,13 @@ nodeDeviceUpdateMediatedDevice(virNodeDeviceDef *def)
         bool changed;
         virNodeDeviceDef *olddef = virNodeDeviceObjGetDef(obj);
 
-        defined = virNodeDeviceObjIsPersistent(obj);
+        was_defined = virNodeDeviceObjIsPersistent(obj);
         /* Active devices contain some additional information (e.g. sysfs
          * path) that is not provided by mdevctl, so re-use the existing
          * definition and copy over new mdev data */
         changed = nodeDeviceDefCopyFromMdevctl(olddef, owned);
 
-        if (defined && !changed) {
+        if (was_defined && !changed) {
             /* if this device was already defined and the definition
              * hasn't changed, there's nothing to do for this device */
             virNodeDeviceObjEndAPI(&obj);
@@ -1374,11 +1390,11 @@ nodeDeviceUpdateMediatedDevice(virNodeDeviceDef *def)
         }
     }
 
-    /* all devices returned by virMdevctlListDefined() are persistent */
-    virNodeDeviceObjSetPersistent(obj, true);
+    if (defined)
+        virNodeDeviceObjSetPersistent(obj, true);
     virNodeDeviceObjSetAutostart(obj, def->caps->data.mdev.autostart);
 
-    if (!defined)
+    if (!was_defined && defined)
         event = virNodeDeviceEventLifecycleNew(name,
                                                VIR_NODE_DEVICE_EVENT_DEFINED,
                                                0);
@@ -1401,16 +1417,17 @@ nodeDeviceDefineXML(virConnect *conn,
     const char *virt_type = NULL;
     g_autofree char *uuid = NULL;
     g_autofree char *name = NULL;
+    bool validate = flags & VIR_NODE_DEVICE_DEFINE_XML_VALIDATE;
 
-    virCheckFlags(0, NULL);
+    virCheckFlags(VIR_NODE_DEVICE_DEFINE_XML_VALIDATE, NULL);
 
     if (nodeDeviceInitWait() < 0)
         return NULL;
 
     virt_type  = virConnectGetType(conn);
 
-    if (!(def = virNodeDeviceDefParseString(xmlDesc, CREATE_DEVICE, virt_type,
-                                            &driver->parserCallbacks, NULL)))
+    if (!(def = virNodeDeviceDefParse(xmlDesc, NULL, CREATE_DEVICE, virt_type,
+                                      &driver->parserCallbacks, NULL, validate)))
         return NULL;
 
     if (virNodeDeviceDefineXMLEnsureACL(conn, def) < 0)
@@ -1447,7 +1464,7 @@ nodeDeviceDefineXML(virConnect *conn,
      * have already received the uuid from virMdevctlDefine(), we can simply
      * add the provisional device to the list and return it immediately and
      * avoid this long delay. */
-    if (nodeDeviceUpdateMediatedDevice(g_steal_pointer(&def)) < 0)
+    if (nodeDeviceUpdateMediatedDevice(g_steal_pointer(&def), true) < 0)
         return NULL;
 
     return virGetNodeDevice(conn, name);
@@ -1477,7 +1494,7 @@ nodeDeviceUndefine(virNodeDevice *device,
 
     if (!virNodeDeviceObjIsPersistent(obj)) {
         virReportError(VIR_ERR_OPERATION_INVALID,
-                       _("Node device '%s' is not defined"),
+                       _("Node device '%1$s' is not defined"),
                        def->name);
         goto cleanup;
     }
@@ -1619,18 +1636,19 @@ nodeDeviceGenerateName(virNodeDeviceDef *def,
 
 
 static int
-virMdevctlListDefined(virNodeDeviceDef ***devs, char **errmsg)
+virMdevctlList(bool defined,
+               virNodeDeviceDef ***devs,
+               char **errmsg)
 {
     int status;
     g_autofree char *output = NULL;
-    g_autoptr(virCommand) cmd = nodeDeviceGetMdevctlListCommand(true, &output, errmsg);
+    g_autofree char *errbuf = NULL;
+    g_autoptr(virCommand) cmd = nodeDeviceGetMdevctlListCommand(defined, &output, &errbuf);
 
     if (virCommandRun(cmd, &status) < 0 || status != 0) {
+        *errmsg = g_steal_pointer(&errbuf);
         return -1;
     }
-
-    if (!output)
-        return -1;
 
     return nodeDeviceParseMdevctlJSON(output, devs);
 }
@@ -1669,8 +1687,10 @@ removeMissingPersistentMdev(virNodeDeviceObj *obj,
         return false;
 
     for (i = 0; i < data->ndefs; i++) {
-        /* OK, this mdev is still defined by mdevctl */
-        if (STREQ(data->defs[i]->name, def->name))
+        /* OK, this mdev is still defined by mdevctl
+         * AND the parent object has not changed. */
+        if (STREQ(data->defs[i]->name, def->name) &&
+            STREQ(data->defs[i]->parent, def->parent))
             return false;
     }
 
@@ -1697,6 +1717,8 @@ int
 nodeDeviceUpdateMediatedDevices(void)
 {
     g_autofree virNodeDeviceDef **defs = NULL;
+    g_autofree virNodeDeviceDef **act_defs = NULL;
+    int act_ndefs = 0;
     g_autofree char *errmsg = NULL;
     g_autofree char *mdevctl = NULL;
     virMdevctlForEachData data = { 0, };
@@ -1707,9 +1729,9 @@ nodeDeviceUpdateMediatedDevices(void)
         return 0;
     }
 
-    if ((data.ndefs = virMdevctlListDefined(&defs, &errmsg)) < 0) {
+    if ((data.ndefs = virMdevctlList(true, &defs, &errmsg)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to query mdevs from mdevctl: %s"), errmsg);
+                       _("failed to query mdevs from mdevctl: %1$s"), errmsg);
         return -1;
     }
 
@@ -1720,7 +1742,18 @@ nodeDeviceUpdateMediatedDevices(void)
                                       removeMissingPersistentMdev, &data);
 
     for (i = 0; i < data.ndefs; i++)
-        if (nodeDeviceUpdateMediatedDevice(defs[i]) < 0)
+        if (nodeDeviceUpdateMediatedDevice(defs[i], true) < 0)
+            return -1;
+
+    /* Update active/transient mdev devices */
+    if ((act_ndefs = virMdevctlList(false, &act_defs, &errmsg)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("failed to query mdevs from mdevctl: %1$s"), errmsg);
+        return -1;
+    }
+
+    for (i = 0; i < act_ndefs; i++)
+        if (nodeDeviceUpdateMediatedDevice(act_defs[i], false) < 0)
             return -1;
 
     return 0;
@@ -1834,7 +1867,7 @@ nodeDeviceSetAutostart(virNodeDevice *device,
 
             if (virMdevctlSetAutostart(def, autostart, &errmsg) < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR,
-                               _("Unable to set autostart on '%s': %s"),
+                               _("Unable to set autostart on '%1$s': %2$s"),
                                def->name,
                                errmsg && errmsg[0] != '\0' ? errmsg : _("Unknown Error"));
                 goto cleanup;
@@ -1920,7 +1953,7 @@ static int nodeDeviceDefValidateMdev(virNodeDeviceDef *def,
     obj = virNodeDeviceObjListFindByName(driver->devs, def->parent);
     if (!obj) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("invalid parent device '%s'"),
+                       _("invalid parent device '%1$s'"),
                        def->parent);
         return -1;
     }
@@ -1930,7 +1963,7 @@ static int nodeDeviceDefValidateMdev(virNodeDeviceDef *def,
      * device and stored it in the mdev caps */
     if (!mdev->parent_addr) {
         virReportError(VIR_ERR_PARSE_FAILED,
-                       _("Unable to find address for parent device '%s'"),
+                       _("Unable to find address for parent device '%1$s'"),
                        def->parent);
         return -1;
     }

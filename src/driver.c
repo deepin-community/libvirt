@@ -36,6 +36,7 @@
 #include "viridentity.h"
 #include "datatypes.h"
 #include "configmake.h"
+#include "virtypedparam.h"
 
 VIR_LOG_INIT("driver");
 
@@ -159,18 +160,20 @@ virGetConnectGeneric(virThreadLocal *threadPtr, const char *name)
 
         if (conn->driver->connectSetIdentity != NULL) {
             g_autoptr(virIdentity) ident = NULL;
-            virTypedParameterPtr identparams = NULL;
-            int nidentparams = 0;
 
             VIR_DEBUG("Attempting to delegate current identity");
-            if (!(ident = virIdentityGetCurrent()))
-                goto error;
+            ident = virIdentityGetCurrent();
+            if (ident) {
+                g_autoptr(virTypedParamList) tmp = virIdentityGetParameters(ident);
+                virTypedParameterPtr par;
+                size_t npar;
 
-            if (virIdentityGetParameters(ident, &identparams, &nidentparams) < 0)
-                goto error;
+                if (virTypedParamListFetch(tmp, &par, &npar) < 0)
+                    goto error;
 
-            if (virConnectSetIdentity(conn, identparams, nidentparams, 0) < 0)
-                goto error;
+                if (virConnectSetIdentity(conn, par, npar, 0) < 0)
+                    goto error;
+            }
         }
     }
     return conn;
@@ -299,16 +302,14 @@ virConnectValidateURIPath(const char *uriPath,
 
         if (STRNEQ(uriPath, "/system") && !compatSessionRoot) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unexpected %s URI path '%s', try "
-                             "%s:///system"),
+                           _("unexpected %1$s URI path '%2$s', try %3$s:///system"),
                            entityName, uriPath, entityName);
             return false;
         }
     } else {
         if (STRNEQ(uriPath, "/session")) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unexpected %s URI path '%s', try "
-                             "%s:///session"),
+                           _("unexpected %1$s URI path '%2$s', try %3$s:///session"),
                            entityName, uriPath, entityName);
             return false;
         }

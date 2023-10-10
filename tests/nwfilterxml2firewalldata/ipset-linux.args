@@ -2,8 +2,10 @@ iptables \
 -w \
 -A FJ-vnet0 \
 -p all \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -m set \
 --match-set tck_test src,dst \
 -j RETURN
@@ -11,8 +13,10 @@ iptables \
 -w \
 -A FP-vnet0 \
 -p all \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -m set \
 --match-set tck_test dst,src \
 -j ACCEPT
@@ -20,8 +24,10 @@ iptables \
 -w \
 -A HJ-vnet0 \
 -p all \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -m set \
 --match-set tck_test src,dst \
 -j RETURN
@@ -56,8 +62,10 @@ iptables \
 -w \
 -A FJ-vnet0 \
 -p all \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -m set \
 --match-set tck_test dst,src,dst \
 -j RETURN
@@ -65,8 +73,10 @@ iptables \
 -w \
 -A FP-vnet0 \
 -p all \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -m set \
 --match-set tck_test src,dst,src \
 -j ACCEPT
@@ -74,8 +84,10 @@ iptables \
 -w \
 -A HJ-vnet0 \
 -p all \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -m set \
 --match-set tck_test dst,src,dst \
 -j RETURN
@@ -83,8 +95,10 @@ iptables \
 -w \
 -A FJ-vnet0 \
 -p all \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -m set \
 --match-set tck_test dst,src,dst \
 -j RETURN
@@ -92,8 +106,10 @@ iptables \
 -w \
 -A FP-vnet0 \
 -p all \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -m set \
 --match-set tck_test src,dst,src \
 -j ACCEPT
@@ -101,8 +117,10 @@ iptables \
 -w \
 -A HJ-vnet0 \
 -p all \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -m set \
 --match-set tck_test dst,src,dst \
 -j RETURN
@@ -110,8 +128,10 @@ iptables \
 -w \
 -A FJ-vnet0 \
 -p all \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -m set \
 --match-set tck_test dst,src \
 -j RETURN
@@ -119,8 +139,10 @@ iptables \
 -w \
 -A FP-vnet0 \
 -p all \
--m state \
---state NEW,ESTABLISHED \
+-m conntrack \
+--ctstate NEW,ESTABLISHED \
+-m conntrack \
+--ctdir Original \
 -m set \
 --match-set tck_test src,dst \
 -j ACCEPT
@@ -128,8 +150,10 @@ iptables \
 -w \
 -A HJ-vnet0 \
 -p all \
--m state \
---state ESTABLISHED \
+-m conntrack \
+--ctstate ESTABLISHED \
+-m conntrack \
+--ctdir Reply \
 -m set \
 --match-set tck_test dst,src \
 -j RETURN

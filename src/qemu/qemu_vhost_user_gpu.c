@@ -27,11 +27,8 @@
 #include "conf/domain_conf.h"
 #include "configmake.h"
 #include "vircommand.h"
-#include "viralloc.h"
 #include "virlog.h"
 #include "virfile.h"
-#include "virstring.h"
-#include "virtime.h"
 #include "virpidfile.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
@@ -108,8 +105,7 @@ int qemuExtVhostUserGPUStart(virQEMUDriver *driver,
     g_autofree char *pidfile = NULL;
     g_autoptr(virCommand) cmd = NULL;
     int pair[2] = { -1, -1 };
-    int cmdret = 0, rc;
-    int exitstatus = 0;
+    int rc;
     pid_t pid;
     int ret = -1;
 
@@ -136,8 +132,6 @@ int qemuExtVhostUserGPUStart(virQEMUDriver *driver,
         goto error;
 
     cmd = virCommandNew(video->driver->vhost_user_binary);
-    if (!cmd)
-        goto error;
 
     virCommandClearCaps(cmd);
     virCommandSetPidFile(cmd, pidfile);
@@ -158,20 +152,13 @@ int qemuExtVhostUserGPUStart(virQEMUDriver *driver,
             virCommandAddArgFormat(cmd, "--render-node=%s", video->accel->rendernode);
     }
 
-    if (qemuSecurityStartVhostUserGPU(driver, vm, cmd,
-                                      &exitstatus, &cmdret) < 0)
+    if (qemuSecurityCommandRun(driver, vm, cmd, -1, -1, false, NULL) < 0)
         goto error;
-
-    if (cmdret < 0 || exitstatus != 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not start 'vhost-user-gpu'. exitstatus: %d"), exitstatus);
-        goto cleanup;
-    }
 
     rc = virPidFileReadPath(pidfile, &pid);
     if (rc < 0) {
         virReportSystemError(-rc,
-                             _("Unable to read vhost-user-gpu pidfile '%s'"),
+                             _("Unable to read vhost-user-gpu pidfile '%1$s'"),
                              pidfile);
         goto cleanup;
     }

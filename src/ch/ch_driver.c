@@ -29,18 +29,11 @@
 #include "datatypes.h"
 #include "driver.h"
 #include "viraccessapicheck.h"
-#include "viralloc.h"
-#include "virbuffer.h"
 #include "virchrdev.h"
-#include "vircommand.h"
 #include "virerror.h"
-#include "virfile.h"
 #include "virlog.h"
-#include "virnetdevtap.h"
 #include "virobject.h"
-#include "virstring.h"
 #include "virtypedparam.h"
-#include "viruri.h"
 #include "virutil.h"
 #include "viruuid.h"
 #include "virnuma.h"
@@ -224,7 +217,7 @@ chDomainCreateXML(virConnectPtr conn,
                                    NULL)))
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virCHProcessStart(driver, vm, VIR_DOMAIN_RUNNING_BOOTED) < 0)
@@ -233,7 +226,7 @@ chDomainCreateXML(virConnectPtr conn,
     dom = virGetDomain(conn, vm->def->name, vm->def->uuid, vm->def->id);
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     if (vm && !dom) {
@@ -258,12 +251,12 @@ chDomainCreateWithFlags(virDomainPtr dom, unsigned int flags)
     if (virDomainCreateWithFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     ret = virCHProcessStart(driver, vm, VIR_DOMAIN_RUNNING_BOOTED);
 
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -397,7 +390,7 @@ chDomainShutdownFlags(virDomainPtr dom,
     if (virDomainShutdownFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -421,7 +414,7 @@ chDomainShutdownFlags(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -453,7 +446,7 @@ chDomainReboot(virDomainPtr dom, unsigned int flags)
     if (virDomainRebootEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -480,7 +473,7 @@ chDomainReboot(virDomainPtr dom, unsigned int flags)
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -502,7 +495,7 @@ chDomainSuspend(virDomainPtr dom)
     if (virDomainSuspendEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -525,7 +518,7 @@ chDomainSuspend(virDomainPtr dom)
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -547,7 +540,7 @@ chDomainResume(virDomainPtr dom)
     if (virDomainResumeEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -570,7 +563,7 @@ chDomainResume(virDomainPtr dom)
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -601,7 +594,7 @@ chDomainDestroyFlags(virDomainPtr dom, unsigned int flags)
     if (virDomainDestroyFlagsEnsureACL(dom->conn, vm->def) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_DESTROY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_DESTROY) < 0)
         goto cleanup;
 
     if (virDomainObjCheckActive(vm) < 0)
@@ -614,7 +607,7 @@ chDomainDestroyFlags(virDomainPtr dom, unsigned int flags)
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -638,7 +631,7 @@ static virDomainPtr chDomainLookupByID(virConnectPtr conn,
 
     if (!vm) {
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching id '%d'"), id);
+                       _("no domain with matching id '%1$d'"), id);
         goto cleanup;
     }
 
@@ -663,7 +656,7 @@ static virDomainPtr chDomainLookupByName(virConnectPtr conn,
 
     if (!vm) {
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching name '%s'"), name);
+                       _("no domain with matching name '%1$s'"), name);
         goto cleanup;
     }
 
@@ -690,7 +683,7 @@ static virDomainPtr chDomainLookupByUUID(virConnectPtr conn,
         char uuidstr[VIR_UUID_STRING_BUFLEN];
         virUUIDFormat(uuid, uuidstr);
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s'"), uuidstr);
+                       _("no domain with matching uuid '%1$s'"), uuidstr);
         goto cleanup;
     }
 
@@ -824,14 +817,14 @@ chDomainOpenConsole(virDomainPtr dom,
      }
 
      if (!chr) {
-          virReportError(VIR_ERR_INTERNAL_ERROR, _("cannot find character device %s"),
+          virReportError(VIR_ERR_INTERNAL_ERROR, _("cannot find character device %1$s"),
                          NULLSTR(dev_name));
           goto cleanup;
      }
 
      if (chr->source->type != VIR_DOMAIN_CHR_TYPE_PTY) {
           virReportError(VIR_ERR_INTERNAL_ERROR,
-                         _("character device %s is not using a PTY"),
+                         _("character device %1$s is not using a PTY"),
                          dev_name ? dev_name : NULLSTR(chr->info.alias));
           goto cleanup;
      }
@@ -868,6 +861,7 @@ static int chStateCleanup(void)
 
 static int chStateInitialize(bool privileged,
                              const char *root,
+                             bool monolithic G_GNUC_UNUSED,
                              virStateInhibitCallback callback G_GNUC_UNUSED,
                              void *opaque G_GNUC_UNUSED)
 {
@@ -928,23 +922,26 @@ chConnectSupportsFeature(virConnectPtr conn,
         return supported;
 
     switch ((virDrvFeature) feature) {
+        case VIR_DRV_FEATURE_REMOTE:
+        case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
+        case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
+        case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
         case VIR_DRV_FEATURE_TYPED_PARAM_STRING:
         case VIR_DRV_FEATURE_NETWORK_UPDATE_HAS_CORRECT_ORDER:
-            return 1;
+        case VIR_DRV_FEATURE_FD_PASSING:
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("Global feature %1$d should have already been handled"),
+                           feature);
+            return -1;
         case VIR_DRV_FEATURE_MIGRATION_V2:
         case VIR_DRV_FEATURE_MIGRATION_V3:
         case VIR_DRV_FEATURE_MIGRATION_P2P:
         case VIR_DRV_FEATURE_MIGRATE_CHANGE_PROTECTION:
-        case VIR_DRV_FEATURE_FD_PASSING:
         case VIR_DRV_FEATURE_XML_MIGRATABLE:
         case VIR_DRV_FEATURE_MIGRATION_OFFLINE:
         case VIR_DRV_FEATURE_MIGRATION_PARAMS:
         case VIR_DRV_FEATURE_MIGRATION_DIRECT:
         case VIR_DRV_FEATURE_MIGRATION_V1:
-        case VIR_DRV_FEATURE_PROGRAM_KEEPALIVE:
-        case VIR_DRV_FEATURE_REMOTE:
-        case VIR_DRV_FEATURE_REMOTE_CLOSE_CALLBACK:
-        case VIR_DRV_FEATURE_REMOTE_EVENT_CALLBACK:
         default:
             return 0;
     }
@@ -1079,10 +1076,11 @@ chDomainHelperGetVcpus(virDomainObj *vm,
             vcpuinfo->number = i;
             vcpuinfo->state = VIR_VCPU_RUNNING;
             if (virProcessGetStatInfo(&vcpuinfo->cpuTime,
+                                      NULL, NULL,
                                       &vcpuinfo->cpu, NULL,
                                       vm->pid, vcpupid) < 0) {
-                virReportSystemError(errno, "%s",
-                                      _("cannot get vCPU placement & pCPU time"));
+                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                               _("cannot get vCPU placement & pCPU time"));
                 return -1;
             }
         }
@@ -1150,8 +1148,6 @@ chDomainPinVcpuLive(virDomainObj *vm,
     virDomainVcpuDef *vcpuinfo;
     virCHDomainObjPrivate *priv = vm->privateData;
 
-    g_autofree char *str = NULL;
-
     if (!virCHDomainHasVcpuPids(vm)) {
         virReportError(VIR_ERR_OPERATION_INVALID,
                        "%s", _("cpu affinity is not supported"));
@@ -1160,15 +1156,12 @@ chDomainPinVcpuLive(virDomainObj *vm,
 
     if (!(vcpuinfo = virDomainDefGetVcpu(def, vcpu))) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("vcpu %d is out of range of live cpu count %d"),
+                       _("vcpu %1$d is out of range of live cpu count %2$d"),
                        vcpu, virDomainDefGetVcpusMax(def));
         return -1;
     }
 
     if (!(tmpmap = virBitmapNewCopy(cpumap)))
-        return -1;
-
-    if (!(str = virBitmapFormat(cpumap)))
         return -1;
 
     if (vcpuinfo->online) {
@@ -1221,7 +1214,7 @@ chDomainPinVcpuFlags(virDomainPtr dom,
     if (virDomainPinVcpuFlagsEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
@@ -1230,7 +1223,7 @@ chDomainPinVcpuFlags(virDomainPtr dom,
     if (persistentDef &&
         !(vcpuinfo = virDomainDefGetVcpu(persistentDef, vcpu))) {
         virReportError(VIR_ERR_INVALID_ARG,
-                       _("vcpu %d is out of range of persistent cpu count %d"),
+                       _("vcpu %1$d is out of range of persistent cpu count %2$d"),
                        vcpu, virDomainDefGetVcpus(persistentDef));
         goto endjob;
     }
@@ -1257,7 +1250,7 @@ chDomainPinVcpuFlags(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1358,7 +1351,7 @@ chDomainPinEmulator(virDomainPtr dom,
     if (virDomainPinEmulatorEnsureACL(dom->conn, vm->def, flags) < 0)
         goto cleanup;
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
@@ -1386,8 +1379,7 @@ chDomainPinEmulator(virDomainPtr dom,
 
             if (virDomainCgroupSetupCpusetCpus(cgroup_emulator, pcpumap) < 0) {
                 virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                               _("failed to set cpuset.cpus in cgroup"
-                                 " for emulator threads"));
+                               _("failed to set cpuset.cpus in cgroup for emulator threads"));
                 goto endjob;
             }
         }
@@ -1421,7 +1413,7 @@ chDomainPinEmulator(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -1519,7 +1511,7 @@ chDomainSetNumaParamsLive(virDomainObj *vm,
     size_t i = 0;
 
     if (virDomainNumatuneGetMode(vm->def->numa, -1, &mode) == 0 &&
-        mode != VIR_DOMAIN_NUMATUNE_MEM_STRICT) {
+        mode != VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) {
         virReportError(VIR_ERR_OPERATION_INVALID, "%s",
                        _("change of nodeset for running domain requires strict numa mode"));
         return -1;
@@ -1611,7 +1603,7 @@ chDomainSetNumaParameters(virDomainPtr dom,
 
             if (mode < 0 || mode >= VIR_DOMAIN_NUMATUNE_MEM_LAST) {
                 virReportError(VIR_ERR_INVALID_ARG,
-                               _("unsupported numatune mode: '%d'"), mode);
+                               _("unsupported numatune mode: '%1$d'"), mode);
                 goto cleanup;
             }
 
@@ -1622,14 +1614,14 @@ chDomainSetNumaParameters(virDomainPtr dom,
 
             if (virBitmapIsAllClear(nodeset)) {
                 virReportError(VIR_ERR_OPERATION_INVALID,
-                               _("Invalid nodeset of 'numatune': %s"),
+                               _("Invalid nodeset of 'numatune': %1$s"),
                                param->value.s);
                 goto cleanup;
             }
         }
     }
 
-    if (virCHDomainObjBeginJob(vm, CH_JOB_MODIFY) < 0)
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
     if (virDomainObjGetDefs(vm, flags, &def, &persistentDef) < 0)
@@ -1683,7 +1675,7 @@ chDomainSetNumaParameters(virDomainPtr dom,
     ret = 0;
 
  endjob:
-    virCHDomainObjEndJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);

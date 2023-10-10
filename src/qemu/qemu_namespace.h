@@ -23,7 +23,6 @@
 
 #include "virenum.h"
 #include "qemu_conf.h"
-#include "virconf.h"
 
 typedef enum {
     QEMU_DOMAIN_NS_MOUNT = 0,
@@ -48,6 +47,10 @@ void qemuDomainDestroyNamespace(virQEMUDriver *driver,
                                 virDomainObj *vm);
 
 bool qemuDomainNamespaceAvailable(qemuDomainNamespace ns);
+
+int qemuDomainNamespaceSetupPath(virDomainObj *vm,
+                                 const char *path,
+                                 bool *created);
 
 int qemuDomainNamespaceSetupDisk(virDomainObj *vm,
                                  virStorageSource *src,

@@ -25,8 +25,6 @@
 
 #include "virlog.h"
 #include "virerror.h"
-#include "virstring.h"
-#include "virfile.h"
 #include "virtime.h"
 #include "virsystemd.h"
 #include "virinitctl.h"
@@ -34,130 +32,15 @@
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
-VIR_ENUM_IMPL(virLXCDomainJob,
-              LXC_JOB_LAST,
-              "none",
-              "query",
-              "destroy",
-              "modify",
-);
-
 VIR_LOG_INIT("lxc.lxc_domain");
-
-static int
-virLXCDomainObjInitJob(virLXCDomainObjPrivate *priv)
-{
-    memset(&priv->job, 0, sizeof(priv->job));
-
-    if (virCondInit(&priv->job.cond) < 0)
-        return -1;
-
-    return 0;
-}
-
-static void
-virLXCDomainObjResetJob(virLXCDomainObjPrivate *priv)
-{
-    struct virLXCDomainJobObj *job = &priv->job;
-
-    job->active = LXC_JOB_NONE;
-    job->owner = 0;
-}
-
-static void
-virLXCDomainObjFreeJob(virLXCDomainObjPrivate *priv)
-{
-    ignore_value(virCondDestroy(&priv->job.cond));
-}
-
-/* Give up waiting for mutex after 30 seconds */
-#define LXC_JOB_WAIT_TIME (1000ull * 30)
-
-/*
- * obj must be locked before calling, virLXCDriver *must NOT be locked
- *
- * This must be called by anything that will change the VM state
- * in any way
- *
- * Upon successful return, the object will have its ref count increased.
- * Successful calls must be followed by EndJob eventually.
- */
-int
-virLXCDomainObjBeginJob(virLXCDriver *driver G_GNUC_UNUSED,
-                       virDomainObj *obj,
-                       enum virLXCDomainJob job)
-{
-    virLXCDomainObjPrivate *priv = obj->privateData;
-    unsigned long long now;
-    unsigned long long then;
-
-    if (virTimeMillisNow(&now) < 0)
-        return -1;
-    then = now + LXC_JOB_WAIT_TIME;
-
-    while (priv->job.active) {
-        VIR_DEBUG("Wait normal job condition for starting job: %s",
-                  virLXCDomainJobTypeToString(job));
-        if (virCondWaitUntil(&priv->job.cond, &obj->parent.lock, then) < 0)
-            goto error;
-    }
-
-    virLXCDomainObjResetJob(priv);
-
-    VIR_DEBUG("Starting job: %s", virLXCDomainJobTypeToString(job));
-    priv->job.active = job;
-    priv->job.owner = virThreadSelfID();
-
-    return 0;
-
- error:
-    VIR_WARN("Cannot start job (%s) for domain %s;"
-             " current job is (%s) owned by (%d)",
-             virLXCDomainJobTypeToString(job),
-             obj->def->name,
-             virLXCDomainJobTypeToString(priv->job.active),
-             priv->job.owner);
-
-    if (errno == ETIMEDOUT)
-        virReportError(VIR_ERR_OPERATION_TIMEOUT,
-                       "%s", _("cannot acquire state change lock"));
-    else
-        virReportSystemError(errno,
-                             "%s", _("cannot acquire job mutex"));
-    return -1;
-}
-
-
-/*
- * obj must be locked and have a reference before calling
- *
- * To be called after completing the work associated with the
- * earlier virLXCDomainBeginJob() call
- */
-void
-virLXCDomainObjEndJob(virLXCDriver *driver G_GNUC_UNUSED,
-                     virDomainObj *obj)
-{
-    virLXCDomainObjPrivate *priv = obj->privateData;
-    enum virLXCDomainJob job = priv->job.active;
-
-    VIR_DEBUG("Stopping job: %s",
-              virLXCDomainJobTypeToString(job));
-
-    virLXCDomainObjResetJob(priv);
-    virCondSignal(&priv->job.cond);
-}
 
 
 static void *
-virLXCDomainObjPrivateAlloc(void *opaque G_GNUC_UNUSED)
+virLXCDomainObjPrivateAlloc(void *opaque)
 {
     virLXCDomainObjPrivate *priv = g_new0(virLXCDomainObjPrivate, 1);
 
-    if (virLXCDomainObjInitJob(priv) < 0) {
-        g_free(priv);
-        return NULL;
-    }
+    priv->driver = opaque;
 
     return priv;
 }
@@ -169,7 +52,6 @@ virLXCDomainObjPrivateFree(void *data)
     virLXCDomainObjPrivate *priv = data;
 
     virCgroupFree(priv->cgroup);
-    virLXCDomainObjFreeJob(priv);
     g_free(priv);
 }
 
@@ -230,7 +112,7 @@ lxcDomainDefNamespaceParse(xmlXPathContextPtr ctxt,
         if ((feature = virLXCDomainNamespaceTypeFromString(
                  (const char *)nodes[i]->name)) < 0) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unsupported Namespace feature: %s"),
+                           _("unsupported Namespace feature: %1$s"),
                            nodes[i]->name);
             goto cleanup;
         }
@@ -245,7 +127,7 @@ lxcDomainDefNamespaceParse(xmlXPathContextPtr ctxt,
         if ((lxcDef->ns_source[feature] =
              virLXCDomainNamespaceSourceTypeFromString(tmp)) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unknown LXC namespace source '%s'"),
+                           _("Unknown LXC namespace source '%1$s'"),
                            tmp);
             goto cleanup;
         }
@@ -431,7 +313,7 @@ lxcDomainInitctlCallback(pid_t pid G_GNUC_UNUSED,
             if (errno == ENOENT)
                 continue;
 
-            virReportSystemError(errno, _("Unable to stat %s"), fifo);
+            virReportSystemError(errno, _("Unable to stat %1$s"), fifo);
             return -1;
         }
 
@@ -457,12 +339,10 @@ virLXCDomainSetRunlevel(virDomainObj *vm,
                         int runlevel)
 {
     virLXCDomainObjPrivate *priv = vm->privateData;
-    lxcDomainInitctlCallbackData data;
+    lxcDomainInitctlCallbackData data = { 0 };
     size_t nfifos = 0;
     size_t i;
     int ret = -1;
-
-    memset(&data, 0, sizeof(data));
 
     data.runlevel = runlevel;
 
@@ -479,7 +359,7 @@ virLXCDomainSetRunlevel(virDomainObj *vm,
             if (errno == ENOENT)
                 continue;
 
-            virReportSystemError(errno, _("Unable to stat %s"), fifo);
+            virReportSystemError(errno, _("Unable to stat %1$s"), fifo);
             goto cleanup;
         }
 

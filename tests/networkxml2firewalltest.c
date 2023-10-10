@@ -22,7 +22,6 @@
 #include <config.h>
 
 #include "testutils.h"
-#include "viralloc.h"
 
 #if defined (__linux__)
 
@@ -31,7 +30,6 @@
 # include "network/bridge_driver_platform.h"
 # include "virbuffer.h"
 # include "virmock.h"
-# include "virfirewall.h"
 
 # define LIBVIRT_VIRCOMMANDPRIV_H_ALLOW
 # include "vircommandpriv.h"
@@ -91,18 +89,17 @@ static int testCompareXMLToArgvFiles(const char *xml,
 {
     g_autofree char *actualargv = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    virNetworkDef *def = NULL;
-    int ret = -1;
+    g_autoptr(virNetworkDef) def = NULL;
     char *actual;
     g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
     virCommandSetDryRun(dryRunToken, &buf, true, true, testCommandDryRun, NULL);
 
-    if (!(def = virNetworkDefParseFile(xml, NULL)))
-        goto cleanup;
+    if (!(def = virNetworkDefParse(NULL, xml, NULL, false)))
+        return -1;
 
     if (networkAddFirewallRules(def) < 0)
-        goto cleanup;
+        return -1;
 
     actual = actualargv = virBufferContentAndReset(&buf);
 
@@ -114,13 +111,9 @@ static int testCompareXMLToArgvFiles(const char *xml,
         actual += strlen(baseargs);
 
     if (virTestCompareToFileFull(actual, cmdline, false) < 0)
-        goto cleanup;
+        return -1;
 
-    ret = 0;
-
- cleanup:
-    virNetworkDefFree(def);
-    return ret;
+    return 0;
 }
 
 struct testInfo {

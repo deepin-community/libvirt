@@ -24,7 +24,6 @@
 #include "testutils.h"
 #include "nwfilter/nwfilter_ebiptables_driver.h"
 #include "virbuffer.h"
-#include "virfirewall.h"
 
 #define LIBVIRT_VIRCOMMANDPRIV_H_ALLOW
 #include "vircommandpriv.h"
@@ -108,8 +107,7 @@ testNWFilterEBIPTablesAllTeardown(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferContentAndReset(&buf);
 
-    if (STRNEQ_NULLABLE(actual, expected)) {
-        virTestDifference(stderr, expected, actual);
+    if (virTestCompareToString(actual, expected) < 0) {
         return -1;
     }
 
@@ -170,8 +168,7 @@ testNWFilterEBIPTablesTearOldRules(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferContentAndReset(&buf);
 
-    if (STRNEQ_NULLABLE(actual, expected)) {
-        virTestDifference(stderr, expected, actual);
+    if (virTestCompareToString(expected, actual) < 0) {
         return -1;
     }
 
@@ -210,8 +207,7 @@ testNWFilterEBIPTablesRemoveBasicRules(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferContentAndReset(&buf);
 
-    if (STRNEQ_NULLABLE(actual, expected)) {
-        virTestDifference(stderr, expected, actual);
+    if (virTestCompareToString(expected, actual) < 0) {
         return -1;
     }
 
@@ -235,8 +231,7 @@ testNWFilterEBIPTablesTearNewRules(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferContentAndReset(&buf);
 
-    if (STRNEQ_NULLABLE(actual, expected)) {
-        virTestDifference(stderr, expected, actual);
+    if (virTestCompareToString(expected, actual) < 0) {
         return -1;
     }
 
@@ -298,8 +293,7 @@ testNWFilterEBIPTablesApplyBasicRules(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferContentAndReset(&buf);
 
-    if (STRNEQ_NULLABLE(actual, expected)) {
-        virTestDifference(stderr, expected, actual);
+    if (virTestCompareToString(expected, actual) < 0) {
         return -1;
     }
 
@@ -379,8 +373,7 @@ testNWFilterEBIPTablesApplyDHCPOnlyRules(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferContentAndReset(&buf);
 
-    if (STRNEQ_NULLABLE(actual, expected)) {
-        virTestDifference(stderr, expected, actual);
+    if (virTestCompareToString(expected, actual) < 0) {
         return -1;
     }
 
@@ -443,8 +436,7 @@ testNWFilterEBIPTablesApplyDropAllRules(const void *opaque G_GNUC_UNUSED)
 
     actual = virBufferContentAndReset(&buf);
 
-    if (STRNEQ_NULLABLE(actual, expected)) {
-        virTestDifference(stderr, expected, actual);
+    if (virTestCompareToString(expected, actual) < 0) {
         return -1;
     }
 

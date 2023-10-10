@@ -7,12 +7,7 @@
 
 #include "internal.h"
 #include "testutils.h"
-#include "virxml.h"
-#include "virthread.h"
-#include "nwfilter_params.h"
 #include "nwfilter_conf.h"
-#include "testutilsqemu.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -21,31 +16,25 @@ testCompareXMLToXMLFiles(const char *inxml, const char *outxml,
                          bool expect_error)
 {
     g_autofree char *actual = NULL;
-    int ret = -1;
-    virNWFilterDef *dev = NULL;
+    g_autoptr(virNWFilterDef) def = NULL;
 
     virResetLastError();
 
-    if (!(dev = virNWFilterDefParseFile(inxml))) {
+    if (!(def = virNWFilterDefParse(NULL, inxml, 0))) {
         if (expect_error) {
             virResetLastError();
-            goto done;
+            return 0;
         }
-        goto fail;
+        return -1;
     }
 
-    if (!(actual = virNWFilterDefFormat(dev)))
-        goto fail;
+    if (!(actual = virNWFilterDefFormat(def)))
+        return -1;
 
     if (virTestCompareToFile(actual, outxml) < 0)
-        goto fail;
+        return -1;
 
- done:
-    ret = 0;
-
- fail:
-    virNWFilterDefFree(dev);
-    return ret;
+    return 0;
 }
 
 typedef struct test_parms {
@@ -127,6 +116,11 @@ mymain(void)
 
     DO_TEST("example-1", false);
     DO_TEST("example-2", false);
+
+    /* The parser and formatter for nwfilter rules was written in a quirky way.
+     * Validate that it still works. Note that the files don't conform to the
+     * schema */
+    DO_TEST("quirks-invalid", false);
 
     DO_TEST("chain_prefixtest1-invalid", true); /* derived from arp-test */
 

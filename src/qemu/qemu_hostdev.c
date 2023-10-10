@@ -28,11 +28,6 @@
 #include "qemu_domain.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "viralloc.h"
-#include "virpci.h"
-#include "virusb.h"
-#include "virscsi.h"
-#include "virnetdev.h"
 #include "virfile.h"
 #include "virhostdev.h"
 #include "virutil.h"
@@ -158,60 +153,6 @@ qemuHostdevHostSupportsPassthroughVFIO(void)
 }
 
 
-static bool
-qemuHostdevPreparePCIDevicesCheckSupport(virDomainHostdevDef **hostdevs,
-                                         size_t nhostdevs,
-                                         virQEMUCaps *qemuCaps)
-{
-    bool supportsPassthroughVFIO = qemuHostdevHostSupportsPassthroughVFIO();
-    size_t i;
-
-    /* assign defaults for hostdev passthrough */
-    for (i = 0; i < nhostdevs; i++) {
-        virDomainHostdevDef *hostdev = hostdevs[i];
-        virDomainHostdevSubsysPCIBackendType *backend = &hostdev->source.subsys.u.pci.backend;
-
-        if (hostdev->mode != VIR_DOMAIN_HOSTDEV_MODE_SUBSYS)
-            continue;
-        if (hostdev->source.subsys.type != VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI)
-            continue;
-
-        switch (*backend) {
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT:
-            if (supportsPassthroughVFIO &&
-                virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_VFIO_PCI)) {
-                *backend = VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO;
-            } else {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("host doesn't support passthrough of "
-                                 "host PCI devices"));
-                return false;
-            }
-
-            break;
-
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO:
-            if (!supportsPassthroughVFIO) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("host doesn't support VFIO PCI passthrough"));
-                return false;
-            }
-            break;
-
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_KVM:
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("host doesn't support legacy PCI passthrough"));
-            return false;
-
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN:
-        case VIR_DOMAIN_HOSTDEV_PCI_BACKEND_TYPE_LAST:
-            break;
-        }
-    }
-
-    return true;
-}
-
 int
 qemuHostdevPrepareOneNVMeDisk(virQEMUDriver *driver,
                               const char *name,
@@ -240,15 +181,10 @@ qemuHostdevPreparePCIDevices(virQEMUDriver *driver,
                              const unsigned char *uuid,
                              virDomainHostdevDef **hostdevs,
                              int nhostdevs,
-                             virQEMUCaps *qemuCaps,
                              unsigned int flags)
 {
-    virHostdevManager *hostdev_mgr = driver->hostdevMgr;
-
-    if (!qemuHostdevPreparePCIDevicesCheckSupport(hostdevs, nhostdevs, qemuCaps))
-        return -1;
-
-    return virHostdevPreparePCIDevices(hostdev_mgr, QEMU_DRIVER_NAME,
+    return virHostdevPreparePCIDevices(driver->hostdevMgr,
+                                       QEMU_DRIVER_NAME,
                                        name, uuid, hostdevs,
                                        nhostdevs, flags);
 }
@@ -309,8 +245,7 @@ qemuHostdevPrepareMediatedDevices(virQEMUDriver *driver,
         if (virHostdevIsMdevDevice(hostdevs[i])) {
             if (!supportsVFIO) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("Mediated host device assignment requires "
-                                 "VFIO support"));
+                               _("Mediated host device assignment requires VFIO support"));
                 return -1;
             }
             break;
@@ -324,7 +259,6 @@ qemuHostdevPrepareMediatedDevices(virQEMUDriver *driver,
 int
 qemuHostdevPrepareDomainDevices(virQEMUDriver *driver,
                                 virDomainDef *def,
-                                virQEMUCaps *qemuCaps,
                                 unsigned int flags)
 {
     if (!def->nhostdevs && !def->ndisks)
@@ -334,8 +268,7 @@ qemuHostdevPrepareDomainDevices(virQEMUDriver *driver,
         return -1;
 
     if (qemuHostdevPreparePCIDevices(driver, def->name, def->uuid,
-                                     def->hostdevs, def->nhostdevs,
-                                     qemuCaps, flags) < 0)
+                                     def->hostdevs, def->nhostdevs, flags) < 0)
         return -1;
 
     if (qemuHostdevPrepareUSBDevices(driver, def->name,

@@ -34,7 +34,6 @@
 #include "virutil.h"
 #include "virerror.h"
 #include "virprobe.h"
-#include "virstring.h"
 #include "vireventglibwatch.h"
 
 #define VIR_FROM_THIS VIR_FROM_RPC
@@ -659,7 +658,7 @@ int virNetClientRegisterAsyncIO(virNetClient *client)
                                   VIR_EVENT_HANDLE_READABLE,
                                   virNetClientIncomingEvent,
                                   client,
-                                  virObjectFreeCallback) < 0) {
+                                  virObjectUnref) < 0) {
         virObjectUnref(client);
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Unable to register async IO callback"));
@@ -689,7 +688,7 @@ int virNetClientRegisterKeepAlive(virNetClient *client)
     if (!(ka = virKeepAliveNew(-1, 0, client,
                                virNetClientKeepAliveSendCB,
                                virNetClientKeepAliveDeadCB,
-                               virObjectFreeCallback)))
+                               virObjectUnref)))
         return -1;
 
     /* keepalive object has a reference to client */
@@ -1012,8 +1011,7 @@ int virNetClientSetTLSSession(virNetClient *client,
     }
     if (len != 1 || buf[0] != '\1') {
         virReportError(VIR_ERR_RPC, "%s",
-                       _("server verification (of our certificate or IP "
-                         "address) failed"));
+                       _("server verification (of our certificate or IP address) failed"));
         goto error;
     }
 
@@ -1139,7 +1137,7 @@ virNetClientCallDispatchReply(virNetClient *client)
 
     if (!thecall) {
         virReportError(VIR_ERR_RPC,
-                       _("no call waiting for reply with prog %d vers %d serial %d"),
+                       _("no call waiting for reply with prog %1$d vers %2$d serial %3$d"),
                        client->msg.header.prog, client->msg.header.vers, client->msg.header.serial);
         return -1;
     }
@@ -1328,7 +1326,7 @@ virNetClientCallDispatch(virNetClient *client)
     case VIR_NET_CALL_WITH_FDS:
     default:
         virReportError(VIR_ERR_RPC,
-                       _("got unexpected RPC call prog %d vers %d proc %d type %d"),
+                       _("got unexpected RPC call prog %1$d vers %2$d proc %3$d type %4$d"),
                        client->msg.header.prog, client->msg.header.vers,
                        client->msg.header.proc, client->msg.header.type);
         return -1;
@@ -1858,8 +1856,8 @@ static void virNetClientIOUpdateCallback(virNetClient *client,
  * which come from the user).  It does however free any intermediate
  * results, eg. the error structure if there is one.
  *
- * NB(2). Make sure to memset (&ret, 0, sizeof(ret)) before calling,
- * else Bad Things will happen in the XDR code.
+ * NB(2). Make sure to initialize ret variable to { 0 } before calling,
+ * else Bad things will happen in the XDR code.
  *
  * NB(3) You must have the client lock before calling this
  *
@@ -2070,15 +2068,13 @@ virNetClientCallNew(virNetMessage *msg,
         (msg->bufferLength != 0) &&
         (msg->header.status == VIR_NET_CONTINUE)) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Attempt to send an asynchronous message with"
-                         " a synchronous reply"));
+                       _("Attempt to send an asynchronous message with a synchronous reply"));
         goto error;
     }
 
     if (expectReply && nonBlock) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Attempt to send a non-blocking message with"
-                         " a synchronous reply"));
+                       _("Attempt to send a non-blocking message with a synchronous reply"));
         goto error;
     }
 

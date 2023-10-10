@@ -16,10 +16,7 @@
  * License along with this library.  If not, see
  * <http://www.gnu.org/licenses/>.
  *
- * Notes:
- * netlink: http://lovezutto.googlepages.com/netlink.pdf
- *          iproute2 package
- *
+ * Notes: iproute2 package
  */
 
 #include <config.h>
@@ -27,8 +24,6 @@
 #include "virnetdevmacvlan.h"
 #include "virmacaddr.h"
 #include "virerror.h"
-#include "virthread.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NET
 
@@ -118,7 +113,7 @@ virNetDevMacVLanCreate(const char *ifname,
         char macstr[VIR_MAC_STRING_BUFLEN];
 
         virReportSystemError(-error,
-                             _("error creating %s interface %s@%s (%s)"),
+                             _("error creating %1$s interface %2$s@%3$s (%4$s)"),
                              type, ifname, srcdev,
                              virMacAddrFormat(macaddress, macstr));
         return -1;
@@ -182,7 +177,7 @@ virNetDevMacVLanTapOpen(const char *ifname,
             } else {
                 /* However, if haven't succeeded, quit. */
                 virReportSystemError(errno,
-                                     _("cannot open macvtap tap device %s"),
+                                     _("cannot open macvtap tap device %1$s"),
                                      tapname);
                 goto cleanup;
             }
@@ -222,12 +217,11 @@ int
 virNetDevMacVLanTapSetup(int *tapfd, size_t tapfdSize, bool vnet_hdr)
 {
     unsigned int features;
-    struct ifreq ifreq;
     short new_flags = 0;
     size_t i;
 
     for (i = 0; i < tapfdSize; i++) {
-        memset(&ifreq, 0, sizeof(ifreq));
+        struct ifreq ifreq = { 0 };
 
         if (ioctl(tapfd[i], TUNGETIFF, &ifreq) < 0) {
             virReportSystemError(errno, "%s",

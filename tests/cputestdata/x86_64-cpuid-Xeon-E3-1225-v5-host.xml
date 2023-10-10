@@ -2,6 +2,7 @@
   <arch>x86_64</arch>
   <model>Skylake-Client-IBRS</model>
   <vendor>Intel</vendor>
+  <signature family='6' model='94' stepping='3'/>
   <feature name='ds'/>
   <feature name='acpi'/>
   <feature name='ss'/>
@@ -19,10 +20,12 @@
   <feature name='pdcm'/>
   <feature name='osxsave'/>
   <feature name='tsc_adjust'/>
+  <feature name='sgx'/>
   <feature name='clflushopt'/>
   <feature name='intel-pt'/>
   <feature name='md-clear'/>
   <feature name='stibp'/>
+  <feature name='flush-l1d'/>
   <feature name='ssbd'/>
   <feature name='xsaves'/>
   <feature name='pdpe1gb'/>

@@ -19,7 +19,6 @@
 
 #pragma once
 
-#include "domain_conf.h"
 #include "qemu/qemu_conf.h"
 #include "qemu/qemu_monitor.h"
 #include "qemu/qemu_agent.h"
@@ -31,7 +30,7 @@ typedef int (*qemuMonitorTestResponseCallback)(qemuMonitorTest *test,
                                                qemuMonitorTestItem *item,
                                                const char *message);
 
-int
+void
 qemuMonitorTestAddHandler(qemuMonitorTest *test,
                           const char *identifier,
                           qemuMonitorTestResponseCallback cb,
@@ -75,29 +74,14 @@ qemuMonitorTestAddItemVerbatim(qemuMonitorTest *test,
 int
 qemuMonitorTestAddAgentSyncResponse(qemuMonitorTest *test);
 
-int
-qemuMonitorTestAddItemParams(qemuMonitorTest *test,
-                             const char *cmdname,
-                             const char *response,
-                             ...)
-    G_GNUC_NULL_TERMINATED;
-
-int
-qemuMonitorTestAddItemExpect(qemuMonitorTest *test,
-                             const char *cmdname,
-                             const char *cmdargs,
-                             bool apostrophe,
-                             const char *response);
-
 #define qemuMonitorTestNewSimple(xmlopt) \
-    qemuMonitorTestNew(xmlopt, NULL, NULL, NULL, NULL)
+    qemuMonitorTestNew(xmlopt, NULL, NULL, NULL)
 #define qemuMonitorTestNewSchema(xmlopt, schema) \
-    qemuMonitorTestNew(xmlopt, NULL, NULL, NULL, schema)
+    qemuMonitorTestNew(xmlopt, NULL, NULL, schema)
 
 qemuMonitorTest *
 qemuMonitorTestNew(virDomainXMLOption *xmlopt,
                    virDomainObj *vm,
-                   virQEMUDriver *driver,
                    const char *greeting,
                    GHashTable *schema);
 

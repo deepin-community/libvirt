@@ -50,8 +50,6 @@ if conf.has('WITH_VZ')
     'service': 'virtvzd',
     'service_in': files('virtvzd.service.in'),
     'name': 'Libvirt vz',
-    'sockprefix': 'virtvzd',
-    'sockets': [ 'main', 'ro', 'admin' ],
   }
 
   openrc_init_files += {

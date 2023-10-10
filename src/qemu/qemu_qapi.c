@@ -20,8 +20,6 @@
 
 #include "qemu_qapi.h"
 
-#include "viralloc.h"
-#include "virstring.h"
 #include "virerror.h"
 #include "virlog.h"
 
@@ -500,11 +498,11 @@ virQEMUQAPISchemaPathGet(const char *query,
 
     if (rc == -2) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("malformed QAPI schema when querying '%s' of '%s'"),
+                       _("malformed QAPI schema when querying '%1$s' of '%2$s'"),
                        NULLSTR(ctxt.prevquery), query);
     } else if (rc == -3) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("terminal QAPI query component '%s' of '%s' must not have followers"),
+                       _("terminal QAPI query component '%1$s' of '%2$s' must not have followers"),
                        NULLSTR(ctxt.prevquery), query);
     }
 

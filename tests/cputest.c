@@ -33,8 +33,6 @@
 #include "cpu_conf.h"
 #include "cpu/cpu.h"
 #include "cpu/cpu_x86.h"
-#include "cpu/cpu_map.h"
-#include "virstring.h"
 
 #if WITH_QEMU
 # include "testutilsqemu.h"
@@ -58,6 +56,8 @@ struct data {
     const char *name;
     virDomainCapsCPUModels *models;
     const char *modelsName;
+    const char **cpus;
+    int ncpus;
     unsigned int flags;
     int result;
 };
@@ -455,11 +455,10 @@ cpuTestMakeQEMUCaps(const struct data *data)
 
     if (qemuMonitorGetCPUModelExpansion(qemuMonitorTestGetMonitor(testMon),
                                         QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC,
-                                        cpu, true, fail_no_props, &model) < 0)
+                                        cpu, true, false, fail_no_props, &model) < 0)
         return NULL;
 
-    if (!(qemuCaps = virQEMUCapsNew()))
-        return NULL;
+    qemuCaps = virQEMUCapsNew();
 
     virQEMUCapsSet(qemuCaps, QEMU_CAPS_KVM);
     if (data->flags == JSON_MODELS ||
@@ -557,6 +556,60 @@ cpuTestCPUID(bool guest, const void *arg)
     result = g_strdup_printf("cpuid-%s-%s", data->host, guest ? "guest" : "host");
 
     return cpuTestCompareXML(data->arch, cpu, result);
+}
+
+
+static int
+cpuTestCPUIDBaseline(const void *arg)
+{
+    const struct data *data = arg;
+    int ret = -1;
+    virCPUDef **cpus = NULL;
+    virCPUDef *baseline = NULL;
+    g_autofree char *result = NULL;
+    size_t i;
+
+    cpus = g_new0(virCPUDef *, data->ncpus);
+    for (i = 0; i < data->ncpus; i++) {
+        g_autofree char *name = NULL;
+
+        name = g_strdup_printf("cpuid-%s-json", data->cpus[i]);
+        if (!(cpus[i] = cpuTestLoadXML(data->arch, name)))
+            goto cleanup;
+    }
+
+    baseline = virCPUBaseline(data->arch, cpus, data->ncpus, NULL, NULL, false);
+    if (!baseline)
+        goto cleanup;
+
+    result = g_strdup_printf("cpuid-baseline-%s", data->name);
+
+    if (cpuTestCompareXML(data->arch, baseline, result) < 0)
+        goto cleanup;
+
+    for (i = 0; i < data->ncpus; i++) {
+        virCPUCompareResult cmp;
+
+        cmp = virCPUCompare(data->arch, cpus[i], baseline, false);
+        if (cmp != VIR_CPU_COMPARE_SUPERSET &&
+            cmp != VIR_CPU_COMPARE_IDENTICAL) {
+            VIR_TEST_VERBOSE("\nbaseline CPU is incompatible with CPU %zu", i);
+            VIR_TEST_VERBOSE("%74s", "... ");
+            ret = -1;
+            goto cleanup;
+        }
+    }
+
+    ret = 0;
+
+ cleanup:
+    if (cpus) {
+        for (i = 0; i < data->ncpus; i++)
+            virCPUDefFree(cpus[i]);
+        VIR_FREE(cpus);
+    }
+    virCPUDefFree(baseline);
+    return ret;
 }
 
 
@@ -692,7 +745,7 @@ cpuTestUpdateLiveCompare(virArch arch,
         if ((cmp == 0 &&
              featAct->policy == VIR_CPU_FEATURE_REQUIRE &&
              featExp->policy == VIR_CPU_FEATURE_DISABLE) ||
-            (cmp < 0 &&
+            (cmp < 0 && featAct &&
              featAct->policy == VIR_CPU_FEATURE_REQUIRE) ||
             (cmp > 0 &&
              featExp->policy == VIR_CPU_FEATURE_DISABLE)) {
@@ -769,9 +822,8 @@ cpuTestUpdateLive(const void *arg)
             usable = hvModel->usable;
         }
 
-        if (virDomainCapsCPUModelsAdd(models, expected->model,
-                                      usable, blockers, false) < 0)
-            return -1;
+        virDomainCapsCPUModelsAdd(models, expected->model,
+                                  usable, blockers, false, expected->vendor);
 
         cpu->fallback = VIR_CPU_FALLBACK_ALLOW;
         ignore_value(virCPUTranslate(data->arch, cpu, models));
@@ -848,16 +900,12 @@ cpuTestInitModels(const char **list)
         return NULL;
 
     for (model = list; *model; model++) {
-        if (virDomainCapsCPUModelsAdd(cpus, *model,
-                                      VIR_DOMCAPS_CPU_USABLE_UNKNOWN, NULL, false) < 0)
-            goto error;
+        virDomainCapsCPUModelsAdd(cpus, *model,
+                                  VIR_DOMCAPS_CPU_USABLE_UNKNOWN,
+                                  NULL, false, NULL);
     }
 
     return cpus;
-
- error:
-    virObjectUnref(cpus);
-    return NULL;
 }
 
 
@@ -887,13 +935,13 @@ mymain(void)
         goto cleanup;
     }
 
-#define DO_TEST(arch, api, name, host, cpu, \
+#define DO_TEST(arch, api, name, host, cpu, cpus, ncpus, \
                 models, flags, result) \
     do { \
         struct data data = { \
             arch, host, cpu, models, \
             models == NULL ? NULL : #models, \
-            flags, result \
+            cpus, ncpus, flags, result \
         }; \
         g_autofree char *testLabel = NULL; \
  \
@@ -906,12 +954,12 @@ mymain(void)
 #define DO_TEST_COMPARE(arch, host, cpu, result) \
     DO_TEST(arch, cpuTestCompare, \
             host "/" cpu " (" #result ")", \
-            host, cpu, NULL, 0, result)
+            host, cpu, NULL, 0, NULL, 0, result)
 
 #define DO_TEST_UPDATE_ONLY(arch, host, cpu) \
     DO_TEST(arch, cpuTestUpdate, \
             cpu " on " host, \
-            host, cpu, NULL, 0, 0)
+            host, cpu, NULL, 0, NULL, 0, 0)
 
 #define DO_TEST_UPDATE(arch, host, cpu, result) \
     do { \
@@ -929,31 +977,31 @@ mymain(void)
             suffix = " (migratable)"; \
         label = g_strdup_printf("%s%s", name, suffix); \
         DO_TEST(arch, cpuTestBaseline, label, NULL, \
-                "baseline-" name, NULL, flags, result); \
+                "baseline-" name, NULL, 0, NULL, flags, result); \
     } while (0)
 
 #define DO_TEST_HASFEATURE(arch, host, feature, result) \
     DO_TEST(arch, cpuTestHasFeature, \
             host "/" feature " (" #result ")", \
-            host, feature, NULL, 0, result)
+            host, feature, NULL, 0, NULL, 0, result)
 
 #define DO_TEST_GUESTCPU(arch, host, cpu, models, result) \
     DO_TEST(arch, cpuTestGuestCPU, \
             host "/" cpu " (" #models ")", \
-            host, cpu, models, 0, result)
+            host, cpu, NULL, 0, models, 0, result)
 
 #if WITH_QEMU
 # define DO_TEST_JSON(arch, host, json) \
     do { \
         if (json == JSON_MODELS) { \
             DO_TEST(arch, cpuTestGuestCPUID, host, host, \
-                    NULL, NULL, 0, 0); \
+                    NULL, NULL, 0, NULL, 0, 0); \
         } \
         if (json != JSON_NONE) { \
             DO_TEST(arch, cpuTestJSONCPUID, host, host, \
-                    NULL, NULL, json, 0); \
+                    NULL, NULL, 0, NULL, json, 0); \
             DO_TEST(arch, cpuTestJSONSignature, host, host, \
-                    NULL, NULL, 0, 0); \
+                    NULL, NULL, 0, NULL, 0, 0); \
         } \
     } while (0)
 #else
@@ -963,16 +1011,24 @@ mymain(void)
 #define DO_TEST_CPUID(arch, host, json) \
     do { \
         DO_TEST(arch, cpuTestHostCPUID, host, host, \
-                NULL, NULL, 0, 0); \
+                NULL, NULL, 0, NULL, 0, 0); \
         DO_TEST(arch, cpuTestGuestCPUID, host, host, \
-                NULL, NULL, json, 0); \
+                NULL, NULL, 0, NULL, json, 0); \
         DO_TEST(arch, cpuTestCPUIDSignature, host, host, \
-                NULL, NULL, 0, 0); \
+                NULL, NULL, 0, NULL, 0, 0); \
         DO_TEST_JSON(arch, host, json); \
         if (json != JSON_NONE) { \
             DO_TEST(arch, cpuTestUpdateLive, host, host, \
-                    NULL, NULL, json, 0); \
+                    NULL, NULL, 0, NULL, json, 0); \
         } \
+    } while (0)
+
+#define DO_TEST_CPUID_BASELINE(arch, label, cpu1, cpu2) \
+    do { \
+        const char *cpus[] = {cpu1, cpu2}; \
+        DO_TEST(arch, cpuTestCPUIDBaseline, \
+                label " (" cpu1 ", " cpu2 ")", \
+                NULL, label, cpus, 2, NULL, 0, 0); \
     } while (0)
 
     /* host to host comparison */
@@ -1050,18 +1106,12 @@ mymain(void)
     DO_TEST_BASELINE(VIR_ARCH_X86_64, "incompatible-vendors", 0, -1);
     DO_TEST_BASELINE(VIR_ARCH_X86_64, "no-vendor", 0, 0);
     DO_TEST_BASELINE(VIR_ARCH_X86_64, "some-vendors", 0, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "1", 0, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "2", 0, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "3", 0, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "3", VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "4", 0, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "4", VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "5", 0, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "5", VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "6", 0, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "6", VIR_CONNECT_BASELINE_CPU_MIGRATABLE, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "7", 0, 0);
-    DO_TEST_BASELINE(VIR_ARCH_X86_64, "8", 0, 0);
+    DO_TEST_BASELINE(VIR_ARCH_X86_64, "simple", 0, 0);
+    DO_TEST_BASELINE(VIR_ARCH_X86_64, "simple", VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, 0);
+    DO_TEST_BASELINE(VIR_ARCH_X86_64, "features", 0, 0);
+    DO_TEST_BASELINE(VIR_ARCH_X86_64, "features", VIR_CONNECT_BASELINE_CPU_EXPAND_FEATURES, 0);
+    DO_TEST_BASELINE(VIR_ARCH_X86_64, "Westmere+Nehalem", 0, 0);
+    DO_TEST_BASELINE(VIR_ARCH_X86_64, "Westmere+Nehalem", VIR_CONNECT_BASELINE_CPU_MIGRATABLE, 0);
 
     DO_TEST_BASELINE(VIR_ARCH_PPC64, "incompatible-vendors", 0, -1);
     DO_TEST_BASELINE(VIR_ARCH_PPC64, "no-vendor", 0, 0);
@@ -1162,6 +1212,32 @@ mymain(void)
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Ice-Lake-Server", JSON_MODELS);
     DO_TEST_CPUID(VIR_ARCH_X86_64, "Cooperlake", JSON_MODELS);
 
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Ryzen+Rome",
+                           "Ryzen-7-1800X-Eight-Core", "Ryzen-9-3900X-12-Core");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "EPYC+Rome",
+                           "EPYC-7601-32-Core", "EPYC-7502-32-Core");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Haswell-noTSX-IBRS+Skylake",
+                           "Xeon-E5-2609-v3", "Xeon-Gold-6148");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Haswell-noTSX-IBRS+Skylake-IBRS",
+                           "Xeon-E5-2609-v3", "Xeon-Gold-6130");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Broadwell-IBRS+Cascadelake",
+                           "Xeon-E5-2623-v4", "Xeon-Platinum-8268");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Cascadelake+Skylake-IBRS",
+                           "Xeon-Platinum-8268", "Xeon-Gold-6130");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Cascadelake+Skylake",
+                           "Xeon-Platinum-9242", "Xeon-Gold-6148");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Cascadelake+Icelake",
+                           "Xeon-Platinum-9242", "Ice-Lake-Server");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Cooperlake+Icelake",
+                           "Cooperlake", "Ice-Lake-Server");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Cooperlake+Cascadelake",
+                           "Cooperlake", "Xeon-Platinum-9242");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Skylake-Client+Server",
+                           "Core-i5-6600", "Xeon-Gold-6148");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Haswell-noTSX-IBRS+Broadwell",
+                           "Xeon-E5-2609-v3", "Xeon-E5-2650-v4");
+    DO_TEST_CPUID_BASELINE(VIR_ARCH_X86_64, "Haswell+Skylake",
+                           "Xeon-E7-8890-v3", "Xeon-Gold-5115");
  cleanup:
 #if WITH_QEMU
     qemuTestDriverFree(&driver);

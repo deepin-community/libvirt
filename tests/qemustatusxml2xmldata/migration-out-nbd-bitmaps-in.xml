@@ -262,7 +262,7 @@
     <flag name='cpu-max'/>
     <flag name='migration-param.block-bitmap-mapping'/>
   </qemuCaps>
-  <job type='none' async='migration out' phase='perform3' flags='0x42'>
+  <job type='none' async='migration out' phase='perform3' flags='0x42' asyncStarted='0'>
     <disk dev='hda' migrating='no'/>
     <disk dev='vda' migrating='yes'>
       <migrationSource type='network' format='raw'>
@@ -343,6 +343,7 @@
   <rememberOwner/>
   <allowReboot value='yes'/>
   <nodename index='3'/>
+  <fdset index='0'/>
   <blockjobs active='yes'>
     <blockjob name='drive-virtio-disk0' type='copy' state='ready' jobflags='0x0'>
       <disk dst='vda'/>

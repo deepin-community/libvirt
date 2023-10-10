@@ -20,12 +20,9 @@
 
 #include <config.h>
 
-#include "viralloc.h"
 #include "virthread.h"
-#include "virfile.h"
 #include "virlog.h"
 #include "virerror.h"
-#include "virnetsocket.h"
 #include "virkeepaliveprotocol.h"
 #include "virkeepalive.h"
 #include "virprobe.h"
@@ -91,7 +88,7 @@ virKeepAliveMessage(virKeepAlive *ka, int proc)
     msg->header.proc = proc;
 
     if (virNetMessageEncodeHeader(msg) < 0 ||
-        virNetMessageEncodePayloadEmpty(msg) < 0) {
+        virNetMessageEncodePayloadRaw(msg, NULL, 0) < 0) {
         virNetMessageFree(msg);
         goto error;
     }
@@ -252,7 +249,7 @@ virKeepAliveStart(virKeepAlive *ka,
         /* Guard against overflow */
         if (interval > INT_MAX / 1000) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("keepalive interval %d too large"), interval);
+                           _("keepalive interval %1$d too large"), interval);
             goto cleanup;
         }
         ka->interval = interval;
@@ -278,7 +275,7 @@ virKeepAliveStart(virKeepAlive *ka,
         timeout = ka->interval - delay;
     ka->intervalStart = now - (ka->interval - timeout);
     ka->timer = virEventAddTimeout(timeout * 1000, virKeepAliveTimer,
-                                   ka, virObjectFreeCallback);
+                                   ka, virObjectUnref);
     if (ka->timer < 0)
         goto cleanup;
 

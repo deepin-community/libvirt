@@ -18,14 +18,13 @@
 #include <config.h>
 
 #include "virlog.h"
-#include "virerror.h"
 #include "virbpf.h"
 
 VIR_LOG_INIT("util.bpf");
 
 #define VIR_FROM_THIS VIR_FROM_BPF
 
-#if WITH_SYS_SYSCALL_H && WITH_DECL_BPF_PROG_QUERY
+#ifdef __linux__
 # include <sys/syscall.h>
 # include <unistd.h>
 
@@ -36,9 +35,7 @@ virBPFCreateMap(unsigned int mapType,
                 unsigned int valSize,
                 unsigned int maxEntries)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.map_type = mapType;
     attr.key_size = keySize;
@@ -58,11 +55,9 @@ virBPFLoadProg(struct bpf_insn *insns,
 {
     g_autofree char *logbuf = NULL;
     int progfd = -1;
-    union bpf_attr attr;
+    union bpf_attr attr = { 0 };
 
     logbuf = g_new0(char, LOG_BUF_SIZE);
-
-    memset(&attr, 0, sizeof(attr));
 
     attr.prog_type = progType;
     attr.insn_cnt = insnCnt;
@@ -86,9 +81,7 @@ virBPFAttachProg(int progfd,
                  int targetfd,
                  int attachType)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.target_fd = targetfd;
     attr.attach_bpf_fd = progfd;
@@ -103,9 +96,7 @@ virBPFDetachProg(int progfd,
                  int targetfd,
                  int attachType)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.target_fd = targetfd;
     attr.attach_bpf_fd = progfd;
@@ -122,10 +113,8 @@ virBPFQueryProg(int targetfd,
                 unsigned int *progcnt,
                 void *progids)
 {
-    union bpf_attr attr;
+    union bpf_attr attr = { 0 };
     int rc;
-
-    memset(&attr, 0, sizeof(attr));
 
     attr.query.target_fd = targetfd;
     attr.query.attach_type = attachType;
@@ -144,9 +133,7 @@ virBPFQueryProg(int targetfd,
 int
 virBPFGetProg(unsigned int id)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.prog_id = id;
 
@@ -159,10 +146,8 @@ virBPFGetProgInfo(int progfd,
                   struct bpf_prog_info *info,
                   unsigned int **mapIDs)
 {
-    union bpf_attr attr;
+    union bpf_attr attr = { 0 };
     int rc;
-
-    memset(&attr, 0, sizeof(attr));
 
     attr.info.bpf_fd = progfd;
     attr.info.info_len = sizeof(struct bpf_prog_info);
@@ -201,9 +186,7 @@ virBPFGetProgInfo(int progfd,
 int
 virBPFGetMap(unsigned int id)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.map_id = id;
 
@@ -215,9 +198,7 @@ int
 virBPFGetMapInfo(int mapfd,
                  struct bpf_map_info *info)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.info.bpf_fd = mapfd;
     attr.info.info_len = sizeof(struct bpf_map_info);
@@ -232,9 +213,7 @@ virBPFLookupElem(int mapfd,
                  void *key,
                  void *val)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.map_fd = mapfd;
     attr.key = (uintptr_t)key;
@@ -249,9 +228,7 @@ virBPFGetNextElem(int mapfd,
                   void *key,
                   void *nextKey)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.map_fd = mapfd;
     attr.key = (uintptr_t)key;
@@ -266,9 +243,7 @@ virBPFUpdateElem(int mapfd,
                  void *key,
                  void *val)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.map_fd = mapfd;
     attr.key = (uintptr_t)key;
@@ -282,9 +257,7 @@ int
 virBPFDeleteElem(int mapfd,
                  void *key)
 {
-    union bpf_attr attr;
-
-    memset(&attr, 0, sizeof(attr));
+    union bpf_attr attr = { 0 };
 
     attr.map_fd = mapfd;
     attr.key = (uintptr_t)key;
@@ -293,7 +266,7 @@ virBPFDeleteElem(int mapfd,
 }
 
 
-#else /* !WITH_SYS_SYSCALL_H || !WITH_DECL_BPF_PROG_QUERY */
+#else /* ! __linux__ */
 
 
 int
@@ -421,4 +394,4 @@ virBPFDeleteElem(int mapfd G_GNUC_UNUSED,
     errno = ENOSYS;
     return -1;
 }
-#endif /* !WITH_SYS_SYSCALL_H || !WITH_DECL_BPF_PROG_QUERY */
+#endif /* !__linux__ */

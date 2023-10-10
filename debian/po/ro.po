@@ -1,0 +1,82 @@
+# Mesajele în limba română pentru pachetullibvirt.
+# Romanian translation oflibvirt.
+# Copyright © 2023 THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the libvirt package.
+#
+# Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>, 2023.
+#
+# Cronologia traducerii fișierului „kerberos-configs”:
+# Traducerea inițială, făcută de R-GC, pentru versiunealibvirt 9.0.0-1(2016-12-22).
+# Actualizare a traducerii pentru versiunea Y, făcută de X, Y(anul).
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: libvirt 9.0.0-1\n"
+"Report-Msgid-Bugs-To: libvirt@packages.debian.org\n"
+"POT-Creation-Date: 2016-12-22 14:20+0100\n"
+"PO-Revision-Date: 2023-02-24 19:41+0100\n"
+"Last-Translator: Remus-Gabriel Chelu <remusgabriel.chelu@disroot.org>\n"
+"Language-Team: Romanian <debian-l10n-romanian@lists.debian.org>\n"
+"Language: ro\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n==0 || (n!=1 && n%100>=1 && "
+"n%100<=19) ? 1 : 2);\n"
+"X-Bugs: Report translation errors to the Language-Team address.\n"
+"X-Generator: Poedit 3.2.2\n"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid "Continue with incorrect libvirt-qemu user/group ID(s)?"
+msgstr ""
+"Continuați cu un identificator de utilizator/grup „libvirt-qemu” incorect?"
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid ""
+" The user/group ID (uid/gid) allocated for libvirt-qemu (64055)\n"
+" seems to be taken by another user/group, thus it is not possible\n"
+" to create the user/group with this numeric ID."
+msgstr ""
+" Identificatorul utilizatorului/grupului (uid/gid) alocat pentru\n"
+" libvirt-qemu (64055) pare să fie preluat de un alt utilizator/grup,\n"
+" prin urmare nu este posibil să se creeze utilizatorul/grupul cu\n"
+" acest identificator numeric."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid ""
+" The migration of guests with disk image files shared over NFS\n"
+" requires a static libvirt-qemu user and group ID (uid and gid)\n"
+" between the source and destination host systems."
+msgstr ""
+" Migrarea invitaților cu fișiere de imagine de disc partajate prin NFS "
+"necesită\n"
+" un identificator de utilizator și de grup (uid și gid) „libvirt-qemu” static\n"
+" între sistemele gazdă sursă și destinație."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid ""
+" If guest migration over NFS is not required, you can continue\n"
+" the installation."
+msgstr ""
+" Dacă migrarea invitaților prin NFS nu este necesară, puteți continua\n"
+" instalarea."
+
+#. Type: boolean
+#. Description
+#: ../libvirt-daemon-system.templates:1001
+msgid ""
+" In order to resolve this problem, do not continue the installation,\n"
+" release the 64055 uid/gid (which might involve permission changes),\n"
+" then install this package again."
+msgstr ""
+" Pentru a rezolva această problemă, nu continuați instalarea, eliberați\n"
+" uid/gid-ul 64055 (care ar putea implica modificări de permisiuni), apoi\n"
+" instalați din nou acest pachet."

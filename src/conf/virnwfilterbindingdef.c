@@ -22,7 +22,6 @@
 
 #include "viralloc.h"
 #include "virerror.h"
-#include "virstring.h"
 #include "nwfilter_params.h"
 #include "virnwfilterbindingdef.h"
 #include "viruuid.h"
@@ -72,7 +71,7 @@ virNWFilterBindingDefCopy(virNWFilterBindingDef *src)
 }
 
 
-static virNWFilterBindingDef *
+virNWFilterBindingDef *
 virNWFilterBindingDefParseXML(xmlXPathContextPtr ctxt)
 {
     virNWFilterBindingDef *ret;
@@ -114,7 +113,7 @@ virNWFilterBindingDefParseXML(xmlXPathContextPtr ctxt)
 
     if (virUUIDParse(uuid, ret->owneruuid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse UUID '%s'"), uuid);
+                       _("Unable to parse UUID '%1$s'"), uuid);
         VIR_FREE(uuid);
         goto cleanup;
     }
@@ -129,7 +128,7 @@ virNWFilterBindingDefParseXML(xmlXPathContextPtr ctxt)
 
     if (virMacAddrParse(mac, &ret->mac) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse MAC '%s'"), mac);
+                       _("Unable to parse MAC '%1$s'"), mac);
         VIR_FREE(mac);
         goto cleanup;
     }
@@ -156,56 +155,19 @@ virNWFilterBindingDefParseXML(xmlXPathContextPtr ctxt)
 
 
 virNWFilterBindingDef *
-virNWFilterBindingDefParseNode(xmlDocPtr xml,
-                               xmlNodePtr root)
-{
-    g_autoptr(xmlXPathContext) ctxt = NULL;
-
-    if (STRNEQ((const char *)root->name, "filterbinding")) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       "%s",
-                       _("unknown root element for nwfilter binding"));
-        return NULL;
-    }
-
-    if (!(ctxt = virXMLXPathContextNew(xml)))
-        return NULL;
-
-    ctxt->node = root;
-    return virNWFilterBindingDefParseXML(ctxt);
-}
-
-
-static virNWFilterBindingDef *
 virNWFilterBindingDefParse(const char *xmlStr,
                            const char *filename,
                            unsigned int flags)
 {
-    virNWFilterBindingDef *def = NULL;
     g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
+    bool validate = flags & VIR_NWFILTER_BINDING_CREATE_VALIDATE;
 
-    if ((xml = virXMLParse(filename, xmlStr, _("(nwfilterbinding_definition)"),
-                           "nwfilterbinding.rng",
-                           flags & VIR_NWFILTER_BINDING_CREATE_VALIDATE))) {
-        def = virNWFilterBindingDefParseNode(xml, xmlDocGetRootElement(xml));
-    }
+    if (!(xml = virXMLParse(filename, xmlStr, _("(nwfilterbinding_definition)"),
+                            "filterbinding", &ctxt, "nwfilterbinding.rng", validate)))
+        return NULL;
 
-    return def;
-}
-
-
-virNWFilterBindingDef *
-virNWFilterBindingDefParseString(const char *xmlStr,
-                                 unsigned int flags)
-{
-    return virNWFilterBindingDefParse(xmlStr, NULL, flags);
-}
-
-
-virNWFilterBindingDef *
-virNWFilterBindingDefParseFile(const char *filename)
-{
-    return virNWFilterBindingDefParse(NULL, filename, 0);
+    return virNWFilterBindingDefParseXML(ctxt);
 }
 
 

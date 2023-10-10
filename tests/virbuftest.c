@@ -4,8 +4,6 @@
 #include "internal.h"
 #include "testutils.h"
 #include "virbuffer.h"
-#include "viralloc.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -94,8 +92,7 @@ static int testBufAutoIndent(const void *data G_GNUC_UNUSED)
     virBufferAddChar(buf, '\n');
 
     result = virBufferContentAndReset(buf);
-    if (!result || STRNEQ(result, expected)) {
-        virTestDifference(stderr, expected, result);
+    if (virTestCompareToString(expected, result) < 0) {
         ret = -1;
     }
     return ret;
@@ -124,8 +121,7 @@ static int testBufTrim(const void *data G_GNUC_UNUSED)
     virBufferTrim(buf, ",,");
 
     result = virBufferContentAndReset(buf);
-    if (!result || STRNEQ(result, expected)) {
-        virTestDifference(stderr, expected, result);
+    if (virTestCompareToString(expected, result) < 0) {
         return -1;
     }
 
@@ -147,9 +143,7 @@ testBufTrimChars(const void *opaque)
         return -1;
     }
 
-    if (STRNEQ_NULLABLE(actual, data->expect)) {
-        VIR_TEST_DEBUG("testBufEscapeStr(): Strings don't match:");
-        virTestDifference(stderr, data->expect, actual);
+    if (virTestCompareToString(data->expect, actual) < 0) {
         return -1;
     }
 
@@ -253,8 +247,7 @@ static int testBufAddBuffer(const void *data G_GNUC_UNUSED)
     }
 
     result = virBufferContentAndReset(&buf1);
-    if (STRNEQ_NULLABLE(result, expected)) {
-        virTestDifference(stderr, expected, result);
+    if (virTestCompareToString(expected, result) < 0) {
         return -1;
     }
 
@@ -279,9 +272,7 @@ testBufAddStr(const void *opaque)
         return -1;
     }
 
-    if (STRNEQ_NULLABLE(actual, data->expect)) {
-        VIR_TEST_DEBUG("testBufAddStr(): Strings don't match:");
-        virTestDifference(stderr, data->expect, actual);
+    if (virTestCompareToString(data->expect, actual) < 0) {
         return -1;
     }
 
@@ -307,9 +298,7 @@ testBufEscapeStr(const void *opaque)
         return -1;
     }
 
-    if (STRNEQ_NULLABLE(actual, data->expect)) {
-        VIR_TEST_DEBUG("testBufEscapeStr(): Strings don't match:");
-        virTestDifference(stderr, data->expect, actual);
+    if (virTestCompareToString(data->expect, actual) < 0) {
         return -1;
     }
 
@@ -331,9 +320,7 @@ testBufEscapeRegex(const void *opaque)
         return -1;
     }
 
-    if (STRNEQ_NULLABLE(actual, data->expect)) {
-        VIR_TEST_DEBUG("testBufEscapeRegex: Strings don't match:");
-        virTestDifference(stderr, data->expect, actual);
+    if (virTestCompareToString(data->expect, actual) < 0) {
         return -1;
     }
 

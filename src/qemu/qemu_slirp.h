@@ -57,13 +57,7 @@ void qemuSlirpSetFeature(qemuSlirp *slirp,
 bool qemuSlirpHasFeature(const qemuSlirp *slirp,
                          qemuSlirpFeature feature);
 
-int qemuSlirpOpen(qemuSlirp *slirp,
-                  virQEMUDriver *driver,
-                  virDomainDef *def);
-
-int qemuSlirpStart(qemuSlirp *slirp,
-                   virDomainObj *vm,
-                   virQEMUDriver *driver,
+int qemuSlirpStart(virDomainObj *vm,
                    virDomainNetDef *net,
                    bool incoming);
 
@@ -71,8 +65,6 @@ void qemuSlirpStop(qemuSlirp *slirp,
                    virDomainObj *vm,
                    virQEMUDriver *driver,
                    virDomainNetDef *net);
-
-int qemuSlirpGetFD(qemuSlirp *slirp);
 
 int qemuSlirpSetupCgroup(qemuSlirp *slirp,
                          virCgroup *cgroup);

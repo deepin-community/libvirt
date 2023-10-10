@@ -41,3 +41,18 @@ char **
 virshNodeSuspendTargetCompleter(vshControl *ctl,
                                 const vshCmd *cmd,
                                 unsigned int flags);
+
+char **
+virshDomainVirtTypeCompleter(vshControl *ctl,
+                             const vshCmd *cmd,
+                             unsigned int flags);
+
+char **
+virshArchCompleter(vshControl *ctl,
+                   const vshCmd *cmd,
+                   unsigned int flags);
+
+char **
+virshCPUModelCompleter(vshControl *ctl,
+                       const vshCmd *cmd,
+                       unsigned int flags);

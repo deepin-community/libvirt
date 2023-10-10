@@ -27,7 +27,6 @@
 #include "virerror.h"
 #include "virhash.h"
 #include "virlog.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NODEDEV
 
@@ -48,7 +47,7 @@ struct _virNodeDeviceObjList {
     virObjectRWLockable parent;
 
     /* name string -> virNodeDeviceObj mapping
-     * for O(1), lockless lookup-by-name */
+     * for O(1), lookup-by-name */
     GHashTable *objs;
 
 };
@@ -58,7 +57,6 @@ static virClass *virNodeDeviceObjClass;
 static virClass *virNodeDeviceObjListClass;
 static void virNodeDeviceObjDispose(void *opaque);
 static void virNodeDeviceObjListDispose(void *opaque);
-static bool virNodeDeviceObjHasCap(const virNodeDeviceObj *obj, int type);
 
 static int
 virNodeDeviceObjOnceInit(void)
@@ -467,7 +465,7 @@ virNodeDeviceObjListNew(void)
     if (!(devs = virObjectRWLockableNew(virNodeDeviceObjListClass)))
         return NULL;
 
-    devs->objs = virHashNew(virObjectFreeHashData);
+    devs->objs = virHashNew(virObjectUnref);
 
     return devs;
 }
@@ -556,8 +554,7 @@ virNodeDeviceFindFCParentHost(virNodeDeviceObj *obj)
 
     if (!cap) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Parent device %s is not capable "
-                         "of vport operations"),
+                       _("Parent device %1$s is not capable of vport operations"),
                        obj->def->name);
         return -1;
     }
@@ -576,7 +573,7 @@ virNodeDeviceObjListGetParentHostByParent(virNodeDeviceObjList *devs,
 
     if (!(obj = virNodeDeviceObjListFindByName(devs, parent_name))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find parent device for '%s'"),
+                       _("Could not find parent device for '%1$s'"),
                        dev_name);
         return -1;
     }
@@ -601,7 +598,7 @@ virNodeDeviceObjListGetParentHostByWWNs(virNodeDeviceObjList *devs,
     if (!(obj = virNodeDeviceObjListFindByWWNs(devs, parent_wwnn,
                                                parent_wwpn))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find parent device for '%s'"),
+                       _("Could not find parent device for '%1$s'"),
                        dev_name);
         return -1;
     }
@@ -624,7 +621,7 @@ virNodeDeviceObjListGetParentHostByFabricWWN(virNodeDeviceObjList *devs,
 
     if (!(obj = virNodeDeviceObjListFindByFabricWWN(devs, parent_fabric_wwn))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not find parent device for '%s'"),
+                       _("Could not find parent device for '%1$s'"),
                        dev_name);
         return -1;
     }
@@ -684,7 +681,7 @@ virNodeDeviceObjListGetParentHost(virNodeDeviceObjList *devs,
 }
 
 
-static bool
+bool
 virNodeDeviceObjHasCap(const virNodeDeviceObj *obj,
                        int type)
 {

@@ -23,12 +23,9 @@
 
 #include <sys/stat.h>
 
-#include "datatypes.h"
 #include "virerror.h"
-#include "viralloc.h"
 #include "internal.h"
 #include "storage_backend.h"
-#include "storage_source_conf.h"
 #include "virlog.h"
 #include "virmodule.h"
 #include "virfile.h"
@@ -57,9 +54,6 @@
 #endif
 #if WITH_STORAGE_RBD
 # include "storage_backend_rbd.h"
-#endif
-#if WITH_STORAGE_SHEEPDOG
-# include "storage_backend_sheepdog.h"
 #endif
 #if WITH_STORAGE_GLUSTER
 # include "storage_backend_gluster.h"
@@ -132,9 +126,6 @@ virStorageBackendDriversRegister(bool allbackends G_GNUC_UNUSED)
 #if WITH_STORAGE_RBD
     VIR_STORAGE_BACKEND_REGISTER(virStorageBackendRBDRegister, "rbd");
 #endif
-#if WITH_STORAGE_SHEEPDOG
-    VIR_STORAGE_BACKEND_REGISTER(virStorageBackendSheepdogRegister, "sheepdog");
-#endif
 #if WITH_STORAGE_GLUSTER
     VIR_STORAGE_BACKEND_REGISTER(virStorageBackendGlusterRegister, "gluster");
 #endif
@@ -158,7 +149,7 @@ virStorageBackendRegister(virStorageBackend *backend)
 
     if (virStorageBackendsCount >= VIR_STORAGE_BACKENDS_MAX) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Too many drivers, cannot register storage backend '%s'"),
+                       _("Too many drivers, cannot register storage backend '%1$s'"),
                        virStoragePoolTypeToString(backend->type));
         return -1;
     }
@@ -178,7 +169,7 @@ virStorageBackendForType(int type)
             return virStorageBackends[i];
 
     virReportError(VIR_ERR_INTERNAL_ERROR,
-                   _("missing backend for pool type %d (%s)"),
+                   _("missing backend for pool type %1$d (%2$s)"),
                    type, NULLSTR(virStoragePoolTypeToString(type)));
     return NULL;
 }

@@ -14,11 +14,13 @@ domain_conf_sources = [
   'domain_capabilities.c',
   'domain_conf.c',
   'domain_nwfilter.c',
+  'domain_postparse.c',
   'domain_validate.c',
   'moment_conf.c',
   'numa_conf.c',
   'snapshot_conf.c',
   'virdomaincheckpointobjlist.c',
+  'virdomainjob.c',
   'virdomainmomentobjlist.c',
   'virdomainobjlist.c',
   'virdomainsnapshotobjlist.c',
@@ -111,3 +113,5 @@ virt_conf_lib = static_library(
 libvirt_libs += virt_conf_lib
 
 conf_inc_dir = include_directories('.')
+
+subdir('schemas')

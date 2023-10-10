@@ -21,17 +21,14 @@
 #include <config.h>
 
 #include "internal.h"
-#include "libvirt_internal.h"
 
 #include "admin_server_dispatch.h"
 #include "admin_server.h"
-#include "datatypes.h"
 #include "viralloc.h"
 #include "virerror.h"
 #include "virlog.h"
 #include "rpc/virnetdaemon.h"
 #include "rpc/virnetserver.h"
-#include "virstring.h"
 #include "virthreadjob.h"
 #include "virtypedparam.h"
 #include "virutil.h"
@@ -81,7 +78,7 @@ remoteAdmClientNew(virNetServerClient *client G_GNUC_UNUSED,
               (long long)clientuid);
 
     if (geteuid() != clientuid) {
-        virReportRestrictedError(_("Disallowing client %lld with uid %lld"),
+        virReportRestrictedError(_("Disallowing client %1$lld with uid %2$lld"),
                                  (long long)clientpid,
                                  (long long)clientuid);
         return NULL;
@@ -165,9 +162,9 @@ adminDispatchConnectOpen(virNetServer *server G_GNUC_UNUSED,
     struct daemonAdmClientPrivate *priv =
         virNetServerClientGetPrivateData(client);
     int ret = -1;
+    VIR_LOCK_GUARD lock = virLockGuardLock(&priv->lock);
 
     VIR_DEBUG("priv=%p dmn=%p", priv, priv->dmn);
-    virMutexLock(&priv->lock);
 
     flags = args->flags;
     virCheckFlagsGoto(0, cleanup);
@@ -176,7 +173,6 @@ adminDispatchConnectOpen(virNetServer *server G_GNUC_UNUSED,
  cleanup:
     if (ret < 0)
         virNetMessageSaveError(rerr);
-    virMutexUnlock(&priv->lock);
     return ret;
 }
 
@@ -262,7 +258,7 @@ adminDispatchServerSetThreadpoolParameters(virNetServer *server G_GNUC_UNUSED,
 
     if (!(srv = virNetDaemonGetServer(priv->dmn, args->srv.name))) {
         virReportError(VIR_ERR_NO_SERVER,
-                       _("no server with matching name '%s' found"),
+                       _("no server with matching name '%1$s' found"),
                        args->srv.name);
         goto cleanup;
     }
@@ -307,14 +303,14 @@ adminDispatchClientGetInfo(virNetServer *server G_GNUC_UNUSED,
 
     if (!(srv = virNetDaemonGetServer(priv->dmn, args->clnt.srv.name))) {
         virReportError(VIR_ERR_NO_SERVER,
-                       _("no server with matching name '%s' found"),
+                       _("no server with matching name '%1$s' found"),
                        args->clnt.srv.name);
         goto cleanup;
     }
 
     if (!(clnt = virNetServerGetClient(srv, args->clnt.id))) {
         virReportError(VIR_ERR_NO_CLIENT,
-                       _("no client with matching id '%llu' found"),
+                       _("no client with matching id '%1$llu' found"),
                        (unsigned long long) args->clnt.id);
         goto cleanup;
     }
@@ -394,7 +390,7 @@ adminDispatchServerSetClientLimits(virNetServer *server G_GNUC_UNUSED,
 
     if (!(srv = virNetDaemonGetServer(priv->dmn, args->srv.name))) {
         virReportError(VIR_ERR_NO_SERVER,
-                       _("no server with matching name '%s' found"),
+                       _("no server with matching name '%1$s' found"),
                        args->srv.name);
         goto cleanup;
     }
@@ -466,6 +462,18 @@ adminConnectSetLoggingFilters(virNetDaemon *dmn G_GNUC_UNUSED,
 
     return virLogSetFilters(filters);
 }
+
+
+static int
+adminConnectSetDaemonTimeout(virNetDaemon *dmn,
+                             unsigned int timeout,
+                             unsigned int flags)
+{
+    virCheckFlags(0, -1);
+
+    return virNetDaemonAutoShutdown(dmn, timeout);
+}
+
 
 static int
 adminDispatchConnectGetLoggingOutputs(virNetServer *server G_GNUC_UNUSED,

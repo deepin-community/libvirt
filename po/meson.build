@@ -1,27 +1,19 @@
 i18n = import('i18n')
 
-potfiles_conf = configuration_data()
-potfiles_conf.set('SRCDIR', '')
-potfiles_conf.set('BUILDDIR', '')
-
-potfiles = configure_file(
-  input: 'POTFILES.in',
-  output: '@BASENAME@',
-  configuration: potfiles_conf,
-)
-
 i18n.gettext(
   meson.project_name(),
   args: [
+    '--from-code=UTF-8',
+    '--keyword=_',
+    '--keyword=N_',
     '--add-comments=TRANSLATORS:',
-    '--directory=@0@'.format(meson.source_root()),
-    '--directory=@0@'.format(meson.build_root()),
-    '--files-from=@0@'.format(meson.current_build_dir() / 'POTFILES'),
+    '--directory=@0@'.format(meson.project_source_root()),
+    '--directory=@0@'.format(meson.project_build_root()),
+    '--files-from=@0@'.format(meson.current_source_dir() / 'POTFILES'),
     '--msgid-bugs-address=https://libvirt.org/bugs.html',
     '--package-version=@0@'.format(meson.project_version()),
     '--sort-output',
   ],
-  preset: 'glib',
 )
 
 potfiles_dep = [
@@ -33,3 +25,11 @@ potfiles_dep = [
 ]
 
 alias_target('libvirt-pot-dep', potfiles_dep)
+
+run_target(
+  'libvirt-pot-check',
+  command: [
+    '@0@/scripts/check-pot.py'.format(meson.project_source_root()),
+    '@0@/po/libvirt.pot'.format(meson.project_source_root())
+  ],
+)

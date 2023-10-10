@@ -128,7 +128,7 @@ host core that is in the `isolcpus` reserved set. The QEMU emulator threads
 need to be pinned to host CPUs that are not in the `isolcpus` reserved set.
 The vCPUs need to be given a real time CPU scheduler policy.
 
-When configuring the `guest CPU count <../formatdomain.html#elementsCPUAllocation>`_,
+When configuring the `guest CPU count <../formatdomain.html#cpu-allocation>`_,
 do not include any CPU affinity at this stage:
 
 ::
@@ -137,7 +137,7 @@ do not include any CPU affinity at this stage:
 
 The guest CPUs now need to be placed individually. In this case, they will all
 be put within the same host socket, such that they can be exposed as core
-siblings. This is achieved using the `CPU tuning config <../formatdomain.html#elementsCPUTuning>`_:
+siblings. This is achieved using the `CPU tuning config <../formatdomain.html#cpu-tuning>`_:
 
 ::
 
@@ -150,7 +150,7 @@ siblings. This is achieved using the `CPU tuning config <../formatdomain.html#el
      <vcpusched vcpus='0-4' scheduler='fifo' priority='1'/>
    </cputune>
 
-The `guest CPU model <formatdomain.html#elementsCPU>`_ now needs to be
+The `guest CPU model <../formatdomain.html#cpu-model-and-topology>`_ now needs to be
 configured to pass through the host model unchanged, with topology matching the
 placement:
 
@@ -162,7 +162,7 @@ placement:
    </cpu>
 
 The performance monitoring unit virtualization needs to be disabled
-via the `hypervisor features <../formatdomain.html#elementsFeatures>`_:
+via the `hypervisor features <../formatdomain.html#hypervisor-features>`_:
 
 ::
 
@@ -178,7 +178,7 @@ Memory configuration
 The host memory used for guest RAM needs to be allocated from huge pages on the
 second NUMA node, and all other memory allocation needs to be locked into RAM
 with memory page sharing disabled.
-This is achieved by using the `memory backing config <formatdomain.html#elementsMemoryBacking>`_:
+This is achieved by using the `memory backing config <../formatdomain.html#memory-backing>`_:
 
 ::
 

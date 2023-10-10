@@ -41,6 +41,7 @@ typedef enum {
     QEMU_BLOCKJOB_STATE_CONCLUDED, /* job has finished, but it's unknown
                                       whether it has failed or not */
     QEMU_BLOCKJOB_STATE_ABORTING,
+    QEMU_BLOCKJOB_STATE_PENDING,
     QEMU_BLOCKJOB_STATE_PIVOTING,
     QEMU_BLOCKJOB_STATE_LAST
 } qemuBlockjobState;
@@ -137,6 +138,9 @@ struct _qemuBlockJobData {
 
     int brokentype; /* the previous type of a broken blockjob qemuBlockJobType */
 
+    bool processPending; /* process the 'pending' state of the job, if the job
+                            should not be auto-finalized */
+
     bool invalidData; /* the job data (except name) is not valid */
     bool reconnected; /* internal field for tracking whether job is live after reconnect to qemu */
 };
@@ -174,6 +178,7 @@ qemuBlockJobDiskNewCommit(virDomainObj *vm,
                           virStorageSource *top,
                           virStorageSource *base,
                           bool delete_imgs,
+                          virTristateBool autofinalize,
                           unsigned int jobflags);
 
 qemuBlockJobData *
@@ -214,8 +219,7 @@ qemuBlockJobStartupFinalize(virDomainObj *vm,
                             qemuBlockJobData *job);
 
 int
-qemuBlockJobRefreshJobs(virQEMUDriver *driver,
-                        virDomainObj *vm);
+qemuBlockJobRefreshJobs(virDomainObj *vm);
 
 void
 qemuBlockJobUpdate(virDomainObj *vm,

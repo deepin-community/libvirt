@@ -109,6 +109,8 @@ typedef struct {
     void (*Utf8Free)(PCVBOXXPCOM pFuncs, char *pszString);
     int (*Utf16ToUtf8)(PCVBOXXPCOM pFuncs, const PRUnichar *pwszString, char **ppszString);
     int (*Utf8ToUtf16)(PCVBOXXPCOM pFuncs, const char *pszString, PRUnichar **ppwszString);
+    HRESULT (*GetException)(PCVBOXXPCOM pFuncs, nsIException **ppException);
+    HRESULT (*ClearException)(PCVBOXXPCOM pFuncs);
 } vboxUniformedPFN;
 
 /* Functions for vboxIID */
@@ -145,6 +147,7 @@ typedef struct {
 
 /* Functions for nsISupports */
 typedef struct {
+    nsresult (*QueryInterface)(nsISupports *nsi, const nsID *iid, void **resultp);
     nsresult (*Release)(nsISupports *nsi);
     nsresult (*AddRef)(nsISupports *nsi);
 } vboxUniformednsISupports;
@@ -182,7 +185,6 @@ typedef struct {
                                    PRBool automount);
     nsresult (*RemoveSharedFolder)(IMachine *machine, PRUnichar *name);
     nsresult (*LaunchVMProcess)(struct _vboxDriver *driver, IMachine *machine,
-                                vboxIID *iid,
                                 PRUnichar *sessionType, PRUnichar *env,
                                 IProgress **progress);
     nsresult (*Unregister)(IMachine *machine, PRUint32 cleanupMode,
@@ -228,8 +230,8 @@ typedef struct {
 
 /* Functions for ISession */
 typedef struct {
-    nsresult (*Open)(struct _vboxDriver *driver, vboxIID *iid, IMachine *machine);
-    nsresult (*OpenExisting)(struct _vboxDriver *driver, vboxIID *iid, IMachine *machine);
+    nsresult (*Open)(struct _vboxDriver *driver, IMachine *machine);
+    nsresult (*OpenExisting)(struct _vboxDriver *driver, IMachine *machine);
     nsresult (*GetConsole)(ISession *session, IConsole **console);
     nsresult (*GetMachine)(ISession *session, IMachine **machine);
     nsresult (*Close)(ISession *session);
@@ -355,8 +357,6 @@ typedef struct {
 
 /* Common Functions for IUSBController and IUSBDeviceFilters */
 typedef struct {
-    nsresult (*Enable)(IUSBCommon *USBCommon);
-    nsresult (*GetEnabled)(IUSBCommon *USBCommon, PRBool *enabled);
     nsresult (*CreateDeviceFilter)(IUSBCommon *USBCommon, PRUnichar *name,
                                    IUSBDeviceFilter **filter);
     nsresult (*InsertDeviceFilter)(IUSBCommon *USBCommon, PRUint32 position,
@@ -454,8 +454,7 @@ typedef struct {
                                              IHostNetworkInterface **networkInterface);
     nsresult (*FindHostNetworkInterfaceByName)(IHost *host, PRUnichar *name,
                                                IHostNetworkInterface **networkInterface);
-    nsresult (*CreateHostOnlyNetworkInterface)(struct _vboxDriver *driver,
-                                               IHost *host, char *name,
+    nsresult (*CreateHostOnlyNetworkInterface)(IHost *host,
                                                IHostNetworkInterface **networkInterface);
     nsresult (*RemoveHostOnlyNetworkInterface)(IHost *host, vboxIID *iid,
                                                IProgress **progress);
@@ -486,7 +485,7 @@ typedef struct {
     nsresult (*SetConfiguration)(IDHCPServer *dhcpServer, PRUnichar *IPAddress,
                                  PRUnichar *networkMask, PRUnichar *FromIPAddress,
                                  PRUnichar *ToIPAddress);
-    nsresult (*Start)(IDHCPServer *dhcpServer, PRUnichar *networkName,
+    nsresult (*Start)(IDHCPServer *dhcpServer,
                       PRUnichar *trunkName, PRUnichar *trunkType);
     nsresult (*Stop)(IDHCPServer *dhcpServer);
 } vboxUniformedIDHCPServer;
@@ -496,6 +495,13 @@ typedef struct {
     nsresult (*PutScancodes)(IKeyboard *keyboard, PRUint32 scancodesSize,
                              PRInt32 *scanCodes, PRUint32 *codesStored);
 } vboxUniformedIKeyboard;
+
+typedef struct {
+    const nsID * (*GetIID)(void);
+    nsresult (*GetComponent)(IVirtualBoxErrorInfo *errInfo, PRUnichar **component);
+    nsresult (*GetNext)(IVirtualBoxErrorInfo *errInfo, IVirtualBoxErrorInfo **next);
+    nsresult (*GetText)(IVirtualBoxErrorInfo *errInfo, PRUnichar **text);
+} vboxUniformedIVirtualBoxErrorInfo;
 
 typedef struct {
     bool (*Online)(PRUint32 state);
@@ -544,6 +550,7 @@ typedef struct {
     vboxUniformedIHNInterface UIHNInterface;
     vboxUniformedIDHCPServer UIDHCPServer;
     vboxUniformedIKeyboard UIKeyboard;
+    vboxUniformedIVirtualBoxErrorInfo UIVirtualBoxErrorInfo;
     uniformedMachineStateChecker machineStateChecker;
     /* vbox API features */
     bool chipsetType;
@@ -554,6 +561,5 @@ virDomainPtr vboxDomainLookupByUUID(virConnectPtr conn,
                                     const unsigned char *uuid);
 
 /* Version specified functions for installing uniformed API */
-void vbox52InstallUniformedAPI(vboxUniformedAPI *pVBoxAPI);
-void vbox60InstallUniformedAPI(vboxUniformedAPI *pVBoxAPI);
 void vbox61InstallUniformedAPI(vboxUniformedAPI *pVBoxAPI);
+void vbox70InstallUniformedAPI(vboxUniformedAPI *pVBoxAPI);

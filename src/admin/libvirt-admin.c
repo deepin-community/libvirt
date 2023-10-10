@@ -29,10 +29,8 @@
 #include "virlog.h"
 #include "virnetclient.h"
 #include "virobject.h"
-#include "virstring.h"
 #include "viruri.h"
 #include "virutil.h"
-#include "viruuid.h"
 
 #define VIR_FROM_THIS VIR_FROM_ADMIN
 
@@ -84,6 +82,8 @@ virAdmGlobalInit(void)
  * necessary for the application to call virAdmInitialize.
  *
  * Returns 0 in case of success, -1 in case of error
+ *
+ * Since: 2.0.0
  */
 int
 virAdmInitialize(void)
@@ -116,7 +116,7 @@ getSocketPath(virURI *uri)
             sock_path = g_strdup(param->value);
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Unknown URI parameter '%s'"), param->name);
+                           _("Unknown URI parameter '%1$s'"), param->name);
             return NULL;
         }
     }
@@ -134,7 +134,7 @@ getSocketPath(virURI *uri)
             legacy = true;
         } else if (!STRPREFIX(uri->scheme, "virt")) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Unsupported URI scheme '%s'"),
+                           _("Unsupported URI scheme '%1$s'"),
                            uri->scheme);
             return NULL;
         }
@@ -151,7 +151,7 @@ getSocketPath(virURI *uri)
             sock_path = g_strdup_printf("%s/%s", rundir, sockbase);
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Invalid URI path '%s', try '/system'"),
+                           _("Invalid URI path '%1$s', try '/system'"),
                            NULLSTR_EMPTY(uri->path));
             return NULL;
         }
@@ -200,6 +200,8 @@ virAdmGetDefaultURI(virConf *conf, char **uristr)
  * Opens connection to admin interface of the daemon.
  *
  * Returns @virAdmConnectPtr object or NULL on error
+ *
+ * Since: 2.0.0
  */
 virAdmConnectPtr
 virAdmConnectOpen(const char *name, unsigned int flags)
@@ -284,6 +286,8 @@ virAdmConnectOpen(const char *name, unsigned int flags)
  * some other object still has a temporary reference to the connection, but the
  * application should not try to further use a connection after the
  * virAdmConnectClose that matches the initial open.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmConnectClose(virAdmConnectPtr conn)
@@ -319,6 +323,8 @@ virAdmConnectClose(virAdmConnectPtr conn)
  * would increment the reference count.
  *
  * Returns 0 in case of success, -1 in case of failure
+ *
+ * Since: 2.0.0
  */
 int
 virAdmConnectRef(virAdmConnectPtr conn)
@@ -346,6 +352,8 @@ virAdmConnectRef(virAdmConnectPtr conn)
  * instead.
  *
  * Returns 0 on success, -1 in case of an error.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmGetVersion(unsigned long long *libVer)
@@ -377,6 +385,8 @@ virAdmGetVersion(unsigned long long *libVer)
  *
  * Returns 1, if the connection is alive, 0 if there isn't an existing
  * connection at all or the channel has already been closed, or -1 on error.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmConnectIsAlive(virAdmConnectPtr conn)
@@ -411,21 +421,19 @@ virAdmConnectIsAlive(virAdmConnectPtr conn)
  *
  * Returns an URI string related to the connection or NULL in case of an error.
  * Caller is responsible for freeing the string.
+ *
+ * Since: 2.0.0
  */
 char *
 virAdmConnectGetURI(virAdmConnectPtr conn)
 {
-    char *uri = NULL;
     VIR_DEBUG("conn=%p", conn);
 
     virResetLastError();
 
     virCheckAdmConnectReturn(conn, NULL);
 
-    if (!(uri = virURIFormat(conn->uri)))
-        virDispatchError(NULL);
-
-    return uri;
+    return virURIFormat(conn->uri);
 }
 
 /**
@@ -445,6 +453,8 @@ virAdmConnectGetURI(virAdmConnectPtr conn)
  * context.
  *
  * Returns 0 on success, -1 on error
+ *
+ * Since: 2.0.0
  */
 int virAdmConnectRegisterCloseCallback(virAdmConnectPtr conn,
                                        virAdmConnectCloseFunc cb,
@@ -498,6 +508,8 @@ int virAdmConnectRegisterCloseCallback(virAdmConnectPtr conn,
  * registration, it will be invoked.
  *
  * Returns 0 on success, -1 on error
+ *
+ * Since: 2.0.0
  */
 int virAdmConnectUnregisterCloseCallback(virAdmConnectPtr conn,
                                          virAdmConnectCloseFunc cb)
@@ -528,6 +540,8 @@ int virAdmConnectUnregisterCloseCallback(virAdmConnectPtr conn,
  * major * 1,000,000 + minor * 1,000 + release.
  *
  * Returns 0 on success, -1 on failure and @libVer follows this format:
+ *
+ * Since: 2.0.0
  */
 int virAdmConnectGetLibVersion(virAdmConnectPtr conn,
                                unsigned long long *libVer)
@@ -556,6 +570,8 @@ int virAdmConnectGetLibVersion(virAdmConnectPtr conn,
  *
  * Returns a pointer to the name or NULL. The string doesn't need to be
  * deallocated since its lifetime will be the same as the server object.
+ *
+ * Since: 2.0.0
  */
 const char *
 virAdmServerGetName(virAdmServerPtr srv)
@@ -576,6 +592,8 @@ virAdmServerGetName(virAdmServerPtr srv)
  * The data structure is freed and should not be used thereafter.
  *
  * Returns 0 on success, -1 on failure.
+ *
+ * Since: 2.0.0
  */
 int virAdmServerFree(virAdmServerPtr srv)
 {
@@ -599,6 +617,8 @@ int virAdmServerFree(virAdmServerPtr srv)
  * Get client's unique numeric ID.
  *
  * Returns numeric value used for client's ID or -1 in case of an error.
+ *
+ * Since: 2.0.0
  */
 unsigned long long
 virAdmClientGetID(virAdmClientPtr client)
@@ -622,6 +642,8 @@ virAdmClientGetID(virAdmClientPtr client)
  * Returns client's connection timestamp (seconds from epoch in UTC) or 0
  * (epoch time) if libvirt doesn't have any information about client's
  * connection time, or -1 in case of an error.
+ *
+ * Since: 2.0.0
  */
 long long
 virAdmClientGetTimestamp(virAdmClientPtr client)
@@ -647,6 +669,8 @@ virAdmClientGetTimestamp(virAdmClientPtr client)
  *
  * Returns integer representation of the connection transport used by @client
  * (this will be one of virClientTransport) or -1 in case of an error.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmClientGetTransport(virAdmClientPtr client)
@@ -666,6 +690,8 @@ virAdmClientGetTransport(virAdmClientPtr client)
  * structure is freed and should not be used thereafter.
  *
  * Returns 0 in success, -1 on failure.
+ *
+ * Since: 2.0.0
  */
 int virAdmClientFree(virAdmClientPtr client)
 {
@@ -697,6 +723,8 @@ int virAdmClientFree(virAdmClientPtr client)
  * this extra element from the final count.
  * Caller is responsible to call virAdmServerFree() on each list element,
  * followed by freeing @servers.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmConnectListServers(virAdmConnectPtr conn,
@@ -735,6 +763,8 @@ virAdmConnectListServers(virAdmConnectPtr conn,
  *
  * Returns the requested server or NULL in case of failure.  If the
  * server cannot be found, then VIR_ERR_NO_SERVER error is raised.
+ *
+ * Since: 2.0.0
  */
 virAdmServerPtr
 virAdmConnectLookupServer(virAdmConnectPtr conn,
@@ -776,6 +806,8 @@ virAdmConnectLookupServer(virAdmConnectPtr conn,
  *      VIR_THREADPOOL_WORKERS_CURRENT
  *
  * Returns 0 on success, -1 in case of an error.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmServerGetThreadPoolParameters(virAdmServerPtr srv,
@@ -815,6 +847,8 @@ virAdmServerGetThreadPoolParameters(virAdmServerPtr srv,
  * failure.
  *
  * Returns 0 on success, -1 in case of an error.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmServerSetThreadPoolParameters(virAdmServerPtr srv,
@@ -856,6 +890,8 @@ virAdmServerSetThreadPoolParameters(virAdmServerPtr srv,
  * excluding this extra element from the final count.
  * Caller is responsible to call virAdmClientFree() on each list element,
  * followed by freeing @clients.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmServerListClients(virAdmServerPtr srv,
@@ -894,6 +930,8 @@ virAdmServerListClients(virAdmServerPtr srv,
  *
  * Returns the requested client or NULL in case of failure.  If the
  * client could not be found, then VIR_ERR_NO_CLIENT error is raised.
+ *
+ * Since: 2.0.0
  */
 virAdmClientPtr
 virAdmServerLookupClient(virAdmServerPtr srv,
@@ -940,6 +978,8 @@ virAdmServerLookupClient(virAdmServerPtr srv,
  *
  * Returns 0 if the information has been successfully retrieved or -1 in case
  * of an error.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmClientGetInfo(virAdmClientPtr client,
@@ -974,6 +1014,8 @@ virAdmClientGetInfo(virAdmClientPtr client,
  *
  * Returns 0 if the daemon's connection with @client was closed successfully
  * or -1 in case of an error.
+ *
+ * Since: 2.0.0
  */
 int virAdmClientClose(virAdmClientPtr client,
                       unsigned int flags)
@@ -1011,6 +1053,8 @@ int virAdmClientClose(virAdmClientPtr client,
  *
  * Returns 0 on success, allocating @params to size returned in @nparams, or
  * -1 in case of an error. Caller is responsible for deallocating @params.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmServerGetClientLimits(virAdmServerPtr srv,
@@ -1051,6 +1095,8 @@ virAdmServerGetClientLimits(virAdmServerPtr srv,
  *
  * Returns 0 if the limits have been changed successfully or -1 in case of an
  * error.
+ *
+ * Since: 2.0.0
  */
 int
 virAdmServerSetClientLimits(virAdmServerPtr srv,
@@ -1089,6 +1135,8 @@ virAdmServerSetClientLimits(virAdmServerPtr srv,
  *
  * Returns 0 if the TLS files have been updated successfully or -1 in case of an
  * error.
+ *
+ * Since: 6.2.0
  */
 int
 virAdmServerUpdateTlsFiles(virAdmServerPtr srv,
@@ -1127,6 +1175,8 @@ virAdmServerUpdateTlsFiles(virAdmServerPtr srv,
  * caller. Caller is also responsible for freeing @outputs correctly.
  *
  * Returns the count of outputs in @outputs, or -1 in case of an error.
+ *
+ * Since: 3.0.0
  */
 int
 virAdmConnectGetLoggingOutputs(virAdmConnectPtr conn,
@@ -1168,6 +1218,8 @@ virAdmConnectGetLoggingOutputs(virAdmConnectPtr conn,
  *
  * Returns the number of filters returned in @filters, or -1 in case of
  * an error.
+ *
+ * Since: 3.0.0
  */
 int
 virAdmConnectGetLoggingFilters(virAdmConnectPtr conn,
@@ -1208,6 +1260,8 @@ virAdmConnectGetLoggingFilters(virAdmConnectPtr conn,
  *
  * Returns 0 if the new output or the set of outputs has been defined
  * successfully, or -1 in case of an error.
+ *
+ * Since: 3.0.0
  */
 int
 virAdmConnectSetLoggingOutputs(virAdmConnectPtr conn,
@@ -1246,6 +1300,8 @@ virAdmConnectSetLoggingOutputs(virAdmConnectPtr conn,
  *
  * Returns 0 if the new filter or the set of filters has been defined
  * successfully, or -1 in case of an error.
+ *
+ * Since: 3.0.0
  */
 int
 virAdmConnectSetLoggingFilters(virAdmConnectPtr conn,
@@ -1266,4 +1322,38 @@ virAdmConnectSetLoggingFilters(virAdmConnectPtr conn,
  error:
     virDispatchError(NULL);
     return -1;
+}
+
+
+/**
+ * virAdmConnectSetDaemonTimeout:
+ * @conn: pointer to an active admin connection
+ * @timeout: timeout to set in seconds (0 disables timeout)
+ * @flags: extra flags; not used yet, so callers should always pass 0
+ *
+ * Reconfigure the existing timeout of the daemon to @timeout. Setting timeout
+ * to 0 disables the daemon timeout.
+ *
+ * Returns 0 on success, -1 on error.
+ *
+ * Since: 8.6.0
+ */
+int
+virAdmConnectSetDaemonTimeout(virAdmConnectPtr conn,
+                              unsigned int timeout,
+                              unsigned int flags)
+{
+    int ret;
+
+    VIR_DEBUG("conn=%p, timeout=%u, flags=0x%x", conn, timeout, flags);
+
+    virResetLastError();
+    virCheckAdmConnectReturn(conn, -1);
+
+    if ((ret = remoteAdminConnectSetDaemonTimeout(conn, timeout, flags)) < 0) {
+        virDispatchError(NULL);
+        return -1;
+    }
+
+    return ret;
 }

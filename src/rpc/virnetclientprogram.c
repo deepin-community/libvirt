@@ -116,10 +116,8 @@ static int
 virNetClientProgramDispatchError(virNetClientProgram *prog G_GNUC_UNUSED,
                                  virNetMessage *msg)
 {
-    virNetMessageError err;
+    virNetMessageError err = { 0 };
     int ret = -1;
-
-    memset(&err, 0, sizeof(err));
 
     if (virNetMessageDecodePayload(msg, (xdrproc_t)xdr_virNetMessageError, &err) < 0)
         goto cleanup;
@@ -208,7 +206,7 @@ int virNetClientProgramDispatch(virNetClientProgram *prog,
                                 virNetMessage *msg)
 {
     virNetClientProgramEvent *event;
-    char *evdata;
+    g_autofree char *evdata = NULL;
 
     VIR_DEBUG("prog=%d ver=%d type=%d status=%d serial=%d proc=%d",
               msg->header.prog, msg->header.vers, msg->header.type,
@@ -216,25 +214,25 @@ int virNetClientProgramDispatch(virNetClientProgram *prog,
 
     /* Check version, etc. */
     if (msg->header.prog != prog->program) {
-        VIR_ERROR(_("program mismatch in event (actual 0x%x, expected 0x%x)"),
+        VIR_ERROR(_("program mismatch in event (actual 0x%1$x, expected 0x%2$x)"),
                   msg->header.prog, prog->program);
         return -1;
     }
 
     if (msg->header.vers != prog->version) {
-        VIR_ERROR(_("version mismatch in event (actual 0x%x, expected 0x%x)"),
+        VIR_ERROR(_("version mismatch in event (actual 0x%1$x, expected 0x%2$x)"),
                   msg->header.vers, prog->version);
         return -1;
     }
 
     if (msg->header.status != VIR_NET_OK) {
-        VIR_ERROR(_("status mismatch in event (actual 0x%x, expected 0x%x)"),
+        VIR_ERROR(_("status mismatch in event (actual 0x%1$x, expected 0x%2$x)"),
                   msg->header.status, VIR_NET_OK);
         return -1;
     }
 
     if (msg->header.type != VIR_NET_MESSAGE) {
-        VIR_ERROR(_("type mismatch in event (actual 0x%x, expected 0x%x)"),
+        VIR_ERROR(_("type mismatch in event (actual 0x%1$x, expected 0x%2$x)"),
                   msg->header.type, VIR_NET_MESSAGE);
         return -1;
     }
@@ -242,7 +240,7 @@ int virNetClientProgramDispatch(virNetClientProgram *prog,
     event = virNetClientProgramGetEvent(prog, msg->header.proc);
 
     if (!event) {
-        VIR_ERROR(_("No event expected with procedure 0x%x"),
+        VIR_ERROR(_("No event expected with procedure 0x%1$x"),
                   msg->header.proc);
         return -1;
     }
@@ -250,14 +248,12 @@ int virNetClientProgramDispatch(virNetClientProgram *prog,
     evdata = g_new0(char, event->msg_len);
 
     if (virNetMessageDecodePayload(msg, event->msg_filter, evdata) < 0)
-        goto cleanup;
+        return 0;
 
     event->func(prog, client, evdata, prog->eventOpaque);
 
     xdr_free(event->msg_filter, evdata);
 
- cleanup:
-    VIR_FREE(evdata);
     return 0;
 }
 
@@ -297,13 +293,13 @@ int virNetClientProgramCall(virNetClientProgram *prog,
     for (i = 0; i < msg->nfds; i++) {
         if ((msg->fds[i] = dup(outfds[i])) < 0) {
             virReportSystemError(errno,
-                                 _("Cannot duplicate FD %d"),
+                                 _("Cannot duplicate FD %1$d"),
                                  outfds[i]);
             goto error;
         }
         if (virSetInherit(msg->fds[i], false) < 0) {
             virReportSystemError(errno,
-                                 _("Cannot set close-on-exec %d"),
+                                 _("Cannot set close-on-exec %1$d"),
                                  msg->fds[i]);
             goto error;
         }
@@ -329,18 +325,18 @@ int virNetClientProgramCall(virNetClientProgram *prog,
     if (msg->header.type != VIR_NET_REPLY &&
         msg->header.type != VIR_NET_REPLY_WITH_FDS) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unexpected message type %d"), msg->header.type);
+                       _("Unexpected message type %1$d"), msg->header.type);
         goto error;
     }
     if (msg->header.proc != proc) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unexpected message proc %d != %d"),
+                       _("Unexpected message proc %1$d != %2$d"),
                        msg->header.proc, proc);
         goto error;
     }
     if (msg->header.serial != serial) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unexpected message serial %d != %d"),
+                       _("Unexpected message serial %1$d != %2$d"),
                        msg->header.serial, serial);
         goto error;
     }
@@ -356,13 +352,13 @@ int virNetClientProgramCall(virNetClientProgram *prog,
             for (i = 0; i < *ninfds; i++) {
                 if (((*infds)[i] = dup(msg->fds[i])) < 0) {
                     virReportSystemError(errno,
-                                         _("Cannot duplicate FD %d"),
+                                         _("Cannot duplicate FD %1$d"),
                                          msg->fds[i]);
                     goto error;
                 }
                 if (virSetInherit((*infds)[i], false) < 0) {
                     virReportSystemError(errno,
-                                         _("Cannot set close-on-exec %d"),
+                                         _("Cannot set close-on-exec %1$d"),
                                          (*infds)[i]);
                     goto error;
                 }
@@ -380,7 +376,7 @@ int virNetClientProgramCall(virNetClientProgram *prog,
     case VIR_NET_CONTINUE:
     default:
         virReportError(VIR_ERR_RPC,
-                       _("Unexpected message status %d"), msg->header.status);
+                       _("Unexpected message status %1$d"), msg->header.status);
         goto error;
     }
 

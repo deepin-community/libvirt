@@ -88,7 +88,7 @@ int
 virJSONValueArrayConcat(virJSONValue *a,
                         virJSONValue *c);
 
-int
+bool
 virJSONValueObjectHasKey(virJSONValue *object,
                          const char *key);
 virJSONValue *
@@ -170,8 +170,7 @@ const char *
 virJSONValueObjectGetString(virJSONValue *object,
                             const char *key);
 char **
-virJSONValueObjectGetStringArray(virJSONValue *object,
-                                 const char *key);
+virJSONValueArrayToStringList(virJSONValue *data);
 const char *
 virJSONValueObjectGetStringOrNumber(virJSONValue *object,
                                     const char *key);
@@ -204,12 +203,6 @@ int
 virJSONValueObjectAppendString(virJSONValue *object,
                                const char *key,
                                const char *value);
-int
-virJSONValueObjectAppendStringPrintf(virJSONValue *object,
-                                     const char *key,
-                                     const char *fmt,
-                                     ...)
-    G_GNUC_PRINTF(3, 4);
 int
 virJSONValueObjectPrependString(virJSONValue *object,
                                 const char *key,

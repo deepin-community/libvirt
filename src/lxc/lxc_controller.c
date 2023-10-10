@@ -36,7 +36,6 @@
 #include <sys/mount.h>
 #include <grp.h>
 #include <sys/stat.h>
-#include <time.h>
 
 #if WITH_CAPNG
 # include <cap-ng.h>
@@ -56,15 +55,12 @@
 #include "virfile.h"
 #include "virgdbus.h"
 #include "virpidfile.h"
-#include "vircommand.h"
 #include "virhostcpu.h"
-#include "virrandom.h"
 #include "virprocess.h"
 #include "virnuma.h"
 #include "rpc/virnetdaemon.h"
 #include "virstring.h"
 #include "virgettext.h"
-#include "virsocket.h"
 #include "virutil.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
@@ -371,7 +367,7 @@ static int virLXCControllerValidateNICs(virLXCController *ctrl)
 {
     if (ctrl->def->nnets != ctrl->nveths) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("expecting %zu veths, but got %zu"),
+                       _("expecting %1$zu veths, but got %2$zu"),
                        ctrl->def->nnets, ctrl->nveths);
         return -1;
     }
@@ -426,8 +422,10 @@ static int virLXCControllerGetNICIndexes(virLXCController *ctrl)
         case VIR_DOMAIN_NET_TYPE_INTERNAL:
         case VIR_DOMAIN_NET_TYPE_HOSTDEV:
         case VIR_DOMAIN_NET_TYPE_VDPA:
+        case VIR_DOMAIN_NET_TYPE_NULL:
+        case VIR_DOMAIN_NET_TYPE_VDS:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Unsupported net type %s"),
+                           _("Unsupported net type %1$s"),
                            virDomainNetTypeToString(actualType));
             return -1;
         case VIR_DOMAIN_NET_TYPE_LAST:
@@ -445,7 +443,7 @@ static int virLXCControllerValidateConsoles(virLXCController *ctrl)
 {
     if (ctrl->def->nconsoles != ctrl->nconsoles) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("expecting %zu consoles, but got %zu tty file handlers"),
+                       _("expecting %1$zu consoles, but got %2$zu tty file handlers"),
                        ctrl->def->nconsoles, ctrl->nconsoles);
         return -1;
     }
@@ -583,7 +581,7 @@ static int virLXCControllerAppendNBDPids(virLXCController *ctrl,
             loops++;
         } else {
             virReportSystemError(errno,
-                                 _("Cannot check NBD device %s pid"),
+                                 _("Cannot check NBD device %1$s pid"),
                                  dev + 5);
             return -1;
         }
@@ -627,7 +625,7 @@ static int virLXCControllerSetupLoopDevices(virLXCController *ctrl)
             if (fs->format != VIR_STORAGE_FILE_RAW &&
                 fs->format != VIR_STORAGE_FILE_NONE) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("fs format %s is not supported"),
+                               _("fs format %1$s is not supported"),
                                virStorageFileFormatTypeToString(fs->format));
                 return -1;
             }
@@ -650,7 +648,7 @@ static int virLXCControllerSetupLoopDevices(virLXCController *ctrl)
                 return -1;
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("fs driver %s is not supported"),
+                           _("fs driver %1$s is not supported"),
                            virDomainFSDriverTypeToString(fs->fsdriver));
             return -1;
         }
@@ -678,7 +676,7 @@ static int virLXCControllerSetupLoopDevices(virLXCController *ctrl)
             if (format != VIR_STORAGE_FILE_RAW &&
                 format != VIR_STORAGE_FILE_NONE) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("disk format %s is not supported"),
+                               _("disk format %1$s is not supported"),
                                virStorageFileFormatTypeToString(format));
                 return -1;
             }
@@ -698,7 +696,7 @@ static int virLXCControllerSetupLoopDevices(virLXCController *ctrl)
             if (disk->cachemode != VIR_DOMAIN_DISK_CACHE_DEFAULT &&
                 disk->cachemode != VIR_DOMAIN_DISK_CACHE_DISABLE) {
                 virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                               _("Disk cache mode %s is not supported"),
+                               _("Disk cache mode %1$s is not supported"),
                                virDomainDiskCacheTypeToString(disk->cachemode));
                 return -1;
             }
@@ -712,7 +710,7 @@ static int virLXCControllerSetupLoopDevices(virLXCController *ctrl)
                 return -1;
         } else {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("disk driver %s is not supported"),
+                           _("disk driver %1$s is not supported"),
                            driver);
             return -1;
         }
@@ -811,7 +809,8 @@ static int virLXCControllerSetupResourceLimits(virLXCController *ctrl)
     virDomainNumatuneMemMode mode;
 
     if (virDomainNumatuneGetMode(ctrl->def->numa, -1, &mode) == 0) {
-        if (mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT &&
+        if ((mode == VIR_DOMAIN_NUMATUNE_MEM_STRICT ||
+             mode == VIR_DOMAIN_NUMATUNE_MEM_RESTRICTIVE) &&
             virCgroupControllerAvailable(VIR_CGROUP_CONTROLLER_CPUSET)) {
             /* Use virNuma* API iff necessary. Once set and child is exec()-ed,
              * there's no way for us to change it. Rely on cgroups (if available
@@ -982,7 +981,7 @@ static int lxcControllerClearCapabilities(void)
 
     if ((ret = capng_apply(CAPNG_SELECT_BOTH)) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to apply capabilities: %d"), ret);
+                       _("failed to apply capabilities: %1$d"), ret);
         return -1;
     }
 #else
@@ -1360,14 +1359,16 @@ virLXCControllerSetupUsernsMap(virDomainIdMapEntry *map,
         return -1;
     }
 
-    for (i = 0; i < num; i++)
+    VIR_DEBUG("Set '%s' mappings to:", path);
+
+    for (i = 0; i < num; i++) {
+        VIR_DEBUG("%u %u %u", map[i].start, map[i].target, map[i].count);
         virBufferAsprintf(&map_value, "%u %u %u\n",
                           map[i].start, map[i].target, map[i].count);
-
-    VIR_DEBUG("Set '%s' to '%s'", path, virBufferCurrentContent(&map_value));
+    }
 
     if (virFileWriteStr(path, virBufferCurrentContent(&map_value), 0) < 0) {
-        virReportSystemError(errno, _("unable write to %s"), path);
+        virReportSystemError(errno, _("unable write to %1$s"), path);
         return -1;
     }
 
@@ -1471,7 +1472,7 @@ static int virLXCControllerPopulateDevices(virLXCController *ctrl)
         if (mknod(path, S_IFCHR, dev) < 0 ||
             chmod(path, devs[i].mode)) {
             virReportSystemError(errno,
-                                 _("Failed to make device %s"),
+                                 _("Failed to make device %1$s"),
                                  path);
             return -1;
         }
@@ -1514,7 +1515,7 @@ virLXCControllerSetupTimers(virLXCController *ctrl)
         case VIR_DOMAIN_TIMER_NAME_ARMVTIMER:
         case VIR_DOMAIN_TIMER_NAME_LAST:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unsupported timer type (name) '%s'"),
+                           _("unsupported timer type (name) '%1$s'"),
                            virDomainTimerNameTypeToString(timer->name));
             return -1;
         case VIR_DOMAIN_TIMER_NAME_RTC:
@@ -1533,7 +1534,7 @@ virLXCControllerSetupTimers(virLXCController *ctrl)
             continue;
 
         if (stat(timer_dev, &sb) < 0) {
-            virReportSystemError(errno, _("Unable to access %s"),
+            virReportSystemError(errno, _("Unable to access %1$s"),
                                  timer_dev);
             return -1;
         }
@@ -1542,7 +1543,7 @@ virLXCControllerSetupTimers(virLXCController *ctrl)
         if (mknod(path, S_IFCHR, dev) < 0 ||
             chmod(path, sb.st_mode)) {
             virReportSystemError(errno,
-                                 _("Failed to make device %s"),
+                                 _("Failed to make device %1$s"),
                                  path);
             return -1;
         }
@@ -1578,13 +1579,13 @@ virLXCControllerSetupHostdevSubsysUSB(virDomainDef *vmDef,
 
     if (stat(src, &sb) < 0) {
         virReportSystemError(errno,
-                             _("Unable to access %s"), src);
+                             _("Unable to access %1$s"), src);
         return -1;
     }
 
     if (!S_ISCHR(sb.st_mode)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("USB source %s was not a character device"),
+                       _("USB source %1$s was not a character device"),
                        src);
         return -1;
     }
@@ -1593,7 +1594,7 @@ virLXCControllerSetupHostdevSubsysUSB(virDomainDef *vmDef,
 
     if (g_mkdir_with_parents(dstdir, 0777) < 0) {
         virReportSystemError(errno,
-                             _("Unable to create %s"), dstdir);
+                             _("Unable to create %1$s"), dstdir);
         return -1;
     }
 
@@ -1601,7 +1602,7 @@ virLXCControllerSetupHostdevSubsysUSB(virDomainDef *vmDef,
               dstfile, major(sb.st_rdev), minor(sb.st_rdev));
     if (mknod(dstfile, mode, sb.st_rdev) < 0) {
         virReportSystemError(errno,
-                             _("Unable to create device %s"),
+                             _("Unable to create device %1$s"),
                              dstfile);
         return -1;
     }
@@ -1646,21 +1647,21 @@ virLXCControllerSetupHostdevCapsStorage(virDomainDef *vmDef,
 
     if (stat(dev, &sb) < 0) {
         virReportSystemError(errno,
-                             _("Unable to access %s"),
+                             _("Unable to access %1$s"),
                              dev);
         goto cleanup;
     }
 
     if (!S_ISBLK(sb.st_mode)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Storage source %s must be a block device"),
+                       _("Storage source %1$s must be a block device"),
                        dev);
         goto cleanup;
     }
 
     if (lxcContainerSetupHostdevCapsMakePath(dst) < 0) {
         virReportError(errno,
-                       _("Failed to create directory for device %s"),
+                       _("Failed to create directory for device %1$s"),
                        dev);
         goto cleanup;
     }
@@ -1671,7 +1672,7 @@ virLXCControllerSetupHostdevCapsStorage(virDomainDef *vmDef,
               major(sb.st_rdev), minor(sb.st_rdev));
     if (mknod(dst, mode, sb.st_rdev) < 0) {
         virReportSystemError(errno,
-                             _("Unable to create device %s"),
+                             _("Unable to create device %1$s"),
                              dst);
         goto cleanup;
     }
@@ -1720,21 +1721,21 @@ virLXCControllerSetupHostdevCapsMisc(virDomainDef *vmDef,
 
     if (stat(dev, &sb) < 0) {
         virReportSystemError(errno,
-                             _("Unable to access %s"),
+                             _("Unable to access %1$s"),
                              dev);
         goto cleanup;
     }
 
     if (!S_ISCHR(sb.st_mode)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Storage source %s must be a character device"),
+                       _("Storage source %1$s must be a character device"),
                        dev);
         goto cleanup;
     }
 
     if (lxcContainerSetupHostdevCapsMakePath(dst) < 0) {
         virReportError(errno,
-                       _("Failed to create directory for device %s"),
+                       _("Failed to create directory for device %1$s"),
                        dst);
         goto cleanup;
     }
@@ -1745,7 +1746,7 @@ virLXCControllerSetupHostdevCapsMisc(virDomainDef *vmDef,
               major(sb.st_rdev), minor(sb.st_rdev));
     if (mknod(dst, mode, sb.st_rdev) < 0) {
         virReportSystemError(errno,
-                             _("Unable to create device %s"),
+                             _("Unable to create device %1$s"),
                              dev);
         goto cleanup;
     }
@@ -1775,9 +1776,14 @@ virLXCControllerSetupHostdevSubsys(virDomainDef *vmDef,
                                                      def,
                                                      securityDriver);
 
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_SCSI_HOST:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV:
+    case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Unsupported host device mode %s"),
+                       _("Unsupported host device mode %1$s"),
                        virDomainHostdevSubsysTypeToString(def->source.subsys.type));
         return -1;
     }
@@ -1789,7 +1795,7 @@ virLXCControllerSetupHostdevCaps(virDomainDef *vmDef,
                                  virDomainHostdevDef *def,
                                  virSecurityManager *securityDriver)
 {
-    switch (def->source.subsys.type) {
+    switch (def->source.caps.type) {
     case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_STORAGE:
         return virLXCControllerSetupHostdevCapsStorage(vmDef,
                                                        def,
@@ -1803,10 +1809,11 @@ virLXCControllerSetupHostdevCaps(virDomainDef *vmDef,
     case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_NET:
         return 0; /* case is handled in virLXCControllerMoveInterfaces */
 
+    case VIR_DOMAIN_HOSTDEV_CAPS_TYPE_LAST:
     default:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Unsupported host device mode %s"),
-                       virDomainHostdevCapsTypeToString(def->source.subsys.type));
+                       _("Unsupported host device mode %1$s"),
+                       virDomainHostdevCapsTypeToString(def->source.caps.type));
         return -1;
     }
 }
@@ -1836,8 +1843,9 @@ virLXCControllerSetupAllHostdevs(virLXCController *ctrl)
                 return -1;
             break;
         default:
+        case VIR_DOMAIN_HOSTDEV_MODE_LAST:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("Unsupported host device mode %s"),
+                           _("Unsupported host device mode %1$s"),
                            virDomainHostdevModeTypeToString(def->mode));
             return -1;
         }
@@ -1874,13 +1882,13 @@ static int virLXCControllerSetupDisk(virLXCController *ctrl,
 
     if (stat(def->src->path, &sb) < 0) {
         virReportSystemError(errno,
-                             _("Unable to access %s"), tmpsrc);
+                             _("Unable to access %1$s"), tmpsrc);
         goto cleanup;
     }
 
     if (!S_ISCHR(sb.st_mode) && !S_ISBLK(sb.st_mode)) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Disk source %s must be a character/block device"),
+                       _("Disk source %1$s must be a character/block device"),
                        tmpsrc);
         goto cleanup;
     }
@@ -1902,7 +1910,7 @@ static int virLXCControllerSetupDisk(virLXCController *ctrl,
               dst, major(sb.st_rdev), minor(sb.st_rdev), tmpsrc);
     if (mknod(dst, mode, sb.st_rdev) < 0) {
         virReportSystemError(errno,
-                             _("Unable to create device %s"),
+                             _("Unable to create device %1$s"),
                              dst);
         goto cleanup;
     }
@@ -2014,7 +2022,7 @@ static int lxcSetPersonality(virDomainDef *def)
         VIR_DEBUG("Setting personality to %s",
                   virArchToString(altArch));
         if (personality(PER_LINUX32) < 0) {
-            virReportSystemError(errno, _("Unable to request personality for %s on %s"),
+            virReportSystemError(errno, _("Unable to request personality for %1$s on %2$s"),
                                  virArchToString(altArch),
                                  virArchToString(virArchFromHost()));
             return -1;
@@ -2112,7 +2120,7 @@ virLXCControllerSetupDevPTS(virLXCController *ctrl)
 
     if (g_mkdir_with_parents(devpts, 0777) < 0) {
         virReportSystemError(errno,
-                             _("Failed to make path %s"),
+                             _("Failed to make path %1$s"),
                              devpts);
         return -1;
     }
@@ -2131,7 +2139,7 @@ virLXCControllerSetupDevPTS(virLXCController *ctrl)
               devpts, MS_NOSUID, opts);
     if (mount("devpts", devpts, "devpts", MS_NOSUID, opts) < 0) {
         virReportSystemError(errno,
-                             _("Failed to mount devpts on %s"),
+                             _("Failed to mount devpts on %1$s"),
                              devpts);
         return -1;
     }
@@ -2236,10 +2244,9 @@ static int
 virLXCControllerEventSendExit(virLXCController *ctrl,
                               int exitstatus)
 {
-    virLXCMonitorExitEventMsg msg;
+    virLXCMonitorExitEventMsg msg = { 0 };
 
     VIR_DEBUG("Exit status %d (client=%p)", exitstatus, ctrl->client);
-    memset(&msg, 0, sizeof(msg));
     switch (exitstatus) {
     case 0:
         msg.status = VIR_LXC_MONITOR_EXIT_STATUS_SHUTDOWN;
@@ -2273,10 +2280,9 @@ static int
 virLXCControllerEventSendInit(virLXCController *ctrl,
                               pid_t initpid)
 {
-    virLXCMonitorInitEventMsg msg;
+    virLXCMonitorInitEventMsg msg = { 0 };
 
     VIR_DEBUG("Init pid %lld", (long long)initpid);
-    memset(&msg, 0, sizeof(msg));
     msg.initpid = initpid;
 
     virLXCControllerEventSend(ctrl,
@@ -2489,7 +2495,7 @@ int main(int argc, char *argv[])
 
     if (virGettextInitialize() < 0 ||
         virErrorInitialize() < 0) {
-        fprintf(stderr, _("%s: initialization failed\n"), argv[0]);
+        fprintf(stderr, _("%1$s: initialization failed\n"), argv[0]);
         exit(EXIT_FAILURE);
     }
 
@@ -2674,7 +2680,7 @@ int main(int argc, char *argv[])
         if (pid > 0) {
             if ((rc = virPidFileWrite(LXC_STATE_DIR, name, pid)) < 0) {
                 virReportSystemError(-rc,
-                                     _("Unable to write pid file '%s/%s.pid'"),
+                                     _("Unable to write pid file '%1$s/%2$s.pid'"),
                                      LXC_STATE_DIR, name);
                 _exit(1);
             }
@@ -2704,7 +2710,7 @@ int main(int argc, char *argv[])
  cleanup:
     if (rc < 0) {
         fprintf(stderr,
-                _("Failure in libvirt_lxc startup: %s\n"),
+                _("Failure in libvirt_lxc startup: %1$s\n"),
                 virGetLastErrorMessage());
     }
 

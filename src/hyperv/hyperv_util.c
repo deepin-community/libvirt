@@ -22,13 +22,10 @@
 #include <config.h>
 
 #include "internal.h"
-#include "datatypes.h"
 #include "viralloc.h"
 #include "virlog.h"
-#include "viruuid.h"
 #include "hyperv_private.h"
 #include "hyperv_util.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_HYPERV
 
@@ -58,8 +55,7 @@ hypervParseUri(hypervParsedUri **parsedUri, virURI *uri)
             if (STRNEQ((*parsedUri)->transport, "http") &&
                 STRNEQ((*parsedUri)->transport, "https")) {
                 virReportError(VIR_ERR_INVALID_ARG,
-                               _("Query parameter 'transport' has unexpected value "
-                                 "'%s' (should be http|https)"),
+                               _("Query parameter 'transport' has unexpected value '%1$s' (should be http|https)"),
                                (*parsedUri)->transport);
                 goto cleanup;
             }

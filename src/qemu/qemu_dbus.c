@@ -18,13 +18,10 @@
 
 #include <config.h>
 
-#include "qemu_extdevice.h"
 #include "qemu_dbus.h"
 #include "qemu_security.h"
 
-#include "viralloc.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "virtime.h"
 #include "virpidfile.h"
 
@@ -178,6 +175,7 @@ qemuDBusStart(virQEMUDriver *driver,
     g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
     qemuDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virCommand) cmd = NULL;
+    g_autofree char *dbusDaemonPath = NULL;
     g_autofree char *shortName = NULL;
     g_autofree char *pidfile = NULL;
     g_autofree char *configfile = NULL;
@@ -185,20 +183,21 @@ qemuDBusStart(virQEMUDriver *driver,
     virTimeBackOffVar timebackoff;
     const unsigned long long timeout = 500 * 1000; /* ms */
     VIR_AUTOCLOSE errfd = -1;
-    int cmdret = 0;
-    int exitstatus = 0;
     pid_t cpid = -1;
     int ret = -1;
 
     if (priv->dbusDaemonRunning)
         return 0;
 
-    if (!virFileIsExecutable(cfg->dbusDaemonName)) {
+    dbusDaemonPath = virFindFileInPath(cfg->dbusDaemonName);
+    if (!dbusDaemonPath) {
         virReportSystemError(errno,
-                             _("'%s' is not a suitable dbus-daemon"),
+                             _("'%1$s' is not a suitable dbus-daemon"),
                              cfg->dbusDaemonName);
         return -1;
     }
+
+    VIR_DEBUG("Using dbus-daemon: %s", dbusDaemonPath);
 
     if (!(shortName = virDomainDefGetShortName(vm->def)))
         return -1;
@@ -208,34 +207,27 @@ qemuDBusStart(virQEMUDriver *driver,
     sockpath = qemuDBusCreateSocketPath(cfg, shortName);
 
     if (qemuDBusWriteConfig(configfile, sockpath) < 0) {
-        virReportSystemError(errno, _("Failed to write '%s'"), configfile);
+        virReportSystemError(errno, _("Failed to write '%1$s'"), configfile);
         return -1;
     }
 
     if (qemuSecurityDomainSetPathLabel(driver, vm, configfile, false) < 0)
         goto cleanup;
 
-    cmd = virCommandNew(cfg->dbusDaemonName);
+    cmd = virCommandNew(dbusDaemonPath);
     virCommandClearCaps(cmd);
     virCommandSetPidFile(cmd, pidfile);
     virCommandSetErrorFD(cmd, &errfd);
     virCommandDaemonize(cmd);
     virCommandAddArgFormat(cmd, "--config-file=%s", configfile);
 
-    if (qemuSecurityCommandRun(driver, vm, cmd, -1, -1,
-                               &exitstatus, &cmdret) < 0)
+    if (qemuSecurityCommandRun(driver, vm, cmd, -1, -1, false, NULL) < 0)
         goto cleanup;
-
-    if (cmdret < 0 || exitstatus != 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Could not start dbus-daemon. exitstatus: %d"), exitstatus);
-        goto cleanup;
-    }
 
     if (virPidFileReadPath(pidfile, &cpid) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("dbus-daemon %s didn't show up"),
-                       cfg->dbusDaemonName);
+                       _("dbus-daemon %1$s didn't show up"),
+                       dbusDaemonPath);
         goto cleanup;
     }
 
@@ -252,11 +244,11 @@ qemuDBusStart(virQEMUDriver *driver,
 
         if (saferead(errfd, errbuf, sizeof(errbuf) - 1) < 0) {
             virReportSystemError(errno,
-                                 _("dbus-daemon %s died unexpectedly"),
-                                 cfg->dbusDaemonName);
+                                 _("dbus-daemon %1$s died unexpectedly"),
+                                 dbusDaemonPath);
         } else {
             virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("dbus-daemon died and reported: %s"), errbuf);
+                           _("dbus-daemon died and reported: %1$s"), errbuf);
         }
 
         goto cleanup;
@@ -264,8 +256,8 @@ qemuDBusStart(virQEMUDriver *driver,
 
     if (!virFileExists(sockpath)) {
         virReportError(VIR_ERR_OPERATION_TIMEOUT,
-                       _("DBus daemon %s didn't show up"),
-                       cfg->dbusDaemonName);
+                       _("dbus-daemon %1$s didn't show up"),
+                       dbusDaemonPath);
         goto cleanup;
     }
 

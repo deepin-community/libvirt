@@ -20,9 +20,6 @@
 
 
 #include "testutils.h"
-#include "virerror.h"
-#include "viralloc.h"
-#include "virfile.h"
 #include "virlog.h"
 #include "virstring.h"
 
@@ -261,7 +258,6 @@ testStringToLong(const void *opaque)
     const struct stringToLongData *data = opaque;
     int ret = 0;
     char *end;
-    long l;
     unsigned long ul;
     bool negative;
 
@@ -311,9 +307,6 @@ testStringToLong(const void *opaque)
 
     /* We hate adding new API with 'long', and prefer 'int' or 'long
      * long' instead, since platform-specific results are evil */
-    l = (sizeof(int) == sizeof(long)) ? data->si : data->ll;
-    TEST_ONE(data->str, data->suffix, long, l, "%ld",
-             l, (sizeof(int) == sizeof(long)) ? data->si_ret : data->ll_ret);
     ul = (sizeof(int) == sizeof(long)) ? data->ui : data->ull;
     TEST_ONE(data->str, data->suffix, unsigned long, ul, "%lu",
              ul, (sizeof(int) == sizeof(long)) ? data->ui_ret : data->ull_ret);

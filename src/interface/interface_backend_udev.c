@@ -23,10 +23,10 @@
 #include <dirent.h>
 #include <libudev.h>
 
+#include "virlog.h"
 #include "virerror.h"
 #include "virfile.h"
 #include "datatypes.h"
-#include "domain_conf.h"
 #include "interface_driver.h"
 #include "interface_conf.h"
 #include "viralloc.h"
@@ -40,6 +40,8 @@
 #include "configmake.h"
 
 #define VIR_FROM_THIS VIR_FROM_INTERFACE
+
+VIR_LOG_INIT("interface.interface_backend_udev");
 
 struct udev_iface_driver {
     struct udev *udev;
@@ -149,7 +151,7 @@ udevNumOfInterfacesByStatus(virConnectPtr conn, virUdevStatus status,
 
     if (!enumerate) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to get number of %s interfaces on host"),
+                       _("failed to get number of %1$s interfaces on host"),
                        virUdevStatusString(status));
         count = -1;
         goto cleanup;
@@ -201,7 +203,7 @@ udevListInterfacesByStatus(virConnectPtr conn,
 
     if (!enumerate) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to get list of %s interfaces on host"),
+                       _("failed to get list of %1$s interfaces on host"),
                        virUdevStatusString(status));
         udev_unref(udev);
         return -1;
@@ -315,7 +317,7 @@ udevConnectListAllInterfaces(virConnectPtr conn,
 
     if (!enumerate) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to get list of %s interfaces on host"),
+                       _("failed to get list of %1$s interfaces on host"),
                        virUdevStatusString(status));
         goto cleanup;
     }
@@ -355,11 +357,20 @@ udevConnectListAllInterfaces(virConnectPtr conn,
         const char *macaddr;
         g_autoptr(virInterfaceDef) def = NULL;
 
-        path = udev_list_entry_get_name(dev_entry);
-        dev = udev_device_new_from_syspath(udev, path);
-        name = udev_device_get_sysname(dev);
+        if (!(path = udev_list_entry_get_name(dev_entry))) {
+            VIR_DEBUG("Skipping interface, path == NULL");
+            continue;
+        }
+        if (!(dev = udev_device_new_from_syspath(udev, path))) {
+            VIR_DEBUG("Skipping interface '%s', dev == NULL", path);
+            continue;
+        }
+        if (!(name = udev_device_get_sysname(dev))) {
+            VIR_DEBUG("Skipping interface '%s', name == NULL", path);
+            continue;
+        }
         macaddr = udev_device_get_sysattr_value(dev, "address");
-        status = STREQ(udev_device_get_sysattr_value(dev, "operstate"), "up");
+        status = STREQ_NULLABLE(udev_device_get_sysattr_value(dev, "operstate"), "up");
 
         def = udevGetMinimalDefForDevice(dev);
         if (!virConnectListAllInterfacesCheckACL(conn, def)) {
@@ -415,7 +426,7 @@ udevInterfaceLookupByName(virConnectPtr conn, const char *name)
     dev = udev_device_new_from_subsystem_sysname(udev, "net", name);
     if (!dev) {
         virReportError(VIR_ERR_NO_INTERFACE,
-                       _("couldn't find interface named '%s'"),
+                       _("couldn't find interface named '%1$s'"),
                        name);
         goto cleanup;
     }
@@ -449,7 +460,7 @@ udevInterfaceLookupByMACString(virConnectPtr conn, const char *macstr)
 
     if (!enumerate) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to lookup interface with MAC address '%s'"),
+                       _("failed to lookup interface with MAC address '%1$s'"),
                        macstr);
         goto cleanup;
     }
@@ -466,7 +477,7 @@ udevInterfaceLookupByMACString(virConnectPtr conn, const char *macstr)
     /* Check that we got something back */
     if (!dev_entry) {
         virReportError(VIR_ERR_NO_INTERFACE,
-                       _("couldn't find interface with MAC address '%s'"),
+                       _("couldn't find interface with MAC address '%1$s'"),
                        macstr);
         goto cleanup;
     }
@@ -474,7 +485,7 @@ udevInterfaceLookupByMACString(virConnectPtr conn, const char *macstr)
     /* Check that we didn't get multiple items back */
     if (udev_list_entry_get_next(dev_entry)) {
         virReportError(VIR_ERR_MULTIPLE_INTERFACES,
-                       _("the MAC address '%s' matches multiple interfaces"),
+                       _("the MAC address '%1$s' matches multiple interfaces"),
                        macstr);
         goto cleanup;
     }
@@ -569,12 +580,12 @@ udevGetIfaceDefBond(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bonding/downdelay");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bonding/downdelay' for '%s'"), name);
+                _("Could not retrieve 'bonding/downdelay' for '%1$s'"), name);
         goto error;
     }
     if (virStrToLong_i(tmp_str, NULL, 10, &tmp_int) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse 'bonding/downdelay' '%s' for '%s'"),
+                _("Could not parse 'bonding/downdelay' '%1$s' for '%2$s'"),
                 tmp_str, name);
         goto error;
     }
@@ -583,12 +594,12 @@ udevGetIfaceDefBond(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bonding/updelay");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bonding/updelay' for '%s'"), name);
+                _("Could not retrieve 'bonding/updelay' for '%1$s'"), name);
         goto error;
     }
     if (virStrToLong_i(tmp_str, NULL, 10, &tmp_int) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse 'bonding/updelay' '%s' for '%s'"),
+                _("Could not parse 'bonding/updelay' '%1$s' for '%2$s'"),
                 tmp_str, name);
         goto error;
     }
@@ -597,12 +608,12 @@ udevGetIfaceDefBond(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bonding/miimon");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bonding/miimon' for '%s'"), name);
+                _("Could not retrieve 'bonding/miimon' for '%1$s'"), name);
         goto error;
     }
     if (virStrToLong_i(tmp_str, NULL, 10, &tmp_int) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse 'bonding/miimon' '%s' for '%s'"),
+                _("Could not parse 'bonding/miimon' '%1$s' for '%2$s'"),
                 tmp_str, name);
         goto error;
     }
@@ -611,12 +622,12 @@ udevGetIfaceDefBond(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bonding/arp_interval");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bonding/arp_interval' for '%s'"), name);
+                _("Could not retrieve 'bonding/arp_interval' for '%1$s'"), name);
         goto error;
     }
     if (virStrToLong_i(tmp_str, NULL, 10, &tmp_int) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse 'bonding/arp_interval' '%s' for '%s'"),
+                _("Could not parse 'bonding/arp_interval' '%1$s' for '%2$s'"),
                 tmp_str, name);
         goto error;
     }
@@ -630,24 +641,24 @@ udevGetIfaceDefBond(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bonding/mode");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bonding/mode' for '%s'"), name);
+                _("Could not retrieve 'bonding/mode' for '%1$s'"), name);
         goto error;
     }
     tmp_str = strchr(tmp_str, ' ');
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Invalid format for 'bonding/mode' for '%s'"), name);
+                _("Invalid format for 'bonding/mode' for '%1$s'"), name);
         goto error;
     }
     if (strlen(tmp_str) < 2) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Unable to find correct value in 'bonding/mode' for '%s'"),
+                _("Unable to find correct value in 'bonding/mode' for '%1$s'"),
                 name);
         goto error;
     }
     if (virStrToLong_i(tmp_str + 1, NULL, 10, &tmp_int) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse 'bonding/mode' '%s' for '%s'"),
+                _("Could not parse 'bonding/mode' '%1$s' for '%2$s'"),
                 tmp_str, name);
         goto error;
     }
@@ -660,24 +671,24 @@ udevGetIfaceDefBond(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bonding/arp_validate");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bonding/arp_validate' for '%s'"), name);
+                _("Could not retrieve 'bonding/arp_validate' for '%1$s'"), name);
         goto error;
     }
     tmp_str = strchr(tmp_str, ' ');
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Invalid format for 'bonding/arp_validate' for '%s'"), name);
+                _("Invalid format for 'bonding/arp_validate' for '%1$s'"), name);
         goto error;
     }
     if (strlen(tmp_str) < 2) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Unable to find correct value in 'bonding/arp_validate' "
-                "for '%s'"), name);
+                _("Unable to find correct value in 'bonding/arp_validate' for '%1$s'"),
+                name);
         goto error;
     }
     if (virStrToLong_i(tmp_str + 1, NULL, 10, &tmp_int) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse 'bonding/arp_validate' '%s' for '%s'"),
+                _("Could not parse 'bonding/arp_validate' '%1$s' for '%2$s'"),
                 tmp_str, name);
         goto error;
     }
@@ -687,12 +698,12 @@ udevGetIfaceDefBond(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bonding/use_carrier");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bonding/use_carrier' for '%s'"), name);
+                _("Could not retrieve 'bonding/use_carrier' for '%1$s'"), name);
         goto error;
     }
     if (virStrToLong_i(tmp_str, NULL, 10, &tmp_int) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse 'bonding/use_carrier' '%s' for '%s'"),
+                _("Could not parse 'bonding/use_carrier' '%1$s' for '%2$s'"),
                 tmp_str, name);
         goto error;
     }
@@ -712,7 +723,7 @@ udevGetIfaceDefBond(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bonding/arp_ip_target");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bonding/arp_ip_target' for '%s'"), name);
+                _("Could not retrieve 'bonding/arp_ip_target' for '%1$s'"), name);
         goto error;
     }
     ifacedef->data.bond.target = g_strdup(tmp_str);
@@ -724,7 +735,7 @@ udevGetIfaceDefBond(struct udev *udev,
 
     if (slave_count < 0) {
         virReportSystemError(errno,
-                _("Could not get slaves of bond '%s'"), name);
+                             _("Could not get slaves of bond '%1$s'"), name);
         goto error;
     }
 
@@ -740,8 +751,8 @@ udevGetIfaceDefBond(struct udev *udev,
         tmp_str = strchr(slave_list[i]->d_name, '_');
         if (!tmp_str || strlen(tmp_str) < 2) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Invalid enslaved interface name '%s' seen for "
-                             "bond '%s'"), slave_list[i]->d_name, name);
+                           _("Invalid enslaved interface name '%1$s' seen for bond '%2$s'"),
+                           slave_list[i]->d_name, name);
             goto error;
         }
         /* go past the _ */
@@ -751,8 +762,8 @@ udevGetIfaceDefBond(struct udev *udev,
             udevGetIfaceDef(udev, tmp_str);
         if (!ifacedef->data.bond.itf[i]) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not get interface information for '%s', which is "
-                  "a enslaved in bond '%s'"), slave_list[i]->d_name, name);
+                           _("Could not get interface information for '%1$s', which is a enslaved in bond '%2$s'"),
+                           slave_list[i]->d_name, name);
             goto error;
         }
         VIR_FREE(slave_list[i]);
@@ -792,7 +803,8 @@ udevGetIfaceDefBridge(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bridge/forward_delay");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not retrieve 'bridge/forward_delay' for '%s'"), name);
+                       _("Could not retrieve 'bridge/forward_delay' for '%1$s'"),
+                       name);
         goto error;
     }
 
@@ -802,14 +814,15 @@ udevGetIfaceDefBridge(struct udev *udev,
     tmp_str = udev_device_get_sysattr_value(dev, "bridge/stp_state");
     if (!tmp_str) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-            _("Could not retrieve 'bridge/stp_state' for '%s'"), name);
+                       _("Could not retrieve 'bridge/stp_state' for '%1$s'"),
+                       name);
         goto error;
     }
 
     if (virStrToLong_i(tmp_str, NULL, 10, &stp) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse 'bridge/stp_state' '%s' for '%s'"),
-                tmp_str, name);
+                       _("Could not parse 'bridge/stp_state' '%1$s' for '%2$s'"),
+                       tmp_str, name);
         goto error;
     }
 
@@ -821,8 +834,8 @@ udevGetIfaceDefBridge(struct udev *udev,
         break;
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
-            _("Invalid STP state value %d received for '%s'. Must be "
-              "-1, 0, or 1."), stp, name);
+                       _("Invalid STP state value %1$d received for '%2$s'. Must be -1, 0, or 1."),
+                       stp, name);
         goto error;
     }
 
@@ -838,7 +851,7 @@ udevGetIfaceDefBridge(struct udev *udev,
 
     if (member_count < 0) {
         virReportSystemError(errno,
-                _("Could not get members of bridge '%s'"),
+                _("Could not get members of bridge '%1$s'"),
                 name);
         goto error;
     }
@@ -853,8 +866,8 @@ udevGetIfaceDefBridge(struct udev *udev,
             udevGetIfaceDef(udev, member_list[i]->d_name);
         if (!ifacedef->data.bridge.itf[i]) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not get interface information for '%s', which is "
-                  "a member of bridge '%s'"), member_list[i]->d_name, name);
+                _("Could not get interface information for '%1$s', which is a member of bridge '%2$s'"),
+                member_list[i]->d_name, name);
             goto error;
         }
         VIR_FREE(member_list[i]);
@@ -880,59 +893,53 @@ udevGetIfaceDefVlan(struct udev *udev G_GNUC_UNUSED,
                     const char *name,
                     virInterfaceDef *ifacedef)
 {
-    char *procpath = NULL;
-    char *buf = NULL;
+    g_autofree char *procpath = NULL;
+    g_autofree char *buf = NULL;
     char *vid_pos, *dev_pos;
     size_t vid_len, dev_len;
     const char *vid_prefix = "VID: ";
     const char *dev_prefix = "\nDevice: ";
-    int ret = -1;
 
     procpath = g_strdup_printf("/proc/net/vlan/%s", name);
 
     if (virFileReadAll(procpath, BUFSIZ, &buf) < 0)
-        goto cleanup;
+        return -1;
 
     if ((vid_pos = strstr(buf, vid_prefix)) == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to find the VID for the VLAN device '%s'"),
+                       _("failed to find the VID for the VLAN device '%1$s'"),
                        name);
-        goto cleanup;
+        return -1;
     }
     vid_pos += strlen(vid_prefix);
 
     if ((vid_len = strspn(vid_pos, "0123456789")) == 0 ||
         !g_ascii_isspace(vid_pos[vid_len])) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to find the VID for the VLAN device '%s'"),
+                       _("failed to find the VID for the VLAN device '%1$s'"),
                        name);
-        goto cleanup;
+        return -1;
     }
 
     if ((dev_pos = strstr(vid_pos + vid_len, dev_prefix)) == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to find the real device for the VLAN device '%s'"),
+                       _("failed to find the real device for the VLAN device '%1$s'"),
                        name);
-        goto cleanup;
+        return -1;
     }
     dev_pos += strlen(dev_prefix);
 
     if ((dev_len = strcspn(dev_pos, "\n")) == 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to find the real device for the VLAN device '%s'"),
+                       _("failed to find the real device for the VLAN device '%1$s'"),
                        name);
-        goto cleanup;
+        return -1;
     }
 
     ifacedef->data.vlan.tag = g_strndup(vid_pos, vid_len);
     ifacedef->data.vlan.dev_name = g_strndup(dev_pos, dev_len);
 
-    ret = 0;
-
- cleanup:
-    VIR_FREE(procpath);
-    VIR_FREE(buf);
-    return ret;
+    return 0;
 }
 
 static virInterfaceDef * ATTRIBUTE_NONNULL(1)
@@ -956,7 +963,7 @@ udevGetIfaceDef(struct udev *udev, const char *name)
     dev = udev_device_new_from_subsystem_sysname(udev, "net", name);
     if (!dev) {
         virReportError(VIR_ERR_NO_INTERFACE,
-                       _("couldn't find interface named '%s'"), name);
+                       _("couldn't find interface named '%1$s'"), name);
         goto error;
     }
 
@@ -969,9 +976,9 @@ udevGetIfaceDef(struct udev *udev, const char *name)
 
     /* MTU */
     mtu_str = udev_device_get_sysattr_value(dev, "mtu");
-    if (virStrToLong_ui(mtu_str, NULL, 10, &mtu) < 0) {
+    if (!mtu_str || virStrToLong_ui(mtu_str, NULL, 10, &mtu) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                _("Could not parse MTU value '%s'"), mtu_str);
+                _("Could not parse MTU value '%1$s'"), NULLSTR(mtu_str));
         goto error;
     }
     ifacedef->mtu = mtu;
@@ -1082,7 +1089,7 @@ udevInterfaceIsActive(virInterfacePtr ifinfo)
                                                  ifinfo->name);
     if (!dev) {
         virReportError(VIR_ERR_NO_INTERFACE,
-                       _("couldn't find interface named '%s'"),
+                       _("couldn't find interface named '%1$s'"),
                        ifinfo->name);
         goto cleanup;
     }
@@ -1094,7 +1101,7 @@ udevInterfaceIsActive(virInterfacePtr ifinfo)
        goto cleanup;
 
     /* Check if it's active or not */
-    status = STREQ(udev_device_get_sysattr_value(dev, "operstate"), "up");
+    status = STREQ_NULLABLE(udev_device_get_sysattr_value(dev, "operstate"), "up");
 
     udev_device_unref(dev);
 
@@ -1111,6 +1118,7 @@ udevStateCleanup(void);
 static int
 udevStateInitialize(bool privileged,
                     const char *root,
+                    bool monolithic G_GNUC_UNUSED,
                     virStateInhibitCallback callback G_GNUC_UNUSED,
                     void *opaque G_GNUC_UNUSED)
 {
@@ -1136,13 +1144,13 @@ udevStateInitialize(bool privileged,
     }
 
     if (g_mkdir_with_parents(driver->stateDir, S_IRWXU) < 0) {
-        virReportSystemError(errno, _("cannot create state directory '%s'"),
+        virReportSystemError(errno, _("cannot create state directory '%1$s'"),
                              driver->stateDir);
         goto cleanup;
     }
 
     if ((driver->lockFD =
-         virPidFileAcquire(driver->stateDir, "driver", false, getpid())) < 0)
+         virPidFileAcquire(driver->stateDir, "driver", getpid())) < 0)
         goto cleanup;
 
     driver->udev = udev_new();

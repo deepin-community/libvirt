@@ -21,7 +21,6 @@
 #include <config.h>
 
 #include "configmake.h"
-#include "viralloc.h"
 #include "vircommand.h"
 #include "virlog.h"
 #include "virobject.h"
@@ -111,7 +110,7 @@ chDomainXMLConfInit(virCHDriver *driver)
     virCHDriverDomainDefParserConfig.priv = driver;
     return virDomainXMLOptionNew(&virCHDriverDomainDefParserConfig,
                                  &virCHDriverPrivateDataCallbacks,
-                                 NULL, NULL, NULL);
+                                 NULL, NULL, NULL, NULL);
 }
 
 virCHDriverConfig *
@@ -173,10 +172,33 @@ virCHDriverConfigDispose(void *obj)
 
 #define MIN_VERSION ((15 * 1000000) + (0 * 1000) + (0))
 
+/**
+ * chPreProcessVersionString:
+ *
+ * Returns: a pointer to numerical version without branch/commit info
+ */
+static char *
+chPreProcessVersionString(char *version)
+{
+    char *tmp = strrchr(version, '/');
+
+    if (tmp)
+        version = tmp + 1;
+
+    if (version[0] == 'v')
+        version++;
+
+    tmp = strchr(version, '-');
+    if (tmp)
+        *tmp = '\0';
+
+    return version;
+}
+
 int
 chExtractVersion(virCHDriver *driver)
 {
-    unsigned long version;
+    unsigned long long version;
     g_autofree char *help = NULL;
     char *tmp = NULL;
     g_autofree char *ch_cmd = g_find_program_in_path(CH_CMD);
@@ -194,16 +216,23 @@ chExtractVersion(virCHDriver *driver)
 
     tmp = help;
 
-    /* expected format: cloud-hypervisor v<major>.<minor>.<micro> */
-    if ((tmp = STRSKIP(tmp, "cloud-hypervisor v")) == NULL) {
+    /* Below are example version formats and expected outputs:
+     *  cloud-hypervisor v32.0.0 (expected: 32.0.0)
+     *  cloud-hypervisor v33.0-104-ge0e3779e-dirty (expected: 33.0)
+     *  cloud-hypervisor testing/v32.0.131-1-ga5d6db5c-dirty (expected: 32.0.131)
+     */
+    if ((tmp = STRSKIP(tmp, "cloud-hypervisor ")) == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("Unexpected output of cloud-hypervisor binary"));
         return -1;
     }
 
+    tmp = chPreProcessVersionString(tmp);
+    VIR_DEBUG("Cloud-Hypervisor version detected: %s", tmp);
+
     if (virStringParseVersion(&version, tmp, true) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Unable to parse cloud-hypervisor version: %s"), tmp);
+                       _("Unable to parse cloud-hypervisor version: %1$s"), tmp);
         return -1;
     }
 

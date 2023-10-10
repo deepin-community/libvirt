@@ -2,7 +2,6 @@
 
 #include "internal.h"
 #include "testutils.h"
-#include "datatypes.h"
 #include "node_device/node_device_driver.h"
 #include "vircommand.h"
 #define LIBVIRT_VIRCOMMANDPRIV_H_ALLOW
@@ -71,8 +70,8 @@ testMdevctlCmd(virMdevctlCommand cmd_type,
             return -1;
     }
 
-    if (!(def = virNodeDeviceDefParseFile(mdevxml, create, VIRT_TYPE,
-                                          &parser_callbacks, NULL)))
+    if (!(def = virNodeDeviceDefParse(NULL, mdevxml, create, VIRT_TYPE,
+                                      &parser_callbacks, NULL, false)))
         return -1;
 
     /* this function will set a stdin buffer containing the json configuration
@@ -143,8 +142,8 @@ testMdevctlAutostart(const void *data G_GNUC_UNUSED)
                         abs_srcdir);
     g_autoptr(virCommandDryRunToken) dryRunToken = virCommandDryRunTokenNew();
 
-    if (!(def = virNodeDeviceDefParseFile(mdevxml, CREATE_DEVICE, VIRT_TYPE,
-                                          &parser_callbacks, NULL)))
+    if (!(def = virNodeDeviceDefParse(NULL, mdevxml, CREATE_DEVICE, VIRT_TYPE,
+                                      &parser_callbacks, NULL, false)))
         return -1;
 
     virCommandSetDryRun(dryRunToken, &buf, true, true, NULL, NULL);
@@ -472,6 +471,7 @@ mymain(void)
     DO_TEST_LIST_DEFINED();
 
     DO_TEST_PARSE_JSON("mdevctl-list-empty");
+    DO_TEST_PARSE_JSON("mdevctl-list-empty-array");
     DO_TEST_PARSE_JSON("mdevctl-list-multiple");
 
     DO_TEST_DEFINE("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");

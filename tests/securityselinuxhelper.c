@@ -23,9 +23,7 @@
  * detected. */
 
 #include "virmock.h"
-#if WITH_LINUX_MAGIC_H
-# include <linux/magic.h>
-#endif
+#include <linux/magic.h>
 #include <selinux/selinux.h>
 #include <selinux/label.h>
 #include <sys/vfs.h>
@@ -39,7 +37,6 @@
 #define VIR_FROM_THIS VIR_FROM_NONE
 
 #include "viralloc.h"
-#include "virstring.h"
 
 static int (*real_statfs)(const char *path, struct statfs *buf);
 static int (*real_security_get_boolean_active)(const char *name);

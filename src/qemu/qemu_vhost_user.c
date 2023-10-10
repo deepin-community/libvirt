@@ -24,7 +24,6 @@
 #include "qemu_interop_config.h"
 #include "virjson.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "viralloc.h"
 #include "virenum.h"
 #include "virutil.h"
@@ -151,7 +150,7 @@ qemuVhostUserTypeParse(const char *path,
 
     if ((tmp = qemuVhostUserTypeTypeFromString(type)) <= 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown vhost-user type: '%s'"),
+                       _("unknown vhost-user type: '%1$s'"),
                        type);
         return -1;
     }
@@ -190,7 +189,7 @@ qemuVhostUserParse(const char *path)
 
     if (!(doc = virJSONValueFromString(cont))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to parse json file '%s'"),
+                       _("unable to parse json file '%1$s'"),
                        path);
         return NULL;
     }
@@ -286,7 +285,7 @@ qemuVhostUserGPUFillCapabilities(qemuVhostUser *vu,
 
     if (!(featuresJSON = virJSONValueObjectGetArray(doc, "features"))) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to get features from '%s'"),
+                       _("failed to get features from '%1$s'"),
                        vu->binary);
         return -1;
     }
@@ -360,7 +359,7 @@ qemuVhostUserFillDomainGPU(virQEMUDriver *driver,
 
         if (!(doc = virJSONValueFromString(output))) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unable to parse json capabilities '%s'"),
+                           _("unable to parse json capabilities '%1$s'"),
                            vu->binary);
             continue;
         }

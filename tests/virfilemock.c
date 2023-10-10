@@ -21,13 +21,11 @@
 #include <stdio.h>
 #include <mntent.h>
 #include <sys/vfs.h>
-#if WITH_LINUX_MAGIC_H
+#ifdef __linux__
 # include <linux/magic.h>
 #endif
 
 #include "virmock.h"
-#include "virstring.h"
-#include "viralloc.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 

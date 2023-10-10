@@ -22,7 +22,6 @@
 
 #include "ch_domain.h"
 #include "domain_driver.h"
-#include "viralloc.h"
 #include "virchrdev.h"
 #include "virlog.h"
 #include "virtime.h"
@@ -31,110 +30,7 @@
 
 #define VIR_FROM_THIS VIR_FROM_CH
 
-VIR_ENUM_IMPL(virCHDomainJob,
-              CH_JOB_LAST,
-              "none",
-              "query",
-              "destroy",
-              "modify",
-);
-
 VIR_LOG_INIT("ch.ch_domain");
-
-static int
-virCHDomainObjInitJob(virCHDomainObjPrivate *priv)
-{
-    memset(&priv->job, 0, sizeof(priv->job));
-
-    if (virCondInit(&priv->job.cond) < 0)
-        return -1;
-
-    return 0;
-}
-
-static void
-virCHDomainObjResetJob(virCHDomainObjPrivate *priv)
-{
-    struct virCHDomainJobObj *job = &priv->job;
-
-    job->active = CH_JOB_NONE;
-    job->owner = 0;
-}
-
-static void
-virCHDomainObjFreeJob(virCHDomainObjPrivate *priv)
-{
-    ignore_value(virCondDestroy(&priv->job.cond));
-}
-
-/*
- * obj must be locked before calling, virCHDriver must NOT be locked
- *
- * This must be called by anything that will change the VM state
- * in any way
- *
- * Upon successful return, the object will have its ref count increased.
- * Successful calls must be followed by EndJob eventually.
- */
-int
-virCHDomainObjBeginJob(virDomainObj *obj, enum virCHDomainJob job)
-{
-    virCHDomainObjPrivate *priv = obj->privateData;
-    unsigned long long now;
-    unsigned long long then;
-
-    if (virTimeMillisNow(&now) < 0)
-        return -1;
-    then = now + CH_JOB_WAIT_TIME;
-
-    while (priv->job.active) {
-        VIR_DEBUG("Wait normal job condition for starting job: %s",
-                  virCHDomainJobTypeToString(job));
-        if (virCondWaitUntil(&priv->job.cond, &obj->parent.lock, then) < 0) {
-            VIR_WARN("Cannot start job (%s) for domain %s;"
-                     " current job is (%s) owned by (%d)",
-                     virCHDomainJobTypeToString(job),
-                     obj->def->name,
-                     virCHDomainJobTypeToString(priv->job.active),
-                     priv->job.owner);
-
-            if (errno == ETIMEDOUT)
-                virReportError(VIR_ERR_OPERATION_TIMEOUT,
-                               "%s", _("cannot acquire state change lock"));
-            else
-                virReportSystemError(errno,
-                                     "%s", _("cannot acquire job mutex"));
-            return -1;
-        }
-    }
-
-    virCHDomainObjResetJob(priv);
-
-    VIR_DEBUG("Starting job: %s", virCHDomainJobTypeToString(job));
-    priv->job.active = job;
-    priv->job.owner = virThreadSelfID();
-
-    return 0;
-}
-
-/*
- * obj must be locked and have a reference before calling
- *
- * To be called after completing the work associated with the
- * earlier virCHDomainBeginJob() call
- */
-void
-virCHDomainObjEndJob(virDomainObj *obj)
-{
-    virCHDomainObjPrivate *priv = obj->privateData;
-    enum virCHDomainJob job = priv->job.active;
-
-    VIR_DEBUG("Stopping job: %s",
-              virCHDomainJobTypeToString(job));
-
-    virCHDomainObjResetJob(priv);
-    virCondSignal(&priv->job.cond);
-}
 
 void
 virCHDomainRemoveInactive(virCHDriver *driver,
@@ -152,13 +48,7 @@ virCHDomainObjPrivateAlloc(void *opaque)
 
     priv = g_new0(virCHDomainObjPrivate, 1);
 
-    if (virCHDomainObjInitJob(priv) < 0) {
-        g_free(priv);
-        return NULL;
-    }
-
     if (!(priv->chrdevs = virChrdevAlloc())) {
-        virCHDomainObjFreeJob(priv);
         g_free(priv);
         return NULL;
     }
@@ -173,7 +63,6 @@ virCHDomainObjPrivateFree(void *data)
     virCHDomainObjPrivate *priv = data;
 
     virChrdevFree(priv->chrdevs);
-    virCHDomainObjFreeJob(priv);
     g_free(priv->machineName);
     g_free(priv);
 }
@@ -257,7 +146,7 @@ chValidateDomainDeviceDef(const virDomainDeviceDef *dev,
                           void *opaque G_GNUC_UNUSED,
                           void *parseOpaque G_GNUC_UNUSED)
 {
-    switch ((virDomainDeviceType)dev->type) {
+    switch (dev->type) {
     case VIR_DOMAIN_DEVICE_DISK:
     case VIR_DOMAIN_DEVICE_NET:
     case VIR_DOMAIN_DEVICE_MEMORY:
@@ -285,8 +174,9 @@ chValidateDomainDeviceDef(const virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_PANIC:
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
+    case VIR_DOMAIN_DEVICE_CRYPTO:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("Cloud-Hypervisor doesn't support '%s' device"),
+                       _("Cloud-Hypervisor doesn't support '%1$s' device"),
                        virDomainDeviceTypeToString(dev->type));
         return -1;
 
@@ -335,7 +225,7 @@ chValidateDomainDeviceDef(const virDomainDeviceDef *dev,
 int
 virCHDomainRefreshThreadInfo(virDomainObj *vm)
 {
-    size_t maxvcpus = virDomainDefGetVcpusMax(vm->def);
+    unsigned int maxvcpus = virDomainDefGetVcpusMax(vm->def);
     virCHMonitorThreadInfo *info = NULL;
     size_t nthreads;
     size_t ncpus = 0;
@@ -362,7 +252,7 @@ virCHDomainRefreshThreadInfo(virDomainObj *vm)
 
     /* TODO: Remove the warning when hotplug is implemented.*/
     if (ncpus != maxvcpus)
-        VIR_WARN("Mismatch in the number of cpus, expected: %ld, actual: %ld",
+        VIR_WARN("Mismatch in the number of cpus, expected: %u, actual: %zu",
                  maxvcpus, ncpus);
 
     return 0;
@@ -372,6 +262,7 @@ virDomainDefParserConfig virCHDriverDomainDefParserConfig = {
     .domainPostParseBasicCallback = virCHDomainDefPostParseBasic,
     .domainPostParseCallback = virCHDomainDefPostParse,
     .deviceValidateCallback = chValidateDomainDeviceDef,
+    .features = VIR_DOMAIN_DEF_FEATURE_NO_STUB_CONSOLE,
 };
 
 virCHMonitor *
@@ -413,7 +304,7 @@ virCHDomainGetMachineName(virDomainObj *vm)
     virCHDriver *driver = priv->driver;
     char *ret = NULL;
 
-    if (vm->pid > 0) {
+    if (vm->pid != 0) {
         ret = virSystemdGetMachineNameByPID(vm->pid);
         if (!ret)
             virResetLastError();
@@ -449,7 +340,7 @@ virCHDomainObjFromDomain(virDomainPtr domain)
     if (!vm) {
         virUUIDFormat(domain->uuid, uuidstr);
         virReportError(VIR_ERR_NO_DOMAIN,
-                       _("no domain with matching uuid '%s' (%s)"),
+                       _("no domain with matching uuid '%1$s' (%2$s)"),
                        uuidstr, domain->name);
         return NULL;
     }

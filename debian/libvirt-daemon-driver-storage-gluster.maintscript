@@ -1,0 +1,1 @@
+dir_to_symlink /usr/share/doc/libvirt-daemon-driver-storage-gluster libvirt0 9.3.0-2~

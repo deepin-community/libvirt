@@ -87,6 +87,8 @@
 #define STRPREFIX(a, b) (strncmp(a, b, strlen(b)) == 0)
 #define STRCASEPREFIX(a, b) (g_ascii_strncasecmp(a, b, strlen(b)) == 0)
 #define STRSKIP(a, b) (STRPREFIX(a, b) ? (a) + strlen(b) : NULL)
+#define STRCASESKIP(a, b) (STRCASEPREFIX(a, b) ? (a) + strlen(b) : NULL)
+
 /**
  * STRLIM
  * @str: pointer to a string (evaluated once)
@@ -107,18 +109,6 @@
 # ifndef O_CLOEXEC
 #  define O_CLOEXEC _O_NOINHERIT
 # endif
-#endif
-
-/**
- * G_GNUC_NO_INLINE:
- *
- * Force compiler not to inline a method. Should be used if
- * the method need to be overridable by test mocks.
- *
- * TODO: Remove after upgrading to GLib >= 2.58
- */
-#ifndef G_GNUC_NO_INLINE
-# define G_GNUC_NO_INLINE __attribute__((__noinline__))
 #endif
 
 /**
@@ -279,10 +269,17 @@
  */
 #define virCheckFlags(supported, retval) \
     do { \
-        unsigned long __unsuppflags = flags & ~(supported); \
+        unsigned int __uiflags = flags; \
+        unsigned int __unsuppflags = flags & ~(supported); \
+        if (__uiflags != flags) { \
+            virReportInvalidArg(flags, \
+                                _("unsupported use of long flags in function %1$s"), \
+                                __FUNCTION__); \
+            return retval; \
+        } \
         if (__unsuppflags) { \
             virReportInvalidArg(flags, \
-                                _("unsupported flags (0x%lx) in function %s"), \
+                                _("unsupported flags (0x%1$x) in function %2$s"), \
                                 __unsuppflags, __FUNCTION__); \
             return retval; \
         } \
@@ -301,10 +298,17 @@
  */
 #define virCheckFlagsGoto(supported, label) \
     do { \
-        unsigned long __unsuppflags = flags & ~(supported); \
+        unsigned int __uiflags = flags; \
+        unsigned int __unsuppflags = flags & ~(supported); \
+        if (__uiflags != flags) { \
+            virReportInvalidArg(flags, \
+                                _("unsupported use of long flags in function %1$s"), \
+                                __FUNCTION__); \
+            goto label; \
+        } \
         if (__unsuppflags) { \
             virReportInvalidArg(flags, \
-                                _("unsupported flags (0x%lx) in function %s"), \
+                                _("unsupported flags (0x%1$x) in function %2$s"), \
                                 __unsuppflags, __FUNCTION__); \
             goto label; \
         } \
@@ -329,8 +333,7 @@
     do { \
         if ((flags & FLAG1) && (flags & FLAG2)) { \
             virReportInvalidArg(ctl, \
-                                _("Flags '%s' and '%s' are mutually " \
-                                  "exclusive"), \
+                                _("Flags '%1$s' and '%2$s' are mutually exclusive"), \
                                 #FLAG1, #FLAG2); \
             return RET; \
         } \
@@ -353,8 +356,7 @@
     do { \
         if ((flags & FLAG1) && (flags & FLAG2)) { \
             virReportInvalidArg(ctl, \
-                                _("Flags '%s' and '%s' are mutually " \
-                                  "exclusive"), \
+                                _("Flags '%1$s' and '%2$s' are mutually exclusive"), \
                                 #FLAG1, #FLAG2); \
             goto LABEL; \
         } \
@@ -379,7 +381,7 @@
     do { \
         if ((flags & (FLAG1)) && !(flags & (FLAG2))) { \
             virReportInvalidArg(ctl, \
-                                _("Flag '%s' is required by flag '%s'"), \
+                                _("Flag '%1$s' is required by flag '%2$s'"), \
                                 #FLAG2, #FLAG1); \
             return RET; \
         } \
@@ -401,7 +403,7 @@
     do { \
         if ((flags & (FLAG1)) && !(flags & (FLAG2))) { \
             virReportInvalidArg(ctl, \
-                                _("Flag '%s' is required by flag '%s'"), \
+                                _("Flag '%1$s' is required by flag '%2$s'"), \
                                 #FLAG2, #FLAG1); \
             goto LABEL; \
         } \
@@ -477,7 +479,7 @@
 #define virCheckReadOnlyGoto(flags, label) \
     do { \
         if ((flags) & VIR_CONNECT_RO) { \
-            virReportRestrictedError(_("read only access prevents %s"), \
+            virReportRestrictedError(_("read only access prevents %1$s"), \
                                      __FUNCTION__); \
             goto label; \
         } \

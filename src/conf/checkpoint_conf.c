@@ -23,19 +23,15 @@
 
 #include "configmake.h"
 #include "internal.h"
-#include "virbitmap.h"
 #include "virbuffer.h"
-#include "datatypes.h"
 #include "domain_conf.h"
 #include "virlog.h"
 #include "viralloc.h"
 #include "checkpoint_conf.h"
 #include "storage_source_conf.h"
 #include "viruuid.h"
-#include "virfile.h"
 #include "virerror.h"
 #include "virxml.h"
-#include "virstring.h"
 #include "virdomaincheckpointobjlist.h"
 
 #define VIR_FROM_THIS VIR_FROM_DOMAIN_CHECKPOINT
@@ -157,11 +153,13 @@ virDomainCheckpointDefParse(xmlXPathContextPtr ctxt,
         def->parent.parent_name = virXPathString("string(./parent/name)", ctxt);
 
         if ((domainNode = virXPathNode("./domain", ctxt))) {
+            VIR_XPATH_NODE_AUTORESTORE(ctxt)
             unsigned int domainParseFlags = VIR_DOMAIN_DEF_PARSE_INACTIVE |
                                             VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE;
 
-            def->parent.dom = virDomainDefParseNode(ctxt->node->doc, domainNode,
-                                                    xmlopt, parseOpaque,
+            ctxt->node = domainNode;
+
+            def->parent.dom = virDomainDefParseNode(ctxt, xmlopt, parseOpaque,
                                                     domainParseFlags);
             if (!def->parent.dom)
                 return NULL;
@@ -185,26 +183,6 @@ virDomainCheckpointDefParse(xmlXPathContextPtr ctxt,
     return ret;
 }
 
-static virDomainCheckpointDef *
-virDomainCheckpointDefParseNode(xmlDocPtr xml,
-                                xmlNodePtr root,
-                                virDomainXMLOption *xmlopt,
-                                void *parseOpaque,
-                                unsigned int flags)
-{
-    g_autoptr(xmlXPathContext) ctxt = NULL;
-
-    if (!virXMLNodeNameEqual(root, "domaincheckpoint")) {
-        virReportError(VIR_ERR_XML_ERROR, "%s", _("domaincheckpoint"));
-        return NULL;
-    }
-
-    if (!(ctxt = virXMLXPathContextNew(xml)))
-        return NULL;
-
-    ctxt->node = root;
-    return virDomainCheckpointDefParse(ctxt, xmlopt, parseOpaque, flags);
-}
 
 virDomainCheckpointDef *
 virDomainCheckpointDefParseString(const char *xmlStr,
@@ -212,19 +190,19 @@ virDomainCheckpointDefParseString(const char *xmlStr,
                                   void *parseOpaque,
                                   unsigned int flags)
 {
-    virDomainCheckpointDef *ret = NULL;
     g_autoptr(xmlDoc) xml = NULL;
+    g_autoptr(xmlXPathContext) ctxt = NULL;
     int keepBlanksDefault = xmlKeepBlanksDefault(0);
 
-    if ((xml = virXMLParse(NULL, xmlStr, _("(domain_checkpoint)"),
-                           "domaincheckpoint.rng", true))) {
-        xmlKeepBlanksDefault(keepBlanksDefault);
-        ret = virDomainCheckpointDefParseNode(xml, xmlDocGetRootElement(xml),
-                                              xmlopt, parseOpaque, flags);
-    }
+    xml = virXMLParse(NULL, xmlStr, _("(domain_checkpoint)"),
+                      "domaincheckpoint", &ctxt, "domaincheckpoint.rng", true);
+
     xmlKeepBlanksDefault(keepBlanksDefault);
 
-    return ret;
+    if (!xml)
+        return NULL;
+
+    return virDomainCheckpointDefParse(ctxt, xmlopt, parseOpaque, flags);
 }
 
 
@@ -305,13 +283,13 @@ virDomainCheckpointAlignDisks(virDomainCheckpointDef *chkdef)
 
         if (!domdisk) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("no disk named '%s'"), chkdisk->name);
+                           _("no disk named '%1$s'"), chkdisk->name);
             return -1;
         }
 
         if (virHashHasEntry(map, domdisk->dst)) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("disk '%s' specified twice"),
+                           _("disk '%1$s' specified twice"),
                            chkdisk->name);
             return -1;
         }
@@ -323,7 +301,7 @@ virDomainCheckpointAlignDisks(virDomainCheckpointDef *chkdef)
              domdisk->src->readonly) &&
             chkdisk->type != VIR_DOMAIN_CHECKPOINT_TYPE_NONE) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("disk '%s' is empty or readonly"),
+                           _("disk '%1$s' is empty or readonly"),
                            chkdisk->name);
             return -1;
         }
@@ -493,7 +471,7 @@ virDomainCheckpointRedefinePrep(virDomainObj *vm,
             char uuidstr[VIR_UUID_STRING_BUFLEN];
             virUUIDFormat(vm->def->uuid, uuidstr);
             virReportError(VIR_ERR_INVALID_ARG,
-                           _("definition for checkpoint %s must use uuid %s"),
+                           _("definition for checkpoint %1$s must use uuid %2$s"),
                            def->parent.name, uuidstr);
             return -1;
         }

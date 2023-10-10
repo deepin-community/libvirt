@@ -95,6 +95,7 @@
     margin-right: 1em;
 }
 
+main,
 .document {
     margin-left: auto;
     margin-right: auto;
@@ -104,9 +105,11 @@
     width: 70em;
 }
 
-#index.document,
-#docs.document,
-#hvsupport.document,
+main#the-virtualization-api,
+#the-virtualization-api.document,
+main#documentation,
+#documentation.document,
+main#knowledge-base,
 #knowledge-base.document
 {
     width: inherit;
@@ -153,15 +156,6 @@ h1 a, h2 a, h3 a, h4 a, h5 a {
     text-decoration: inherit;
 }
 
-#changelog .author {
-    color: #3c857c;
-    font-weight: bold;
-}
-
-p.image {
-    text-align: center;
-}
-
 table {
     border-collapse: collapse;
     min-width: 60%;
@@ -194,79 +188,6 @@ table tr:hover td, table col:hover td {
 
 table tr td:hover {
     background: #c5dbd8;
-}
-
-#projects {
-    margin: 0px;
-    border: 0px;
-    position: absolute;
-    top: 0px;
-    left: 0px;
-    width: 100%;
-}
-
-#projects dl {
-    margin: 0px;
-    border: 0px solid white;
-    height: 180px;
-    position: absolute;
-    top: 0px;
-    left: 0px;
-}
-
-#projects #p1 {
-    margin-left: 25%;
-    width: 75%;
-}
-
-#projects #p2 {
-    margin-left: 50%;
-    width: 50%;
-}
-
-#projects #p3 {
-    margin-left: 75%;
-    width: 25%;
-}
-
-#projects dt, #projects dd {
-    padding: 0px;
-    margin: 0px;
-}
-
-#projects #p1 dt, #projects #p1 dd {
-    width: 33%;
-}
-
-#projects #p2 dt, #projects #p2 dd {
-    width: 50%;
-}
-
-#projects #p3 dt, #projects #p3 dd {
-    width: 99%;
-}
-
-#projects span {
-    font-size: 0.8em;
-    display: block;
-    padding-left: 1em;
-    padding-top: 0.5em;
-}
-
-#projects a {
-    font-size: 0.8em;
-    display: block;
-    padding-left: 0.8em;
-    padding-top: 1em;
-}
-
-#projects a {
-    color: white;
-    text-decoration: inherit;
-}
-
-#projects span {
-    color: #ccc;
 }
 
 span.since {
@@ -396,16 +317,25 @@ h6:hover > a.headerlink {
     visibility: visible;
 }
 
-div.panel,
+#the-virtualization-api section,
+#the-virtualization-api .section,
+#documentation section,
+#documentation .section,
+#knowledge-base section,
 #knowledge-base .section
 {
     width: 24%;
     margin-left: 7%;
+    margin-bottom: 2em;
     float: left;
     background: rgb(230, 230, 230);
 }
 
-div.panel h2,
+#the-virtualization-api section h2,
+#the-virtualization-api .section h1,
+#documentation section h2,
+#documentation .section h1,
+#knowledge-base section h2,
 #knowledge-base .section h1 {
     margin-top: 0px;
     padding: 0.5em;
@@ -414,22 +344,20 @@ div.panel h2,
     background: rgb(0, 95, 97);
     color: rgb(255, 255, 255);
     text-align: center;
+    font-size: 1.6em;
 }
 
-#index.document h1 {
+#the-virtualization-api > h1 {
     border: 0px;
     text-indent: 100%; white-space: nowrap; overflow: hidden;
     background: url(../logos/logo-banner-dark-800.png) no-repeat center center;
     height: 300px;
 }
 
-#knowledge-base.document > h1 {
+#documentation > h1,
+#knowledge-base > h1 {
     text-align: center;
     padding: 1em;
-}
-
-#docs.document h1 {
-    visibility: hidden;
 }
 
 br.clear {
@@ -484,19 +412,24 @@ br.clear {
     font-size: smaller;
 }
 
-div.panel dd,
+#the-virtualization-api dd,
+#documentation dd,
 #knowledge-base dd {
     font-size: smaller;
 }
 
-div.panel a,
+#the-virtualization-api a,
+#documentation a,
 #knowledge-base a {
     text-decoration: none;
 }
 
-div.panel ul,
-div.panel p,
-div.panel dl,
+#the-virtualization-api ul,
+#the-virtualization-api p,
+#the-virtualization-api dl,
+#documentation ul,
+#documentation p,
+#documentation dl,
 #knowledge-base ul,
 #knowledge-base p,
 #knowledge-base dl {
@@ -504,35 +437,30 @@ div.panel dl,
     margin: 0px;
 }
 
-div.panel ul,
+#the-virtualization-api li p
+{
+    padding-left: 0.5em;
+    padding-top: 0px;
+    padding-bottom: 0px;
+}
+
+#the-virtualization-api ul,
+#documentation ul,
 #knowledge-base ul {
     margin-left: 1em;
 }
 
-div.panel dt,
+#the-virtualization-api dt,
+#documentation dt,
 #knowledge-base dt {
     margin: 0px;
 }
 
-div.panel dd,
+#the-virtualization-api dd,
+#documentation dd,
 #knowledge-base dd {
     margin: 0px;
     margin-bottom: 1em;
-}
-
-dl.mail dt {
-    background: rgb(0, 97, 95);
-    color: rgb(255, 255, 255);
-    font-weight: bold;
-    padding: 0.5em;
-}
-dl.mail dt a {
-    color: inherit;
-    text-decoration: none;
-}
-dl.mail dt a:hover {
-    color:  rgb(255, 230, 0);
-    text-decoration: none;
 }
 
 td.enumvalue {
@@ -591,15 +519,6 @@ td.enumvalue {
     margin: 2px;
 }
 
-td.gitmirror {
-    font-size: smaller;
-    font-style: italic;
-}
-
-td.gitmirror a {
-    color: inherit;
-}
-
 th p, td p {
     margin-top: 0px;
     margin-bottom: 0px;
@@ -619,4 +538,8 @@ th p, td p {
 
 #contents p.topic-title {
     display: none;
+}
+
+span.del {
+    text-decoration: line-through;
 }

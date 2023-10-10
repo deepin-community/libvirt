@@ -1,0 +1,24 @@
+{
+    "interface-types": [
+        "uefi"
+    ],
+    "mapping": {
+        "device": "flash",
+        "mode": "stateless",
+        "executable": {
+            "filename": "/usr/share/edk2/ovmf/OVMF.inteltdx.fd",
+            "format": "raw"
+        }
+    },
+    "targets": [
+        {
+            "architecture": "x86_64",
+            "machines": [
+                "pc-q35-*"
+            ]
+        }
+    ],
+    "features": [
+        "verbose-dynamic"
+    ]
+}

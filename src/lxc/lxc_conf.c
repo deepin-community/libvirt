@@ -34,7 +34,6 @@
 #include "configmake.h"
 #include "lxc_container.h"
 #include "virnodesuspend.h"
-#include "virstring.h"
 #include "virfile.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
@@ -185,12 +184,19 @@ virCaps *virLXCDriverGetCapabilities(virLXCDriver *driver,
 virDomainXMLOption *
 lxcDomainXMLConfInit(virLXCDriver *driver, const char *defsecmodel)
 {
+    virDomainXMLOption *ret = NULL;
+
     virLXCDriverDomainDefParserConfig.priv = driver;
     virLXCDriverDomainDefParserConfig.defSecModel = defsecmodel;
-    return virDomainXMLOptionNew(&virLXCDriverDomainDefParserConfig,
-                                 &virLXCDriverPrivateDataCallbacks,
-                                 &virLXCDriverDomainXMLNamespace,
-                                 NULL, NULL);
+
+    ret = virDomainXMLOptionNew(&virLXCDriverDomainDefParserConfig,
+                                &virLXCDriverPrivateDataCallbacks,
+                                &virLXCDriverDomainXMLNamespace,
+                                NULL, NULL, NULL);
+
+    virDomainXMLOptionSetCloseCallbackAlloc(ret, virCloseCallbacksDomainAlloc);
+
+    return ret;
 }
 
 

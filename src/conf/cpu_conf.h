@@ -22,7 +22,6 @@
 
 #include "virbuffer.h"
 #include "virxml.h"
-#include "virbitmap.h"
 #include "virarch.h"
 #include "numa_conf.h"
 #include "virenum.h"
@@ -117,6 +116,23 @@ struct _virCPUCacheDef {
 };
 
 
+typedef enum {
+    VIR_CPU_MAX_PHYS_ADDR_MODE_EMULATE,
+    VIR_CPU_MAX_PHYS_ADDR_MODE_PASSTHROUGH,
+
+    VIR_CPU_MAX_PHYS_ADDR_MODE_LAST
+} virCPUMaxPhysAddrMode;
+
+VIR_ENUM_DECL(virCPUMaxPhysAddrMode);
+
+typedef struct _virCPUMaxPhysAddrDef virCPUMaxPhysAddrDef;
+struct _virCPUMaxPhysAddrDef {
+    int bits;           /* -1 for unspecified */
+    unsigned int limit; /* 0 for unspecified */
+    virCPUMaxPhysAddrMode mode;
+};
+
+
 typedef struct _virCPUDef virCPUDef;
 struct _virCPUDef {
     int refs;
@@ -134,10 +150,14 @@ struct _virCPUDef {
     unsigned int dies;
     unsigned int cores;
     unsigned int threads;
+    unsigned int sigFamily;
+    unsigned int sigModel;
+    unsigned int sigStepping;
     size_t nfeatures;
     size_t nfeatures_max;
     virCPUFeatureDef *features;
     virCPUCacheDef *cache;
+    virCPUMaxPhysAddrDef *addr;
     virHostCPUTscInfo *tsc;
     virTristateSwitch migratable; /* for host-passthrough mode */
 };
@@ -156,7 +176,7 @@ void
 virCPUDefFree(virCPUDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCPUDef, virCPUDefFree);
 
-int ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
+void ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2)
 virCPUDefCopyModel(virCPUDef *dst,
                    const virCPUDef *src,
                    bool resetPolicy);
@@ -168,7 +188,7 @@ typedef bool (*virCPUDefFeatureFilter)(const char *name,
                                        virCPUFeaturePolicy policy,
                                        void *opaque);
 
-int
+void
 virCPUDefCopyModelFilter(virCPUDef *dst,
                          const virCPUDef *src,
                          bool resetPolicy,
@@ -182,10 +202,12 @@ virCPUDefStealModel(virCPUDef *dst,
                     bool keepVendor);
 
 virCPUDef *
-virCPUDefCopy(const virCPUDef *cpu);
+virCPUDefCopy(const virCPUDef *cpu)
+    ATTRIBUTE_NONNULL(1);
 
 virCPUDef *
-virCPUDefCopyWithoutModel(const virCPUDef *cpu);
+virCPUDefCopyWithoutModel(const virCPUDef *cpu)
+    ATTRIBUTE_NONNULL(1);
 
 int
 virCPUDefParseXMLString(const char *xml,

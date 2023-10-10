@@ -30,7 +30,6 @@
 #include "viridentity.h"
 #include "virlog.h"
 #include "viruuid.h"
-#include "virstring.h"
 #include "virrandom.h"
 #include "rados/librados.h"
 #include "rbd/librbd.h"
@@ -114,13 +113,13 @@ virStoragePoolDefRBDNamespaceParse(xmlXPathContextPtr ctxt,
         if (!(cmdopts->values[cmdopts->noptions] =
               virXMLPropString(nodes[i], "value"))) {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("no rbd option value specified for name '%s'"),
+                           _("no rbd option value specified for name '%1$s'"),
                            cmdopts->names[cmdopts->noptions]);
             goto cleanup;
         }
         if (*cmdopts->values[cmdopts->noptions] == '\0') {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("empty rbd option value specified for name '%s'"),
+                           _("empty rbd option value specified for name '%1$s'"),
                            cmdopts->names[cmdopts->noptions]);
             goto cleanup;
         }
@@ -162,21 +161,32 @@ virStoragePoolDefRBDNamespaceFormatXML(virBuffer *buf,
 
 
 static int
-virStorageBackendRBDRADOSConfSet(rados_t cluster,
-                                 const char *option,
-                                 const char *value)
+virStorageBackendRBDRADOSConfSetQuiet(rados_t cluster,
+                                      const char *option,
+                                      const char *value)
 {
-    VIR_DEBUG("Setting RADOS option '%s' to '%s'",
-              option, value);
     if (rados_conf_set(cluster, option, value) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to set RADOS option: %s"),
+                       _("failed to set RADOS option: %1$s"),
                        option);
         return -1;
     }
 
     return 0;
 }
+
+
+static int
+virStorageBackendRBDRADOSConfSet(rados_t cluster,
+                                 const char *option,
+                                 const char *value)
+{
+    VIR_DEBUG("Setting RADOS option '%s' to '%s'",
+              option, value);
+
+    return virStorageBackendRBDRADOSConfSetQuiet(cluster, option, value);
+}
+
 
 static int
 virStorageBackendRBDOpenRADOSConn(virStorageBackendRBDState *ptr,
@@ -223,7 +233,8 @@ virStorageBackendRBDOpenRADOSConn(virStorageBackendRBDState *ptr,
         rados_key = g_base64_encode(secret_value, secret_value_size);
         virSecureErase(secret_value, secret_value_size);
 
-        rc = virStorageBackendRBDRADOSConfSet(ptr->cluster, "key", rados_key);
+        VIR_DEBUG("Setting RADOS option 'key'");
+        rc = virStorageBackendRBDRADOSConfSetQuiet(ptr->cluster, "key", rados_key);
         virSecureEraseString(rados_key);
 
         if (rc < 0)
@@ -326,7 +337,7 @@ virStorageBackendRBDOpenRADOSConn(virStorageBackendRBDState *ptr,
 
     ptr->starttime = time(0);
     if (rados_connect(ptr->cluster) < 0) {
-        virReportSystemError(errno, _("failed to connect to the RADOS monitor on: %s"),
+        virReportSystemError(errno, _("failed to connect to the RADOS monitor on: %1$s"),
                              mon_buff);
         goto cleanup;
     }
@@ -345,7 +356,7 @@ virStorageBackendRBDOpenIoCTX(virStorageBackendRBDState *ptr,
     virStoragePoolDef *def = virStoragePoolObjGetDef(pool);
     int rc = rados_ioctx_create(ptr->cluster, def->source.name, &ptr->ioctx);
     if (rc < 0) {
-        virReportSystemError(errno, _("failed to create the RBD IoCTX. Does the pool '%s' exist?"),
+        virReportSystemError(errno, _("failed to create the RBD IoCTX. Does the pool '%1$s' exist?"),
                              def->source.name);
     }
     return rc;
@@ -411,8 +422,9 @@ volStorageBackendRBDGetFeatures(rbd_image_t image,
     int rc;
 
     if ((rc = rbd_get_features(image, features)) < 0) {
-        virReportSystemError(errno, _("failed to get the features of RBD image "
-                                 "%s"), volname);
+        virReportSystemError(errno,
+                             _("failed to get the features of RBD image %1$s"),
+                             volname);
         return rc;
     }
 
@@ -429,7 +441,7 @@ volStorageBackendRBDGetFlags(rbd_image_t image,
 
     if ((rc = rbd_get_flags(image, flags)) < 0) {
         virReportSystemError(errno,
-                             _("failed to get the flags of RBD image %s"),
+                             _("failed to get the flags of RBD image %1$s"),
                              volname);
         return rc;
     }
@@ -468,7 +480,7 @@ virStorageBackendRBDSetAllocation(virStorageVolDef *vol,
     if ((rc = rbd_diff_iterate2(image, NULL, 0, info->size, 0, 1,
                                &virStorageBackendRBDRefreshVolInfoCb,
                                &allocation)) < 0) {
-        virReportSystemError(errno, _("failed to iterate RBD image '%s'"),
+        virReportSystemError(errno, _("failed to iterate RBD image '%1$s'"),
                              vol->name);
         return rc;
     }
@@ -520,13 +532,13 @@ volStorageBackendRBDRefreshVolInfo(virStorageVolDef *vol,
     uint64_t flags;
 
     if ((ret = rbd_open_read_only(ptr->ioctx, vol->name, &image, NULL)) < 0) {
-        virReportSystemError(errno, _("failed to open the RBD image '%s'"),
+        virReportSystemError(errno, _("failed to open the RBD image '%1$s'"),
                              vol->name);
         goto cleanup;
     }
 
     if ((ret = rbd_stat(image, &info, sizeof(info))) < 0) {
-        virReportSystemError(errno, _("failed to stat the RBD image '%s'"),
+        virReportSystemError(errno, _("failed to stat the RBD image '%1$s'"),
                              vol->name);
         goto cleanup;
     }
@@ -669,7 +681,7 @@ virStorageBackendRBDRefreshPool(virStoragePoolObj *pool)
     }
 
     if (rados_ioctx_pool_stat(ptr->ioctx, &poolstat) < 0) {
-        virReportSystemError(errno, _("failed to stat the RADOS pool '%s'"),
+        virReportSystemError(errno, _("failed to stat the RADOS pool '%1$s'"),
                              def->source.name);
         goto cleanup;
     }
@@ -739,7 +751,7 @@ virStorageBackendRBDCleanupSnapshots(rados_ioctx_t ioctx,
     g_autofree rbd_snap_info_t *snaps = NULL;
 
     if (rbd_open(ioctx, vol->name, &image, NULL) < 0) {
-       virReportSystemError(errno, _("failed to open the RBD image '%s'"),
+       virReportSystemError(errno, _("failed to open the RBD image '%1$s'"),
                             vol->name);
        goto cleanup;
     }
@@ -758,7 +770,7 @@ virStorageBackendRBDCleanupSnapshots(rados_ioctx_t ioctx,
 
     for (i = 0; i < snap_count; i++) {
         if (rbd_snap_is_protected(image, snaps[i].name, &protected) < 0) {
-            virReportSystemError(errno, _("failed to verify if snapshot '%s/%s@%s' is protected"),
+            virReportSystemError(errno, _("failed to verify if snapshot '%1$s/%2$s@%3$s' is protected"),
                                  source->name, vol->name,
                                  snaps[i].name);
             goto cleanup;
@@ -770,7 +782,7 @@ virStorageBackendRBDCleanupSnapshots(rados_ioctx_t ioctx,
                       snaps[i].name);
 
             if (rbd_snap_unprotect(image, snaps[i].name) < 0) {
-                virReportSystemError(errno, _("failed to unprotect snapshot '%s/%s@%s'"),
+                virReportSystemError(errno, _("failed to unprotect snapshot '%1$s/%2$s@%3$s'"),
                                      source->name, vol->name,
                                      snaps[i].name);
                 goto cleanup;
@@ -781,7 +793,7 @@ virStorageBackendRBDCleanupSnapshots(rados_ioctx_t ioctx,
                   vol->name, snaps[i].name);
 
         if (rbd_snap_remove(image, snaps[i].name) < 0) {
-            virReportSystemError(errno, _("failed to remove snapshot '%s/%s@%s'"),
+            virReportSystemError(errno, _("failed to remove snapshot '%1$s/%2$s@%3$s'"),
                                  source->name, vol->name,
                                  snaps[i].name);
             goto cleanup;
@@ -830,7 +842,7 @@ virStorageBackendRBDDeleteVol(virStoragePoolObj *pool,
 
     rc = rbd_remove(ptr->ioctx, vol->name);
     if (rc < 0 && (-rc) != ENOENT) {
-        virReportSystemError(errno, _("failed to remove volume '%s/%s'"),
+        virReportSystemError(errno, _("failed to remove volume '%1$s/%2$s'"),
                              def->source.name, vol->name);
         goto cleanup;
     }
@@ -910,7 +922,7 @@ virStorageBackendRBDBuildVol(virStoragePoolObj *pool,
 
     if (virStorageBackendRBDCreateImage(ptr->ioctx, vol->name,
                                        vol->target.capacity) < 0) {
-        virReportSystemError(errno, _("failed to create volume '%s/%s'"),
+        virReportSystemError(errno, _("failed to create volume '%1$s/%2$s'"),
                              def->source.name, vol->name);
         goto cleanup;
     }
@@ -932,15 +944,14 @@ virStorageBackendRBDImageInfo(rbd_image_t image,
     uint8_t oldformat;
 
     if (rbd_get_old_format(image, &oldformat) < 0) {
-        virReportSystemError(errno, _("failed to get the format of RBD image %s"),
+        virReportSystemError(errno, _("failed to get the format of RBD image %1$s"),
                              volname);
         return -1;
     }
 
     if (oldformat != 0) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("RBD image %s is old format. Does not support "
-                         "extended features and striping"),
+                       _("RBD image %1$s is old format. Does not support extended features and striping"),
                        volname);
         return -1;
     }
@@ -949,13 +960,13 @@ virStorageBackendRBDImageInfo(rbd_image_t image,
         return -1;
 
     if (rbd_get_stripe_unit(image, stripe_unit) < 0) {
-        virReportSystemError(errno, _("failed to get the stripe unit of RBD image %s"),
+        virReportSystemError(errno, _("failed to get the stripe unit of RBD image %1$s"),
                              volname);
         return -1;
     }
 
     if (rbd_get_stripe_count(image, stripe_count) < 0) {
-        virReportSystemError(errno, _("failed to get the stripe count of RBD image %s"),
+        virReportSystemError(errno, _("failed to get the stripe count of RBD image %1$s"),
                              volname);
         return -1;
     }
@@ -996,7 +1007,7 @@ virStorageBackendRBDSnapshotFindNoDiff(rbd_image_t image,
     g_autofree rbd_snap_info_t *snaps = NULL;
 
     if (rbd_stat(image, &info, sizeof(info)) < 0) {
-        virReportSystemError(errno, _("failed to stat the RBD image %s"),
+        virReportSystemError(errno, _("failed to stat the RBD image %1$s"),
                              imgname);
         goto cleanup;
     }
@@ -1039,7 +1050,7 @@ virStorageBackendRBDSnapshotFindNoDiff(rbd_image_t image,
         if (rbd_diff_iterate(image, snaps[i].name, 0, info.size,
                             virStorageBackendRBDIterateCb, (void *)&diff) < 0) {
 #endif
-            virReportSystemError(errno, _("failed to iterate RBD snapshot %s@%s"),
+            virReportSystemError(errno, _("failed to iterate RBD snapshot %1$s@%2$s"),
                                  imgname, snaps[i].name);
             goto cleanup;
         }
@@ -1074,7 +1085,7 @@ virStorageBackendRBDSnapshotCreate(rbd_image_t image,
     VIR_DEBUG("Creating RBD snapshot %s@%s", imgname, snapname);
 
     if (rbd_snap_create(image, snapname) < 0) {
-        virReportSystemError(errno, _("failed to create RBD snapshot %s@%s"),
+        virReportSystemError(errno, _("failed to create RBD snapshot %1$s@%2$s"),
                                    imgname, snapname);
         return -1;
     }
@@ -1092,8 +1103,9 @@ virStorageBackendRBDSnapshotProtect(rbd_image_t image,
     VIR_DEBUG("Querying if RBD snapshot %s@%s is protected", imgname, snapname);
 
     if (rbd_snap_is_protected(image, snapname, &protected) < 0) {
-        virReportSystemError(errno, _("failed to verify if RBD snapshot %s@%s "
-                                   "is protected"), imgname, snapname);
+        virReportSystemError(errno,
+                             _("failed to verify if RBD snapshot %1$s@%2$s is protected"),
+                             imgname, snapname);
         return -1;
     }
 
@@ -1102,7 +1114,7 @@ virStorageBackendRBDSnapshotProtect(rbd_image_t image,
                   imgname, snapname);
 
         if (rbd_snap_protect(image, snapname) < 0) {
-            virReportSystemError(errno, _("failed to protect RBD snapshot %s@%s"),
+            virReportSystemError(errno, _("failed to protect RBD snapshot %1$s@%2$s"),
                                        imgname, snapname);
             return -1;
         }
@@ -1128,7 +1140,7 @@ virStorageBackendRBDCloneImage(rados_ioctx_t io,
     g_autofree char *snapname_buff = NULL;
 
     if (rbd_open(io, origvol, &image, NULL) < 0) {
-        virReportSystemError(errno, _("failed to open the RBD image %s"),
+        virReportSystemError(errno, _("failed to open the RBD image %1$s"),
                              origvol);
         goto cleanup;
     }
@@ -1182,7 +1194,7 @@ virStorageBackendRBDCloneImage(rados_ioctx_t io,
 
     if (rbd_clone2(io, origvol, snapname_buff, io, newvol, features,
                    &order, stripe_unit, stripe_count) < 0) {
-        virReportSystemError(errno, _("failed to clone RBD volume %s to %s"),
+        virReportSystemError(errno, _("failed to clone RBD volume %1$s to %2$s"),
                              origvol, newvol);
         goto cleanup;
     }
@@ -1263,13 +1275,13 @@ virStorageBackendRBDResizeVol(virStoragePoolObj *pool,
         goto cleanup;
 
     if (rbd_open(ptr->ioctx, vol->name, &image, NULL) < 0) {
-       virReportSystemError(errno, _("failed to open the RBD image '%s'"),
+       virReportSystemError(errno, _("failed to open the RBD image '%1$s'"),
                             vol->name);
        goto cleanup;
     }
 
     if (rbd_resize(image, capacity) < 0) {
-        virReportSystemError(errno, _("failed to resize the RBD image '%s'"),
+        virReportSystemError(errno, _("failed to resize the RBD image '%1$s'"),
                              vol->name);
         goto cleanup;
     }
@@ -1299,9 +1311,8 @@ virStorageBackendRBDVolWipeZero(rbd_image_t image,
         length = MIN((info->size - offset), (info->obj_size * stripe_count));
 
         if (rbd_write(image, offset, length, writebuf) < 0) {
-            virReportSystemError(errno, _("writing %llu bytes failed on "
-                                       "RBD image %s at offset %llu"),
-                                       length, imgname, offset);
+            virReportSystemError(errno, _("writing %1$llu bytes failed on RBD image %2$s at offset %3$llu"),
+                                 length, imgname, offset);
             return -1;
         }
 
@@ -1329,9 +1340,8 @@ virStorageBackendRBDVolWipeDiscard(rbd_image_t image,
         length = MIN((info->size - offset), (info->obj_size * stripe_count));
 
         if (rbd_discard(image, offset, length) < 0) {
-            virReportSystemError(errno, _("discarding %llu bytes failed on "
-                                       "RBD image %s at offset %llu"),
-                                     length, imgname, offset);
+            virReportSystemError(errno, _("discarding %1$llu bytes failed on RBD image %2$s at offset %3$llu"),
+                                 length, imgname, offset);
             return -1;
         }
 
@@ -1370,19 +1380,19 @@ virStorageBackendRBDVolWipe(virStoragePoolObj *pool,
         goto cleanup;
 
     if (rbd_open(ptr->ioctx, vol->name, &image, NULL) < 0) {
-        virReportSystemError(errno, _("failed to open the RBD image %s"),
+        virReportSystemError(errno, _("failed to open the RBD image %1$s"),
                              vol->name);
         goto cleanup;
     }
 
     if (rbd_stat(image, &info, sizeof(info)) < 0) {
-        virReportSystemError(errno, _("failed to stat the RBD image %s"),
+        virReportSystemError(errno, _("failed to stat the RBD image %1$s"),
                              vol->name);
         goto cleanup;
     }
 
     if (rbd_get_stripe_count(image, &stripe_count) < 0) {
-        virReportSystemError(errno, _("failed to get stripe count of RBD image %s"),
+        virReportSystemError(errno, _("failed to get stripe count of RBD image %1$s"),
                              vol->name);
         goto cleanup;
     }
@@ -1408,13 +1418,13 @@ virStorageBackendRBDVolWipe(virStoragePoolObj *pool,
     case VIR_STORAGE_VOL_WIPE_ALG_PFITZNER33:
     case VIR_STORAGE_VOL_WIPE_ALG_RANDOM:
     case VIR_STORAGE_VOL_WIPE_ALG_LAST:
-        virReportError(VIR_ERR_INVALID_ARG, _("unsupported algorithm %d"),
+        virReportError(VIR_ERR_INVALID_ARG, _("unsupported algorithm %1$d"),
                        algorithm);
         goto cleanup;
     }
 
     if (rc < 0) {
-        virReportSystemError(errno, _("failed to wipe RBD image %s"),
+        virReportSystemError(errno, _("failed to wipe RBD image %1$s"),
                              vol->name);
         goto cleanup;
     }

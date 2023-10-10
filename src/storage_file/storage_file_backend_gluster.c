@@ -28,8 +28,6 @@
 #include "viralloc.h"
 #include "virerror.h"
 #include "virlog.h"
-#include "virstoragefile.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_STORAGE
 
@@ -65,7 +63,7 @@ virStorageFileBackendGlusterInitServer(virStorageFileBackendGlusterPriv *priv,
     const char *hoststr = NULL;
     int port = 0;
 
-    switch ((virStorageNetHostTransport) host->transport) {
+    switch (host->transport) {
     case VIR_STORAGE_NET_HOST_TRANS_RDMA:
     case VIR_STORAGE_NET_HOST_TRANS_TCP:
         hoststr = host->name;
@@ -85,7 +83,7 @@ virStorageFileBackendGlusterInitServer(virStorageFileBackendGlusterPriv *priv,
 
     if (glfs_set_volfile_server(priv->vol, transport, hoststr, port) < 0) {
         virReportSystemError(errno,
-                             _("failed to set gluster volfile server '%s'"),
+                             _("failed to set gluster volfile server '%1$s'"),
                              hoststr);
         return -1;
     }
@@ -103,7 +101,7 @@ virStorageFileBackendGlusterInit(virStorageSource *src)
 
     if (!src->volume) {
         virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing gluster volume name for path '%s'"),
+                       _("missing gluster volume name for path '%1$s'"),
                        src->path);
         return -1;
     }
@@ -117,7 +115,7 @@ virStorageFileBackendGlusterInit(virStorageSource *src)
 
     if (!(priv->vol = glfs_new(src->volume))) {
         virReportError(VIR_ERR_OPERATION_FAILED,
-                       _("failed to create glfs object for '%s'"), src->volume);
+                       _("failed to create glfs object for '%1$s'"), src->volume);
         goto error;
     }
 
@@ -128,8 +126,8 @@ virStorageFileBackendGlusterInit(virStorageSource *src)
 
     if (glfs_init(priv->vol) < 0) {
         virReportSystemError(errno,
-                             _("failed to initialize gluster connection "
-                               "(src=%p priv=%p)"), src, priv);
+                             _("failed to initialize gluster connection (src=%1$p priv=%2$p)"),
+                             src, priv);
         goto error;
     }
 
@@ -199,14 +197,14 @@ virStorageFileBackendGlusterRead(virStorageSource *src,
     *buf = NULL;
 
     if (!(fd = glfs_open(priv->vol, src->path, O_RDONLY))) {
-        virReportSystemError(errno, _("Failed to open file '%s'"),
+        virReportSystemError(errno, _("Failed to open file '%1$s'"),
                              src->path);
         return -1;
     }
 
     if (offset > 0) {
         if (glfs_lseek(fd, offset, SEEK_SET) == (off_t) -1) {
-            virReportSystemError(errno, _("cannot seek into '%s'"), src->path);
+            virReportSystemError(errno, _("cannot seek into '%1$s'"), src->path);
             goto cleanup;
         }
     }
@@ -221,7 +219,7 @@ virStorageFileBackendGlusterRead(virStorageSource *src,
             continue;
         if (r < 0) {
             VIR_FREE(*buf);
-            virReportSystemError(errno, _("unable to read '%s'"), src->path);
+            virReportSystemError(errno, _("unable to read '%1$s'"), src->path);
             return r;
         }
         if (r == 0)

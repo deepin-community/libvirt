@@ -8,8 +8,6 @@
 #include "internal.h"
 #include "testutils.h"
 #include "node_device_conf.h"
-#include "testutilsqemu.h"
-#include "virstring.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
 
@@ -25,8 +23,8 @@ testCompareXMLToXMLFiles(const char *xml, const char *outfile)
     if (virTestLoadFile(xml, &xmlData) < 0)
         goto fail;
 
-    if (!(dev = virNodeDeviceDefParseString(xmlData, EXISTING_DEVICE, NULL,
-                                            NULL, NULL)))
+    if (!(dev = virNodeDeviceDefParse(xmlData, NULL, EXISTING_DEVICE, NULL,
+                                      NULL, NULL, false)))
         goto fail;
 
     /* Calculate some things that are not read in */
@@ -125,7 +123,9 @@ mymain(void)
     DO_TEST("mdev_3627463d_b7f0_4fea_b468_f1da537d301b");
     DO_TEST("ccw_0_0_ffff");
     DO_TEST("css_0_0_ffff");
+    DO_TEST("css_0_0_ffff_channel_dev_addr");
     DO_TEST("css_0_0_fffe_mdev_types");
+    DO_TEST("css_0_0_fffe_mdev_types_channel_dev_addr");
     DO_TEST("ap_card07");
     DO_TEST("ap_07_0038");
     DO_TEST("ap_matrix");
@@ -134,6 +134,7 @@ mymain(void)
     DO_TEST("mdev_d069d019_36ea_4111_8f0a_8c9a70e21366");
     DO_TEST("mdev_d2441d39_495e_4243_ad9f_beb3f14c23d9");
     DO_TEST("mdev_fedc4916_1ca8_49ac_b176_871d16c13076");
+    DO_TEST("hba_vport_ops");
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

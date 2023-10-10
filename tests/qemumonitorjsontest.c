@@ -28,9 +28,7 @@
 #include "qemu/qemu_monitor_json.h"
 #include "qemu/qemu_qapi.h"
 #include "qemu/qemu_alias.h"
-#include "virthread.h"
 #include "virerror.h"
-#include "virstring.h"
 #include "cpu/cpu.h"
 #include "qemu/qemu_monitor.h"
 #include "qemu/qemu_migration_params.h"
@@ -494,64 +492,6 @@ testQemuMonitorJSONGetCPUDefinitions(const void *opaque)
 
 
 static int
-testQemuMonitorJSONGetCommands(const void *opaque)
-{
-    const testGenericData *data = opaque;
-    virDomainXMLOption *xmlopt = data->xmlopt;
-    g_auto(GStrv) commands = NULL;
-    int ncommands = 0;
-    g_autoptr(qemuMonitorTest) test = NULL;
-
-    if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
-        return -1;
-
-    if (qemuMonitorTestAddItem(test, "query-commands",
-                               "{ "
-                               "  \"return\": [ "
-                               "   { "
-                               "     \"name\": \"system_wakeup\" "
-                               "   }, "
-                               "   { "
-                               "     \"name\": \"cont\" "
-                               "   }, "
-                               "   { "
-                               "     \"name\": \"quit\" "
-                               "   } "
-                               "  ]"
-                               "}") < 0)
-        return -1;
-
-    if ((ncommands = qemuMonitorGetCommands(qemuMonitorTestGetMonitor(test),
-                                        &commands)) < 0)
-        return -1;
-
-    if (ncommands != 3) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "ncommands %d is not 3", ncommands);
-        return -1;
-    }
-
-#define CHECK(i, wantname) \
-    do { \
-        if (STRNEQ(commands[i], (wantname))) { \
-            virReportError(VIR_ERR_INTERNAL_ERROR, \
-                           "name %s is not %s", \
-                           commands[i], (wantname)); \
-            return -1; \
-        } \
-    } while (0)
-
-    CHECK(0, "system_wakeup");
-    CHECK(1, "cont");
-    CHECK(2, "quit");
-
-#undef CHECK
-
-    return 0;
-}
-
-
-static int
 testQemuMonitorJSONGetTPMModels(const void *opaque)
 {
     const testGenericData *data = opaque;
@@ -598,19 +538,44 @@ testQemuMonitorJSONGetTPMModels(const void *opaque)
 
 
 struct qemuMonitorJSONTestAttachChardevData {
-    qemuMonitorTest *test;
     virDomainChrSourceDef *chr;
     const char *expectPty;
     bool fail;
+
+    virDomainXMLOption *xmlopt;
+    GHashTable *schema;
+    const char *expectargs;
+    const char *reply;
 };
 
 static int
 testQemuMonitorJSONAttachChardev(const void *opaque)
 {
     const struct qemuMonitorJSONTestAttachChardevData *data = opaque;
+    g_autoptr(qemuMonitorTest) test = qemuMonitorTestNewSchema(data->xmlopt, data->schema);
     int rc;
 
-    if ((rc = qemuMonitorAttachCharDev(qemuMonitorTestGetMonitor(data->test),
+    if (!test)
+        return -1;
+
+    if (data->expectargs) {
+        g_autofree char *jsonreply = g_strdup_printf("{\"return\": {%s}}", NULLSTR_EMPTY(data->reply));
+        g_autofree char *jsoncommand = NULL;
+        char *n;
+
+        jsoncommand = g_strdup_printf("{\"execute\": \"chardev-add\", \"arguments\": %s, \"id\" : \"libvirt-1\"}", data->expectargs);
+
+        /* data->expectargs has ' instead of " */
+        for (n = jsoncommand; *n; n++) {
+            if (*n == '\'')
+                *n = '"';
+        }
+
+        if (qemuMonitorTestAddItemVerbatim(test, jsoncommand, NULL, jsonreply) < 0)
+            return -1;
+    }
+
+    if ((rc = qemuMonitorAttachCharDev(qemuMonitorTestGetMonitor(test),
                                        "alias", data->chr)) < 0)
         goto cleanup;
 
@@ -645,36 +610,18 @@ qemuMonitorJSONTestAttachOneChardev(virDomainXMLOption *xmlopt,
                                     bool fail)
 
 {
-    struct qemuMonitorJSONTestAttachChardevData data = {0};
-    g_autoptr(qemuMonitorTest) test = qemuMonitorTestNewSchema(xmlopt, schema);
-    g_autofree char *jsonreply = NULL;
-    g_autofree char *fulllabel = NULL;
+    struct qemuMonitorJSONTestAttachChardevData data = { .chr = chr,
+                                                         .fail = fail,
+                                                         .expectPty = expectPty,
+                                                         .expectargs = expectargs,
+                                                         .reply = reply,
+                                                         .xmlopt = xmlopt,
+                                                         .schema = schema };
+    g_autofree char *fulllabel = g_strdup_printf("qemuMonitorJSONTestAttachChardev(%s)", label);
 
-    if (!test)
-        return -1;
-
-    if (!reply)
-        reply = "";
-
-    jsonreply = g_strdup_printf("{\"return\": {%s}}", reply);
-
-    fulllabel = g_strdup_printf("qemuMonitorJSONTestAttachChardev(%s)", label);
-
-    if (expectargs &&
-        qemuMonitorTestAddItemExpect(test, "chardev-add",
-                                     expectargs, true, jsonreply) < 0)
-        return -1;
-
-    data.chr = chr;
-    data.fail = fail;
-    data.expectPty = expectPty;
-    data.test = test;
-
-    if (virTestRun(fulllabel, &testQemuMonitorJSONAttachChardev, &data) < 0)
-        return -1;
-
-    return 0;
+    return virTestRun(fulllabel, &testQemuMonitorJSONAttachChardev, &data);
 }
+
 
 static int
 qemuMonitorJSONTestAttachChardev(virDomainXMLOption *xmlopt,
@@ -725,7 +672,6 @@ qemuMonitorJSONTestAttachChardev(virDomainXMLOption *xmlopt,
 
     {
         g_autoptr(virDomainChrSourceDef) chr = virDomainChrSourceDefNew(xmlopt);
-        qemuDomainChrSourcePrivate *charpriv = QEMU_DOMAIN_CHR_SOURCE_PRIVATE(chr);
 
         chr->data.file.path = g_strdup("/test/path");
 
@@ -743,8 +689,6 @@ qemuMonitorJSONTestAttachChardev(virDomainXMLOption *xmlopt,
 
         chrdev.source = chr;
         ignore_value(testQemuPrepareHostBackendChardevOne(&dev, chr, NULL));
-        qemuFDPassTransferMonitorFake(charpriv->sourcefd);
-        qemuFDPassTransferMonitorFake(charpriv->logfd);
         CHECK("file", false,
               "{'id':'alias','backend':{'type':'file','data':{'out':'/dev/fdset/monitor-fake',"
                                                              "'append':true,"
@@ -951,7 +895,7 @@ testQemuMonitorJSONGetObjectProperty(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    qemuMonitorJSONObjectProperty prop;
+    qemuMonitorJSONObjectProperty prop = { 0 };
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
@@ -962,7 +906,6 @@ testQemuMonitorJSONGetObjectProperty(const void *opaque)
         return -1;
 
     /* Present with path and property */
-    memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty));
     prop.type = QEMU_MONITOR_OBJECT_PROPERTY_BOOLEAN;
     if (qemuMonitorJSONGetObjectProperty(qemuMonitorTestGetMonitor(test),
                                          "/machine/i440fx",
@@ -991,7 +934,7 @@ testQemuMonitorJSONSetObjectProperty(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    qemuMonitorJSONObjectProperty prop;
+    qemuMonitorJSONObjectProperty prop = { 0 };
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
@@ -1005,7 +948,6 @@ testQemuMonitorJSONSetObjectProperty(const void *opaque)
         return -1;
 
     /* Let's attempt the setting */
-    memset(&prop, 0, sizeof(qemuMonitorJSONObjectProperty));
     prop.type = QEMU_MONITOR_OBJECT_PROPERTY_BOOLEAN;
     prop.val.b = true;
     if (qemuMonitorJSONSetObjectProperty(qemuMonitorTestGetMonitor(test),
@@ -1204,27 +1146,20 @@ GEN_TEST_FUNC(qemuMonitorJSONBlockResize, "vda", "asdf", 123456)
 GEN_TEST_FUNC(qemuMonitorJSONSetPassword, "spice", "secret_password", "disconnect")
 GEN_TEST_FUNC(qemuMonitorJSONExpirePassword, "spice", "123456")
 GEN_TEST_FUNC(qemuMonitorJSONSetBalloon, 1024)
-GEN_TEST_FUNC(qemuMonitorJSONEjectMedia, "hdc", true)
-GEN_TEST_FUNC(qemuMonitorJSONChangeMedia, "hdc", "/foo/bar", "formatstr")
 GEN_TEST_FUNC(qemuMonitorJSONSaveVirtualMemory, 0, 1024, "/foo/bar")
 GEN_TEST_FUNC(qemuMonitorJSONSavePhysicalMemory, 0, 1024, "/foo/bar")
-GEN_TEST_FUNC(qemuMonitorJSONSetMigrationSpeed, 1024)
-GEN_TEST_FUNC(qemuMonitorJSONSetMigrationDowntime, 1)
-GEN_TEST_FUNC(qemuMonitorJSONMigrate, QEMU_MONITOR_MIGRATE_BACKGROUND |
-              QEMU_MONITOR_MIGRATE_NON_SHARED_DISK |
-              QEMU_MONITOR_MIGRATE_NON_SHARED_INC, "tcp:localhost:12345")
+GEN_TEST_FUNC(qemuMonitorJSONMigrate, 0, "tcp:localhost:12345")
+GEN_TEST_FUNC(qemuMonitorJSONMigrateRecover, "tcp://destination.host:54321");
 GEN_TEST_FUNC(qemuMonitorJSONDump, "dummy_protocol", "elf",
               true)
 GEN_TEST_FUNC(qemuMonitorJSONGraphicsRelocate, VIR_DOMAIN_GRAPHICS_TYPE_SPICE,
               "localhost", 12345, 12346, "certsubjectval")
 GEN_TEST_FUNC(qemuMonitorJSONRemoveNetdev, "net0")
 GEN_TEST_FUNC(qemuMonitorJSONDelDevice, "ide0")
-GEN_TEST_FUNC(qemuMonitorJSONDriveMirror, "vdb", "/foo/bar", "formatstr", 1024, 1234, 31234, true, true)
 GEN_TEST_FUNC(qemuMonitorJSONBlockdevMirror, "jobname", true, "vdb", "targetnode", 1024, 1234, 31234, true, true)
-GEN_TEST_FUNC(qemuMonitorJSONBlockStream, "vdb", "jobname", true, "/foo/bar1", "backingnode", "backingfilename", 1024)
-GEN_TEST_FUNC(qemuMonitorJSONBlockCommit, "vdb", "jobname", true, "/foo/bar1", "topnode", "/foo/bar2", "basenode", "backingfilename", 1024)
-GEN_TEST_FUNC(qemuMonitorJSONDrivePivot, "vdb")
-GEN_TEST_FUNC(qemuMonitorJSONScreendump, "devicename", 1, "/foo/bar")
+GEN_TEST_FUNC(qemuMonitorJSONBlockStream, "vdb", "jobname", "backingnode", "backingfilename", 1024)
+GEN_TEST_FUNC(qemuMonitorJSONBlockCommit, "vdb", "jobname", "topnode", "basenode", "backingfilename", 1024, VIR_TRISTATE_BOOL_YES)
+GEN_TEST_FUNC(qemuMonitorJSONScreendump, "devicename", 1, NULL, "/foo/bar")
 GEN_TEST_FUNC(qemuMonitorJSONOpenGraphics, "spice", "spicefd", false)
 GEN_TEST_FUNC(qemuMonitorJSONNBDServerAdd, "vda", "export", true, "bitmap")
 GEN_TEST_FUNC(qemuMonitorJSONDetachCharDev, "serial1")
@@ -1235,6 +1170,7 @@ GEN_TEST_FUNC(qemuMonitorJSONBlockdevMediumInsert, "foodev", "newnode")
 GEN_TEST_FUNC(qemuMonitorJSONBitmapRemove, "foodev", "newnode")
 GEN_TEST_FUNC(qemuMonitorJSONJobDismiss, "jobname")
 GEN_TEST_FUNC(qemuMonitorJSONJobComplete, "jobname")
+GEN_TEST_FUNC(qemuMonitorJSONJobFinalize, "jobname")
 GEN_TEST_FUNC(qemuMonitorJSONBlockJobCancel, "jobname", true)
 GEN_TEST_FUNC(qemuMonitorJSONSetAction,
               QEMU_MONITOR_ACTION_SHUTDOWN_PAUSE,
@@ -1297,7 +1233,6 @@ testQemuMonitorJSONqemuMonitorJSONQueryCPUsEqual(struct qemuMonitorQueryCpusEntr
 static int
 testQEMUMonitorJSONqemuMonitorJSONQueryCPUsHelper(qemuMonitorTest *test,
                                                   struct qemuMonitorQueryCpusEntry *expect,
-                                                  bool fast,
                                                   size_t num)
 {
     struct qemuMonitorQueryCpusEntry *cpudata = NULL;
@@ -1306,7 +1241,7 @@ testQEMUMonitorJSONqemuMonitorJSONQueryCPUsHelper(qemuMonitorTest *test,
     int ret = -1;
 
     if (qemuMonitorJSONQueryCPUs(qemuMonitorTestGetMonitor(test),
-                                 &cpudata, &ncpudata, true, fast) < 0)
+                                 &cpudata, &ncpudata, true) < 0)
         goto cleanup;
 
     if (ncpudata != num) {
@@ -1329,72 +1264,6 @@ testQEMUMonitorJSONqemuMonitorJSONQueryCPUsHelper(qemuMonitorTest *test,
  cleanup:
     qemuMonitorQueryCpusFree(cpudata, ncpudata);
     return ret;
-}
-
-
-static int
-testQemuMonitorJSONqemuMonitorJSONQueryCPUs(const void *opaque)
-{
-    const testGenericData *data = opaque;
-    virDomainXMLOption *xmlopt = data->xmlopt;
-    struct qemuMonitorQueryCpusEntry expect_slow[] = {
-            {0, 17622, (char *) "/machine/unattached/device[0]", true},
-            {1, 17624, (char *) "/machine/unattached/device[1]", true},
-            {2, 17626, (char *) "/machine/unattached/device[2]", true},
-            {3, 17628, NULL, true},
-    };
-    g_autoptr(qemuMonitorTest) test = NULL;
-
-    if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
-        return -1;
-
-    qemuMonitorTestSkipDeprecatedValidation(test, true);
-
-    if (qemuMonitorTestAddItem(test, "query-cpus",
-                               "{"
-                               "    \"return\": ["
-                               "        {"
-                               "            \"current\": true,"
-                               "            \"CPU\": 0,"
-                               "            \"qom_path\": \"/machine/unattached/device[0]\","
-                               "            \"pc\": -2130530478,"
-                               "            \"halted\": true,"
-                               "            \"thread_id\": 17622"
-                               "        },"
-                               "        {"
-                               "            \"current\": false,"
-                               "            \"CPU\": 1,"
-                               "            \"qom_path\": \"/machine/unattached/device[1]\","
-                               "            \"pc\": -2130530478,"
-                               "            \"halted\": true,"
-                               "            \"thread_id\": 17624"
-                               "        },"
-                               "        {"
-                               "            \"current\": false,"
-                               "            \"CPU\": 2,"
-                               "            \"qom_path\": \"/machine/unattached/device[2]\","
-                               "            \"pc\": -2130530478,"
-                               "            \"halted\": true,"
-                               "            \"thread_id\": 17626"
-                               "        },"
-                               "        {"
-                               "            \"current\": false,"
-                               "            \"CPU\": 3,"
-                               "            \"pc\": -2130530478,"
-                               "            \"halted\": true,"
-                               "            \"thread_id\": 17628"
-                               "        }"
-                               "    ],"
-                               "    \"id\": \"libvirt-7\""
-                               "}") < 0)
-        return -1;
-
-    /* query-cpus */
-    if (testQEMUMonitorJSONqemuMonitorJSONQueryCPUsHelper(test, expect_slow,
-                                                          false, 4))
-        return -1;
-
-    return 0;
 }
 
 
@@ -1431,8 +1300,7 @@ testQemuMonitorJSONqemuMonitorJSONQueryCPUsFast(const void *opaque)
         return -1;
 
     /* query-cpus-fast */
-    if (testQEMUMonitorJSONqemuMonitorJSONQueryCPUsHelper(test, expect_fast,
-                                                          true, 2))
+    if (testQEMUMonitorJSONqemuMonitorJSONQueryCPUsHelper(test, expect_fast, 2))
         return -1;
 
     return 0;
@@ -1719,52 +1587,17 @@ testQemuMonitorJSONqemuMonitorJSONGetAllBlockStatsInfo(const void *opaque)
 
 
 static int
-testQemuMonitorJSONqemuMonitorJSONGetMigrationCacheSize(const void *opaque)
-{
-    const testGenericData *data = opaque;
-    virDomainXMLOption *xmlopt = data->xmlopt;
-    unsigned long long cacheSize;
-    g_autoptr(qemuMonitorTest) test = NULL;
-
-    if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
-        return -1;
-
-    qemuMonitorTestSkipDeprecatedValidation(test, true);
-
-    if (qemuMonitorTestAddItem(test, "query-migrate-cache-size",
-                               "{"
-                               "    \"return\": 67108864,"
-                               "    \"id\": \"libvirt-12\""
-                               "}") < 0)
-        return -1;
-
-    if (qemuMonitorJSONGetMigrationCacheSize(qemuMonitorTestGetMonitor(test),
-                                             &cacheSize) < 0)
-        return -1;
-
-    if (cacheSize != 67108864) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "Invalid cacheSize: %llu, expected 67108864",
-                       cacheSize);
-        return -1;
-    }
-
-    return 0;
-}
-
-static int
 testQemuMonitorJSONqemuMonitorJSONGetMigrationStats(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    qemuMonitorMigrationStats stats, expectedStats;
+    qemuMonitorMigrationStats stats;
+    qemuMonitorMigrationStats expectedStats = { 0 };
     g_autofree char *error = NULL;
     g_autoptr(qemuMonitorTest) test = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
-
-    memset(&expectedStats, 0, sizeof(expectedStats));
 
     expectedStats.status = QEMU_MONITOR_MIGRATION_STATUS_ACTIVE;
     expectedStats.total_time = 47;
@@ -1971,35 +1804,46 @@ testQemuMonitorJSONqemuMonitorJSONSetBlockIoThrottle(const void *opaque)
     expectedInfo = (virDomainBlockIoTuneInfo) {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, NULL, 15, 16, 17, 18, 19, 20};
     expectedInfo.group_name = g_strdup("group14");
 
-    if (qemuMonitorTestAddItem(test, "query-block", queryBlockReply) < 0 ||
-        qemuMonitorTestAddItemParams(test, "block_set_io_throttle",
-                                     "{\"return\":{}}",
-                                     "device", "\"drive-virtio-disk1\"",
-                                     "bps", "1", "bps_rd", "2", "bps_wr", "3",
-                                     "iops", "4", "iops_rd", "5", "iops_wr", "6",
-                                     "bps_max", "7", "bps_rd_max", "8",
-                                     "bps_wr_max", "9",
-                                     "iops_max", "10", "iops_rd_max", "11",
-                                     "iops_wr_max", "12", "iops_size", "13",
-                                     "group", "\"group14\"",
-                                     "bps_max_length", "15",
-                                     "bps_rd_max_length", "16",
-                                     "bps_wr_max_length", "17",
-                                     "iops_max_length", "18",
-                                     "iops_rd_max_length", "19",
-                                     "iops_wr_max_length", "20",
-                                     NULL, NULL) < 0)
-        goto cleanup;
+    if (qemuMonitorTestAddItem(test, "query-block", queryBlockReply) < 0)
+        return -1;
+
+    if (qemuMonitorTestAddItemVerbatim(test,
+                                       "{\"execute\":\"block_set_io_throttle\","
+                                       " \"arguments\":{\"id\": \"drive-virtio-disk1\","
+                                       "                \"bps\": 1,"
+                                       "                \"bps_rd\": 2,"
+                                       "                \"bps_wr\": 3,"
+                                       "                \"iops\": 4,"
+                                       "                \"iops_rd\": 5,"
+                                       "                \"iops_wr\": 6,"
+                                       "                \"bps_max\": 7,"
+                                       "                \"bps_rd_max\": 8,"
+                                       "                \"bps_wr_max\": 9,"
+                                       "                \"iops_max\": 10,"
+                                       "                \"iops_rd_max\": 11,"
+                                       "                \"iops_wr_max\": 12,"
+                                       "                \"iops_size\": 13,"
+                                       "                \"group\": \"group14\","
+                                       "                \"bps_max_length\": 15,"
+                                       "                \"bps_rd_max_length\": 16,"
+                                       "                \"bps_wr_max_length\": 17,"
+                                       "                \"iops_max_length\": 18,"
+                                       "                \"iops_rd_max_length\": 19,"
+                                       "                \"iops_wr_max_length\": 20},"
+                                       " \"id\":\"libvirt-2\"}",
+                                       NULL,
+                                       "{ \"return\" : {}}") < 0)
+        return -1;
 
     if (qemuMonitorJSONGetBlockIoThrottle(qemuMonitorTestGetMonitor(test),
-                                          "drive-virtio-disk0", NULL, &info) < 0)
+                                          "drive-virtio-disk0", &info) < 0)
         goto cleanup;
 
     if (testValidateGetBlockIoThrottle(&info, &expectedInfo) < 0)
         goto cleanup;
 
     if (qemuMonitorJSONSetBlockIoThrottle(qemuMonitorTestGetMonitor(test),
-                                          "drive-virtio-disk1", NULL, &info) < 0)
+                                          "drive-virtio-disk1", &info) < 0)
         goto cleanup;
 
     ret = 0;
@@ -2047,7 +1891,7 @@ testQemuMonitorJSONqemuMonitorJSONGetMigrationCapabilities(const void *opaque)
 {
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
-    const char *cap;
+    size_t cap;
     g_auto(GStrv) caps = NULL;
     g_autoptr(virBitmap) bitmap = NULL;
     g_autoptr(virJSONValue) json = NULL;
@@ -2057,6 +1901,10 @@ testQemuMonitorJSONqemuMonitorJSONGetMigrationCapabilities(const void *opaque)
         "        {"
         "            \"state\": false,"
         "            \"capability\": \"xbzrle\""
+        "        },"
+        "        {"
+        "            \"state\": true,"
+        "            \"capability\": \"events\""
         "        }"
         "    ],"
         "    \"id\": \"libvirt-22\""
@@ -2075,11 +1923,25 @@ testQemuMonitorJSONqemuMonitorJSONGetMigrationCapabilities(const void *opaque)
                                             &caps) < 0)
         return -1;
 
-    cap = qemuMigrationCapabilityTypeToString(QEMU_MIGRATION_CAP_XBZRLE);
-    if (!g_strv_contains((const char **) caps, cap)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "Expected capability %s is missing", cap);
-        return -1;
+    for (cap = 0; cap < QEMU_MIGRATION_CAP_LAST; cap++) {
+        const char *capStr = qemuMigrationCapabilityTypeToString(cap);
+        bool present = g_strv_contains((const char **) caps, capStr);
+
+        switch (cap) {
+        case QEMU_MIGRATION_CAP_XBZRLE:
+        case QEMU_MIGRATION_CAP_EVENTS:
+            if (!present) {
+                VIR_TEST_VERBOSE("Expected capability %s is missing", capStr);
+                return -1;
+            }
+            break;
+
+        default:
+            if (present) {
+                VIR_TEST_VERBOSE("Unexpected capability %s found", capStr);
+                return -1;
+            }
+        }
     }
 
     bitmap = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
@@ -2124,14 +1986,16 @@ testQemuMonitorJSONqemuMonitorJSONSendKeyHoldtime(const void *opaque)
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
 
-    if (qemuMonitorTestAddItemParams(test, "send-key",
-                                     "{\"return\":{}}",
-                                     "hold-time", "31337",
-                                     "keys", "[{\"type\":\"number\",\"data\":43},"
-                                              "{\"type\":\"number\",\"data\":26},"
-                                              "{\"type\":\"number\",\"data\":46},"
-                                              "{\"type\":\"number\",\"data\":32}]",
-                                     NULL, NULL) < 0)
+    if (qemuMonitorTestAddItemVerbatim(test,
+                                       "{\"execute\":\"send-key\","
+                                       " \"arguments\":{\"keys\":[{\"type\":\"number\",\"data\":43},"
+                                       "                          {\"type\":\"number\",\"data\":26},"
+                                       "                          {\"type\":\"number\",\"data\":46},"
+                                       "                          {\"type\":\"number\",\"data\":32}],"
+                                       "                \"hold-time\":31337},"
+                                       " \"id\":\"libvirt-1\"}",
+                                       NULL,
+                                       "{ \"return\" : {}}") < 0)
         return -1;
 
     if (qemuMonitorJSONSendKey(qemuMonitorTestGetMonitor(test),
@@ -2359,7 +2223,6 @@ struct testCPUInfoData {
     const char *name;
     size_t maxvcpus;
     virDomainXMLOption *xmlopt;
-    bool fast;
     GHashTable *schema;
 };
 
@@ -2438,7 +2301,6 @@ testQemuMonitorCPUInfo(const void *opaque)
     g_autofree char *queryCpusStr = NULL;
     g_autofree char *queryHotpluggableStr = NULL;
     g_autofree char *actual = NULL;
-    const char *queryCpusFunction;
     qemuMonitorCPUInfo *vcpus = NULL;
     int rc;
     int ret = -1;
@@ -2464,14 +2326,7 @@ testQemuMonitorCPUInfo(const void *opaque)
                                queryHotpluggableStr) < 0)
         goto cleanup;
 
-    if (data->fast) {
-        queryCpusFunction = "query-cpus-fast";
-    } else {
-        queryCpusFunction = "query-cpus";
-        qemuMonitorTestSkipDeprecatedValidation(test, true);
-    }
-
-    if (qemuMonitorTestAddItem(test, queryCpusFunction, queryCpusStr) < 0)
+    if (qemuMonitorTestAddItem(test, "query-cpus-fast", queryCpusStr) < 0)
         goto cleanup;
 
     vm = qemuMonitorTestGetDomainObj(test);
@@ -2479,7 +2334,7 @@ testQemuMonitorCPUInfo(const void *opaque)
         goto cleanup;
 
     rc = qemuMonitorGetCPUInfo(qemuMonitorTestGetMonitor(test),
-                               &vcpus, data->maxvcpus, true, data->fast);
+                               &vcpus, data->maxvcpus, true);
 
     if (rc < 0)
         goto cleanup;
@@ -2493,80 +2348,6 @@ testQemuMonitorCPUInfo(const void *opaque)
  cleanup:
     qemuMonitorCPUInfoFree(vcpus, data->maxvcpus);
     return ret;
-}
-
-
-static int
-testBlockNodeNameDetectFormat(void *payload,
-                              const char *name,
-                              void *opaque)
-{
-    qemuBlockNodeNameBackingChainData *entry = payload;
-    const char *diskalias = name;
-    virBuffer *buf = opaque;
-
-    virBufferSetIndent(buf, 0);
-
-    virBufferAdd(buf, diskalias, -1);
-    virBufferAddLit(buf, "\n");
-
-    while (entry) {
-        virBufferAsprintf(buf, "filename    : '%s'\n", entry->qemufilename);
-        virBufferAsprintf(buf, "format node : '%s'\n",
-                          NULLSTR(entry->nodeformat));
-        virBufferAsprintf(buf, "format drv  : '%s'\n", NULLSTR(entry->drvformat));
-        virBufferAsprintf(buf, "storage node: '%s'\n",
-                          NULLSTR(entry->nodestorage));
-        virBufferAsprintf(buf, "storage drv : '%s'\n", NULLSTR(entry->drvstorage));
-
-        virBufferAdjustIndent(buf, 2);
-
-        entry = entry->backing;
-    }
-
-    virBufferSetIndent(buf, 0);
-    virBufferAddLit(buf, "\n");
-    return 0;
-}
-
-
-static int
-testBlockNodeNameDetect(const void *opaque)
-{
-    const char *testname = opaque;
-    const char *pathprefix = "qemumonitorjsondata/qemumonitorjson-nodename-";
-    g_autofree char *resultFile = NULL;
-    g_autofree char *actual = NULL;
-    g_autoptr(virJSONValue) namedNodesJson = NULL;
-    g_autoptr(virJSONValue) blockstatsJson = NULL;
-    g_autoptr(GHashTable) nodedata = NULL;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-
-    resultFile = g_strdup_printf("%s/%s%s.result", abs_srcdir, pathprefix,
-                                 testname);
-
-    if (!(namedNodesJson = virTestLoadFileJSON(pathprefix, testname,
-                                               "-named-nodes.json", NULL)))
-        return -1;
-
-    if (!(blockstatsJson = virTestLoadFileJSON(pathprefix, testname,
-                                               "-blockstats.json", NULL)))
-        return -1;
-
-    if (!(nodedata = qemuBlockNodeNameGetBackingChain(namedNodesJson,
-                                                      blockstatsJson)))
-        return -1;
-
-    virHashForEachSorted(nodedata, testBlockNodeNameDetectFormat, &buf);
-
-    virBufferTrim(&buf, "\n");
-
-    actual = virBufferContentAndReset(&buf);
-
-    if (virTestCompareToFile(actual, resultFile) < 0)
-        return -1;
-
-    return 0;
 }
 
 
@@ -2764,7 +2545,6 @@ testQemuMonitorJSONTransaction(const void *opaque)
         qemuMonitorTransactionBitmapEnable(actions, "node3", "bitmap3") < 0 ||
         qemuMonitorTransactionBitmapDisable(actions, "node4", "bitmap4") < 0 ||
         qemuMonitorTransactionBitmapMerge(actions, "node5", "bitmap5", &mergebitmaps) < 0 ||
-        qemuMonitorTransactionSnapshotLegacy(actions, "dev6", "path", "qcow2", true) < 0 ||
         qemuMonitorTransactionSnapshotBlockdev(actions, "node7", "overlay7") < 0 ||
         qemuMonitorTransactionBackup(actions, "dev8", "job8", "target8", "bitmap8",
                                      QEMU_MONITOR_TRANSACTION_BACKUP_SYNC_MODE_NONE) < 0 ||
@@ -2984,8 +2764,6 @@ mymain(void)
     g_autoptr(GHashTable) qapischema_x86_64 = NULL;
     g_autoptr(GHashTable) qapischema_s390x = NULL;
     struct testQAPISchemaData qapiData;
-    g_autoptr(virJSONValue) metaschema = NULL;
-    g_autofree char *metaschemastr = NULL;
 
     if (qemuTestDriverInit(&driver) < 0)
         return EXIT_FAILURE;
@@ -3038,17 +2816,8 @@ mymain(void)
 
 #define DO_TEST_CPU_INFO(name, maxvcpus) \
     do { \
-        struct testCPUInfoData data = {name, maxvcpus, driver.xmlopt, false, \
+        struct testCPUInfoData data = {name, maxvcpus, driver.xmlopt, \
                                        qapiData.schema}; \
-        if (virTestRun("GetCPUInfo(" name ")", testQemuMonitorCPUInfo, \
-                       &data) < 0) \
-            ret = -1; \
-    } while (0)
-
-#define DO_TEST_CPU_INFO_FAST(name, maxvcpus) \
-    do { \
-        struct testCPUInfoData data = {name, maxvcpus, driver.xmlopt, true, \
-                                       qapiData.schema }; \
         if (virTestRun("GetCPUInfo(" name ")", testQemuMonitorCPUInfo, \
                        &data) < 0) \
             ret = -1; \
@@ -3058,7 +2827,6 @@ mymain(void)
     DO_TEST(GetVersion);
     DO_TEST(GetMachines);
     DO_TEST(GetCPUDefinitions);
-    DO_TEST(GetCommands);
     DO_TEST(GetTPMModels);
     if (qemuMonitorJSONTestAttachChardev(driver.xmlopt, qapiData.schema) < 0)
         ret = -1;
@@ -3087,22 +2855,18 @@ mymain(void)
     DO_TEST_GEN(qemuMonitorJSONSetPassword);
     DO_TEST_GEN(qemuMonitorJSONExpirePassword);
     DO_TEST_GEN(qemuMonitorJSONSetBalloon);
-    DO_TEST_GEN(qemuMonitorJSONEjectMedia);
-    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONChangeMedia, true);
     DO_TEST_GEN(qemuMonitorJSONSaveVirtualMemory);
     DO_TEST_GEN(qemuMonitorJSONSavePhysicalMemory);
-    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetMigrationSpeed, true);
-    DO_TEST_GEN_DEPRECATED(qemuMonitorJSONSetMigrationDowntime, true);
     DO_TEST_GEN(qemuMonitorJSONMigrate);
+    DO_TEST_GEN(qemuMonitorJSONMigrateRecover);
+    DO_TEST_SIMPLE("migrate-pause", qemuMonitorJSONMigratePause);
     DO_TEST_GEN(qemuMonitorJSONDump);
     DO_TEST_GEN(qemuMonitorJSONGraphicsRelocate);
     DO_TEST_GEN(qemuMonitorJSONRemoveNetdev);
     DO_TEST_GEN(qemuMonitorJSONDelDevice);
-    DO_TEST_GEN(qemuMonitorJSONDriveMirror);
     DO_TEST_GEN(qemuMonitorJSONBlockdevMirror);
     DO_TEST_GEN(qemuMonitorJSONBlockStream);
     DO_TEST_GEN(qemuMonitorJSONBlockCommit);
-    DO_TEST_GEN(qemuMonitorJSONDrivePivot);
     DO_TEST_GEN(qemuMonitorJSONScreendump);
     DO_TEST_GEN(qemuMonitorJSONOpenGraphics);
     DO_TEST_GEN_DEPRECATED(qemuMonitorJSONNBDServerAdd, true);
@@ -3114,19 +2878,18 @@ mymain(void)
     DO_TEST_GEN(qemuMonitorJSONBitmapRemove);
     DO_TEST_GEN(qemuMonitorJSONJobDismiss);
     DO_TEST_GEN(qemuMonitorJSONJobComplete);
+    DO_TEST_GEN(qemuMonitorJSONJobFinalize);
     DO_TEST_GEN(qemuMonitorJSONBlockJobCancel);
     DO_TEST_GEN(qemuMonitorJSONSetAction);
     DO_TEST_GEN(qemuMonitorJSONSetLaunchSecurityState);
     DO_TEST(qemuMonitorJSONGetBalloonInfo);
     DO_TEST(qemuMonitorJSONGetBlockInfo);
     DO_TEST(qemuMonitorJSONGetAllBlockStatsInfo);
-    DO_TEST(qemuMonitorJSONGetMigrationCacheSize);
     DO_TEST(qemuMonitorJSONGetMigrationStats);
     DO_TEST(qemuMonitorJSONGetChardevInfo);
     DO_TEST(qemuMonitorJSONSetBlockIoThrottle);
     DO_TEST(qemuMonitorJSONGetTargetArch);
     DO_TEST(qemuMonitorJSONGetMigrationCapabilities);
-    DO_TEST(qemuMonitorJSONQueryCPUs);
     DO_TEST(qemuMonitorJSONQueryCPUsFast);
     DO_TEST(qemuMonitorJSONSendKey);
     DO_TEST(qemuMonitorJSONGetDumpGuestMemoryCapability);
@@ -3140,8 +2903,7 @@ mymain(void)
     DO_TEST_CPU_INFO("x86-basic-pluggable", 8);
     DO_TEST_CPU_INFO("x86-full", 11);
     DO_TEST_CPU_INFO("x86-node-full", 8);
-    DO_TEST_CPU_INFO_FAST("x86-full-fast", 11);
-    DO_TEST_CPU_INFO_FAST("x86-dies", 16);
+    DO_TEST_CPU_INFO("x86-dies", 16);
 
     DO_TEST_CPU_INFO("ppc64-basic", 24);
     DO_TEST_CPU_INFO("ppc64-hotplug-1", 24);
@@ -3149,26 +2911,8 @@ mymain(void)
     DO_TEST_CPU_INFO("ppc64-hotplug-4", 24);
     DO_TEST_CPU_INFO("ppc64-no-threads", 16);
 
-    DO_TEST_CPU_INFO_FAST("s390-fast", 2);
+    DO_TEST_CPU_INFO("s390", 2);
 
-#define DO_TEST_BLOCK_NODE_DETECT(testname) \
-    do { \
-        if (virTestRun("node-name-detect(" testname ")", \
-                       testBlockNodeNameDetect, testname) < 0) \
-            ret = -1; \
-    } while (0)
-
-    DO_TEST_BLOCK_NODE_DETECT("basic");
-    DO_TEST_BLOCK_NODE_DETECT("same-backing");
-    DO_TEST_BLOCK_NODE_DETECT("relative");
-    DO_TEST_BLOCK_NODE_DETECT("gluster");
-    DO_TEST_BLOCK_NODE_DETECT("blockjob");
-    DO_TEST_BLOCK_NODE_DETECT("luks");
-    DO_TEST_BLOCK_NODE_DETECT("iscsi");
-    DO_TEST_BLOCK_NODE_DETECT("old");
-    DO_TEST_BLOCK_NODE_DETECT("empty");
-
-#undef DO_TEST_BLOCK_NODE_DETECT
 
 #define DO_TEST_QAPI_QUERY(nme, qry, scc, rplobj) \
     do { \
@@ -3215,12 +2959,10 @@ mymain(void)
 
     DO_TEST_QAPI_VALIDATE("string", "trace-event-get-state/arg-type", true,
                           "{\"name\":\"test\"}");
-    DO_TEST_QAPI_VALIDATE("all attrs", "trace-event-get-state/arg-type", true,
-                          "{\"name\":\"test\", \"vcpu\":123}");
     DO_TEST_QAPI_VALIDATE("attr type mismatch", "trace-event-get-state/arg-type", false,
                           "{\"name\":123}");
     DO_TEST_QAPI_VALIDATE("missing mandatory attr", "trace-event-get-state/arg-type", false,
-                          "{\"vcpu\":123}");
+                          "{}");
     DO_TEST_QAPI_VALIDATE("attr name not present", "trace-event-get-state/arg-type", false,
                           "{\"name\":\"test\", \"blah\":123}");
     DO_TEST_QAPI_VALIDATE("variant", "blockdev-add/arg-type", true,
@@ -3238,17 +2980,6 @@ mymain(void)
                           "{\"driver\":\"qcow2\",\"file\": \"somepath\"}");
     DO_TEST_QAPI_VALIDATE("alternate 2", "blockdev-add/arg-type", false,
                           "{\"driver\":\"qcow2\",\"file\": 1234}");
-
-    if (!(metaschema = testQEMUSchemaGetLatest("x86_64")) ||
-        !(metaschemastr = virJSONValueToString(metaschema, false))) {
-        VIR_TEST_VERBOSE("failed to load latest qapi schema");
-        ret = -1;
-        goto cleanup;
-    }
-
-    DO_TEST_QAPI_VALIDATE("schema-meta", "query-qmp-schema/ret-type", true,
-                        metaschemastr);
-
 
 #undef DO_TEST_QAPI_VALIDATE
 

@@ -29,309 +29,338 @@
 
 VIR_LOG_INIT("util.closecallbacks");
 
-typedef struct _virDriverCloseDef virDriverCloseDef;
-struct _virDriverCloseDef {
+
+struct _virCloseCallbacksDomainData {
     virConnectPtr conn;
     virCloseCallback cb;
 };
+typedef struct _virCloseCallbacksDomainData virCloseCallbacksDomainData;
 
-struct _virCloseCallbacks {
+
+static void
+virCloseCallbacksDomainDataFree(virCloseCallbacksDomainData* data)
+{
+    g_free(data);
+}
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCloseCallbacksDomainData, virCloseCallbacksDomainDataFree);
+
+
+virClass *virCloseCallbacksDomainListClass;
+
+struct _virCloseCallbacksDomainList {
     virObjectLockable parent;
 
-    /* UUID string to qemuDriverCloseDef mapping */
-    GHashTable *list;
+    GList *callbacks;
 };
+typedef struct _virCloseCallbacksDomainList virCloseCallbacksDomainList;
 
 
-static virClass *virCloseCallbacksClass;
-static void virCloseCallbacksDispose(void *obj);
-
-static int virCloseCallbacksOnceInit(void)
+static void
+virCloseCallbacksDomainListDispose(void *obj G_GNUC_UNUSED)
 {
-    if (!VIR_CLASS_NEW(virCloseCallbacks, virClassForObjectLockable()))
+    virCloseCallbacksDomainList *cc = obj;
+
+    g_list_free_full(cc->callbacks, (GDestroyNotify) virCloseCallbacksDomainDataFree);
+}
+
+
+static int
+virCloseCallbacksDomainListOnceInit(void)
+{
+    if (!(VIR_CLASS_NEW(virCloseCallbacksDomainList, virClassForObjectLockable())))
         return -1;
 
     return 0;
 }
 
-VIR_ONCE_GLOBAL_INIT(virCloseCallbacks);
+VIR_ONCE_GLOBAL_INIT(virCloseCallbacksDomainList);
 
 
-virCloseCallbacks *
-virCloseCallbacksNew(void)
+/**
+ * virCloseCallbacksDomainAlloc:
+ *
+ * Allocates and returns a data structure for holding close callback data in
+ * a virDomainObj.
+ */
+virObject *
+virCloseCallbacksDomainAlloc(void)
 {
-    virCloseCallbacks *closeCallbacks;
+    if (virCloseCallbacksDomainListInitialize() < 0)
+        abort();
 
-    if (virCloseCallbacksInitialize() < 0)
-        return NULL;
-
-    if (!(closeCallbacks = virObjectLockableNew(virCloseCallbacksClass)))
-        return NULL;
-
-    closeCallbacks->list = virHashNew(g_free);
-
-    return closeCallbacks;
-}
-
-static void
-virCloseCallbacksDispose(void *obj)
-{
-    virCloseCallbacks *closeCallbacks = obj;
-
-    g_clear_pointer(&closeCallbacks->list, g_hash_table_unref);
-}
-
-int
-virCloseCallbacksSet(virCloseCallbacks *closeCallbacks,
-                     virDomainObj *vm,
-                     virConnectPtr conn,
-                     virCloseCallback cb)
-{
-    char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDriverCloseDef *closeDef;
-    int ret = -1;
-
-    virUUIDFormat(vm->def->uuid, uuidstr);
-    VIR_DEBUG("vm=%s, uuid=%s, conn=%p, cb=%p",
-              vm->def->name, uuidstr, conn, cb);
-
-    virObjectLock(closeCallbacks);
-
-    closeDef = virHashLookup(closeCallbacks->list, uuidstr);
-    if (closeDef) {
-        if (closeDef->conn != conn) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Close callback for domain %s already registered"
-                             " with another connection %p"),
-                           vm->def->name, closeDef->conn);
-            goto cleanup;
-        }
-        if (closeDef->cb && closeDef->cb != cb) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Another close callback is already defined for"
-                             " domain %s"), vm->def->name);
-            goto cleanup;
-        }
-
-        closeDef->cb = cb;
-    } else {
-        closeDef = g_new0(virDriverCloseDef, 1);
-        closeDef->conn = conn;
-        closeDef->cb = cb;
-        if (virHashAddEntry(closeCallbacks->list, uuidstr, closeDef) < 0) {
-            VIR_FREE(closeDef);
-            goto cleanup;
-        }
-        virObjectRef(vm);
-    }
-
-    virObjectRef(closeCallbacks);
-    ret = 0;
- cleanup:
-    virObjectUnlock(closeCallbacks);
-    return ret;
-}
-
-int
-virCloseCallbacksUnset(virCloseCallbacks *closeCallbacks,
-                       virDomainObj *vm,
-                       virCloseCallback cb)
-{
-    char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDriverCloseDef *closeDef;
-    int ret = -1;
-
-    virUUIDFormat(vm->def->uuid, uuidstr);
-    VIR_DEBUG("vm=%s, uuid=%s, cb=%p",
-              vm->def->name, uuidstr, cb);
-
-    virObjectLock(closeCallbacks);
-
-    closeDef = virHashLookup(closeCallbacks->list, uuidstr);
-    if (!closeDef)
-        goto cleanup;
-
-    if (closeDef->cb && closeDef->cb != cb) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("Trying to remove mismatching close callback for"
-                         " domain %s"), vm->def->name);
-        goto cleanup;
-    }
-
-    if (virHashRemoveEntry(closeCallbacks->list, uuidstr) < 0)
-        goto cleanup;
-
-    virObjectUnref(vm);
-    ret = 0;
- cleanup:
-    virObjectUnlock(closeCallbacks);
-    if (!ret)
-        virObjectUnref(closeCallbacks);
-    return ret;
-}
-
-virCloseCallback
-virCloseCallbacksGet(virCloseCallbacks *closeCallbacks,
-                     virDomainObj *vm,
-                     virConnectPtr conn)
-{
-    char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDriverCloseDef *closeDef;
-    virCloseCallback cb = NULL;
-
-    virUUIDFormat(vm->def->uuid, uuidstr);
-    VIR_DEBUG("vm=%s, uuid=%s, conn=%p",
-              vm->def->name, uuidstr, conn);
-
-    virObjectLock(closeCallbacks);
-
-    closeDef = virHashLookup(closeCallbacks->list, uuidstr);
-    if (closeDef && (!conn || closeDef->conn == conn))
-        cb = closeDef->cb;
-
-    virObjectUnlock(closeCallbacks);
-
-    VIR_DEBUG("cb=%p", cb);
-    return cb;
-}
-
-virConnectPtr
-virCloseCallbacksGetConn(virCloseCallbacks *closeCallbacks,
-                         virDomainObj *vm)
-{
-    char uuidstr[VIR_UUID_STRING_BUFLEN];
-    virDriverCloseDef *closeDef;
-    virConnectPtr conn = NULL;
-
-    virUUIDFormat(vm->def->uuid, uuidstr);
-    VIR_DEBUG("vm=%s, uuid=%s", vm->def->name, uuidstr);
-
-    virObjectLock(closeCallbacks);
-
-    closeDef = virHashLookup(closeCallbacks->list, uuidstr);
-    if (closeDef)
-        conn = closeDef->conn;
-
-    virObjectUnlock(closeCallbacks);
-
-    VIR_DEBUG("conn=%p", conn);
-    return conn;
+    return virObjectNew(virCloseCallbacksDomainListClass);
 }
 
 
-typedef struct _virCloseCallbacksListEntry virCloseCallbacksListEntry;
-struct _virCloseCallbacksListEntry {
-    unsigned char uuid[VIR_UUID_BUFLEN];
-    virCloseCallback callback;
-};
-
-typedef struct _virCloseCallbacksList virCloseCallbacksList;
-struct _virCloseCallbacksList {
-    size_t nentries;
-    virCloseCallbacksListEntry *entries;
-};
-
-struct virCloseCallbacksData {
-    virConnectPtr conn;
-    virCloseCallbacksList *list;
-};
-
-static int
-virCloseCallbacksGetOne(void *payload,
-                        const char *key,
-                        void *opaque)
-{
-    struct virCloseCallbacksData *data = opaque;
-    virDriverCloseDef *closeDef = payload;
-    const char *uuidstr = key;
-    unsigned char uuid[VIR_UUID_BUFLEN];
-
-    if (virUUIDParse(uuidstr, uuid) < 0)
-        return 0;
-
-    VIR_DEBUG("conn=%p, thisconn=%p, uuid=%s, cb=%p",
-              closeDef->conn, data->conn, uuidstr, closeDef->cb);
-
-    if (data->conn != closeDef->conn || !closeDef->cb)
-        return 0;
-
-    VIR_EXPAND_N(data->list->entries, data->list->nentries, 1);
-
-    memcpy(data->list->entries[data->list->nentries - 1].uuid,
-           uuid, VIR_UUID_BUFLEN);
-    data->list->entries[data->list->nentries - 1].callback = closeDef->cb;
-    return 0;
-}
-
-static virCloseCallbacksList *
-virCloseCallbacksGetForConn(virCloseCallbacks *closeCallbacks,
-                            virConnectPtr conn)
-{
-    virCloseCallbacksList *list = NULL;
-    struct virCloseCallbacksData data;
-
-    list = g_new0(virCloseCallbacksList, 1);
-
-    data.conn = conn;
-    data.list = list;
-
-    virHashForEach(closeCallbacks->list, virCloseCallbacksGetOne, &data);
-
-    return list;
-}
-
-
+/**
+ * virCloseCallbacksDomainAdd:
+ * @vm: domain object
+ * @conn: pointer to the connection which should trigger the close callback
+ * @cb: pointer to the callback function
+ *
+ * Registers @cb as a connection close callback for the @conn connection with
+ * the @vm domain. Duplicate registrations are ignored.
+ *
+ * Caller must hold lock on @vm.
+ */
 void
-virCloseCallbacksRun(virCloseCallbacks *closeCallbacks,
-                     virConnectPtr conn,
-                     virDomainObjList *domains,
-                     void *opaque)
+virCloseCallbacksDomainAdd(virDomainObj *vm,
+                           virConnectPtr conn,
+                           virCloseCallback cb)
 {
-    virCloseCallbacksList *list;
+    virCloseCallbacksDomainList *cc = (virCloseCallbacksDomainList *) vm->closecallbacks;
+
+    if (!conn || !cb)
+        return;
+
+    VIR_WITH_OBJECT_LOCK_GUARD(cc) {
+        virCloseCallbacksDomainData *data;
+        GList *n;
+
+        for (n = cc->callbacks; n; n = n->next) {
+            data = n->data;
+
+            if (data->cb == cb && data->conn == conn)
+                return;
+        }
+
+        data = g_new0(virCloseCallbacksDomainData, 1);
+        data->conn = conn;
+        data->cb = cb;
+
+        cc->callbacks = g_list_prepend(cc->callbacks, data);
+    }
+}
+
+
+/**
+ * virCloseCallbacksDomainMatch:
+ * @data: pointer to a close callback data structure
+ * @conn: connection pointer matched against @data
+ * @cb: callback pointer matched against @data
+ *
+ * Returns true if the @data callback structure matches the requested @conn
+ * and/or @cb parameters. If either of @conn/@cb is NULL it is interpreted as
+ * a wildcard.
+ */
+static bool
+virCloseCallbacksDomainMatch(virCloseCallbacksDomainData *data,
+                             virConnectPtr conn,
+                             virCloseCallback cb)
+{
+    if (conn && cb)
+        return data->conn == conn && data->cb == cb;
+
+    if (conn)
+        return data->conn == conn;
+
+    if (cb)
+        return data->cb == cb;
+
+    return true;
+}
+
+
+/**
+ * virCloseCallbacksDomainIsRegistered:
+ * @vm: domain object
+ * @conn: connection pointer
+ * @cb: callback pointer
+ *
+ * Returns true if @vm has one or more matching (see virCloseCallbacksDomainMatch)
+ * callback(s) registered. Caller must hold lock on @vm.
+ */
+bool
+virCloseCallbacksDomainIsRegistered(virDomainObj *vm,
+                                    virConnectPtr conn,
+                                    virCloseCallback cb)
+{
+    virCloseCallbacksDomainList *cc = (virCloseCallbacksDomainList *) vm->closecallbacks;
+
+    VIR_WITH_OBJECT_LOCK_GUARD(cc) {
+        GList *n;
+
+        for (n = cc->callbacks; n; n = n->next) {
+            virCloseCallbacksDomainData *data = n->data;
+
+            if (virCloseCallbacksDomainMatch(data, conn, cb))
+                return true;
+        }
+    }
+
+    return false;
+}
+
+
+/**
+ * virCloseCallbacksDomainRemove:
+ * @vm: domain object
+ * @conn: connection pointer
+ * @cb: callback pointer
+ *
+ * Removes all the registered matching (see virCloseCallbacksDomainMatch)
+ * callbacks for @vm. Caller must hold lock on @vm.
+ */
+void
+virCloseCallbacksDomainRemove(virDomainObj *vm,
+                              virConnectPtr conn,
+                              virCloseCallback cb)
+{
+    virCloseCallbacksDomainList *cc = (virCloseCallbacksDomainList *) vm->closecallbacks;
+
+    VIR_WITH_OBJECT_LOCK_GUARD(cc) {
+        GList *n = cc->callbacks;
+
+        while (n) {
+            GList *cur = n;
+
+            n = n->next;
+
+            if (virCloseCallbacksDomainMatch(cur->data, conn, cb)) {
+                cc->callbacks = g_list_remove_link(cc->callbacks, cur);
+                g_list_free_full(cur, (GDestroyNotify) virCloseCallbacksDomainDataFree);
+            }
+        }
+    }
+}
+
+
+/**
+ * virCloseCallbacksDomainFetchForConn:
+ * @vm: domain object
+ * @conn: pointer to connection being closed
+ *
+ * Fetches connection close callbacks for @conn from @vm. The fetched close
+ * callbacks are removed from the list of callbacks of @vm. This function
+ * must be called with lock on @vm held. Caller is responsible for freeing the
+ * returned list.
+ */
+static GList *
+virCloseCallbacksDomainFetchForConn(virDomainObj *vm,
+                                    virConnectPtr conn)
+{
+    virCloseCallbacksDomainList *cc = (virCloseCallbacksDomainList *) vm->closecallbacks;
+    GList *conncallbacks = NULL;
+
+    VIR_WITH_OBJECT_LOCK_GUARD(cc) {
+        GList *n;
+
+        for (n = cc->callbacks; n;) {
+            virCloseCallbacksDomainData *data = n->data;
+            GList *cur = n;
+
+            n = n->next;
+
+            if (data->conn == conn) {
+                cc->callbacks = g_list_remove_link(cc->callbacks, cur);
+                conncallbacks = g_list_concat(cur, conncallbacks);
+            }
+        }
+    }
+
+    return conncallbacks;
+}
+
+
+/**
+ * virCloseCallbacksDomainRun
+ * @vm: domain object
+ * @conn: pointer to connection being closed
+ *
+ * Fetches and sequentially calls all connection close callbacks for @conn from
+ * @vm. This function must be called with lock on @vm held.
+ */
+static void
+virCloseCallbacksDomainRun(virDomainObj *vm,
+                           virConnectPtr conn)
+{
+    g_autolist(virCloseCallbacksDomainData) callbacks = NULL;
+    GList *n;
+
+    callbacks = virCloseCallbacksDomainFetchForConn(vm, conn);
+
+    for (n = callbacks; n; n = n->next) {
+        virCloseCallbacksDomainData *data = n->data;
+
+        VIR_DEBUG("vm='%s' cb='%p'", vm->def->name, data->cb);
+
+        (data->cb)(vm, conn);
+    }
+}
+
+
+/**
+ * virCloseCallbacksDomainHasCallbackForConn:
+ * @vm: domain object
+ * @conn: connection being closed
+ *
+ * Returns true if @vm has a callback registered for the @conn connection. This
+ * function doesn't require a lock being held on @vm.
+ */
+static bool
+virCloseCallbacksDomainHasCallbackForConn(virDomainObj *vm,
+                                          virConnectPtr conn)
+{
+    /* we can access vm->closecallbacks as it's a immutable pointer */
+    virCloseCallbacksDomainList *cc = (virCloseCallbacksDomainList *) vm->closecallbacks;
+
+    if (!cc)
+        return false;
+
+    VIR_WITH_OBJECT_LOCK_GUARD(cc) {
+        GList *n;
+
+        for (n = cc->callbacks; n; n = n->next) {
+            virCloseCallbacksDomainData *data = n->data;
+
+            if (data->conn == conn)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+
+/**
+ * virCloseCallbacksDomainRunForConn:
+ * @domains: domain list object
+ * @conn: connection being closed
+ *
+ * Finds all domains in @domains which registered one or more connection close
+ * callbacks for @conn and calls the callbacks. This function is designed to
+ * be called from virDrvConnectClose function of individual drivers.
+ *
+ * To minimize lock contention the function first fetches a list of all domain
+ * objects, then checks whether a connect close callback is actually registered
+ * for the domain object and just then acquires the lock on the VM object.
+ */
+void
+virCloseCallbacksDomainRunForConn(virDomainObjList *domains,
+                                  virConnectPtr conn)
+{
+    virDomainObj **vms = NULL;
+    size_t nvms;
     size_t i;
 
     VIR_DEBUG("conn=%p", conn);
 
-    /* We must not hold the lock while running the callbacks,
-     * so first we obtain the list of callbacks, then remove
-     * them all from the hash. At that point we can release
-     * the lock and run the callbacks safely. */
+    virDomainObjListCollectAll(domains, &vms, &nvms);
 
-    virObjectLock(closeCallbacks);
-    list = virCloseCallbacksGetForConn(closeCallbacks, conn);
-    if (!list) {
-        virObjectUnlock(closeCallbacks);
-        return;
-    }
+    for (i = 0; i < nvms; i++) {
+        virDomainObj *vm = vms[i];
 
-    for (i = 0; i < list->nentries; i++) {
-        char uuidstr[VIR_UUID_STRING_BUFLEN];
-        virUUIDFormat(list->entries[i].uuid, uuidstr);
-        virHashRemoveEntry(closeCallbacks->list, uuidstr);
-    }
-    virObjectUnlock(closeCallbacks);
-
-    for (i = 0; i < list->nentries; i++) {
-        virDomainObj *vm;
-
-        /* Grab a ref and lock to the vm */
-        if (!(vm = virDomainObjListFindByUUID(domains,
-                                              list->entries[i].uuid))) {
-            char uuidstr[VIR_UUID_STRING_BUFLEN];
-            virUUIDFormat(list->entries[i].uuid, uuidstr);
-            VIR_DEBUG("No domain object with UUID %s", uuidstr);
+        if (!virCloseCallbacksDomainHasCallbackForConn(vm, conn))
             continue;
-        }
 
-        /* Remove the ref taken out during virCloseCallbacksSet since
-         * we're about to call the callback function and we have another
-         * ref anyway (so it cannot be deleted).
-         *
-         * Call the callback function and end the API usage. */
-        virObjectUnref(vm);
-        list->entries[i].callback(vm, conn, opaque);
-        virDomainObjEndAPI(&vm);
+        VIR_WITH_OBJECT_LOCK_GUARD(vm) {
+            /* VIR_WITH_OBJECT_LOCK_GUARD is a for loop, so this break applies to that */
+            if (vm->removing)
+                break;
+
+            virCloseCallbacksDomainRun(vm, conn);
+        }
     }
-    VIR_FREE(list->entries);
-    VIR_FREE(list);
+
+    virObjectListFreeCount(vms, nvms);
 }

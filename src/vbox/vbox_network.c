@@ -22,10 +22,8 @@
 
 #include "internal.h"
 #include "datatypes.h"
-#include "domain_conf.h"
 #include "domain_event.h"
 #include "virlog.h"
-#include "virstring.h"
 #include "viralloc.h"
 #include "network_conf.h"
 
@@ -376,7 +374,7 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start,
     PRUnichar *networkNameUtf16 = NULL;
     char *networkNameUtf8 = NULL;
     IHostNetworkInterface *networkInterface = NULL;
-    virNetworkDef *def = NULL;
+    g_autoptr(virNetworkDef) def = NULL;
     virNetworkIPDef *ipdef = NULL;
     unsigned char uuid[VIR_UUID_BUFLEN];
     vboxIID vboxnetiid;
@@ -404,7 +402,7 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start,
 
     VBOX_IID_INITIALIZE(&vboxnetiid);
 
-    if (!(def = virNetworkDefParseString(xml, NULL, validate)) ||
+    if (!(def = virNetworkDefParse(xml, NULL, NULL, validate)) ||
         (def->forward.type != VIR_NETWORK_FORWARD_NONE) ||
         (def->nips == 0 || !def->ips))
         goto cleanup;
@@ -431,8 +429,7 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start,
      * NULL. (We can't assign a new name to hostonly network, only
      * take the given name, say vboxnet0)
      */
-    gVBoxAPI.UIHost.CreateHostOnlyNetworkInterface(data, host, def->name,
-                                                   &networkInterface);
+    gVBoxAPI.UIHost.CreateHostOnlyNetworkInterface(host, &networkInterface);
 
     if (!networkInterface)
         goto cleanup;
@@ -502,7 +499,6 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start,
             if (start)
                 gVBoxAPI.UIDHCPServer.Start(dhcpServer,
                                             networkNameUtf16,
-                                            networkInterfaceNameUtf16,
                                             trunkTypeUtf16);
 
             VBOX_UTF16_FREE(ipAddressUtf16);
@@ -558,7 +554,6 @@ vboxNetworkDefineCreateXML(virConnectPtr conn, const char *xml, bool start,
     VBOX_UTF8_FREE(networkInterfaceNameUtf8);
     VBOX_UTF16_FREE(networkInterfaceNameUtf16);
     VBOX_RELEASE(host);
-    virNetworkDefFree(def);
     return ret;
 }
 
@@ -648,7 +643,7 @@ vboxNetworkUndefineDestroy(virNetworkPtr network, bool removeinterface)
         gVBoxAPI.UIProgress.GetResultCode(progress, &resultCode);
         if (RC_FAILED(resultCode)) {
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Error while removing hostonly network interface, rc=%08x"),
+                           _("Error while removing hostonly network interface, rc=%1$08x"),
                            resultCode.uResultCode);
             goto cleanup;
         }
@@ -744,7 +739,6 @@ static int vboxNetworkCreate(virNetworkPtr network)
 
     gVBoxAPI.UIDHCPServer.Start(dhcpServer,
                                 networkNameUtf16,
-                                networkInterfaceNameUtf16,
                                 trunkTypeUtf16);
 
     VBOX_UTF16_FREE(trunkTypeUtf16);
@@ -783,7 +777,7 @@ vboxSocketParseAddrUtf16(struct _vboxDriver *data, const PRUnichar *utf16,
 static char *vboxNetworkGetXMLDesc(virNetworkPtr network, unsigned int flags)
 {
     struct _vboxDriver *data = network->conn->privateData;
-    virNetworkDef *def = NULL;
+    g_autoptr(virNetworkDef) def = NULL;
     virNetworkIPDef *ipdef = NULL;
     char *networkNameUtf8 = NULL;
     PRUnichar *networkInterfaceNameUtf16 = NULL;
@@ -928,7 +922,6 @@ static char *vboxNetworkGetXMLDesc(virNetworkPtr network, unsigned int flags)
     VBOX_RELEASE(networkInterface);
     VBOX_UTF16_FREE(networkInterfaceNameUtf16);
     VBOX_RELEASE(host);
-    virNetworkDefFree(def);
     VIR_FREE(networkNameUtf8);
     VBOX_RELEASE(dhcpServer);
     return ret;

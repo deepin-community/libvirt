@@ -7,9 +7,8 @@
   <os supported='yes'>
     <enum name='firmware'/>
     <loader supported='yes'>
-      <value>/usr/share/AAVMF/AAVMF_CODE.fd</value>
-      <value>/usr/share/AAVMF/AAVMF32_CODE.fd</value>
-      <value>/usr/share/OVMF/OVMF_CODE.fd</value>
+      <value>/obviously/fake/firmware1.fd</value>
+      <value>/obviously/fake/firmware2.fd</value>
       <enum name='type'>
         <value>rom</value>
         <value>pflash</value>
@@ -105,6 +104,27 @@
       </enum>
     </filesystem>
     <tpm supported='no'/>
+    <redirdev supported='yes'>
+      <enum name='bus'>
+        <value>usb</value>
+      </enum>
+    </redirdev>
+    <channel supported='yes'>
+      <enum name='type'>
+        <value>pty</value>
+        <value>unix</value>
+        <value>spicevmc</value>
+      </enum>
+    </channel>
+    <crypto supported='yes'>
+      <enum name='model'/>
+      <enum name='type'>
+        <value>qemu</value>
+      </enum>
+      <enum name='backendModel'>
+        <value>builtin</value>
+      </enum>
+    </crypto>
   </devices>
   <features>
     <gic supported='no'/>
@@ -112,6 +132,8 @@
     <genid supported='no'/>
     <backingStoreInput supported='yes'/>
     <backup supported='no'/>
+    <async-teardown supported='no'/>
     <sev supported='no'/>
+    <sgx supported='no'/>
   </features>
 </domainCapabilities>
