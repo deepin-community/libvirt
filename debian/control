@@ -339,7 +339,7 @@ Depends:
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  logrotate,
- polkitd (>= 121+compat0.1-2) [linux-any],
+ polkitd (>= 0.105.11.2-1+dde) [linux-any],
  ${misc:Depends},
 Recommends:
  dmidecode,

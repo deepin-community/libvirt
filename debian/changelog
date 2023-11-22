@@ -1,3 +1,9 @@
+libvirt (9.8.0-1deepin1) UNRELEunstableASED; urgency=medium
+
+  * Modify the polkitd version of libvirt daemon system dependency
+
+ -- bluesky <chenchongbiao@deepin.org>  Wed, 22 Nov 2023 10:52:24 +0800
+
 libvirt (9.8.0-1) unstable; urgency=medium
 
   [ Pino Toscano ]
