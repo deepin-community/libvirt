@@ -1,0 +1,16 @@
+# The contents of this unit will be merged into a base template.
+# Additional units might be merged as well. See meson.build for details.
+
+[Unit]
+Wants=virtlockd.socket
+After=virtlockd.socket
+After=remote-fs.target
+After=xencommons.service
+Conflicts=xendomains.service
+ConditionPathExists=/proc/xen/capabilities
+
+[Service]
+KillMode=process
+
+[Install]
+Also=virtlockd.socket

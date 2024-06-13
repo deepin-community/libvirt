@@ -201,7 +201,7 @@ struct _virStorageSourcePoolDef {
     int voltype; /* virStorageVolType, internal only */
     int pooltype; /* virStoragePoolType from storage_conf.h, internal only */
     virStorageType actualtype; /* internal only */
-    int mode; /* virStorageSourcePoolMode, currently makes sense only for iscsi pool */
+    virStorageSourcePoolMode mode; /* currently makes sense only for iscsi pool */
 };
 
 
@@ -258,6 +258,8 @@ struct _virStorageSourceSlice {
     char *nodename;
 };
 
+void
+virStorageSourceSliceFree(virStorageSourceSlice *slice);
 
 struct _virStorageSourceFDTuple {
     GObject parent;
@@ -370,8 +372,8 @@ struct _virStorageSource {
     virStorageFileFormat backingStoreRawFormat;
 
     /* metadata that allows identifying given storage source */
-    char *nodeformat;  /* name of the format handler object */
-    char *nodestorage; /* name of the storage object */
+    char *nodenameformat;  /* name of the format handler object */
+    char *nodenamestorage; /* name of the storage object */
 
     /* An optional setting to enable usage of TLS for the storage source */
     virTristateBool haveTLS;
@@ -397,10 +399,10 @@ struct _virStorageSource {
     /* Libvirt currently stores the following properties in virDomainDiskDef.
      * These instances are currently just copies from the parent definition and
      * are not mapped back to the XML */
-    int iomode; /* enum virDomainDiskIo */
-    int cachemode; /* enum virDomainDiskCache */
-    int discard; /* enum virDomainDiskDiscard */
-    int detect_zeroes; /* enum virDomainDiskDetectZeroes */
+    virDomainDiskIo iomode;
+    virDomainDiskCache cachemode;
+    virDomainDiskDiscard discard;
+    virDomainDiskDetectZeroes detect_zeroes;
     virTristateSwitch discard_no_unref;
 
     bool floppyimg; /* set to true if the storage source is going to be used
@@ -498,6 +500,7 @@ virStorageSourceInitChainElement(virStorageSource *newelem,
 
 void
 virStorageSourcePoolDefFree(virStorageSourcePoolDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virStorageSourcePoolDef, virStorageSourcePoolDefFree);
 
 void
 virStorageSourceClear(virStorageSource *def);

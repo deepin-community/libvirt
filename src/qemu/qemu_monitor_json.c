@@ -934,7 +934,7 @@ qemuMonitorJSONHandleTrayChange(qemuMonitor *mon,
     int reason;
 
     /* drive alias is always reported but empty for -blockdev */
-    if (*devAlias == '\0')
+    if (devAlias && *devAlias == '\0')
         devAlias = NULL;
 
     if (!devAlias && !devid) {
@@ -3753,7 +3753,8 @@ qemuMonitorJSONQueryRxFilter(qemuMonitor *mon, const char *alias,
     if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
         return -1;
 
-    if (qemuMonitorJSONQueryRxFilterParse(reply, filter) < 0)
+    if (filter &&
+        qemuMonitorJSONQueryRxFilterParse(reply, filter) < 0)
         return -1;
 
     return 0;
@@ -4035,6 +4036,10 @@ qemuMonitorJSONBlockCommit(qemuMonitor *mon,
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
     virTristateBool autodismiss = VIR_TRISTATE_BOOL_NO;
+    virTristateBool backingProtocol = VIR_TRISTATE_BOOL_ABSENT;
+
+    if (mon->blockjobMaskProtocol)
+        backingProtocol = VIR_TRISTATE_BOOL_YES;
 
     cmd = qemuMonitorJSONMakeCommand("block-commit",
                                      "s:device", device,
@@ -4045,6 +4050,7 @@ qemuMonitorJSONBlockCommit(qemuMonitor *mon,
                                      "S:backing-file", backingName,
                                      "T:auto-finalize", autofinalize,
                                      "T:auto-dismiss", autodismiss,
+                                     "T:backing-mask-protocol", backingProtocol,
                                      NULL);
     if (!cmd)
         return -1;
@@ -4314,6 +4320,10 @@ qemuMonitorJSONBlockStream(qemuMonitor *mon,
     g_autoptr(virJSONValue) reply = NULL;
     virTristateBool autofinalize = VIR_TRISTATE_BOOL_YES;
     virTristateBool autodismiss = VIR_TRISTATE_BOOL_NO;
+    virTristateBool backingProtocol = VIR_TRISTATE_BOOL_ABSENT;
+
+    if (mon->blockjobMaskProtocol)
+        backingProtocol = VIR_TRISTATE_BOOL_YES;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("block-stream",
                                            "s:device", device,
@@ -4323,6 +4333,7 @@ qemuMonitorJSONBlockStream(qemuMonitor *mon,
                                            "S:backing-file", backingName,
                                            "T:auto-finalize", autofinalize,
                                            "T:auto-dismiss", autodismiss,
+                                           "T:backing-mask-protocol", backingProtocol,
                                            NULL)))
         return -1;
 
@@ -6701,9 +6712,11 @@ qemuMonitorJSONParseCPUx86Features(virJSONValue *data)
     item.type = VIR_CPU_X86_DATA_CPUID;
     for (i = 0; i < virJSONValueArraySize(data); i++) {
         if (qemuMonitorJSONParseCPUx86FeatureWord(virJSONValueArrayGet(data, i),
-                                                  &item.data.cpuid) < 0 ||
-            virCPUx86DataAdd(cpudata, &item) < 0)
+                                                  &item.data.cpuid) < 0) {
             return NULL;
+        }
+
+        virCPUx86DataAdd(cpudata, &item);
     }
 
     return g_steal_pointer(&cpudata);
@@ -7576,12 +7589,14 @@ qemuMonitorJSONProcessHotpluggableCpusReply(virJSONValue *vcpu,
     entry->node_id = -1;
     entry->socket_id = -1;
     entry->die_id = -1;
+    entry->cluster_id = -1;
     entry->core_id = -1;
     entry->thread_id = -1;
 
     ignore_value(virJSONValueObjectGetNumberInt(props, "node-id", &entry->node_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "socket-id", &entry->socket_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "die-id", &entry->die_id));
+    ignore_value(virJSONValueObjectGetNumberInt(props, "cluster-id", &entry->cluster_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "core-id", &entry->core_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "thread-id", &entry->thread_id));
 
@@ -7607,7 +7622,8 @@ qemuMonitorJSONProcessHotpluggableCpusReply(virJSONValue *vcpu,
 
 static int
 qemuMonitorQueryHotpluggableCpusEntrySort(const void *p1,
-                                          const void *p2)
+                                          const void *p2,
+                                          void *opaque G_GNUC_UNUSED)
 {
     const struct qemuMonitorQueryHotpluggableCpusEntry *a = p1;
     const struct qemuMonitorQueryHotpluggableCpusEntry *b = p2;
@@ -7617,6 +7633,9 @@ qemuMonitorQueryHotpluggableCpusEntrySort(const void *p1,
 
     if (a->die_id != b->die_id)
         return a->die_id - b->die_id;
+
+    if (a->cluster_id != b->cluster_id)
+        return a->cluster_id - b->cluster_id;
 
     if (a->core_id != b->core_id)
         return a->core_id - b->core_id;
@@ -7659,7 +7678,8 @@ qemuMonitorJSONGetHotpluggableCPUs(qemuMonitor *mon,
             goto cleanup;
     }
 
-    qsort(info, ninfo, sizeof(*info), qemuMonitorQueryHotpluggableCpusEntrySort);
+    g_qsort_with_data(info, ninfo, sizeof(*info),
+                      qemuMonitorQueryHotpluggableCpusEntrySort, NULL);
 
     *entries = g_steal_pointer(&info);
     *nentries = ninfo;
@@ -7783,12 +7803,14 @@ qemuMonitorJSONBlockdevAdd(qemuMonitor *mon,
 
 int
 qemuMonitorJSONBlockdevReopen(qemuMonitor *mon,
-                              virJSONValue **props)
+                              virJSONValue **options)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
 
-    if (!(cmd = qemuMonitorJSONMakeCommandInternal("blockdev-reopen", props)))
+    if (!(cmd = qemuMonitorJSONMakeCommand("blockdev-reopen",
+                                           "a:options", options,
+                                           NULL)))
         return -1;
 
     if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
@@ -8850,4 +8872,27 @@ qemuMonitorJSONQueryStats(qemuMonitor *mon,
         return NULL;
 
     return virJSONValueObjectStealArray(reply, "return");
+}
+
+int qemuMonitorJSONDisplayReload(qemuMonitor *mon,
+                                 const char *type,
+                                 bool tlsCerts)
+{
+    g_autoptr(virJSONValue) reply = NULL;
+    g_autoptr(virJSONValue) cmd = NULL;
+
+    cmd = qemuMonitorJSONMakeCommand("display-reload",
+                                     "s:type", type,
+                                     "b:tls-certs", tlsCerts,
+                                     NULL);
+    if (!cmd)
+        return -1;
+
+    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
+        return -1;
+
+    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
+        return -1;
+
+    return 0;
 }

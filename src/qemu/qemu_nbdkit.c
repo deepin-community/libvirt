@@ -19,7 +19,7 @@
 
 #include <config.h>
 #include <glib.h>
-#if WITH_LIBNBD
+#if WITH_NBDKIT
 # include <libnbd.h>
 #endif
 #include <sys/syscall.h>
@@ -400,11 +400,8 @@ qemuNbdkitCapsParseFlags(qemuNbdkitCaps *nbdkitCaps,
     size_t i;
     int n;
 
-    if ((n = virXPathNodeSet("./flag", ctxt, &nodes)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to parse qemu capabilities flags"));
+    if ((n = virXPathNodeSet("./flag", ctxt, &nodes)) < 0)
         return -1;
-    }
 
     VIR_DEBUG("Got flags %d", n);
     for (i = 0; i < n; i++) {
@@ -893,37 +890,67 @@ qemuNbdkitInitStorageSource(qemuNbdkitCaps *caps WITHOUT_NBDKIT_UNUSED,
 }
 
 
+static int
+qemuNbdkitStartStorageSourceOne(virQEMUDriver *driver,
+                                virDomainObj *vm,
+                                virStorageSource *src)
+{
+    qemuDomainStorageSourcePrivate *priv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
+
+    if (priv && priv->nbdkitProcess &&
+        qemuNbdkitProcessStart(priv->nbdkitProcess, vm, driver) < 0)
+        return -1;
+
+    return 0;
+}
+
+
 int
 qemuNbdkitStartStorageSource(virQEMUDriver *driver,
                              virDomainObj *vm,
-                             virStorageSource *src)
+                             virStorageSource *src,
+                             bool chain)
 {
     virStorageSource *backing;
 
     for (backing = src; backing != NULL; backing = backing->backingStore) {
-        qemuDomainStorageSourcePrivate *priv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
-
-        if (priv && priv->nbdkitProcess &&
-            qemuNbdkitProcessStart(priv->nbdkitProcess, vm, driver) < 0)
+        if (qemuNbdkitStartStorageSourceOne(driver, vm, backing) < 0) {
+            /* roll back any previously-started sources */
+            qemuNbdkitStopStorageSource(src, vm, chain);
             return -1;
+        }
+        if (!chain)
+            break;
     }
 
     return 0;
 }
 
 
+static void
+qemuNbdkitStopStorageSourceOne(virStorageSource *src,
+                               virDomainObj *vm)
+{
+    qemuDomainStorageSourcePrivate *priv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
+
+    if (priv && priv->nbdkitProcess &&
+        qemuNbdkitProcessStop(priv->nbdkitProcess, vm) < 0)
+        VIR_WARN("Unable to stop nbdkit for storage source '%s'",
+                 qemuBlockStorageSourceGetStorageNodename(src));
+}
+
+
 void
 qemuNbdkitStopStorageSource(virStorageSource *src,
-                            virDomainObj *vm)
+                            virDomainObj *vm,
+                            bool chain)
 {
     virStorageSource *backing;
 
     for (backing = src; backing != NULL; backing = backing->backingStore) {
-        qemuDomainStorageSourcePrivate *priv = QEMU_DOMAIN_STORAGE_SOURCE_PRIVATE(src);
-
-        if (priv && priv->nbdkitProcess &&
-            qemuNbdkitProcessStop(priv->nbdkitProcess, vm) < 0)
-            VIR_WARN("Unable to stop nbdkit for storage source '%s'", src->nodestorage);
+        qemuNbdkitStopStorageSourceOne(backing, vm);
+        if (!chain)
+            break;
     }
 }
 
@@ -1159,9 +1186,16 @@ qemuNbdkitProcessStart(qemuNbdkitProcess *proc,
     g_autofree char *basename = g_strdup_printf("%s-nbdkit-%i", vm->def->name, proc->source->id);
     int logfd = -1;
     g_autoptr(qemuLogContext) logContext = NULL;
-#if WITH_LIBNBD
+#if WITH_NBDKIT
     struct nbd_handle *nbd = NULL;
 #endif
+
+    /* don't try to start nbdkit again if we've already started it */
+    if (proc->pid > 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Attempting to start nbdkit twice"));
+        return -1;
+    }
 
     if (!(cmd = qemuNbdkitProcessBuildCommand(proc)))
         return -1;
@@ -1173,7 +1207,7 @@ qemuNbdkitProcessStart(qemuNbdkitProcess *proc,
 
     logfd = qemuLogContextGetWriteFD(logContext);
 
-    VIR_DEBUG("starting nbdkit process for %s", proc->source->nodestorage);
+    VIR_DEBUG("starting nbdkit process for %s", qemuBlockStorageSourceGetStorageNodename(proc->source));
     virCommandSetErrorFD(cmd, &logfd);
     virCommandSetOutputFD(cmd, &logfd);
     virCommandSetPidFile(cmd, proc->pidfile);
@@ -1214,7 +1248,7 @@ qemuNbdkitProcessStart(qemuNbdkitProcess *proc,
 
     while (virTimeBackOffWait(&timebackoff)) {
         if (virFileExists(proc->socketfile)) {
-#if WITH_LIBNBD
+#if WITH_NBDKIT
             /* if the disk source was misconfigured, nbdkit will not produce an error
              * until somebody connects to the socket and tries to access the nbd
              * export. This results in poor user experience because the only error we

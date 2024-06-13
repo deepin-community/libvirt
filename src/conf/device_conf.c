@@ -29,6 +29,15 @@
 
 #define VIR_FROM_THIS VIR_FROM_DEVICE
 
+VIR_ENUM_IMPL(virDeviceHostdevPCIDriverName,
+              VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_LAST,
+              "default",
+              "kvm",
+              "vfio",
+              "xen",
+);
+
+
 VIR_ENUM_IMPL(virDomainDeviceAddress,
               VIR_DOMAIN_DEVICE_ADDRESS_TYPE_LAST,
               "none",
@@ -45,6 +54,56 @@ VIR_ENUM_IMPL(virDomainDeviceAddress,
               "dimm",
               "unassigned",
 );
+
+
+int
+virDeviceHostdevPCIDriverInfoParseXML(xmlNodePtr node,
+                                      virDeviceHostdevPCIDriverInfo *driver)
+{
+    if (virXMLPropEnum(node, "name",
+                       virDeviceHostdevPCIDriverNameTypeFromString,
+                       VIR_XML_PROP_NONZERO,
+                       &driver->name) < 0) {
+        return -1;
+    }
+
+    driver->model = virXMLPropString(node, "model");
+    return 0;
+}
+
+
+int
+virDeviceHostdevPCIDriverInfoFormat(virBuffer *buf,
+                                    const virDeviceHostdevPCIDriverInfo *driver)
+{
+    g_auto(virBuffer) driverAttrBuf = VIR_BUFFER_INITIALIZER;
+
+    if (driver->name != VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT) {
+        const char *driverName = virDeviceHostdevPCIDriverNameTypeToString(driver->name);
+
+        if (!driverName) {
+            virReportError(VIR_ERR_INTERNAL_ERROR,
+                           _("unexpected pci hostdev driver name %1$d"),
+                           driver->name);
+            return -1;
+        }
+
+        virBufferAsprintf(&driverAttrBuf, " name='%s'", driverName);
+    }
+
+    virBufferEscapeString(&driverAttrBuf, " model='%s'", driver->model);
+
+    virXMLFormatElement(buf, "driver", &driverAttrBuf, NULL);
+    return 0;
+}
+
+
+void
+virDeviceHostdevPCIDriverInfoClear(virDeviceHostdevPCIDriverInfo *driver)
+{
+    VIR_FREE(driver->model);
+}
+
 
 static int
 virZPCIDeviceAddressParseXML(xmlNodePtr node,

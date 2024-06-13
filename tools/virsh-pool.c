@@ -37,34 +37,33 @@
 #define VIRSH_COMMON_OPT_POOL_BUILD \
     {.name = "build", \
      .type = VSH_OT_BOOL, \
-     .flags = 0, \
      .help = N_("build the pool as normal") \
     }
 
 #define VIRSH_COMMON_OPT_POOL_NO_OVERWRITE \
     {.name = "no-overwrite", \
      .type = VSH_OT_BOOL, \
-     .flags = 0, \
      .help = N_("do not overwrite any existing data") \
     }
 
 #define VIRSH_COMMON_OPT_POOL_OVERWRITE \
     {.name = "overwrite", \
      .type = VSH_OT_BOOL, \
-     .flags = 0, \
      .help = N_("overwrite any existing data") \
     }
 
 #define VIRSH_COMMON_OPT_POOL_X_AS \
     {.name = "name", \
-     .type = VSH_OT_DATA, \
-     .flags = VSH_OFLAG_REQ, \
+     .type = VSH_OT_STRING, \
+     .positional = true, \
+     .required = true, \
      .completer = virshCompleteEmpty, \
      .help = N_("name of the pool") \
     }, \
     {.name = "type", \
-     .type = VSH_OT_DATA, \
-     .flags = VSH_OFLAG_REQ, \
+     .type = VSH_OT_STRING, \
+     .positional = true, \
+     .required = true, \
      .completer = virshPoolTypeCompleter, \
      .help = N_("type of the pool") \
     }, \
@@ -74,80 +73,99 @@
     }, \
     {.name = "source-host", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .completer = virshCompleteEmpty, \
      .help = N_("source-host for underlying storage") \
     }, \
     {.name = "source-path", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("source path for underlying storage") \
     }, \
     {.name = "source-dev", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("source device for underlying storage") \
     }, \
     {.name = "source-name", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("source name for underlying storage") \
     }, \
     {.name = "target", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("target for underlying storage") \
     }, \
     {.name = "source-format", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("format for underlying storage") \
     }, \
     {.name = "auth-type", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("auth type to be used for underlying storage") \
     }, \
     {.name = "auth-username", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .completer = virshCompleteEmpty, \
      .help = N_("auth username to be used for underlying storage") \
     }, \
     {.name = "secret-usage", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("auth secret usage to be used for underlying storage") \
     }, \
     {.name = "secret-uuid", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("auth secret UUID to be used for underlying storage") \
     }, \
     {.name = "adapter-name", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter name to be used for underlying storage") \
     }, \
     {.name = "adapter-wwnn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter wwnn to be used for underlying storage") \
     }, \
     {.name = "adapter-wwpn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter wwpn to be used for underlying storage") \
     }, \
     {.name = "adapter-parent", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter parent scsi_hostN to be used for underlying vHBA storage") \
     }, \
     {.name = "adapter-parent-wwnn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter parent scsi_hostN wwnn to be used for underlying vHBA storage") \
     }, \
     {.name = "adapter-parent-wwpn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter parent scsi_hostN wwpn to be used for underlying vHBA storage") \
     }, \
     {.name = "adapter-parent-fabric-wwn", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("adapter parent scsi_hostN fabric_wwn to be used for underlying vHBA storage") \
     }, \
     {.name = "source-protocol-ver", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .help = N_("nfsvers value for NFS pool mount option") \
     }, \
     {.name = "source-initiator", \
      .type = VSH_OT_STRING, \
+     .unwanted_positional = true, \
      .completer = virshCompleteEmpty, \
      .help = N_("initiator iqn for underlying storage") \
     }
@@ -162,7 +180,7 @@ virshCommandOptPoolBy(vshControl *ctl, const vshCmd *cmd, const char *optname,
 
     virCheckFlags(VIRSH_BYUUID | VIRSH_BYNAME, NULL);
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     if (cmd->skipChecks && !n)
@@ -196,14 +214,9 @@ virshCommandOptPoolBy(vshControl *ctl, const vshCmd *cmd, const char *optname,
 /*
  * "pool-autostart" command
  */
-static const vshCmdInfo info_pool_autostart[] = {
-    {.name = "help",
-     .data = N_("autostart a pool")
-    },
-    {.name = "desc",
-     .data = N_("Configure a pool to be automatically started at boot.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_autostart = {
+    .help = N_("autostart a pool"),
+    .desc = N_("Configure a pool to be automatically started at boot."),
 };
 
 static const vshCmdOptDef opts_pool_autostart[] = {
@@ -247,14 +260,9 @@ cmdPoolAutostart(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-create" command
  */
-static const vshCmdInfo info_pool_create[] = {
-    {.name = "help",
-     .data = N_("create a pool from an XML file")
-    },
-    {.name = "desc",
-     .data = N_("Create a pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_create = {
+    .help = N_("create a pool from an XML file"),
+    .desc = N_("Create a pool."),
 };
 
 static const vshCmdOptDef opts_pool_create[] = {
@@ -278,7 +286,7 @@ cmdPoolCreate(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     build = vshCommandOptBool(cmd, "build");
@@ -332,31 +340,31 @@ virshBuildPoolXML(vshControl *ctl,
 
     VSH_EXCLUSIVE_OPTIONS("secret-usage", "secret-uuid");
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "source-host", &srcHost) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-path", &srcPath) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-dev", &srcDev) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-name", &srcName) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-format", &srcFormat) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "target", &target) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "auth-type", &authType) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "auth-username", &authUsername) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "secret-usage", &secretUsage) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "secret-uuid", &secretUUID) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-name", &adapterName) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-wwnn", &adapterWwnn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-wwpn", &adapterWwpn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-parent", &adapterParent) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-parent-wwnn", &adapterParentWwnn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-parent-wwpn", &adapterParentWwpn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "adapter-parent-fabric-wwn", &adapterParentFabricWwn) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-protocol-ver", &protoVer) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "source-initiator", &srcInitiator) < 0) {
+    if (vshCommandOptString(ctl, cmd, "source-host", &srcHost) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-path", &srcPath) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-dev", &srcDev) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-name", &srcName) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-format", &srcFormat) < 0 ||
+        vshCommandOptString(ctl, cmd, "target", &target) < 0 ||
+        vshCommandOptString(ctl, cmd, "auth-type", &authType) < 0 ||
+        vshCommandOptString(ctl, cmd, "auth-username", &authUsername) < 0 ||
+        vshCommandOptString(ctl, cmd, "secret-usage", &secretUsage) < 0 ||
+        vshCommandOptString(ctl, cmd, "secret-uuid", &secretUUID) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-name", &adapterName) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-wwnn", &adapterWwnn) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-wwpn", &adapterWwpn) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-parent", &adapterParent) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-parent-wwnn", &adapterParentWwnn) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-parent-wwpn", &adapterParentWwpn) < 0 ||
+        vshCommandOptString(ctl, cmd, "adapter-parent-fabric-wwn", &adapterParentFabricWwn) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-protocol-ver", &protoVer) < 0 ||
+        vshCommandOptString(ctl, cmd, "source-initiator", &srcInitiator) < 0) {
         return false;
     }
 
@@ -437,14 +445,9 @@ virshBuildPoolXML(vshControl *ctl,
 /*
  * "pool-create-as" command
  */
-static const vshCmdInfo info_pool_create_as[] = {
-    {.name = "help",
-     .data = N_("create a pool from a set of args")
-    },
-    {.name = "desc",
-     .data = N_("Create a pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_create_as = {
+    .help = N_("create a pool from a set of args"),
+    .desc = N_("Create a pool."),
 };
 
 static const vshCmdOptDef opts_pool_create_as[] = {
@@ -503,15 +506,10 @@ cmdPoolCreateAs(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-define" command
  */
-static const vshCmdInfo info_pool_define[] = {
-    {.name = "help",
-     .data = N_("define an inactive persistent storage pool or modify "
-                "an existing persistent one from an XML file")
-    },
-    {.name = "desc",
-     .data = N_("Define or modify a persistent storage pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_define = {
+     .help = N_("define an inactive persistent storage pool or modify "
+                "an existing persistent one from an XML file"),
+     .desc = N_("Define or modify a persistent storage pool."),
 };
 
 static const vshCmdOptDef opts_pool_define[] = {
@@ -532,7 +530,7 @@ cmdPoolDefine(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -554,14 +552,9 @@ cmdPoolDefine(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-define-as" command
  */
-static const vshCmdInfo info_pool_define_as[] = {
-    {.name = "help",
-     .data = N_("define a pool from a set of args")
-    },
-    {.name = "desc",
-     .data = N_("Define a pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_define_as = {
+    .help = N_("define a pool from a set of args"),
+    .desc = N_("Define a pool."),
 };
 
 static bool
@@ -593,14 +586,9 @@ cmdPoolDefineAs(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-build" command
  */
-static const vshCmdInfo info_pool_build[] = {
-    {.name = "help",
-     .data = N_("build a pool")
-    },
-    {.name = "desc",
-     .data = N_("Build a given pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_build = {
+    .help = N_("build a pool"),
+    .desc = N_("Build a given pool."),
 };
 
 static const vshCmdOptDef opts_pool_build[] = {
@@ -641,14 +629,9 @@ cmdPoolBuild(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-destroy" command
  */
-static const vshCmdInfo info_pool_destroy[] = {
-    {.name = "help",
-     .data = N_("destroy (stop) a pool")
-    },
-    {.name = "desc",
-     .data = N_("Forcefully stop a given pool. Raw data in the pool is untouched")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_destroy = {
+    .help = N_("destroy (stop) a pool"),
+    .desc = N_("Forcefully stop a given pool. Raw data in the pool is untouched"),
 };
 
 static const vshCmdOptDef opts_pool_destroy[] = {
@@ -680,14 +663,9 @@ cmdPoolDestroy(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-delete" command
  */
-static const vshCmdInfo info_pool_delete[] = {
-    {.name = "help",
-     .data = N_("delete a pool")
-    },
-    {.name = "desc",
-     .data = N_("Delete a given pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_delete = {
+    .help = N_("delete a pool"),
+    .desc = N_("Delete a given pool."),
 };
 
 static const vshCmdOptDef opts_pool_delete[] = {
@@ -719,14 +697,9 @@ cmdPoolDelete(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-refresh" command
  */
-static const vshCmdInfo info_pool_refresh[] = {
-    {.name = "help",
-     .data = N_("refresh a pool")
-    },
-    {.name = "desc",
-     .data = N_("Refresh a given pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_refresh = {
+    .help = N_("refresh a pool"),
+    .desc = N_("Refresh a given pool."),
 };
 
 static const vshCmdOptDef opts_pool_refresh[] = {
@@ -758,14 +731,9 @@ cmdPoolRefresh(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-dumpxml" command
  */
-static const vshCmdInfo info_pool_dumpxml[] = {
-    {.name = "help",
-     .data = N_("pool information in XML")
-    },
-    {.name = "desc",
-     .data = N_("Output the pool information as an XML dump to stdout.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_dumpxml = {
+    .help = N_("pool information in XML"),
+    .desc = N_("Output the pool information as an XML dump to stdout."),
 };
 
 static const vshCmdOptDef opts_pool_dumpxml[] = {
@@ -777,7 +745,6 @@ static const vshCmdOptDef opts_pool_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -814,7 +781,9 @@ cmdPoolDumpXML(vshControl *ctl, const vshCmd *cmd)
 }
 
 static int
-virshStoragePoolSorter(const void *a, const void *b)
+virshStoragePoolSorter(const void *a,
+                       const void *b,
+                       void *opaque G_GNUC_UNUSED)
 {
     virStoragePoolPtr *pa = (virStoragePoolPtr *) a;
     virStoragePoolPtr *pb = (virStoragePoolPtr *) b;
@@ -1005,9 +974,10 @@ virshStoragePoolListCollect(vshControl *ctl,
 
  finished:
     /* sort the list */
-    if (list->pools && list->npools)
-        qsort(list->pools, list->npools,
-              sizeof(*list->pools), virshStoragePoolSorter);
+    if (list->pools && list->npools) {
+        g_qsort_with_data(list->pools, list->npools,
+                          sizeof(*list->pools), virshStoragePoolSorter, NULL);
+    }
 
     /* truncate the list if filter simulation deleted entries */
     if (deleted)
@@ -1048,14 +1018,9 @@ virshStoragePoolStateToString(int state)
 /*
  * "pool-list" command
  */
-static const vshCmdInfo info_pool_list[] = {
-    {.name = "help",
-     .data = N_("list pools")
-    },
-    {.name = "desc",
-     .data = N_("Returns list of pools.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_list = {
+    .help = N_("list pools"),
+    .desc = N_("Returns list of pools."),
 };
 
 static const vshCmdOptDef opts_pool_list[] = {
@@ -1086,6 +1051,8 @@ static const vshCmdOptDef opts_pool_list[] = {
     {.name = "type",
      .type = VSH_OT_STRING,
      .completer = virshPoolTypeCompleter,
+     .unwanted_positional = true,
+     .completer_flags = VIRSH_POOL_TYPE_COMPLETER_COMMA,
      .help = N_("only list pool of specified type(s) (if supported)")
     },
     {.name = "details",
@@ -1157,7 +1124,7 @@ cmdPoolList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     if (vshCommandOptBool(cmd, "name"))
         name = true;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0)
         return false;
 
     VSH_EXCLUSIVE_OPTIONS("details", "uuid");
@@ -1397,34 +1364,34 @@ cmdPoolList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "find-storage-pool-sources-as" command
  */
-static const vshCmdInfo info_find_storage_pool_sources_as[] = {
-    {.name = "help",
-     .data = N_("find potential storage pool sources")
-    },
-    {.name = "desc",
-     .data = N_("Returns XML <sources> document.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_find_storage_pool_sources_as = {
+    .help = N_("find potential storage pool sources"),
+    .desc = N_("Returns XML <sources> document."),
 };
 
 static const vshCmdOptDef opts_find_storage_pool_sources_as[] = {
     {.name = "type",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
+     .completer = virshPoolTypeCompleter,
      .help = N_("type of storage pool sources to find")
     },
     {.name = "host",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("optional host to query")
     },
     {.name = "port",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("optional port to query")
     },
     {.name = "initiator",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("optional initiator IQN to use for query")
     },
@@ -1440,16 +1407,16 @@ cmdPoolDiscoverSourcesAs(vshControl * ctl, const vshCmd * cmd G_GNUC_UNUSED)
     const char *initiator = NULL;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "host", &host) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "initiator", &initiator) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0 ||
+        vshCommandOptString(ctl, cmd, "host", &host) < 0 ||
+        vshCommandOptString(ctl, cmd, "initiator", &initiator) < 0)
         return false;
 
     if (host) {
         const char *port = NULL;
         g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
-        if (vshCommandOptStringReq(ctl, cmd, "port", &port) < 0) {
+        if (vshCommandOptString(ctl, cmd, "port", &port) < 0) {
             vshError(ctl, "%s", _("missing argument"));
             return false;
         }
@@ -1484,24 +1451,22 @@ cmdPoolDiscoverSourcesAs(vshControl * ctl, const vshCmd * cmd G_GNUC_UNUSED)
 /*
  * "find-storage-pool-sources" command
  */
-static const vshCmdInfo info_find_storage_pool_sources[] = {
-    {.name = "help",
-     .data = N_("discover potential storage pool sources")
-    },
-    {.name = "desc",
-     .data = N_("Returns XML <sources> document.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_find_storage_pool_sources = {
+    .help = N_("discover potential storage pool sources"),
+    .desc = N_("Returns XML <sources> document."),
 };
 
 static const vshCmdOptDef opts_find_storage_pool_sources[] = {
     {.name = "type",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
+     .completer = virshPoolTypeCompleter,
      .help = N_("type of storage pool sources to discover")
     },
     {.name = "srcSpec",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompletePathLocalExisting,
      .help = N_("optional file of source xml to query for pools")
     },
@@ -1515,10 +1480,10 @@ cmdPoolDiscoverSources(vshControl * ctl, const vshCmd * cmd G_GNUC_UNUSED)
     char *srcSpec = NULL, *srcList;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0)
+    if (vshCommandOptString(ctl, cmd, "type", &type) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "srcSpec", &srcSpecFile) < 0)
+    if (vshCommandOptString(ctl, cmd, "srcSpec", &srcSpecFile) < 0)
         return false;
 
     if (srcSpecFile && virFileReadAll(srcSpecFile, VSH_MAX_XML_FILE,
@@ -1540,14 +1505,9 @@ cmdPoolDiscoverSources(vshControl * ctl, const vshCmd * cmd G_GNUC_UNUSED)
 /*
  * "pool-info" command
  */
-static const vshCmdInfo info_pool_info[] = {
-    {.name = "help",
-     .data = N_("storage pool information")
-    },
-    {.name = "desc",
-     .data = N_("Returns basic information about the storage pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_info = {
+    .help = N_("storage pool information"),
+    .desc = N_("Returns basic information about the storage pool."),
 };
 
 static const vshCmdOptDef opts_pool_info[] = {
@@ -1630,14 +1590,9 @@ cmdPoolInfo(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-name" command
  */
-static const vshCmdInfo info_pool_name[] = {
-    {.name = "help",
-     .data = N_("convert a pool UUID to pool name")
-    },
-    {.name = "desc",
-     .data = ""
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_name = {
+    .help = N_("convert a pool UUID to pool name"),
+    .desc = "",
 };
 
 static const vshCmdOptDef opts_pool_name[] = {
@@ -1661,14 +1616,9 @@ cmdPoolName(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-start" command
  */
-static const vshCmdInfo info_pool_start[] = {
-    {.name = "help",
-     .data = N_("start a (previously defined) inactive pool")
-    },
-    {.name = "desc",
-     .data = N_("Start a pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_start = {
+    .help = N_("start a (previously defined) inactive pool"),
+    .desc = N_("Start a pool."),
 };
 
 static const vshCmdOptDef opts_pool_start[] = {
@@ -1721,14 +1671,9 @@ cmdPoolStart(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-undefine" command
  */
-static const vshCmdInfo info_pool_undefine[] = {
-    {.name = "help",
-     .data = N_("undefine an inactive pool")
-    },
-    {.name = "desc",
-     .data = N_("Undefine the configuration for an inactive pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_undefine = {
+    .help = N_("undefine an inactive pool"),
+    .desc = N_("Undefine the configuration for an inactive pool."),
 };
 
 static const vshCmdOptDef opts_pool_undefine[] = {
@@ -1760,14 +1705,9 @@ cmdPoolUndefine(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-uuid" command
  */
-static const vshCmdInfo info_pool_uuid[] = {
-    {.name = "help",
-     .data = N_("convert a pool name to pool UUID")
-    },
-    {.name = "desc",
-     .data = ""
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_uuid = {
+    .help = N_("convert a pool name to pool UUID"),
+    .desc = "",
 };
 
 static const vshCmdOptDef opts_pool_uuid[] = {
@@ -1796,14 +1736,9 @@ cmdPoolUuid(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-edit" command
  */
-static const vshCmdInfo info_pool_edit[] = {
-    {.name = "help",
-     .data = N_("edit XML configuration for a storage pool")
-    },
-    {.name = "desc",
-     .data = N_("Edit the XML configuration for a storage pool.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_edit = {
+    .help = N_("edit XML configuration for a storage pool"),
+    .desc = N_("Edit the XML configuration for a storage pool."),
 };
 
 static const vshCmdOptDef opts_pool_edit[] = {
@@ -1959,24 +1894,21 @@ virshPoolEventCallback virshPoolEventCallbacks[] = {
 G_STATIC_ASSERT(VIR_STORAGE_POOL_EVENT_ID_LAST == G_N_ELEMENTS(virshPoolEventCallbacks));
 
 
-static const vshCmdInfo info_pool_event[] = {
-    {.name = "help",
-     .data = N_("Storage Pool Events")
-    },
-    {.name = "desc",
-     .data = N_("List event types, or wait for storage pool events to occur")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_event = {
+    .help = N_("Storage Pool Events"),
+    .desc = N_("List event types, or wait for storage pool events to occur"),
 };
 
 static const vshCmdOptDef opts_pool_event[] = {
     {.name = "pool",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshStoragePoolNameCompleter,
      .help = N_("filter by storage pool name or uuid")
     },
     {.name = "event",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshPoolEventNameCompleter,
      .help = N_("which event type to wait for")
     },
@@ -1986,6 +1918,7 @@ static const vshCmdOptDef opts_pool_event[] = {
     },
     {.name = "timeout",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("timeout seconds")
     },
     {.name = "list",
@@ -2019,7 +1952,7 @@ cmdPoolEvent(vshControl *ctl, const vshCmd *cmd)
         return true;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "event", &eventName) < 0)
+    if (vshCommandOptString(ctl, cmd, "event", &eventName) < 0)
         return false;
     if (!eventName) {
         vshError(ctl, "%s", _("either --list or --event <type> is required"));
@@ -2079,14 +2012,9 @@ cmdPoolEvent(vshControl *ctl, const vshCmd *cmd)
 /*
  * "pool-capabilities" command
  */
-static const vshCmdInfo info_pool_capabilities[] = {
-    {.name = "help",
-     .data = N_("storage pool capabilities")
-    },
-    {.name = "desc",
-     .data = N_("Returns capabilities of storage pool support.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_pool_capabilities = {
+    .help = N_("storage pool capabilities"),
+    .desc = N_("Returns capabilities of storage pool support."),
 };
 
 static const vshCmdOptDef opts_pool_capabilities[] = {
@@ -2116,127 +2044,127 @@ const vshCmdDef storagePoolCmds[] = {
     {.name = "find-storage-pool-sources-as",
      .handler = cmdPoolDiscoverSourcesAs,
      .opts = opts_find_storage_pool_sources_as,
-     .info = info_find_storage_pool_sources_as,
+     .info = &info_find_storage_pool_sources_as,
      .flags = 0
     },
     {.name = "find-storage-pool-sources",
      .handler = cmdPoolDiscoverSources,
      .opts = opts_find_storage_pool_sources,
-     .info = info_find_storage_pool_sources,
+     .info = &info_find_storage_pool_sources,
      .flags = 0
     },
     {.name = "pool-autostart",
      .handler = cmdPoolAutostart,
      .opts = opts_pool_autostart,
-     .info = info_pool_autostart,
+     .info = &info_pool_autostart,
      .flags = 0
     },
     {.name = "pool-build",
      .handler = cmdPoolBuild,
      .opts = opts_pool_build,
-     .info = info_pool_build,
+     .info = &info_pool_build,
      .flags = 0
     },
     {.name = "pool-create-as",
      .handler = cmdPoolCreateAs,
      .opts = opts_pool_create_as,
-     .info = info_pool_create_as,
+     .info = &info_pool_create_as,
      .flags = 0
     },
     {.name = "pool-create",
      .handler = cmdPoolCreate,
      .opts = opts_pool_create,
-     .info = info_pool_create,
+     .info = &info_pool_create,
      .flags = 0
     },
     {.name = "pool-define-as",
      .handler = cmdPoolDefineAs,
      .opts = opts_pool_define_as,
-     .info = info_pool_define_as,
+     .info = &info_pool_define_as,
      .flags = 0
     },
     {.name = "pool-define",
      .handler = cmdPoolDefine,
      .opts = opts_pool_define,
-     .info = info_pool_define,
+     .info = &info_pool_define,
      .flags = 0
     },
     {.name = "pool-delete",
      .handler = cmdPoolDelete,
      .opts = opts_pool_delete,
-     .info = info_pool_delete,
+     .info = &info_pool_delete,
      .flags = 0
     },
     {.name = "pool-destroy",
      .handler = cmdPoolDestroy,
      .opts = opts_pool_destroy,
-     .info = info_pool_destroy,
+     .info = &info_pool_destroy,
      .flags = 0
     },
     {.name = "pool-dumpxml",
      .handler = cmdPoolDumpXML,
      .opts = opts_pool_dumpxml,
-     .info = info_pool_dumpxml,
+     .info = &info_pool_dumpxml,
      .flags = 0
     },
     {.name = "pool-edit",
      .handler = cmdPoolEdit,
      .opts = opts_pool_edit,
-     .info = info_pool_edit,
+     .info = &info_pool_edit,
      .flags = 0
     },
     {.name = "pool-info",
      .handler = cmdPoolInfo,
      .opts = opts_pool_info,
-     .info = info_pool_info,
+     .info = &info_pool_info,
      .flags = 0
     },
     {.name = "pool-list",
      .handler = cmdPoolList,
      .opts = opts_pool_list,
-     .info = info_pool_list,
+     .info = &info_pool_list,
      .flags = 0
     },
     {.name = "pool-name",
      .handler = cmdPoolName,
      .opts = opts_pool_name,
-     .info = info_pool_name,
+     .info = &info_pool_name,
      .flags = 0
     },
     {.name = "pool-refresh",
      .handler = cmdPoolRefresh,
      .opts = opts_pool_refresh,
-     .info = info_pool_refresh,
+     .info = &info_pool_refresh,
      .flags = 0
     },
     {.name = "pool-start",
      .handler = cmdPoolStart,
      .opts = opts_pool_start,
-     .info = info_pool_start,
+     .info = &info_pool_start,
      .flags = 0
     },
     {.name = "pool-undefine",
      .handler = cmdPoolUndefine,
      .opts = opts_pool_undefine,
-     .info = info_pool_undefine,
+     .info = &info_pool_undefine,
      .flags = 0
     },
     {.name = "pool-uuid",
      .handler = cmdPoolUuid,
      .opts = opts_pool_uuid,
-     .info = info_pool_uuid,
+     .info = &info_pool_uuid,
      .flags = 0
     },
     {.name = "pool-event",
      .handler = cmdPoolEvent,
      .opts = opts_pool_event,
-     .info = info_pool_event,
+     .info = &info_pool_event,
      .flags = 0
     },
     {.name = "pool-capabilities",
      .handler = cmdPoolCapabilities,
      .opts = opts_pool_capabilities,
-     .info = info_pool_capabilities,
+     .info = &info_pool_capabilities,
      .flags = 0
     },
     {.name = NULL}

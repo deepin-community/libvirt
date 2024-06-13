@@ -326,8 +326,6 @@ Will change current directory to *directory*.  The default directory
 for the ``cd`` command is the home directory or, if there is no *HOME*
 variable in the environment, the root directory.
 
-This command is only available in interactive mode.
-
 
 pwd
 ---
@@ -1421,13 +1419,17 @@ blockresize
 
 ::
 
-   blockresize domain path size
+   blockresize domain path ([size] | [--capacity])
 
 Resize a block device of domain while the domain is running, *path*
 specifies the absolute path of the block device; it corresponds
 to a unique target name (<target dev='name'/>) or source file (<source
 file='name'/>) for one of the disk devices attached to *domain* (see
 also ``domblklist`` for listing these names).
+
+For image formats without metadata (raw) stored inside fixed-size storage (e.g.
+block devices) the --capacity flag can be used to resize the device to the
+full size of the backing device.
 
 *size* is a scaled integer (see ``NOTES`` above) which defaults to KiB
 (blocks of 1024 bytes) if there is no suffix.  You must use a suffix of
@@ -1442,7 +1444,7 @@ console
 
 ::
 
-   console domain [devname] [--safe] [--force]
+   console domain [devname] [--safe] [--force] [--resume]
 
 Connect the virtual serial console for the guest. The optional
 *devname* parameter refers to the device alias of an alternate
@@ -1454,6 +1456,9 @@ if the driver supports safe console handling. This flag specifies that
 the server has to ensure exclusive access to console devices. Optionally
 the *--force* flag may be specified, requesting to disconnect any existing
 sessions, such as in a case of a broken connection.
+
+If the flag *--resume* is specified then the guest is resumed after connecting
+to the console.
 
 
 cpu-stats
@@ -1774,6 +1779,21 @@ be selected using the ``type`` parameter (e.g. "vnc", "spice", "rdp").  If
 *--include-password* is specified, the SPICE channel password will be
 included in the URI. If *--all* is specified, then all show all possible
 graphical displays, for a VM could have more than one graphical displays.
+
+
+domdisplay-reload
+-----------------
+
+**Syntax:**
+
+::
+
+    domdisplay-reload <domain> [--type <type>]
+
+Reload the domain's graphical display. This reloads its TLS certificates
+without restarting the domain. ``type`` can be any constant from the
+`virDomainGraphicsReloadType` enum. By default any supported type is reloaded
+(so far only VNC).
 
 
 domfsfreeze
@@ -5267,7 +5287,7 @@ dom-fd-associate
 
 Associate one or more fds described via *--pass-fds* argument to *domain* as
 *--name*. The lifetime of the passed fd group is the same as the connection, thus
-exitting virsh un-registers them afterwards.
+exiting virsh un-registers them afterwards.
 
 By default security labels are applied if needed but they are not restored after
 use to avoid keeping them open unnecessarily. Best-effort security label restore
@@ -5322,6 +5342,25 @@ contains xml for a top-level <device> description of a node device.
 
 If *--validate* is specified, validates the format of the XML document against
 an internal RNG schema.
+
+
+nodedev-update
+--------------
+
+**Syntax:**
+
+::
+
+   nodedev-update device FILE [[--live] [--config] | [--current]]
+
+Update a device on the host. *device* can be either device name or wwn pair
+in "wwnn,wwpn" format (only works for vHBA currently).  *file*
+contains xml for a top-level <device> description of the node device.
+*--current* can be either or both of *live* and *config*, depends on
+the hypervisor's implementation.
+Both *--live* and *--config* flags may be given, but *--current* is
+exclusive. If no flag is specified, behavior is different depending
+on hypervisor.
 
 
 nodedev-destroy
@@ -5415,14 +5454,17 @@ nodedev-dumpxml
 
 ::
 
-   nodedev-dumpxml [--xpath EXPRESSION] [--wrap] device
+   nodedev-dumpxml [--inactive] [--xpath EXPRESSION] [--wrap] device
 
 Dump a <device> XML representation for the given node device, including
 such information as the device name, which bus owns the device, the
 vendor and product id, and any capabilities of the device usable by
 libvirt (such as whether device reset is supported). *device* can
 be either device name or wwn pair in "wwnn,wwpn" format (only works
-for HBA).
+for HBA). An additional option affecting the XML dump may be
+used. *--inactive* tells virsh to dump the node device configuration
+that will be used on next start of the node device as opposed to the
+current node device configuration.
 
 If the **--xpath** argument provides an XPath expression, it will be
 evaluated against the output XML and only those matching nodes will
@@ -5451,7 +5493,7 @@ nodedev-list
 
 ::
 
-   nodedev-list [--cap capability] [--tree] [--inactive | --all]
+   nodedev-list [--cap capability] [--tree] [--inactive | --all] [--persistent | --transient]
 
 List all of the devices available on the node that are known by libvirt.
 *cap* is used to filter the list by capability types, the types must be
@@ -5460,9 +5502,13 @@ separated by comma, e.g. --cap pci,scsi. Valid capability types include
 'scsi', 'storage', 'fc_host', 'vports', 'scsi_generic', 'drm', 'mdev',
 'mdev_types', 'ccw', 'css', 'ap_card', 'ap_queue', 'ap_matrix'. By default,
 only active devices are listed. *--inactive* is used to list only inactive
-devices, and *-all* is used to list both active and inactive devices.
+devices, and *--all* is used to list both active and inactive devices.
+*--persistent* is used to list only persistent devices, and *--transient* is
+used to list only transient devices. Not providing *--persistent* or
+*--transient* will list all devices unless filtered otherwise. *--transient*
+is mutually exclusive with *--persistent* and *--inactive*.
 If *--tree* is used, the output is formatted in a tree representing parents of
-each node.  *--tree* is mutually exclusive with all other options.
+each node. *--tree* is mutually exclusive with all other options but *--all*.
 
 
 nodedev-reattach
@@ -7625,9 +7671,11 @@ If *--parent* is specified, add a column to the output table giving
 the name of the parent of each snapshot.  If *--roots* is specified,
 the list will be filtered to just snapshots that have no parents.
 If *--tree* is specified, the output will be in a tree format, listing
-just snapshot names.  These three options are mutually exclusive. If
-*--name* is specified only the snapshot name is printed. This option is
-mutually exclusive with *--tree*.
+just snapshot names.  These three options are mutually exclusive.
+
+If *--name* is specified only the snapshot name is printed optionally
+followed by a tab-separated name of the parent snapshot if *--parent* is used
+as well. This option is mutually exclusive with *--tree*.
 
 If *--from* is provided, filter the list to snapshots which are
 children of the given ``snapshot``; or if *--current* is provided,
@@ -7941,8 +7989,11 @@ the name of the parent of each checkpoint.  If *--roots* is
 specified, the list will be filtered to just checkpoints that have no
 parents.  If *--tree* is specified, the output will be in a tree
 format, listing just checkpoint names.  These three options are
-mutually exclusive. If *--name* is specified only the checkpoint name
-is printed. This option is mutually exclusive with *--tree*.
+mutually exclusive.
+
+If *--name* is specified only the checkpoint name is printed optionally
+followed by a tab-separated name of the parent checkpoint if *--parent* is used
+as well. This option is mutually exclusive with *--tree*.
 
 If *--from* is provided, filter the list to checkpoints which are
 children of the given ``checkpoint``.  When used in isolation or with

@@ -16,6 +16,7 @@ tools_dep = declare_dependency(
     libvirt_relro
     + libvirt_no_indirect
     + libvirt_no_undefined
+    + libvirt_no_warn_duplicate_libraries
   ),
 )
 
@@ -154,7 +155,7 @@ else
   virsh_icon_res = []
 endif
 
-executable(
+virsh_prog = executable(
   'virsh',
   [
     'virsh.c',
@@ -208,7 +209,7 @@ executable(
 )
 
 if conf.has('WITH_REMOTE')
-  executable(
+  virt_admin_prog = executable(
     'virt-admin',
     [
       'virt-admin.c',
@@ -342,3 +343,5 @@ endif
 if wireshark_dep.found()
   subdir('wireshark')
 endif
+
+subdir('ssh-proxy')

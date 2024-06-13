@@ -40,6 +40,7 @@ typedef enum {
     QEMU_MIGRATION_CAP_BLOCK_DIRTY_BITMAPS,
     QEMU_MIGRATION_CAP_RETURN_PATH,
     QEMU_MIGRATION_CAP_ZERO_COPY_SEND,
+    QEMU_MIGRATION_CAP_POSTCOPY_PREEMPT,
 
     QEMU_MIGRATION_CAP_LAST
 } qemuMigrationCapability;
@@ -142,7 +143,8 @@ int
 qemuMigrationParamsCheck(virDomainObj *vm,
                          int asyncJob,
                          qemuMigrationParams *migParams,
-                         virBitmap *remoteCaps);
+                         virBitmap *remoteSupported,
+                         virBitmap *remoteAuto);
 
 void
 qemuMigrationParamsReset(virDomainObj *vm,

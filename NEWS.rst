@@ -8,6 +8,532 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.4.0 (2024-06-03)
+====================
+
+* **New features**
+
+  * qemu: Support for ras feature for virt machine type
+
+    It is now possible to set on/off ``ras`` feature in the domain XML for virt
+    (Arm) machine type as ``<ras state='on'/>``.
+
+  * SSH proxy for VM
+
+    Libvirt now installs a binary helper that allows connecting to QEMU domains
+    via SSH using the following scheme: ``ssh user@qemu/virtualMachine``.
+
+  * qemu: Support for ``virtio`` sound model
+
+    Sound devices can now be configured to use the virtio model with
+    ``<sound model='virtio'/>``. This model is available from QEMU 8.2.0
+    onwards.
+
+  * network: use nftables to setup virtual network firewall rules
+
+    The network driver can now use nftables rules for the virtual
+    network firewalls, rather than iptables. With the standard build
+    options, nftables is preferred over iptables (with fallback to
+    iptables if nftables isn't installed), but this can be modified at
+    build time, or at runtime via the firewall_backend setting in
+    network.conf. (NB: the nwfilter driver still uses
+    ebtables/iptables).
+
+* **Improvements**
+
+  * qemu: add zstd to supported compression formats
+
+    Extend the list of supported formats of QEMU save image by adding zstd
+    compression.
+
+  * qemu: Implement support for hotplugging evdev input devices
+
+    As of this release, hotplug and hotunplug of evdev ``<input/>`` devices is
+    supported.
+
+* **Bug fixes**
+
+  * virsh/virt-admin: Fix ``--help`` option for all commands
+
+    A bug introduced in `v10.3.0 (2024-05-02)`_ caused that the attempt to print
+    help for any command by using the ``--help`` option in ``virsh`` and
+    ``virt-admin`` would print::
+
+      $ virsh list --help
+      error: command 'list' doesn't support option --help
+
+    instead of the help output. A workaround for the affected version is to use
+    the help command::
+
+      $ virsh help list
+
+  * qemu: Fix ``virsh save`` and migration when storage in question is root_squashed NFS
+
+    Attempting to save a VM to a root_squash NFS mount or migrating with disks
+    hosted on such mount could, in some scenarios, result in error stating::
+
+      'Unknown error 255'
+
+    The bug was introduced in `v10.1.0 (2024-03-01)`_.
+
+  * qemu: Don't set affinity for isolcpus unless explicitly requested
+
+    When starting a domain, by default libvirt sets affinity of QEMU process to
+    all online CPUs. This also included isolated CPUs (``isolcpus=``) which is
+    wrong. As of this release, isolated CPUs are left untouched, unless
+    explicitly configured in domain XML.
+
+  * qemu_hotplug: Properly assign USB address to hotplugged usb-net device
+
+    Previously, the network device hotplug logic would try to ensure only CCW
+    or PCI addresses. With recent support for the usb-net model, USB addresses
+    for usb-net network devices are assigned automatically.
+
+  * qemu: Fix hotplug of ``virtiofs`` filesystem device with ``<boot order=`` set
+
+    The bug was introduced in `v10.3.0 (2024-05-02)`_ when attempting to reject
+    unsupported configurations. During hotplug the addresses are
+    assigned after validation and thus errorneously reject valid configs.
+
+
+v10.3.0 (2024-05-02)
+====================
+
+* **New features**
+
+  * qemu: Proper support for USB network device
+
+    USB address is now automatically assigned to USB network devices thus they
+    can be used without manual configuration.
+
+  * conf: Introduce memReserve attribute to <controller/>
+
+    Some PCI devices have large non-prefetchable memory. This can be a problem
+    in case when such device needs to be hotplugged as the firmware can't
+    foresee such situation. The user thus can override the value calculated at
+    start to accomodate for such devices.
+
+* **Improvements**
+
+  * Improve validation of USB devices
+
+    Certain USB device types ('sound', 'fs', 'chr', 'ccid' and 'net') were not
+    properly handled in the check whether the VM config supports USB and thus
+    would result in poor error messages.
+
+  * virsh: Fix behaviour of ``--name`` and ``--parent`` used together when listing checkpoint and snapshots
+
+    The ``checkpoint-list`` and ``snapshot-list`` commands would ignore the
+    ``--name`` option to print only the name when used with ``--parent``.
+
+  * Extend libvirt-guests to shutdown only persistent VMs
+
+    Users can now choose to shutdown only persistent VMs when the host is being
+    shut down.
+
+* **Bug fixes**
+
+  * qemu: Fix migration with custom XML
+
+    Libvirt 10.2.0 would sometimes complain about incompatible CPU definition
+    when trying to migrate or save a domain and passing a custom XML even
+    though such XML was properly generated as migratable. Hitting this bug
+    depends on the guest CPU definition and the host on which a particular
+    domain was running.
+
+  * qemu: Fix TLS hostname verification failure in certain non-shared storage migration scenarios
+
+    In certain scenarios (parallel migration, newly also post-copy migration)
+    libvirt would wrongly pass an empty hostname to QEMU to be used for TLS
+    certificate hostname validation, which would result into failure of the
+    non-shared storage migration step::
+
+     error: internal error: unable to execute QEMU command 'blockdev-add': Certificate does not match the hostname
+
+  * Create OVS ports as transient
+
+    Libvirt now creates OVS ports as transient which prevents them from
+    reappearing or going stale on sudden reboots.
+
+  * Clear OVS QoS settings when domain shuts down
+
+    Libvirt now clears QoS settings on domain shutdown, so they no longer pile
+    up in OVS database.
+
+
+v10.2.0 (2024-04-02)
+====================
+
+* **New features**
+
+  * ch: Basic save and restore support for ch driver
+
+    The ch driver now supports basic save and restore operations. This is
+    functional on domains without any network, host device config defined.
+    The ``path`` parameter for save and restore should be a directory.
+
+  * qemu: Support for driver type ``mtp`` in ``<filesystem/>`` devices
+
+    The ``mtp`` driver type exposes the ``usb-mtp`` device in QEMU. The
+    guest can access files on this driver through the Media Transfer
+    Protocol (MTP).
+
+  * qemu: Added support for the loongarch64 architecture
+
+    It is now possible for libvirt to run loongarch64 guests, including on
+    other architectures via TCG. For the best results, it is recommended to
+    use the upcoming QEMU 9.0.0 release together with the development version
+    of edk2.
+
+  * qemu: Introduce virDomainGraphicsReload API
+
+    Reloading the graphics display is now supported for QEMU guests using
+    VNC. This is useful to make QEMU reload the TLS certificates without
+    restarting the guest. Available via the ``virDomainGraphicsReload`` API
+    and the ``domdisplay-reload`` virsh command.
+
+* **Bug fixes**
+
+  * qemu: Fix migration from libvirt older than 9.10.0 when vmx is enabled
+
+    A domain with vmx feature enabled (which may be even done automatically
+    with ``mode='host-model'``) started by libvirt 9.9.0 or older cannot be
+    migrated to libvirt 9.10.0, 10.0.0, and 10.1.0 as the target host would
+    complain about a lot of extra ``vmx-*`` features. Migration of similar
+    domains started by the affected releases to libvirt 9.9.0 and older
+    does not work either. Since libvirt 10.2.0 migration works again with
+    libvirt 9.9.0 and older in both directions. Migration from the affected
+    releases to 10.2.0 works as well, but the other direction remains broken
+    unless the fix is backported.
+
+  * node_device: Don't report spurious errors from PCI VPD parsing
+
+    In last release the PCI Vital Product Data parser was enhanced to report
+    errors but that effort failed as some kernels have the file but don't allow
+    reading it causing logs to be spammed with::
+
+      libvirtd[21055]: operation failed: failed to read the PCI VPD data
+
+    Since the data is used only in the node device XML and errors are ignored if
+    the parsing failed, this release removes all the error reporting.
+
+  * qemu: set correct SELinux label for unprivileged virtiofsd
+
+    It is now possible to use virtiofsd-based ``<filesystem>`` shares even
+    if the guest is confined using SELinux.
+
+  * qemu: fix a crash on unprivileged virtiofsd hotplug
+
+    Hotplugging virtiofsd-based filesystems works now.
+
+  * virt-admin: Fix segfault when libvirtd dies
+
+    ``virt-admin`` no longer crashes when ``libvirtd`` unexpectedly closes
+    the connection.
+
+
+v10.1.0 (2024-03-01)
+====================
+
+* **Security**
+
+  * ``CVE-2024-1441``: Fix off-by-one error leading to a crash
+
+    In **libvirt-1.0.0** there were couple of interface listing APIs
+    introduced which had an off-by-one error.  That error could lead to a
+    very rare crash if an array was passed to those functions which did
+    not fit all the interfaces.
+
+    In **libvirt-5.10** a check for non-NULL arrays has been adjusted to
+    allow for NULL arrays with size 0 instead of rejecting all NULL
+    arrays.  However that made the above issue significantly worse since
+    that off-by-one error now did not write beyond an array, but
+    dereferenced said NULL pointer making the crash certain in a
+    specific scenario in which a NULL array of size 0 was passed to the
+    aforementioned functions.
+
+* **New features**
+
+  * nodedev: Support updating mdevs
+
+    The node device driver has been extended to allow updating mediated node
+    devices. Options are available to target the update against the persistent,
+    active or both configurations of a mediated device.
+    **Note:** The support is only available with at least mdevctl v1.3.0 installed.
+
+  * qemu: Add support for /dev/userfaultfd
+
+    On hosts with new enough kernel which supports /dev/userfaultfd libvirt will
+    now automatically grant QEMU access to this device. It's no longer needed to
+    set vm.unprivileged_userfaultfd sysctl.
+
+  * qemu: Support clusters in CPU topology
+
+    It is now possible to configure the guest CPU topology to use clusters.
+    Additionally, if CPU clusters are present in the host topology, they will
+    be reported as part of the capabilities XML.
+
+  * network: Make virtual domains resolvable from the host
+
+    When starting a virtual network with a new ``register='yes'`` attribute
+    in the ``<domain>`` element, libvirt will configure ``systemd-resolved``
+    to resolve names of the connected guests using the name server started
+    for this network.
+
+  * qemu: Introduce dynamicMemslots attribute for virtio-mem
+
+    QEMU now allows setting ``.dynamic-memslots`` attribute for virtio-mem-pci
+    devices. When turned on, it allows memory exposed to guest to be split into
+    multiple memory slots and thus smaller memory footprint (see the original
+    commit for detailed explanation).
+
+* **Improvements**
+
+  * nodedev: Add ability to update persistent mediated devices by defining them
+
+    Existing persistent mediated devices can now also be updated by
+    ``virNodeDeviceDefineXML()`` as long as parent and UUID remain unchanged.
+
+  * ch: Enable ``ethernet`` interface mode support
+
+    ``<interface type='ethernet'/>`` can now be used for CH domains.
+
+  * viraccessdriverpolkit: Add missing vtpm case
+
+    Secrets with ``<usage type='vtpm'>`` were left unable to be checked for in
+    the access driver, i.e. in ACL rules. Missing code was provided.
+
+  * virt-admin: Notify users to use explicit URI if connection fails
+
+    ``virt-admin`` doesn't try to guess the URI of the daemon to manage so a
+    failure to connect may be confusing for users if modular daemons are used.
+    Add a hint to use the URI of the dameon to manage.
+
+* **Bug fixes**
+
+  * qemu_process: Skip over non-virtio non-TAP NIC models when refreshing rx-filter
+
+    If ``trustGuestRxFilters`` is enabled for a vNIC that doesn't support it,
+    libvirt may throw an error when such domain is being started, loaded from a
+    saved state, migrated, etc. These errors are now silenced, but make sure to
+    fix such configurations (after previous release it is even possible to
+    change ``trustGuestRxFilters`` value on live domains via
+    ``virDomainUpdateDeviceFlags()`` or ``virsh device-update``).
+
+  * domain: Fix check for overlapping ``<memory/>`` devices
+
+    A bug was identified which caused libvirt to report two NVDIMMs as
+    overlapping even though they weren't. This now fixed.
+
+  * vmx: Accept empty fileName for cdrom-image
+
+    Turns out, ``fileName`` attribute (which contains path to CDROM image) can
+    be set to an empty string (``""``) to denote a state in which the CDROM has
+    no medium in it. Libvirt used to reject such configuration file, but not
+    anymore.
+
+  * qemu_hotplug: Don't lose 'created' flag in qemuDomainChangeNet()
+
+    When starting a domain, libvirt tracks what resources it created for it and
+    which were pre-existing and uses this information to preserve pre-existing
+    resources when cleaning up after said domain is shut off. But for macvtaps
+    this information was lost after the macvtap device was changed (e.g. via
+    ``virsh update-device``).
+
+  * Fix virStream hole handling
+
+    When a client sent multiple holes into a virStream it may have caused
+    daemon hangup as the daemon stopped processing RPC from the client
+    temporarily. This is now fixed.
+
+  * nodedev: Don't generate broken XML with certain hardware
+
+    A broken node device XML would be generated in a rare case when a hardware
+    device had certain characters in the VPD fields.
+
+  * qemu: Fix reservation of manually specified port for disk migration
+
+    A manually specified port would not be relased after disk migration making
+    it impossible to use it again.
+
+
+v10.0.0 (2024-01-15)
+====================
+
+* **New features**
+
+  * qemu: Enable ``postcopy-preempt`` migration capability
+
+    Post-copy migrations are now started with ``postcopy-preempt``
+    capability enabled as long as it is supported by both sides of migration.
+    This should enable faster migration of memory pages that the destination
+    tries to read before they are migrated from the source.
+
+  * qemu: Add support for mapping iothreads to virtqueues of ``virtio-blk`` devices
+
+    QEMU added the possibility to map multiple ``iothreads`` to a single
+    ``virtio-blk`` device and map them even to specific virtqueues. Libvirt
+    adds a ``<iothreads>`` subelement of the ``<disk> <driver>`` element that
+    users can use to configure the mapping.
+
+  * qemu: Allow automatic resize of block-device-backed disk to full size of the device
+
+    The new flag ``VIR_DOMAIN_BLOCK_RESIZE_CAPACITY`` for
+    ``virDomainBlockResize`` allows resizing a block-device backed ``raw`` disk
+    of a VM without the need to specify the full size of the block device.
+
+  * qemu: automatic selection/binding of VFIO variant drivers
+
+    When a device is assigned to a guest using VFIO with ``<hostdev
+    managed='yes'>``, libvirt will now search the running kernel's
+    modules.alias file for the most specific match to that device for
+    a VFIO driver, and bind that driver to the device rather than
+    vfio-pci. A specific driver can also be forced, using the
+    ``<driver model='plugh'/>`` attribute.
+
+  * qemu: add runtime configuration option for nbdkit
+
+    Since the new nbdkit support requires a recent selinux policy that is not
+    widely available yet, it is now possible to build libvirt with nbdkit
+    support for remote disks but disabled at runtime. This behavior is
+    controlled via the storage_use_nbdkit option of the qemu driver
+    configuration file. The option will default to being disabled, but this may
+    change in a future release and can be customized with the
+    nbdkit_config_default build option.
+
+  * qemu: add ID mapping support for virtiofsd
+
+    New ``<idmap>`` element was added for virtiofsd-based ``<filesystem>``
+    devices. It can be used to set up UID and GID mapping between host
+    and guest, making running virtiofsd unprivileged much more useful.
+
+* **Improvements**
+
+  * qemu: Improve migration XML use when persisting VM on destination
+
+    When migrating a VM with a custom migration XML, use it as a base for
+    persisting it on the destination as users could have changed non-ABI
+    breaking facts which would prevent subsequent start if the old XML were used.
+
+  * qemu: Simplify non-shared storage migration to ``raw`` block devices
+
+    The phase of copying storage during migration without shared storage
+    requires that both the source and destination image are identical in size.
+    This may not be possible if the destination is backed by a block device
+    and the source image size is not a multiple of the block device block size.
+
+    Libvirt aleviates this by automatically adding a ``<slice>`` to match the
+    size of the source image rather than failing the migration.
+
+  * test driver: Support for hotplug/hotunplug of PCI devices
+
+    The test driver now supports basic hotplug and hotunplug of PCI devices.
+
+  * qemu: allow virtiofsd to run unprivileged
+
+    Nowadays virtiofsd no longer requires to run with root privileges, so the
+    restriction to always run as root is now removed from libvirt too.
+
+* **Bug fixes**
+
+  * qemu: Various migration bug fixes and debuggability improvement
+
+    This release fixes multiple bugs in virsh and libvirt in handling of
+    migration arguments and XMLs and modifies error reporting for better
+    debugging.
+
+  * conf: Restore setting default bus for input devices
+
+    Because of a regression, starting from 9.3.0 libvirt did not autofill bus
+    for input devices. With this release the regression was identified and
+    fixed.
+
+  * qemu: Relax check for memory device coldplug
+
+    Because of a check that was too aggressive, a virtio-mem memory device
+    could not be cold plugged. This is now fixed.
+
+  * qemu: Be less aggressive when dropping channel source paths
+
+    Another regression is resolved, (introduced in 9.7.0) when libvirt was too
+    aggressive when dropping parsed paths for <channel/> sources
+
+  * qemuDomainChangeNet: Reflect trustGuestRxFilters change
+
+    On device-update, when a user requested change of trustGuestRxFilters for a
+    domain's <interface/> libvirt did nothing. It did not throw an error nor
+    did it reflect the change. Starting with this release, the change is
+    reflected.
+
+
+v9.10.0 (2023-12-01)
+====================
+
+* **New features**
+
+  * Introduce pipewire audio backend
+
+    The QEMU hypervisor driver now allows setting ``pipewire`` backend for
+    ``<audio/>`` device.
+
+* **Improvements**
+
+  * Adapt to qemu's use of protocol drivers in QCOW2 'backing file format' field
+
+    QEMU allows creating images where the 'backing file format' is actually a
+    protocol name such as 'file'/'host_device'/'nbd'/etc.. Adapt libvirt to
+    properly handle such images and don't assume automatic format probing is
+    necessary, which is in many cases forbidden due to security implications.
+
+* **Bug fixes**
+
+  * qemu: Fix setup of images on hotplug of disk
+
+    Internal image metadata was not setup correctly which could cause some disk
+    hotplug configurations (namely those including backing images) to fail.
+
+  * qemu: Fix qemu crash when reverting an internal snapshot
+
+    Libvirt attempted to start qemu with wrong arguments when attempting to
+    revert to an internal snapshot causing qemu to crash.
+
+  * qemu: Fix hotplug of empty cdrom
+
+    Empty cdrom drive couldn't be hotplugged as libvirt wanted to setup the
+    storage backing it unconditionally.
+
+
+v9.9.0 (2023-11-01)
+===================
+
+* **New features**
+
+  * QEMU: implement reverting external snapshots
+
+    Reverting external snapshots is now possible using the existing API
+    ``virDomainSnapshotRevert()``. Management application can check host
+    capabilities for ``<externalSnapshot/>`` element within the list of
+    guest features to see if the current libvirt supports both deleting
+    and reverting external snapshots.
+
+  * virsh: add ``console --resume`` support
+
+    The ``virsh console`` subcommand now accepts a ``--resume`` option. This
+    will resume a paused guest after connecting to the console.
+
+* **Improvements**
+
+  * virsh: Improve ``virsh start --console`` behavior
+
+    The ``virsh start --console`` now tries to connect to the guest console
+    before starting the vCPUs.
+
+  * virsh: Improve ``virsh create --console`` behavior
+
+    The ``virsh create --console`` now tries to connect to the guest console
+    before starting the vCPUs.
+
+
 v9.8.0 (2023-10-02)
 ===================
 
@@ -49,6 +575,7 @@ v9.8.0 (2023-10-02)
 
     Now libvirt validates more values of virtio-mem and virtio-pmem devices,
     e.g. overlapping memory addresses or alignment.
+
 
 v9.7.0 (2023-09-01)
 ===================
@@ -93,10 +620,10 @@ v9.6.0 (2023-08-01)
 
   * ``CVE-2023-3750``: Fix race condition in storage driver leading to a crash
 
-   In **libvirt-8.3** a bug was introduced which in rare cases could cause
-   ``libvirtd`` or ``virtstoraged`` to crash if multiple clients attempted to
-   look up a storage volume by key, path or target path, while other clients
-   attempted to access something from the same storage pool.
+    In **libvirt-8.3** a bug was introduced which in rare cases could cause
+    ``libvirtd`` or ``virtstoraged`` to crash if multiple clients attempted to
+    look up a storage volume by key, path or target path, while other clients
+    attempted to access something from the same storage pool.
 
 * **Improvements**
 
@@ -1900,17 +2427,17 @@ v7.1.0 (2021-03-01)
 
   * qemu: Fix disk quiescing rollback when creating external snapshots
 
-   If the qemu guest agent call to freeze filesystems failed when creating
-   an external snapshot with ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` flag the
-   filesystems would be unconditionally thawed. This could cause problems when
-   the filesystems were frozen by an explicit call to ``virDomainFSFreeze``
-   since the guest agent then rejects any further freeze attempts once are
-   filesystems frozen, an explicit freeze followed by a quiesced snapshot
-   would fail and thaw filesystems.
+    If the qemu guest agent call to freeze filesystems failed when creating
+    an external snapshot with ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` flag the
+    filesystems would be unconditionally thawed. This could cause problems when
+    the filesystems were frozen by an explicit call to ``virDomainFSFreeze``
+    since the guest agent then rejects any further freeze attempts once are
+    filesystems frozen, an explicit freeze followed by a quiesced snapshot
+    would fail and thaw filesystems.
 
-   Users are also encouraged to use ``virDomainFSFreeze/Thaw`` manually instead
-   of relying on ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` if they need finer
-   grained control.
+    Users are also encouraged to use ``virDomainFSFreeze/Thaw`` manually instead
+    of relying on ``VIR_DOMAIN_SNAPSHOT_CREATE_QUIESCE`` if they need finer
+    grained control.
 
   * cgroups: Fix how we setup and configure cgroups on hosts with systemd
 
@@ -2072,11 +2599,12 @@ v6.10.0 (2020-12-01)
   * qemu: Enable client TLS certificate validation by default for ``chardev``,
     ``migration``, and ``backup`` servers.
 
-  The default value if qemu.conf options ``chardev_tls_x509_verify``,
-  ``migrate_tls_x509_verify``, or  ``backup_tls_x509_verify`` are not specified
-  explicitly in the config file and also the ``default_tls_x509_verify`` config
-  option is missing are now '1'. This ensures that only legitimate clients
-  access servers, which don't have any additional form of authentication.
+    The default value if qemu.conf options ``chardev_tls_x509_verify``,
+    ``migrate_tls_x509_verify``, or  ``backup_tls_x509_verify`` are not
+    specified explicitly in the config file and also the
+    ``default_tls_x509_verify`` config option is missing are now '1'. This
+    ensures that only legitimate clients access servers, which don't have any
+    additional form of authentication.
 
   * qemu: Introduce "migrate_tls_force" qemu.conf option
 
@@ -2468,7 +2996,6 @@ v6.6.0 (2020-08-02)
     management applications may wish to override this behaviour. This is now
     possible via new ``cow`` element.
 
-
 * **Improvements**
 
   * esx: Change the NIC limit for recent virtualHW versions
@@ -2492,7 +3019,6 @@ v6.6.0 (2020-08-02)
     in the case of domains with static vcpu placement, all available CPUs
     instead of all possible CPUs are returned making these APIs consistent with
     the behavior of ``vcpuinfo``.
-
 
 * **Bug fixes**
 

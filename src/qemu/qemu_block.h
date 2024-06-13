@@ -26,6 +26,30 @@
 #include "virjson.h"
 #include "viruri.h"
 
+void
+qemuBlockStorageSourceSetStorageNodename(virStorageSource *src,
+                                         char *nodename);
+
+void
+qemuBlockStorageSourceSetFormatNodename(virStorageSource *src,
+                                        char *nodename);
+
+const char *
+qemuBlockStorageSourceGetEffectiveStorageNodename(virStorageSource *src);
+
+const char *
+qemuBlockStorageSourceGetStorageNodename(virStorageSource *src);
+
+const char *
+qemuBlockStorageSourceGetSliceNodename(virStorageSource *src);
+
+const char *
+qemuBlockStorageSourceGetFormatNodename(virStorageSource *src);
+
+const char *
+qemuBlockStorageSourceGetEffectiveNodename(virStorageSource *src);
+
+
 typedef struct qemuBlockNodeNameBackingChainData qemuBlockNodeNameBackingChainData;
 struct qemuBlockNodeNameBackingChainData {
     char *qemufilename; /* name of the image from qemu */
@@ -45,8 +69,7 @@ qemuBlockStorageSourceSupportsConcurrentAccess(virStorageSource *src);
 typedef enum {
     QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_LEGACY = 1 << 0,
     QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_TARGET_ONLY = 1 << 1,
-    QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_AUTO_READONLY = 1 << 2,
-    QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_SKIP_UNMAP = 1 << 3,
+    QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_EFFECTIVE_NODE = 1 << 2,
 } qemuBlockStorageSourceBackendPropsFlags;
 
 virJSONValue *
@@ -57,8 +80,8 @@ virURI *
 qemuBlockStorageSourceGetURI(virStorageSource *src);
 
 virJSONValue *
-qemuBlockStorageSourceGetBlockdevProps(virStorageSource *src,
-                                       virStorageSource *backingStore);
+qemuBlockStorageSourceGetFormatProps(virStorageSource *src,
+                                     virStorageSource *backingStore);
 
 virJSONValue *
 qemuBlockStorageGetCopyOnReadProps(virDomainDiskDef *disk);
@@ -113,8 +136,7 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(qemuBlockStorageSourceAttachData,
 
 qemuBlockStorageSourceAttachData *
 qemuBlockStorageSourceAttachPrepareBlockdev(virStorageSource *src,
-                                            virStorageSource *backingStore,
-                                            bool autoreadonly);
+                                            virStorageSource *backingStore);
 
 qemuBlockStorageSourceAttachData *
 qemuBlockStorageSourceDetachPrepare(virStorageSource *src);
@@ -126,11 +148,6 @@ qemuBlockStorageSourceAttachApply(qemuMonitor *mon,
 void
 qemuBlockStorageSourceAttachRollback(qemuMonitor *mon,
                                      qemuBlockStorageSourceAttachData *data);
-
-int
-qemuBlockStorageSourceDetachOneBlockdev(virDomainObj *vm,
-                                        virDomainAsyncJob asyncJob,
-                                        virStorageSource *src);
 
 struct _qemuBlockStorageSourceChainData {
     qemuBlockStorageSourceAttachData **srcdata;
@@ -241,11 +258,6 @@ qemuBlockBitmapsHandleCommitFinish(virStorageSource *topsrc,
                                    GHashTable *blockNamedNodeData,
                                    virJSONValue **actions);
 
-/* only for use in qemumonitorjsontest */
-int
-qemuBlockReopenFormatMon(qemuMonitor *mon,
-                         virStorageSource *src);
-
 int
 qemuBlockReopenReadWrite(virDomainObj *vm,
                          virStorageSource *src,
@@ -255,8 +267,21 @@ qemuBlockReopenReadOnly(virDomainObj *vm,
                         virStorageSource *src,
                         virDomainAsyncJob asyncJob);
 
+int
+qemuBlockReopenSliceExpand(virDomainObj *vm,
+                           virStorageSource *src);
+
+bool
+qemuBlockStorageSourceIsLUKS(const virStorageSource *src);
+bool
+qemuBlockStorageSourceIsRaw(const virStorageSource *src);
+
 bool
 qemuBlockStorageSourceNeedsStorageSliceLayer(const virStorageSource *src);
+
+bool
+qemuBlockStorageSourceNeedsFormatLayer(const virStorageSource *src,
+                                       virQEMUCaps *qemuCaps);
 
 char *
 qemuBlockStorageSourceGetCookieString(virStorageSource *src);

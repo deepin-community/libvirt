@@ -19,7 +19,9 @@
  */
 
 #include <config.h>
+#include <fcntl.h>
 
+#include "ch_capabilities.h"
 #include "ch_conf.h"
 #include "ch_domain.h"
 #include "ch_driver.h"
@@ -33,6 +35,7 @@
 #include "virerror.h"
 #include "virlog.h"
 #include "virobject.h"
+#include "virfile.h"
 #include "virtypedparam.h"
 #include "virutil.h"
 #include "viruuid.h"
@@ -175,6 +178,14 @@ static char *chConnectGetCapabilities(virConnectPtr conn)
     return xml;
 }
 
+static char *
+chDomainManagedSavePath(virCHDriver *driver, virDomainObj *vm)
+{
+    g_autoptr(virCHDriverConfig) cfg = virCHDriverGetConfig(driver);
+    return g_strdup_printf("%s/%s.save", cfg->saveDir, vm->def->name);
+}
+
+
 /**
  * chDomainCreateXML:
  * @conn: pointer to connection
@@ -195,6 +206,7 @@ chDomainCreateXML(virConnectPtr conn,
     virDomainObj *vm = NULL;
     virDomainPtr dom = NULL;
     unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
+    g_autofree char *managed_save_path = NULL;
 
     virCheckFlags(VIR_DOMAIN_START_VALIDATE, NULL);
 
@@ -216,6 +228,15 @@ chDomainCreateXML(virConnectPtr conn,
                                        VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
                                    NULL)))
         goto cleanup;
+
+    /* cleanup if there's any stale managedsave dir */
+    managed_save_path = chDomainManagedSavePath(driver, vm);
+    if (virFileDeleteTree(managed_save_path) < 0) {
+        virReportSystemError(errno,
+                             _("Failed to cleanup stale managed save dir '%1$s'"),
+                             managed_save_path);
+        goto cleanup;
+    }
 
     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
@@ -241,6 +262,8 @@ chDomainCreateWithFlags(virDomainPtr dom, unsigned int flags)
 {
     virCHDriver *driver = dom->conn->privateData;
     virDomainObj *vm;
+    virCHDomainObjPrivate *priv;
+    g_autofree char *managed_save_path = NULL;
     int ret = -1;
 
     virCheckFlags(0, -1);
@@ -254,8 +277,34 @@ chDomainCreateWithFlags(virDomainPtr dom, unsigned int flags)
     if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
         goto cleanup;
 
-    ret = virCHProcessStart(driver, vm, VIR_DOMAIN_RUNNING_BOOTED);
+    if (vm->hasManagedSave) {
+        priv = vm->privateData;
+        managed_save_path = chDomainManagedSavePath(driver, vm);
+        if (virCHProcessStartRestore(driver, vm, managed_save_path) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("failed to restore domain from managed save"));
+            goto endjob;
+        }
+        if (virCHMonitorResumeVM(priv->monitor) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("failed to resume domain after restore from managed save"));
+            goto endjob;
+        }
+        virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, VIR_DOMAIN_RUNNING_RESTORED);
+        /* cleanup the save dir after restore */
+        if (virFileDeleteTree(managed_save_path) < 0) {
+            virReportSystemError(errno,
+                                 _("Failed to remove managed save path '%1$s'"),
+                                 managed_save_path);
+            goto endjob;
+        }
+        vm->hasManagedSave = false;
+        ret = 0;
+    } else {
+        ret = virCHProcessStart(driver, vm, VIR_DOMAIN_RUNNING_BOOTED);
+    }
 
+ endjob:
     virDomainObjEndJob(vm);
 
  cleanup:
@@ -276,6 +325,7 @@ chDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
     g_autoptr(virDomainDef) vmdef = NULL;
     virDomainObj *vm = NULL;
     virDomainPtr dom = NULL;
+    g_autofree char *managed_save_path = NULL;
     unsigned int parse_flags = VIR_DOMAIN_DEF_PARSE_INACTIVE;
 
     virCheckFlags(VIR_DOMAIN_DEFINE_VALIDATE, NULL);
@@ -297,6 +347,15 @@ chDomainDefineXMLFlags(virConnectPtr conn, const char *xml, unsigned int flags)
                                    driver->xmlopt,
                                    0, NULL)))
         goto cleanup;
+
+    /* cleanup if there's any stale managedsave dir */
+    managed_save_path = chDomainManagedSavePath(driver, vm);
+    if (virFileDeleteTree(managed_save_path) < 0) {
+        virReportSystemError(errno,
+                             _("Failed to cleanup stale managed save dir '%1$s'"),
+                             managed_save_path);
+        goto cleanup;
+    }
 
     vm->persistent = 1;
 
@@ -620,6 +679,452 @@ chDomainDestroy(virDomainPtr dom)
     return chDomainDestroyFlags(dom, 0);
 }
 
+static int
+chDomainSaveAdditionalValidation(virDomainDef *vmdef)
+{
+    /*
+    SAVE and RESTORE are functional only without any networking and
+    device passthrough configuration
+    */
+    if (vmdef->nnets > 0) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("cannot save domain with network interfaces"));
+        return -1;
+    }
+    if  (vmdef->nhostdevs > 0) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("cannot save domain with host devices"));
+        return -1;
+    }
+    return 0;
+}
+
+/**
+ * chDoDomainSave:
+ * @driver: pointer to driver structure
+ * @vm: pointer to virtual machine structure. Must be locked before invocation.
+ * @to_dir: directory path (CH needs directory input) to save the domain
+ * @managed: whether the VM is managed or not
+ *
+ * Checks if the domain is running or paused, then suspends it and saves it
+ * using CH's vmm.snapshot API. CH creates multiple files for config, memory,
+ * device state into @to_dir.
+ *
+ * Returns 0 on success or -1 in case of error
+ */
+static int
+chDoDomainSave(virCHDriver *driver,
+               virDomainObj *vm,
+               const char *to_dir,
+               bool managed)
+{
+    g_autoptr(virCHDriverConfig) cfg = virCHDriverGetConfig(driver);
+    virCHDomainObjPrivate *priv = vm->privateData;
+    CHSaveXMLHeader hdr;
+    virDomainState domainState;
+    g_autofree char *to = NULL;
+    g_autofree char *xml = NULL;
+    uint32_t xml_len;
+    VIR_AUTOCLOSE fd = -1;
+    int ret = -1;
+
+    if (chDomainSaveAdditionalValidation(vm->def) < 0)
+        goto end;
+
+    domainState = virDomainObjGetState(vm, NULL);
+    if (domainState == VIR_DOMAIN_RUNNING) {
+        if (virCHMonitorSuspendVM(priv->monitor) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("failed to suspend domain before saving"));
+            goto end;
+        }
+        virDomainObjSetState(vm, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PAUSED_SAVE);
+    } else if (domainState != VIR_DOMAIN_PAUSED) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("only can save running/paused domain"));
+        goto end;
+    }
+
+    if (virDirCreate(to_dir, 0770, cfg->user, cfg->group,
+                     VIR_DIR_CREATE_ALLOW_EXIST) < 0) {
+        virReportSystemError(errno, _("Failed to create SAVE dir %1$s"), to_dir);
+        goto end;
+    }
+
+    to = g_strdup_printf("%s/%s", to_dir, CH_SAVE_XML);
+    if ((fd = virFileOpenAs(to, O_CREAT|O_TRUNC|O_WRONLY, S_IRUSR|S_IWUSR,
+                            cfg->user, cfg->group, 0)) < 0) {
+        virReportSystemError(-fd,
+                             _("Failed to create/open domain save xml file '%1$s'"),
+                             to);
+        goto end;
+    }
+
+    if ((xml = virDomainDefFormat(vm->def, driver->xmlopt, 0)) == NULL)
+        goto end;
+    xml_len = strlen(xml) + 1;
+
+    memset(&hdr, 0, sizeof(hdr));
+    memcpy(hdr.magic, CH_SAVE_MAGIC, sizeof(hdr.magic));
+    hdr.xmlLen = xml_len;
+
+    if (safewrite(fd, &hdr, sizeof(hdr)) != sizeof(hdr)) {
+        virReportSystemError(errno, "%s", _("Failed to write file header"));
+        goto end;
+    }
+
+    if (safewrite(fd, xml, xml_len) != xml_len) {
+        virReportSystemError(errno, "%s", _("Failed to write xml definition"));
+        goto end;
+    }
+
+    if (virCHMonitorSaveVM(priv->monitor, to_dir) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s", _("Failed to save domain"));
+        goto end;
+    }
+
+    if (virCHProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_SAVED) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Failed to shutoff after domain save"));
+        goto end;
+    }
+
+    vm->hasManagedSave = managed;
+    ret = 0;
+
+ end:
+    return ret;
+}
+
+static int
+chDomainSaveFlags(virDomainPtr dom, const char *to, const char *dxml, unsigned int flags)
+{
+    virCHDriver *driver = dom->conn->privateData;
+    virDomainObj *vm = NULL;
+    int ret = -1;
+
+    virCheckFlags(0, -1);
+    if (dxml) {
+        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                       _("xml modification unsupported"));
+        return -1;
+    }
+
+    if (!(vm = virCHDomainObjFromDomain(dom)))
+        goto cleanup;
+
+    if (virDomainSaveFlagsEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (chDoDomainSave(driver, vm, to, false) < 0)
+        goto endjob;
+
+    /* Remove if VM is not persistent */
+    virCHDomainRemoveInactive(driver, vm);
+    ret = 0;
+
+ endjob:
+    virDomainObjEndJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+chDomainSave(virDomainPtr dom, const char *to)
+{
+    return chDomainSaveFlags(dom, to, NULL, 0);
+}
+
+static char *
+chDomainSaveXMLRead(int fd)
+{
+    g_autofree char *xml = NULL;
+    CHSaveXMLHeader hdr;
+
+    if (saferead(fd, &hdr, sizeof(hdr)) != sizeof(hdr)) {
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       _("failed to read CHSaveXMLHeader header"));
+        return NULL;
+    }
+
+    if (memcmp(hdr.magic, CH_SAVE_MAGIC, sizeof(hdr.magic))) {
+        virReportError(VIR_ERR_INVALID_ARG, "%s",
+                       _("save image magic is incorrect"));
+        return NULL;
+    }
+
+    if (hdr.xmlLen <= 0) {
+        virReportError(VIR_ERR_OPERATION_FAILED,
+                       _("invalid XML length: %1$d"), hdr.xmlLen);
+        return NULL;
+    }
+
+    xml = g_new0(char, hdr.xmlLen);
+
+    if (saferead(fd, xml, hdr.xmlLen) != hdr.xmlLen) {
+        virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                       _("failed to read XML"));
+        return NULL;
+    }
+
+    return g_steal_pointer(&xml);
+}
+
+static int chDomainSaveImageRead(virCHDriver *driver,
+                                 const char *path,
+                                 virDomainDef **ret_def)
+{
+    g_autoptr(virCHDriverConfig) cfg = virCHDriverGetConfig(driver);
+    g_autoptr(virDomainDef) def = NULL;
+    g_autofree char *from = NULL;
+    g_autofree char *xml = NULL;
+    VIR_AUTOCLOSE fd = -1;
+    int ret = -1;
+
+    from = g_strdup_printf("%s/%s", path, CH_SAVE_XML);
+    if ((fd = virFileOpenAs(from, O_RDONLY, 0, cfg->user, cfg->group, 0)) < 0) {
+        virReportSystemError(errno,
+                             _("Failed to open domain save file '%1$s'"),
+                             from);
+        goto end;
+    }
+
+    if (!(xml = chDomainSaveXMLRead(fd)))
+        goto end;
+
+    if (!(def = virDomainDefParseString(xml, driver->xmlopt, NULL,
+                                        VIR_DOMAIN_DEF_PARSE_INACTIVE |
+                                        VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE)))
+        goto end;
+
+    *ret_def = g_steal_pointer(&def);
+    ret = 0;
+
+ end:
+    return ret;
+}
+
+static char *
+chDomainSaveImageGetXMLDesc(virConnectPtr conn,
+                            const char *path,
+                            unsigned int flags)
+{
+    virCHDriver *driver = conn->privateData;
+    g_autoptr(virDomainDef) def = NULL;
+    char *ret = NULL;
+
+    virCheckFlags(VIR_DOMAIN_SAVE_IMAGE_XML_SECURE, NULL);
+
+    if (chDomainSaveImageRead(driver, path, &def) < 0)
+        goto cleanup;
+
+    if (virDomainSaveImageGetXMLDescEnsureACL(conn, def) < 0)
+        goto cleanup;
+
+    ret = virDomainDefFormat(def, driver->xmlopt,
+                             virDomainDefFormatConvertXMLFlags(flags));
+
+ cleanup:
+    return ret;
+}
+
+static int
+chDomainManagedSave(virDomainPtr dom, unsigned int flags)
+{
+    virCHDriver *driver = dom->conn->privateData;
+    virDomainObj *vm = NULL;
+    g_autofree char *to = NULL;
+    int ret = -1;
+
+    virCheckFlags(0, -1);
+
+    if (!(vm = virCHDomainObjFromDomain(dom)))
+        goto cleanup;
+
+    if (virDomainManagedSaveEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virDomainObjCheckActive(vm) < 0)
+        goto endjob;
+
+    if (!vm->persistent) {
+        virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                       _("cannot do managed save for transient domain"));
+        goto endjob;
+    }
+
+    to = chDomainManagedSavePath(driver, vm);
+    if (chDoDomainSave(driver, vm, to, true) < 0)
+        goto endjob;
+
+    ret = 0;
+
+ endjob:
+    virDomainObjEndJob(vm);
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+chDomainManagedSaveRemove(virDomainPtr dom, unsigned int flags)
+{
+    virCHDriver *driver = dom->conn->privateData;
+    virDomainObj *vm;
+    int ret = -1;
+    g_autofree char *path = NULL;
+
+    virCheckFlags(0, -1);
+
+    if (!(vm = virCHDomainObjFromDomain(dom)))
+        return -1;
+
+    if (virDomainManagedSaveRemoveEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    path = chDomainManagedSavePath(driver, vm);
+
+    if (virFileDeleteTree(path) < 0) {
+        virReportSystemError(errno,
+                             _("Failed to remove managed save path '%1$s'"),
+                             path);
+        goto cleanup;
+    }
+
+    vm->hasManagedSave = false;
+    ret = 0;
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static char *
+chDomainManagedSaveGetXMLDesc(virDomainPtr dom, unsigned int flags)
+{
+    virCHDriver *driver = dom->conn->privateData;
+    virDomainObj *vm = NULL;
+    g_autoptr(virDomainDef) def = NULL;
+    char *ret = NULL;
+    g_autofree char *path = NULL;
+
+    virCheckFlags(VIR_DOMAIN_SAVE_IMAGE_XML_SECURE, NULL);
+
+    if (!(vm = virCHDomainObjFromDomain(dom)))
+        goto cleanup;
+
+    path = chDomainManagedSavePath(driver, vm);
+    if (chDomainSaveImageRead(driver, path, &def) < 0)
+        goto cleanup;
+
+    if (virDomainManagedSaveGetXMLDescEnsureACL(dom->conn, def, flags) < 0)
+        goto cleanup;
+
+    ret = virDomainDefFormat(def, driver->xmlopt,
+                             virDomainDefFormatConvertXMLFlags(flags));
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+chDomainHasManagedSaveImage(virDomainPtr dom, unsigned int flags)
+{
+    virDomainObj *vm = NULL;
+    int ret = -1;
+
+    virCheckFlags(0, -1);
+
+    if (!(vm = virCHDomainObjFromDomain(dom)))
+        return -1;
+
+    if (virDomainHasManagedSaveImageEnsureACL(dom->conn, vm->def) < 0)
+        goto cleanup;
+
+    ret = vm->hasManagedSave;
+
+ cleanup:
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+chDomainRestoreFlags(virConnectPtr conn,
+                     const char *from,
+                     const char *dxml,
+                     unsigned int flags)
+{
+    virCHDriver *driver = conn->privateData;
+    virDomainObj *vm = NULL;
+    virCHDomainObjPrivate *priv;
+    g_autoptr(virDomainDef) def = NULL;
+    int ret = -1;
+
+    virCheckFlags(0, -1);
+
+    if (dxml) {
+        virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED, "%s",
+                       _("xml modification unsupported"));
+        return -1;
+    }
+
+    if (chDomainSaveImageRead(driver, from, &def) < 0)
+        goto cleanup;
+
+    if (virDomainRestoreFlagsEnsureACL(conn, def) < 0)
+        goto cleanup;
+
+    if (!(vm = virDomainObjListAdd(driver->domains, &def,
+                                   driver->xmlopt,
+                                   VIR_DOMAIN_OBJ_LIST_ADD_LIVE |
+                                   VIR_DOMAIN_OBJ_LIST_ADD_CHECK_LIVE,
+                                   NULL)))
+        goto cleanup;
+
+    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
+        goto cleanup;
+
+    if (virCHProcessStartRestore(driver, vm, from) < 0)
+        goto endjob;
+
+    priv = vm->privateData;
+    if (virCHMonitorResumeVM(priv->monitor) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("failed to resume domain after restore"));
+        goto endjob;
+    }
+    virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, VIR_DOMAIN_RUNNING_RESTORED);
+    ret = 0;
+
+ endjob:
+    virDomainObjEndJob(vm);
+
+ cleanup:
+    if (vm && ret < 0)
+        virCHDomainRemoveInactive(driver, vm);
+    virDomainObjEndAPI(&vm);
+    return ret;
+}
+
+static int
+chDomainRestore(virConnectPtr conn, const char *from)
+{
+    return chDomainRestoreFlags(conn, from, NULL, 0);
+}
+
 static virDomainPtr chDomainLookupByID(virConnectPtr conn,
                                        int id)
 {
@@ -849,21 +1354,23 @@ static int chStateCleanup(void)
     if (ch_driver == NULL)
         return -1;
 
-    virObjectUnref(ch_driver->domains);
+    virBitmapFree(ch_driver->chCaps);
+    virObjectUnref(ch_driver->config);
     virObjectUnref(ch_driver->xmlopt);
     virObjectUnref(ch_driver->caps);
-    virObjectUnref(ch_driver->config);
+    virObjectUnref(ch_driver->domains);
     virMutexDestroy(&ch_driver->lock);
     g_clear_pointer(&ch_driver, g_free);
 
     return 0;
 }
 
-static int chStateInitialize(bool privileged,
-                             const char *root,
-                             bool monolithic G_GNUC_UNUSED,
-                             virStateInhibitCallback callback G_GNUC_UNUSED,
-                             void *opaque G_GNUC_UNUSED)
+static virDrvStateInitResult
+chStateInitialize(bool privileged,
+                  const char *root,
+                  bool monolithic G_GNUC_UNUSED,
+                  virStateInhibitCallback callback G_GNUC_UNUSED,
+                  void *opaque G_GNUC_UNUSED)
 {
     int ret = VIR_DRV_STATE_INIT_ERROR;
     int rv;
@@ -887,6 +1394,14 @@ static int chStateInitialize(bool privileged,
     if (!(ch_driver->caps = virCHDriverCapsInit()))
         goto cleanup;
 
+    if (!virCapabilitiesDomainSupported(ch_driver->caps, -1,
+                                        VIR_ARCH_NONE, VIR_DOMAIN_VIRT_KVM, false) &&
+        !virCapabilitiesDomainSupported(ch_driver->caps, -1,
+                                        VIR_ARCH_NONE, VIR_DOMAIN_VIRT_HYPERV, false)) {
+        VIR_INFO("/dev/kvm and /dev/mshv are missing. CH driver failed to initialize.");
+        return VIR_DRV_STATE_INIT_SKIPPED;
+    }
+
     if (!(ch_driver->xmlopt = chDomainXMLConfInit(ch_driver)))
         goto cleanup;
 
@@ -898,6 +1413,8 @@ static int chStateInitialize(bool privileged,
             ret = VIR_DRV_STATE_INIT_SKIPPED;
         goto cleanup;
     }
+
+    ch_driver->chCaps = virCHCapsInitCHVersionCaps(ch_driver->version);
 
     ch_driver->privileged = privileged;
     ret = VIR_DRV_STATE_INIT_COMPLETE;
@@ -1730,6 +2247,15 @@ static virHypervisorDriver chHypervisorDriver = {
     .nodeGetCPUMap = chNodeGetCPUMap,                       /* 8.0.0 */
     .domainSetNumaParameters = chDomainSetNumaParameters,   /* 8.1.0 */
     .domainGetNumaParameters = chDomainGetNumaParameters,   /* 8.1.0 */
+    .domainSave = chDomainSave,                             /* 10.2.0 */
+    .domainSaveFlags = chDomainSaveFlags,                   /* 10.2.0 */
+    .domainSaveImageGetXMLDesc = chDomainSaveImageGetXMLDesc,   /* 10.2.0 */
+    .domainManagedSave = chDomainManagedSave,               /* 10.2.0 */
+    .domainManagedSaveRemove = chDomainManagedSaveRemove,   /* 10.2.0 */
+    .domainManagedSaveGetXMLDesc = chDomainManagedSaveGetXMLDesc,   /* 10.2.0 */
+    .domainHasManagedSaveImage = chDomainHasManagedSaveImage,   /* 10.2.0 */
+    .domainRestore = chDomainRestore,                       /* 10.2.0 */
+    .domainRestoreFlags = chDomainRestoreFlags,             /* 10.2.0 */
 };
 
 static virConnectDriver chConnectDriver = {

@@ -56,7 +56,6 @@ vshControl *autoCompleteOpaque;
  * and only relies on static data accessible from the user-side callback
  */
 const vshCmdGrp *cmdGroups;
-const vshCmdDef *cmdSet;
 
 
 double
@@ -240,340 +239,15 @@ vshReportError(vshControl *ctl)
  */
 static int disconnected; /* we may have been disconnected */
 
-/* ---------------
- * Utils for work with command definition
- * ---------------
+
+/* vshCmddefSearch:
+ * @cmdname: name of command to find
+ *
+ * Looks for @cmdname in the global list of command definitions @cmdGroups and
+ * returns pointer to the definition struct if the command exists.
  */
-const char *
-vshCmddefGetInfo(const vshCmdDef * cmd, const char *name)
-{
-    const vshCmdInfo *info;
-
-    for (info = cmd->info; info && info->name; info++) {
-        if (STREQ(info->name, name))
-            return info->data;
-    }
-    return NULL;
-}
-
-/* Check if the internal command definitions are correct */
-static int
-vshCmddefCheckInternals(vshControl *ctl,
-                        const vshCmdDef *cmd,
-                        bool missingCompleters)
-{
-    size_t i;
-    const char *help = NULL;
-    bool seenOptionalOption = false;
-    g_auto(virBuffer) complbuf = VIR_BUFFER_INITIALIZER;
-
-    /* in order to perform the validation resolve the alias first */
-    if (cmd->flags & VSH_CMD_FLAG_ALIAS) {
-        const vshCmdDef *alias;
-
-        if (!cmd->alias) {
-            vshError(ctl, _("command '%1$s' has inconsistent alias"), cmd->name);
-            return -1;
-        }
-
-        if (!(alias = vshCmddefSearch(cmd->alias))) {
-            vshError(ctl, _("command alias '%1$s' is pointing to a non-existent command '%2$s'"),
-                     cmd->name, cmd->alias);
-            return -1;
-        }
-
-        if (alias->flags & VSH_CMD_FLAG_ALIAS) {
-            vshError(ctl, _("command alias '%1$s' is pointing to another command alias '%2$s'"),
-                     cmd->name, cmd->alias);
-            return -1;
-        }
-
-        if (cmd->handler) {
-            vshError(ctl, _("command '%1$s' has handler set"), cmd->name);
-            return -1;
-        }
-
-        if (cmd->opts) {
-            vshError(ctl, _("command '%1$s' has options set"), cmd->name);
-            return -1;
-        }
-
-        if (cmd->info) {
-            vshError(ctl, _("command '%1$s' has info set"), cmd->name);
-            return -1;
-        }
-
-        if (cmd->flags & ~VSH_CMD_FLAG_ALIAS) {
-            vshError(ctl, _("command '%1$s' has multiple flags set"), cmd->name);
-            return -1;
-        }
-
-        /* we don't need to continue as the real command will be checked separately */
-        return 0;
-    }
-
-    /* Each command has to provide a non-empty help string. */
-    if (!(help = vshCmddefGetInfo(cmd, "help")) || !*help) {
-        vshError(ctl, _("command '%1$s' lacks help"), cmd->name);
-        return -1;
-    }
-
-    if (!cmd->opts)
-        return 0;
-
-    for (i = 0; cmd->opts[i].name; i++) {
-        const vshCmdOptDef *opt = &cmd->opts[i];
-
-        if (i > 63) {
-            vshError(ctl, _("command '%1$s' has too many options"), cmd->name);
-            return -1; /* too many options */
-        }
-
-        if (missingCompleters &&
-            (opt->type == VSH_OT_STRING || opt->type == VSH_OT_DATA) &&
-            !opt->completer)
-            virBufferStrcat(&complbuf, opt->name, ", ", NULL);
-
-        switch (opt->type) {
-        case VSH_OT_BOOL:
-            if (opt->completer || opt->completer_flags) {
-                vshError(ctl, _("bool parameter '%1$s' of command '%2$s' has completer set"),
-                         opt->name, cmd->name);
-                return -1;
-            }
-
-            G_GNUC_FALLTHROUGH;
-
-        case VSH_OT_STRING:
-            if (opt->flags & VSH_OFLAG_REQ) {
-                vshError(ctl, _("parameter '%1$s' of command '%2$s' misused VSH_OFLAG_REQ"),
-                         opt->name, cmd->name);
-                return -1; /* neither bool nor string options can be mandatory */
-            }
-
-            seenOptionalOption = true;
-            break;
-
-        case VSH_OT_ALIAS: {
-            size_t j;
-            g_autofree char *name = NULL;
-            char *p;
-
-            if (opt->flags || !opt->help) {
-                vshError(ctl, _("parameter '%1$s' of command '%2$s' has incorrect alias option"),
-                         opt->name, cmd->name);
-                return -1; /* alias options are tracked by the original name */
-            }
-            if ((p = strchr(opt->help, '=')))
-                name = g_strndup(opt->help, p - opt->help);
-            else
-                name = g_strdup(opt->help);
-            for (j = i + 1; cmd->opts[j].name; j++) {
-                if (STREQ(name, cmd->opts[j].name) &&
-                    cmd->opts[j].type != VSH_OT_ALIAS)
-                    break;
-            }
-            if (p) {
-                /* If alias comes with value, replacement must not be bool */
-                if (cmd->opts[j].type == VSH_OT_BOOL) {
-                    vshError(ctl, _("alias '%1$s' of command '%2$s' has mismatched alias type"),
-                             opt->name, cmd->name);
-                    return -1;
-                }
-            }
-            if (!cmd->opts[j].name) {
-                vshError(ctl, _("alias '%1$s' of command '%2$s' has missing alias option"),
-                         opt->name, cmd->name);
-                return -1; /* alias option must map to a later option name */
-            }
-        }
-            break;
-        case VSH_OT_ARGV:
-            if (cmd->opts[i + 1].name) {
-                vshError(ctl, _("parameter '%1$s' of command '%2$s' must be listed last"),
-                         opt->name, cmd->name);
-                return -1; /* argv option must be listed last */
-            }
-            break;
-
-        case VSH_OT_DATA:
-            if (!(opt->flags & VSH_OFLAG_REQ)) {
-                vshError(ctl, _("parameter '%1$s' of command '%2$s' must use VSH_OFLAG_REQ flag"),
-                         opt->name, cmd->name);
-                return -1; /* OT_DATA should always be required. */
-            }
-
-            if (seenOptionalOption) {
-                vshError(ctl, _("parameter '%1$s' of command '%2$s' must be listed before optional parameters"),
-                         opt->name, cmd->name);
-                return -1;  /* mandatory options must be listed first */
-            }
-            break;
-
-        case VSH_OT_INT:
-            if (opt->flags & VSH_OFLAG_REQ) {
-                if (seenOptionalOption) {
-                    vshError(ctl, _("parameter '%1$s' of command '%2$s' must be listed before optional parameters"),
-                             opt->name, cmd->name);
-                    return -1;  /* mandatory options must be listed first */
-                }
-            } else {
-                seenOptionalOption = true;
-            }
-
-            break;
-        }
-    }
-
-    virBufferTrim(&complbuf, ", ");
-
-    if (missingCompleters && virBufferUse(&complbuf) > 0)
-        vshPrintExtra(ctl, "%s: %s\n", cmd->name, virBufferCurrentContent(&complbuf));
-
-    return 0;
-}
-
-/* Parse the options associated with @cmd, i.e. test whether options are
- * required or need an argument and fill the appropriate caller-provided bitmaps
- */
-static void
-vshCmddefOptParse(const vshCmdDef *cmd,
-                  uint64_t *opts_need_arg,
-                  uint64_t *opts_required)
-{
-    size_t i;
-
-    *opts_need_arg = 0;
-    *opts_required = 0;
-
-    if (!cmd->opts)
-        return;
-
-    for (i = 0; cmd->opts[i].name; i++) {
-        const vshCmdOptDef *opt = &cmd->opts[i];
-
-        if (opt->type == VSH_OT_BOOL)
-            continue;
-
-        if (opt->type == VSH_OT_ALIAS)
-            continue; /* skip the alias option */
-
-        if (!(opt->flags & VSH_OFLAG_REQ_OPT))
-            *opts_need_arg |= 1ULL << i;
-
-        if (opt->flags & VSH_OFLAG_REQ)
-            *opts_required |= 1ULL << i;
-    }
-}
-
-static vshCmdOptDef helpopt = {
-    .name = "help",
-    .type = VSH_OT_BOOL,
-    .help = N_("print help for this function")
-};
-static const vshCmdOptDef *
-vshCmddefGetOption(vshControl *ctl, const vshCmdDef *cmd, const char *name,
-                   uint64_t *opts_seen, size_t *opt_index, char **optstr,
-                   bool report)
-{
-    size_t i;
-    g_autofree char *alias = NULL;
-
-    if (STREQ(name, helpopt.name))
-        return &helpopt;
-
-    for (i = 0; cmd->opts && cmd->opts[i].name; i++) {
-        const vshCmdOptDef *opt = &cmd->opts[i];
-
-        if (STREQ(opt->name, name)) {
-            if (opt->type == VSH_OT_ALIAS) {
-                char *value;
-
-                /* Two types of replacements:
-                   opt->help = "string": straight replacement of name
-                   opt->help = "string=value": treat boolean flag as
-                   alias of option and its default value */
-                alias = g_strdup(opt->help);
-                name = alias;
-                if ((value = strchr(name, '='))) {
-                    *value = '\0';
-                    if (*optstr) {
-                        if (report)
-                            vshError(ctl, _("invalid '=' after option --%1$s"),
-                                     opt->name);
-                        return NULL;
-                    }
-                    *optstr = g_strdup(value + 1);
-                }
-                continue;
-            }
-            if ((*opts_seen & (1ULL << i)) && opt->type != VSH_OT_ARGV) {
-                if (report)
-                    vshError(ctl, _("option --%1$s already seen"), name);
-                return NULL;
-            }
-            *opts_seen |= 1ULL << i;
-            *opt_index = i;
-            return opt;
-        }
-    }
-
-    if (STRNEQ(cmd->name, "help") && report) {
-        vshError(ctl, _("command '%1$s' doesn't support option --%2$s"),
-                 cmd->name, name);
-    }
-    return NULL;
-}
-
-static const vshCmdOptDef *
-vshCmddefGetData(const vshCmdDef *cmd, uint64_t *opts_need_arg,
-                 uint64_t *opts_seen)
-{
-    size_t i;
-    const vshCmdOptDef *opt;
-
-    if (!*opts_need_arg)
-        return NULL;
-
-    /* Grab least-significant set bit */
-    i = __builtin_ffsl(*opts_need_arg) - 1;
-    opt = &cmd->opts[i];
-    if (opt->type != VSH_OT_ARGV)
-        *opts_need_arg &= ~(1ULL << i);
-    *opts_seen |= 1ULL << i;
-    return opt;
-}
-
-/*
- * Checks for required options
- */
-static int
-vshCommandCheckOpts(vshControl *ctl, const vshCmd *cmd, uint64_t opts_required,
-                    uint64_t opts_seen)
-{
-    const vshCmdDef *def = cmd->def;
-    size_t i;
-
-    opts_required &= ~opts_seen;
-    if (!opts_required)
-        return 0;
-
-    for (i = 0; def->opts[i].name; i++) {
-        if (opts_required & (1ULL << i)) {
-            const vshCmdOptDef *opt = &def->opts[i];
-
-            vshError(ctl,
-                     opt->type == VSH_OT_DATA || opt->type == VSH_OT_ARGV ?
-                     _("command '%1$s' requires <%2$s> option") :
-                     _("command '%1$s' requires --%2$s option"),
-                     def->name, opt->name);
-        }
-    }
-    return -1;
-}
-
 static const vshCmdDef *
-vshCmdDefSearchGrp(const char *cmdname)
+vshCmddefSearch(const char *cmdname)
 {
     const vshCmdGrp *g;
     const vshCmdDef *c;
@@ -588,29 +262,385 @@ vshCmdDefSearchGrp(const char *cmdname)
     return NULL;
 }
 
-static const vshCmdDef *
-vshCmdDefSearchSet(const char *cmdname)
-{
-    const vshCmdDef *s;
 
-    for (s = cmdSet; s->name; s++) {
-        if (STREQ(s->name, cmdname))
-            return s;
+/* Check if the internal command definitions are correct.
+ * None of the errors are to be marked as translatable. */
+static int
+vshCmddefCheckInternals(vshControl *ctl,
+                        const vshCmdDef *cmd,
+                        bool missingCompleters)
+{
+    size_t i;
+    bool seenOptionalOption = false;
+    const char *seenOptionalPositionalOption = NULL;
+    g_auto(virBuffer) complbuf = VIR_BUFFER_INITIALIZER;
+
+    /* in order to perform the validation resolve the alias first */
+    if (cmd->alias) {
+        const vshCmdDef *alias;
+
+        if (!(alias = vshCmddefSearch(cmd->alias))) {
+            vshError(ctl, "command alias '%s' is pointing to a non-existent command '%s'",
+                     cmd->name, cmd->alias);
+            return -1;
         }
+
+        if (alias->alias) {
+            vshError(ctl, "command alias '%s' is pointing to another command alias '%s'",
+                     cmd->name, cmd->alias);
+            return -1;
+        }
+
+        if (cmd->handler) {
+            vshError(ctl, "command '%s' has handler set", cmd->name);
+            return -1;
+        }
+
+        if (cmd->opts) {
+            vshError(ctl, "command '%s' has options set", cmd->name);
+            return -1;
+        }
+
+        if (cmd->info) {
+            vshError(ctl, "command '%s' has info set", cmd->name);
+            return -1;
+        }
+
+        if (cmd->flags != 0) {
+            vshError(ctl, "command '%s' has multiple flags set", cmd->name);
+            return -1;
+        }
+
+        /* we don't need to continue as the real command will be checked separately */
+        return 0;
+    }
+
+    /* Each command has to provide a non-empty help string. */
+    if (!cmd->info || !cmd->info->help || !*cmd->info->help) {
+        vshError(ctl, "command '%s' lacks help", cmd->name);
+        return -1;
+    }
+
+    if (!cmd->opts)
+        return 0;
+
+    for (i = 0; cmd->opts[i].name; i++) {
+        const vshCmdOptDef *opt = &cmd->opts[i];
+
+        if (missingCompleters && !opt->completer) {
+            switch (opt->type) {
+            case VSH_OT_STRING:
+            case VSH_OT_ARGV:
+                virBufferStrcat(&complbuf, opt->name, ", ", NULL);
+                break;
+
+            case VSH_OT_BOOL:
+                /* only name is completed */
+            case VSH_OT_INT:
+                /* no point in completing numbers */
+            case VSH_OT_ALIAS:
+                /* alias is handled in the referenced command */
+            case VSH_OT_NONE:
+                break;
+            }
+        }
+
+        /* allow at most one optional positional option */
+        if (opt->positional && !opt->required) {
+            if (seenOptionalPositionalOption) {
+                vshError(ctl, "multiple optional positional arguments (%s, %s) of command '%s' are not allowed",
+                         seenOptionalPositionalOption, opt->name, cmd->name);
+                return -1;
+            }
+
+            seenOptionalPositionalOption = opt->name;
+        }
+
+        /* all optional positional arguments must be defined after the required ones */
+        if (seenOptionalPositionalOption && opt->positional && opt->required) {
+            vshError(ctl, "required positional argument '%s' declared after an optional positional argument '%s' of command '%s'",
+                     opt->name, seenOptionalPositionalOption, cmd->name);
+            return -1;
+        }
+
+        /* Mandate no completer flags if no completer is specified */
+        if (opt->completer_flags != 0 && !opt->completer) {
+            vshError(ctl, "completer_flags of argument '%s' of command '%s' must be 0 if no completer is used",
+                     opt->name, cmd->name);
+            return -1;
+        }
+
+        if (opt->unwanted_positional && opt->positional) {
+            vshError(ctl, "unwanted_positional flag of argument '%s' of command '%s' must not be used together with positional",
+                     opt->name, cmd->name);
+            return -1;
+        }
+
+        switch (opt->type) {
+        case VSH_OT_NONE:
+            vshError(ctl, "invalid type 'NONE' of option '%s' of command '%s'",
+                     opt->name, cmd->name);
+            return -1;
+
+        case VSH_OT_BOOL:
+            if (opt->completer) {
+                vshError(ctl, "bool parameter '%s' of command '%s' has completer set",
+                         opt->name, cmd->name);
+                return -1;
+            }
+
+            if (opt->positional || opt->unwanted_positional) {
+                vshError(ctl, "boolean parameter '%s' of command '%s' must not be positional",
+                         opt->name, cmd->name);
+                return -1;
+            }
+
+            if (opt->required) {
+                vshError(ctl, "parameter '%s' of command '%s' misused 'required' flag",
+                         opt->name, cmd->name);
+                return -1; /* bool can't be mandatory */
+            }
+
+            break;
+
+        case VSH_OT_ALIAS: {
+            size_t j;
+            g_autofree char *name = NULL;
+            char *p;
+
+            if (opt->required ||
+                opt->positional ||
+                opt->unwanted_positional ||
+                opt->completer ||
+                !opt->help) {
+                vshError(ctl, "parameter '%s' of command '%s' has incorrect alias option",
+                         opt->name, cmd->name);
+                return -1;
+            }
+            if ((p = strchr(opt->help, '=')))
+                name = g_strndup(opt->help, p - opt->help);
+            else
+                name = g_strdup(opt->help);
+            for (j = i + 1; cmd->opts[j].name; j++) {
+                if (STREQ(name, cmd->opts[j].name) &&
+                    cmd->opts[j].type != VSH_OT_ALIAS)
+                    break;
+            }
+            if (p) {
+                /* If alias comes with value, replacement must not be bool */
+                if (cmd->opts[j].type == VSH_OT_BOOL) {
+                    vshError(ctl, "alias '%s' of command '%s' has mismatched alias type",
+                             opt->name, cmd->name);
+                    return -1;
+                }
+            }
+            if (!cmd->opts[j].name) {
+                vshError(ctl, "alias '%s' of command '%s' has missing alias option",
+                         opt->name, cmd->name);
+                return -1;
+            }
+        }
+            break;
+
+        case VSH_OT_ARGV:
+            if (cmd->opts[i + 1].name) {
+                vshError(ctl, "parameter '%s' of command '%s' must be listed last",
+                         opt->name, cmd->name);
+                return -1;
+            }
+            break;
+
+        case VSH_OT_INT:
+        case VSH_OT_STRING:
+            if (opt->positional && seenOptionalOption) {
+                vshError(ctl, "parameter '%s' of command '%s' must be listed before optional parameters",
+                         opt->name, cmd->name);
+                return -1;
+            }
+
+            seenOptionalOption = !opt->required;
+            break;
+        }
+    }
+
+    virBufferTrim(&complbuf, ", ");
+
+    if (missingCompleters && virBufferUse(&complbuf) > 0)
+        vshPrintExtra(ctl, "%s: %s\n", cmd->name, virBufferCurrentContent(&complbuf));
+
+    return 0;
+}
+
+
+static vshCmdOpt *
+vshCmdGetOption(vshControl *ctl,
+                vshCmd *cmd,
+                const char *name,
+                char **optstr,
+                bool report)
+{
+    g_autofree char *alias = NULL;
+    vshCmdOpt *n;
+
+    for (n = cmd->opts; n && n->def; n++) {
+        if (STRNEQ(n->def->name, name))
+            continue;
+
+        if (n->def->type == VSH_OT_ALIAS) {
+            char *value;
+
+            /* Two types of replacements:
+               opt->help = "string": straight replacement of name
+               opt->help = "string=value": treat boolean flag as
+               alias of option and its default value */
+            alias = g_strdup(n->def->help);
+            name = alias;
+            if ((value = strchr(name, '='))) {
+                *value = '\0';
+                if (*optstr) {
+                    if (report)
+                        vshError(ctl, _("invalid '=' after option --%1$s"),
+                                 n->def->name);
+                    return NULL;
+                }
+                *optstr = g_strdup(value + 1);
+            }
+            continue;
+        }
+
+        if (n->present && n->def->type != VSH_OT_ARGV) {
+            if (report)
+                vshError(ctl, _("option --%1$s already seen"), name);
+
+            return NULL;
+        }
+
+        return n;
+    }
+
+    /* The 'help' command ignores extra options */
+    if (STRNEQ(cmd->def->name, "help") && report) {
+        vshError(ctl, _("command '%1$s' doesn't support option --%2$s"),
+                 cmd->def->name, name);
+    }
+    return NULL;
+}
+
+
+static void
+vshCmdOptAssign(vshControl *ctl,
+                vshCmd *cmd,
+                vshCmdOpt *opt,
+                const char *val,
+                bool report)
+{
+    cmd->lastopt = opt;
+
+    opt->present = true;
+
+    switch (opt->def->type) {
+    case VSH_OT_BOOL:
+        /* nothing to do */
+        if (report) {
+            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(bool)\n",
+                     cmd->def->name, opt->def->name);
+        }
+        break;
+
+    case VSH_OT_STRING:
+    case VSH_OT_INT:
+        if (report) {
+            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(optdata): %s\n",
+                     cmd->def->name, opt->def->name, NULLSTR(val));
+        }
+
+        opt->data = g_strdup(val);
+        break;
+
+    case VSH_OT_ARGV:
+        if (report) {
+            vshDebug(ctl, VSH_ERR_INFO, "%s: %s(argv: %zu): %s\n",
+                     cmd->def->name, opt->def->name, opt->nargv, NULLSTR(val));
+        }
+
+        VIR_EXPAND_N(opt->argv, opt->nargv, 2);
+        /* VIR_EXPAND_N updates count */
+        opt->nargv--;
+        opt->argv[opt->nargv - 1] = g_strdup(val);
+        /* for completers to work properly we need to also remember the last
+         * field in 'data' */
+        g_clear_pointer(&opt->data, g_free);
+        opt->data = g_strdup(val);
+        break;
+
+    case VSH_OT_NONE:
+    case VSH_OT_ALIAS:
+        /* impossible code path */
+        break;
+    }
+}
+
+
+/**
+ * vshCmdGetNextPositionalOpt:
+ * @cmd: command structure
+ *
+ * Get next unpopulated positional argument definition.
+ */
+static vshCmdOpt *
+vshCmdGetNextPositionalOpt(const vshCmd *cmd)
+{
+    vshCmdOpt *n;
+
+    for (n = cmd->opts; n && n->def; n++) {
+        /* Consider only "positional" options. Tests ensure that boolean options
+         * don't set these. */
+        if (!(n->def->positional || n->def->unwanted_positional))
+            continue;
+
+        /* 'VSH_OT_ARGV' positionals must allow multiple arguments */
+        if (n->present &&
+            n->def->type != VSH_OT_ARGV)
+            continue;
+
+        return n;
+    }
 
     return NULL;
 }
 
-const vshCmdDef *
-vshCmddefSearch(const char *cmdname)
+
+/*
+ * Checks for required options
+ */
+static int
+vshCommandCheckOpts(vshControl *ctl,
+                    const vshCmd *cmd)
 {
-    if (cmdGroups)
-        return vshCmdDefSearchGrp(cmdname);
-    else
-        return vshCmdDefSearchSet(cmdname);
+    vshCmdOpt *n;
+
+    for (n = cmd->opts; n && n->def; n++) {
+        if (!n->present && n->def->required) {
+            if (n->def->positional) {
+                vshError(ctl,
+                         _("command '%1$s' requires <%2$s> option"),
+                         cmd->def->name, n->def->name);
+            } else {
+                vshError(ctl,
+                         _("command '%1$s' requires --%2$s option"),
+                         cmd->def->name, n->def->name);
+            }
+
+            return -1;
+        }
+    }
+
+
+    return 0;
 }
 
-const vshCmdGrp *
+
+static const vshCmdGrp *
 vshCmdGrpSearch(const char *grpname)
 {
     const vshCmdGrp *g;
@@ -623,7 +653,7 @@ vshCmdGrpSearch(const char *grpname)
     return NULL;
 }
 
-bool
+static bool
 vshCmdGrpHelp(vshControl *ctl, const vshCmdGrp *grp)
 {
     const vshCmdDef *cmd = NULL;
@@ -632,11 +662,10 @@ vshCmdGrpHelp(vshControl *ctl, const vshCmdGrp *grp)
              grp->keyword);
 
     for (cmd = grp->commands; cmd->name; cmd++) {
-        if (cmd->flags & VSH_CMD_FLAG_ALIAS ||
+        if (cmd->alias ||
             cmd->flags & VSH_CMD_FLAG_HIDDEN)
             continue;
-        vshPrint(ctl, "    %-30s %s\n", cmd->name,
-                 _(vshCmddefGetInfo(cmd, "help")));
+        vshPrint(ctl, "    %-30s %s\n", cmd->name, _(cmd->info->help));
     }
 
     return true;
@@ -645,103 +674,116 @@ vshCmdGrpHelp(vshControl *ctl, const vshCmdGrp *grp)
 static bool
 vshCmddefHelp(const vshCmdDef *def)
 {
-    const char *desc = NULL;
-    char buf[256];
-    bool shortopt = false; /* true if 'arg' works instead of '--opt arg' */
-
     fputs(_("  NAME\n"), stdout);
-    fprintf(stdout, "    %s - %s\n", def->name,
-            _(vshCmddefGetInfo(def, "help")));
+    fprintf(stdout, "    %s - %s\n", def->name, _(def->info->help));
 
     fputs(_("\n  SYNOPSIS\n"), stdout);
     fprintf(stdout, "    %s", def->name);
     if (def->opts) {
         const vshCmdOptDef *opt;
         for (opt = def->opts; opt->name; opt++) {
-            const char *fmt = "%s";
+
             switch (opt->type) {
             case VSH_OT_BOOL:
-                fmt = "[--%s]";
+                fprintf(stdout, " [--%s]", opt->name);
                 break;
-            case VSH_OT_INT:
-                /* xgettext:c-format */
-                fmt = ((opt->flags & VSH_OFLAG_REQ) ? "<%s>"
-                       : _("[--%1$s <number>]"));
-                if (!(opt->flags & VSH_OFLAG_REQ_OPT))
-                    shortopt = true;
-                break;
+
             case VSH_OT_STRING:
-                /* xgettext:c-format */
-                fmt = _("[--%1$s <string>]");
-                if (!(opt->flags & VSH_OFLAG_REQ_OPT))
-                    shortopt = true;
-                break;
-            case VSH_OT_DATA:
-                fmt = ((opt->flags & VSH_OFLAG_REQ) ? "<%s>" : "[<%s>]");
-                if (!(opt->flags & VSH_OFLAG_REQ_OPT))
-                    shortopt = true;
-                break;
-            case VSH_OT_ARGV:
-                /* xgettext:c-format */
-                if (shortopt) {
-                    fmt = (opt->flags & VSH_OFLAG_REQ)
-                        ? _("{[--%1$s] <string>}...")
-                        : _("[[--%1$s] <string>]...");
+            case VSH_OT_INT:
+                if (opt->required) {
+                    fprintf(stdout, " ");
                 } else {
-                    fmt = (opt->flags & VSH_OFLAG_REQ) ? _("<%1$s>...")
-                        : _("[<%1$s>]...");
+                    fprintf(stdout, " [");
+                }
+
+                if (opt->positional) {
+                    fprintf(stdout, "<%s>", opt->name);
+                } else {
+                    if (opt->type == VSH_OT_INT) {
+                        fprintf(stdout, _("--%1$s <number>"), opt->name);
+                    } else {
+                        fprintf(stdout, _("--%1$s <string>"), opt->name);
+                    }
+                }
+
+                if (!opt->required)
+                    fprintf(stdout, "]");
+                break;
+
+            case VSH_OT_ARGV:
+                if (opt->positional) {
+                    if (opt->required) {
+                        fprintf(stdout, " <%s>...", opt->name);
+                    } else {
+                        fprintf(stdout, " [<%s>]...", opt->name);
+                    }
+                } else {
+                    if (opt->required) {
+                        fprintf(stdout, _(" --%1$s <string>..."), opt->name);
+                    } else {
+                        fprintf(stdout, _(" [--%1$s <string>]..."), opt->name);
+                    }
                 }
                 break;
+
             case VSH_OT_ALIAS:
+            case VSH_OT_NONE:
                 /* aliases are intentionally undocumented */
                 continue;
             }
-            fputc(' ', stdout);
-            fprintf(stdout, fmt, opt->name);
         }
     }
     fputc('\n', stdout);
 
-    desc = vshCmddefGetInfo(def, "desc");
-    if (desc && *desc) {
+    if (def->info->desc && *def->info->desc) {
         /* Print the description only if it's not empty.  */
         fputs(_("\n  DESCRIPTION\n"), stdout);
-        fprintf(stdout, "    %s\n", _(desc));
+        fprintf(stdout, "    %s\n", _(def->info->desc));
     }
 
     if (def->opts && def->opts->name) {
         const vshCmdOptDef *opt;
         fputs(_("\n  OPTIONS\n"), stdout);
         for (opt = def->opts; opt->name; opt++) {
+            g_autofree char *optstr = NULL;
+
             switch (opt->type) {
             case VSH_OT_BOOL:
-                g_snprintf(buf, sizeof(buf), "--%s", opt->name);
+                optstr = g_strdup_printf("--%s", opt->name);
                 break;
+
             case VSH_OT_INT:
-                g_snprintf(buf, sizeof(buf),
-                           (opt->flags & VSH_OFLAG_REQ) ? _("[--%1$s] <number>")
-                           : _("--%1$s <number>"), opt->name);
+                if (opt->positional) {
+                    optstr = g_strdup_printf(_("[--%1$s] <number>"), opt->name);
+                } else {
+                    optstr = g_strdup_printf(_("--%1$s <number>"), opt->name);
+                }
                 break;
+
             case VSH_OT_STRING:
-                g_snprintf(buf, sizeof(buf), _("--%1$s <string>"), opt->name);
+                if (opt->positional) {
+                    optstr = g_strdup_printf(_("[--%1$s] <string>"), opt->name);
+                } else {
+                    optstr = g_strdup_printf(_("--%1$s <string>"), opt->name);
+                }
                 break;
-            case VSH_OT_DATA:
-                g_snprintf(buf, sizeof(buf), _("[--%1$s] <string>"),
-                           opt->name);
-                break;
+
             case VSH_OT_ARGV:
-                g_snprintf(buf, sizeof(buf),
-                           shortopt ? _("[--%1$s] <string>") : _("<%1$s>"),
-                           opt->name);
+                if (opt->positional) {
+                    optstr = g_strdup_printf(_("[--%1$s] <string>..."), opt->name);
+                } else {
+                    optstr = g_strdup_printf(_("--%1$s <string>..."), opt->name);
+                }
                 break;
+
             case VSH_OT_ALIAS:
+            case VSH_OT_NONE:
                 continue;
             }
 
-            fprintf(stdout, "    %-15s  %s\n", buf, _(opt->help));
+            fprintf(stdout, "    %-15s  %s\n", optstr, _(opt->help));
         }
     }
-    fputc('\n', stdout);
 
     return true;
 }
@@ -751,31 +793,24 @@ vshCmddefHelp(const vshCmdDef *def)
  * ---------------
  */
 static void
-vshCommandOptFree(vshCmdOpt * arg)
-{
-    vshCmdOpt *a = arg;
-
-    while (a) {
-        vshCmdOpt *tmp = a;
-
-        a = a->next;
-
-        g_free(tmp->data);
-        g_free(tmp);
-    }
-}
-
-static void
 vshCommandFree(vshCmd *cmd)
 {
     vshCmd *c = cmd;
 
     while (c) {
         vshCmd *tmp = c;
+        vshCmdOpt *n;
 
         c = c->next;
 
-        vshCommandOptFree(tmp->opts);
+        for (n = tmp->opts; n && n->def; n++) {
+            g_free(n->data);
+            g_strfreev(n->argv);
+            g_free(n->argvstr);
+        }
+
+        g_free(tmp->opts);
+
         g_free(tmp);
     }
 }
@@ -797,39 +832,36 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(vshCmd, vshCommandFree);
  * is set. No error messages are issued if a value is returned.
  */
 static int
-vshCommandOpt(const vshCmd *cmd, const char *name, vshCmdOpt **opt,
+vshCommandOpt(const vshCmd *cmd,
+              const char *name,
+              vshCmdOpt **opt,
               bool needData)
 {
-    vshCmdOpt *candidate = cmd->opts;
-    const vshCmdOptDef *valid = cmd->def->opts;
-    int ret = 0;
+    vshCmdOpt *n;
 
-    /* See if option is valid and/or required.  */
     *opt = NULL;
 
-    while (valid && valid->name) {
-        if (STREQ(name, valid->name))
-            break;
-        valid++;
+    for (n = cmd->opts; n && n->def; n++) {
+        if (STRNEQ(name, n->def->name))
+            continue;
+
+        if (!cmd->skipChecks)
+            assert(!needData || n->def->type != VSH_OT_BOOL);
+
+        if (n->present) {
+            *opt = n;
+            return 1;
+        } else {
+            return 0;
+        }
     }
 
     if (!cmd->skipChecks)
-        assert(valid && (!needData || valid->type != VSH_OT_BOOL));
+        assert(false);
 
-    if (valid && valid->flags & VSH_OFLAG_REQ)
-        ret = -1;
-
-    /* See if option is present on command line.  */
-    while (candidate) {
-        if (STREQ(candidate->def->name, name)) {
-            *opt = candidate;
-            ret = 1;
-            break;
-        }
-        candidate = candidate->next;
-    }
-    return ret;
+    return -1;
 }
+
 
 /**
  * vshCommandOptInt:
@@ -1011,14 +1043,14 @@ vshCommandOptStringQuiet(vshControl *ctl G_GNUC_UNUSED, const vshCmd *cmd,
     if ((ret = vshCommandOpt(cmd, name, &arg, true)) <= 0)
         return ret;
 
-    if (!*arg->data && !(arg->def->flags & VSH_OFLAG_EMPTY_OK))
+    if (!arg->def->allowEmpty && *arg->data == '\0')
         return -1;
     *value = arg->data;
     return 1;
 }
 
 /**
- * vshCommandOptStringReq:
+ * vshCommandOptString:
  * @ctl virtshell control structure
  * @cmd command structure
  * @name option name
@@ -1031,10 +1063,10 @@ vshCommandOptStringQuiet(vshControl *ctl G_GNUC_UNUSED, const vshCmd *cmd,
  * returned and error message printed.
  */
 int
-vshCommandOptStringReq(vshControl *ctl,
-                       const vshCmd *cmd,
-                       const char *name,
-                       const char **value)
+vshCommandOptString(vshControl *ctl,
+                    const vshCmd *cmd,
+                    const char *name,
+                    const char **value)
 {
     vshCmdOpt *arg;
     int ret;
@@ -1050,7 +1082,7 @@ vshCommandOptStringReq(vshControl *ctl,
     /* this should not be propagated here, just to be sure */
     if (ret == -1)
         error = N_("Mandatory option not present");
-    else if (arg && !*arg->data && !(arg->def->flags & VSH_OFLAG_EMPTY_OK))
+    else if (arg && *arg->data == '\0' && !arg->def->allowEmpty)
         error = N_("Option argument is empty");
 
     if (error) {
@@ -1208,30 +1240,50 @@ vshCommandOptBool(const vshCmd *cmd, const char *name)
     return vshCommandOpt(cmd, name, &dummy, false) == 1;
 }
 
+
 /**
  * vshCommandOptArgv:
- * @ctl virtshell control structure
- * @cmd command reference
- * @opt starting point for the search
+ * @cmd: command reference
+ * @name: name of argument
  *
- * Returns the next argv argument after OPT (or the first one if OPT
- * is NULL), or NULL if no more are present.
- *
- * Requires that a VSH_OT_ARGV option be last in the
- * list of supported options in CMD->def->opts.
+ * Returns a NULL terminated list of strings of values passed as argument of
+ * ARGV argument named @name. The returned string list is owned by @cmd and
+ * caller must not free or modify it.
  */
-const vshCmdOpt *
-vshCommandOptArgv(vshControl *ctl G_GNUC_UNUSED, const vshCmd *cmd,
-                  const vshCmdOpt *opt)
+const char **
+vshCommandOptArgv(const vshCmd *cmd,
+                  const char *name)
 {
-    opt = opt ? opt->next : cmd->opts;
+    vshCmdOpt *opt;
 
-    while (opt) {
-        if (opt->def->type == VSH_OT_ARGV)
-            return opt;
-        opt = opt->next;
-    }
-    return NULL;
+    if (vshCommandOpt(cmd, name, &opt, true) != 1)
+        return NULL;
+
+    return (const char **) opt->argv;
+}
+
+
+/**
+ * vshCommandOptArgvString:
+ * @cmd: command reference
+ * @name: name of argument
+ *
+ * Returns a string containing all values passed as ARGV argument @name
+ * delimited/concatenated by adding spaces.
+ */
+const char *
+vshCommandOptArgvString(const vshCmd *cmd,
+                        const char *name)
+{
+    vshCmdOpt *opt;
+
+    if (vshCommandOpt(cmd, name, &opt, true) != 1)
+        return NULL;
+
+    if (!opt->argvstr)
+        opt->argvstr = g_strjoinv(" ", opt->argv);
+
+    return opt->argvstr;
 }
 
 
@@ -1359,254 +1411,322 @@ struct _vshCommandParser {
                                  char **, bool);
     /* vshCommandStringGetArg() */
     char *pos;
-    const char *originalLine;
     size_t point;
     /* vshCommandArgvGetArg() */
     char **arg_pos;
     char **arg_end;
 };
 
-static bool
-vshCommandParse(vshControl *ctl, vshCommandParser *parser, vshCmd **partial)
-{
-    char *tkdata = NULL;
-    vshCmd *clast = NULL;
-    vshCmdOpt *first = NULL;
-    const vshCmdDef *cmd = NULL;
 
-    if (!partial) {
+static vshCmd *
+vshCmdNewHelp(const char *name)
+{
+    vshCmd *c = g_new0(vshCmd, 1);
+
+    c->def = vshCmddefSearch("help");
+
+    c->opts = g_new0(vshCmdOpt, 2);
+    c->opts->def = c->def->opts;
+    c->opts->data = g_strdup(name);
+    c->opts->present = true;
+
+    return c;
+}
+
+
+static vshCmd *
+vshCmdNew(vshControl *ctl,
+          const char *cmdname,
+          bool report)
+{
+    g_autoptr(vshCmd) c = g_new0(vshCmd, 1);
+    const vshCmdOptDef *optdef;
+    vshCmdOpt *opt;
+    size_t nopts = 0;
+
+    if (!(c->def = vshCmddefSearch(cmdname))) {
+        if (report)
+            vshError(ctl, _("unknown command: '%1$s'"), cmdname);
+
+        return NULL;
+    }
+
+    /* resolve command alias */
+    if (c->def->alias) {
+        if (!(c->def = vshCmddefSearch(c->def->alias))) {
+            /* dead code: self-test ensures that the alias exists thus no error reported here */
+            return NULL;
+        }
+    }
+
+    /* Find number of arguments */
+    for (optdef = c->def->opts; optdef && optdef->name; optdef++)
+        nopts++;
+
+    c->opts = g_new0(vshCmdOpt, nopts + 1);
+    opt = c->opts;
+
+    /* populate links to definitions */
+    for (optdef = c->def->opts; optdef && optdef->name; optdef++) {
+        opt->def = optdef;
+        opt++;
+    }
+
+    return g_steal_pointer(&c);
+}
+
+
+static int
+vshCmdOptAssignPositional(vshControl *ctl,
+                          vshCmd *cmd,
+                          const char *val,
+                          bool report)
+{
+    vshCmdOpt *opt;
+
+    if (!(opt = vshCmdGetNextPositionalOpt(cmd))) {
+        /* ignore spurious arguments for 'help' command */
+        if (STREQ(cmd->def->name, "help"))
+            return 0;
+
+        if (report)
+            vshError(ctl, _("unexpected data '%1$s'"), val);
+
+        return -1;
+    }
+
+    vshCmdOptAssign(ctl, cmd, opt, val, report);
+    return 0;
+}
+
+
+typedef enum {
+    VSH_CMD_PARSER_STATE_START,
+    VSH_CMD_PARSER_STATE_COMMENT,
+    VSH_CMD_PARSER_STATE_COMMAND,
+    VSH_CMD_PARSER_STATE_ASSIGN_OPT,
+    VSH_CMD_PARSER_STATE_POSITIONAL_ONLY,
+} vshCommandParserState;
+
+static bool
+vshCommandParse(vshControl *ctl,
+                vshCommandParser *parser,
+                vshCmd **partial)
+{
+    g_autoptr(vshCmd) cmds = NULL; /* linked list of all parsed commands in this session */
+    vshCmd *cmds_last = NULL;
+    g_autoptr(vshCmd) cmd = NULL; /* currently parsed command */
+    vshCommandParserState state = VSH_CMD_PARSER_STATE_START;
+    vshCmdOpt *opt = NULL;
+    g_autofree char *optionvalue = NULL;
+    bool report = !partial;
+    bool ret = false;
+
+    if (partial) {
+        g_clear_pointer(partial, vshCommandFree);
+    } else {
         g_clear_pointer(&ctl->cmd, vshCommandFree);
     }
 
     while (1) {
-        vshCmdOpt *last = NULL;
-        vshCommandToken tk;
-        bool data_only = false;
-        uint64_t opts_need_arg = 0;
-        uint64_t opts_required = 0;
-        uint64_t opts_seen = 0;
+        /* previous iteration might have already gotten a value. Store it as the
+         * token in this iteration */
+        g_autofree char *tkdata = g_steal_pointer(&optionvalue);
 
-        cmd = NULL;
-        first = NULL;
+        /* If we have a value already or the option to fill is a boolean we
+         * don't want to fetch a new token */
+        if (!(tkdata ||
+              (opt && opt->def->type == VSH_OT_BOOL))) {
+            vshCommandToken tk;
 
-        if (partial) {
-            g_clear_pointer(partial, vshCommandFree);
-        }
+            tk = parser->getNextArg(ctl, parser, &tkdata, report);
 
-        while (1) {
-            const vshCmdOptDef *opt = NULL;
-
-            tkdata = NULL;
-            tk = parser->getNextArg(ctl, parser, &tkdata, true);
-
-            if (tk == VSH_TK_ERROR)
-                goto syntaxError;
-            if (tk != VSH_TK_ARG) {
-                VIR_FREE(tkdata);
+            switch (tk) {
+            case VSH_TK_ARG:
+                /* will be handled below */
                 break;
-            }
 
-            if (cmd == NULL) {
-                /* first token must be command name or comment */
-                if (*tkdata == '#') {
-                    do {
-                        VIR_FREE(tkdata);
-                        tk = parser->getNextArg(ctl, parser, &tkdata, false);
-                    } while (tk == VSH_TK_ARG);
-                    VIR_FREE(tkdata);
-                    break;
-                } else if (!(cmd = vshCmddefSearch(tkdata))) {
-                    if (!partial)
-                        vshError(ctl, _("unknown command: '%1$s'"), tkdata);
-                    goto syntaxError;   /* ... or ignore this command only? */
-                }
+            case VSH_TK_ERROR:
+                goto out;
 
-                /* aliases need to be resolved to the actual commands */
-                if (cmd->flags & VSH_CMD_FLAG_ALIAS) {
-                    VIR_FREE(tkdata);
-                    tkdata = g_strdup(cmd->alias);
-                    cmd = vshCmddefSearch(tkdata);
-                }
+            case VSH_TK_END:
+            case VSH_TK_SUBCMD_END:
+                /* The last argument name expects a value, but it's missing */
+                if (opt) {
+                    if (partial) {
+                        /* for completion to work we need to also store the
+                         * last token into the last 'opt' */
+                        vshCmdOptAssign(ctl, cmd, opt, tkdata, report);
+                    } else {
+                        if (opt->def->type == VSH_OT_INT)
+                            vshError(ctl, _("expected syntax: --%1$s <number>"),
+                                 opt->def->name);
+                        else
+                            vshError(ctl, _("expected syntax: --%1$s <string>"),
+                                 opt->def->name);
 
-                vshCmddefOptParse(cmd, &opts_need_arg, &opts_required);
-                VIR_FREE(tkdata);
-            } else if (data_only) {
-                goto get_data;
-            } else if (tkdata[0] == '-' && tkdata[1] == '-' &&
-                       g_ascii_isalnum(tkdata[2])) {
-                char *optstr = strchr(tkdata + 2, '=');
-                size_t opt_index = 0;
-
-                if (optstr) {
-                    *optstr = '\0'; /* convert the '=' to '\0' */
-                    optstr = g_strdup(optstr + 1);
-                }
-                /* Special case 'help' to ignore all spurious options */
-                if (!(opt = vshCmddefGetOption(ctl, cmd, tkdata + 2,
-                                               &opts_seen, &opt_index,
-                                               &optstr, partial == NULL))) {
-                    VIR_FREE(optstr);
-                    if (STREQ(cmd->name, "help"))
-                        continue;
-                    goto syntaxError;
-                }
-                VIR_FREE(tkdata);
-
-                if (opt->type != VSH_OT_BOOL) {
-                    /* option data */
-                    if (optstr)
-                        tkdata = optstr;
-                    else
-                        tk = parser->getNextArg(ctl, parser, &tkdata, partial == NULL);
-                    if (tk == VSH_TK_ERROR)
-                        goto syntaxError;
-                    if (tk != VSH_TK_ARG) {
-                        if (partial) {
-                            vshCmdOpt *arg = g_new0(vshCmdOpt, 1);
-                            arg->def = opt;
-                            arg->data = g_steal_pointer(&tkdata);
-                            arg->next = NULL;
-
-                            if (parser->pos - parser->originalLine == parser->point - 1)
-                                arg->completeThis = true;
-
-                            if (!first)
-                                first = arg;
-                            if (last)
-                                last->next = arg;
-                            last = arg;
-                        } else {
-                            vshError(ctl,
-                                     _("expected syntax: --%1$s <%2$s>"),
-                                     opt->name,
-                                     opt->type ==
-                                     VSH_OT_INT ? _("number") : _("string"));
-                        }
-                        goto syntaxError;
-                    }
-                    if (opt->type != VSH_OT_ARGV)
-                        opts_need_arg &= ~(1ULL << opt_index);
-                } else {
-                    tkdata = NULL;
-                    if (optstr) {
-                        if (!partial)
-                            vshError(ctl, _("invalid '=' after option --%1$s"),
-                                     opt->name);
-                        VIR_FREE(optstr);
-                        goto syntaxError;
+                        goto out;
                     }
                 }
-            } else if (tkdata[0] == '-' && tkdata[1] == '-' &&
-                       tkdata[2] == '\0') {
-                VIR_FREE(tkdata);
-                data_only = true;
+
+                /* command parsed -- allocate new struct for the command */
+                if (cmd) {
+                    /* if we encountered --help, replace parsed command with 'help <cmdname>' */
+                    if (cmd->helpOptionSeen) {
+                        vshCmd *helpcmd = vshCmdNewHelp(cmd->def->name);
+
+                        vshCommandFree(cmd);
+                        cmd = helpcmd;
+                    }
+
+                    if (!partial &&
+                        vshCommandCheckOpts(ctl, cmd) < 0)
+                        goto out;
+
+                    if (!cmds)
+                        cmds = cmd;
+                    if (cmds_last)
+                        cmds_last->next = cmd;
+                    cmds_last = g_steal_pointer(&cmd);
+                }
+
+
+                /* everything parsed */
+                if (tk == VSH_TK_END) {
+                    ret = true;
+                    goto out;
+                }
+
+                /* after processing the command we need to start over again to
+                 * fetch another token */
+                state = VSH_CMD_PARSER_STATE_START;
                 continue;
-            } else {
- get_data:
-                /* Special case 'help' to ignore spurious data */
-                if (!(opt = vshCmddefGetData(cmd, &opts_need_arg,
-                                             &opts_seen)) &&
-                     STRNEQ(cmd->name, "help")) {
-                    if (!partial)
-                        vshError(ctl, _("unexpected data '%1$s'"), tkdata);
-                    goto syntaxError;
-                }
-            }
-            if (opt) {
-                /* save option */
-                vshCmdOpt *arg = g_new0(vshCmdOpt, 1);
-
-                arg->def = opt;
-                arg->data = g_steal_pointer(&tkdata);
-                arg->next = NULL;
-
-                if (parser->pos - parser->originalLine == parser->point)
-                    arg->completeThis = true;
-
-                if (!first)
-                    first = arg;
-                if (last)
-                    last->next = arg;
-                last = arg;
-
-                if (!partial)
-                    vshDebug(ctl, VSH_ERR_INFO, "%s: %s(%s): %s\n",
-                             cmd->name,
-                             opt->name,
-                             opt->type != VSH_OT_BOOL ? _("optdata") : _("bool"),
-                             opt->type != VSH_OT_BOOL ? arg->data : _("(none)"));
             }
         }
 
-        /* command parsed -- allocate new struct for the command */
-        if (cmd) {
-            vshCmd *c = g_new0(vshCmd, 1);
-            vshCmdOpt *tmpopt = first;
+        /* at this point we know that @tkdata is an argument */
+        switch (state) {
+        case VSH_CMD_PARSER_STATE_START:
+            if (*tkdata == '#') {
+                state = VSH_CMD_PARSER_STATE_COMMENT;
+            } else {
+                state = VSH_CMD_PARSER_STATE_COMMAND;
 
-            /* if we encountered --help, replace parsed command with
-             * 'help <cmdname>' */
-            for (tmpopt = first; tmpopt; tmpopt = tmpopt->next) {
-                const vshCmdDef *help;
-                if (STRNEQ(tmpopt->def->name, "help"))
-                    continue;
+                if (!(cmd = vshCmdNew(ctl, tkdata, !partial)))
+                    goto out;
+            }
 
-                help = vshCmddefSearch("help");
-                vshCommandOptFree(first);
-                first = g_new0(vshCmdOpt, 1);
-                first->def = help->opts;
-                first->data = g_strdup(cmd->name);
-                first->next = NULL;
+            break;
 
-                cmd = help;
-                opts_required = 0;
-                opts_seen = 0;
+        case VSH_CMD_PARSER_STATE_COMMENT:
+            /* continue eating tokens until end of line or end of input */
+            state = VSH_CMD_PARSER_STATE_COMMENT;
+            break;
+
+        case VSH_CMD_PARSER_STATE_COMMAND: {
+            /* parsing individual options for the command. There are following options:
+             *   --option
+             *   --option value
+             *   --option=value
+             *   --aliasoptionwithvalue (value is part of the alias definition)
+             *   value
+             *   -- (terminate accepting '--option', fill only positional args)
+             */
+            const char *optionname = tkdata + 2;
+            char *sep;
+
+            if (!STRPREFIX(tkdata, "--")) {
+                if (vshCmdOptAssignPositional(ctl, cmd, tkdata, report) < 0)
+                    goto out;
                 break;
             }
 
-            c->opts = g_steal_pointer(&first);
-            c->def = cmd;
-            c->next = NULL;
-
-            if (!partial &&
-                vshCommandCheckOpts(ctl, c, opts_required, opts_seen) < 0) {
-                vshCommandFree(c);
-                goto syntaxError;
+            if (STREQ(tkdata, "--")) {
+                state = VSH_CMD_PARSER_STATE_POSITIONAL_ONLY;
+                break;
             }
 
-            if (partial) {
-                vshCommandFree(*partial);
-                *partial = c;
+            if ((sep = strchr(optionname, '='))) {
+                *(sep++) = '\0';
+
+                /* 'optionvalue' has lifetime until next iteration */
+                optionvalue = g_strdup(sep);
+            }
+
+            /* lookup the option. Note that vshCmdGetOption also resolves aliases
+             * and thus the value possibly contained in the alias */
+            if (STREQ(optionname, "help")) {
+                cmd->helpOptionSeen = true;
+                g_clear_pointer(&optionvalue, g_free);
+            } else if (!(opt = vshCmdGetOption(ctl, cmd, optionname, &optionvalue, report))) {
+                if (STRNEQ(cmd->def->name, "help"))
+                    goto out;
+
+                /* ignore spurious arguments for 'help' command */
+                g_clear_pointer(&optionvalue, g_free);
+                state = VSH_CMD_PARSER_STATE_COMMAND;
             } else {
-                if (!ctl->cmd)
-                    ctl->cmd = c;
-                if (clast)
-                    clast->next = c;
-                clast = c;
+                state = VSH_CMD_PARSER_STATE_ASSIGN_OPT;
             }
         }
-
-        if (tk == VSH_TK_END)
             break;
+
+        case VSH_CMD_PARSER_STATE_ASSIGN_OPT:
+            /* Parameter for a boolean was passed via --boolopt=val */
+            if (tkdata && opt->def->type == VSH_OT_BOOL) {
+                if (report)
+                    vshError(ctl, _("invalid '=' after option --%1$s"),
+                             opt->def->name);
+                goto out;
+            }
+
+            vshCmdOptAssign(ctl, cmd, opt, tkdata, report);
+            opt = NULL;
+            state = VSH_CMD_PARSER_STATE_COMMAND;
+            break;
+
+        case VSH_CMD_PARSER_STATE_POSITIONAL_ONLY:
+            state = VSH_CMD_PARSER_STATE_POSITIONAL_ONLY;
+
+            if (vshCmdOptAssignPositional(ctl, cmd, tkdata, report) < 0)
+                goto out;
+            break;
+        }
     }
 
-    return true;
+ out:
 
- syntaxError:
     if (partial) {
-        vshCmd *tmp;
+        /* When parsing a command for command completion, the last processed
+         * command or the one being currently parsed */
+        if (cmd) {
+            *partial = g_steal_pointer(&cmd);
+        } else if (cmds == cmds_last) {
+            *partial = g_steal_pointer(&cmds);
+        } else {
+            /* break the last command out of the linked list and let the rest be freed */
+            vshCmd *nc;
 
-        tmp = g_new0(vshCmd, 1);
-        tmp->opts = first;
-        tmp->def = cmd;
+            for (nc = cmds; nc; nc = nc->next) {
+                if (nc->next == cmds_last) {
+                    nc->next = NULL;
+                    break;
+                }
+            }
 
-        *partial = tmp;
+            *partial = cmds_last;
+        }
     } else {
-        g_clear_pointer(&ctl->cmd, vshCommandFree);
-        vshCommandOptFree(first);
+        /* for normal command parsing use the whole parsed command list, but
+         * only on success */
+        if (ret == true) {
+            ctl->cmd = g_steal_pointer(&cmds);
+        }
     }
-    VIR_FREE(tkdata);
-    return false;
+
+    return ret;
 }
+
 
 /* --------------------
  * Command argv parsing
@@ -1731,23 +1851,18 @@ vshCommandStringGetArg(vshControl *ctl, vshCommandParser *parser, char **res,
  * @ctl virsh control structure
  * @cmdstr: string to parse
  * @partial: store partially parsed command here
- * @point: position of cursor (rl_point)
  *
  * Parse given string @cmdstr as a command and store it under
  * @ctl->cmd. For readline completion, if @partial is not NULL on
  * the input then errors in parsing are ignored (because user is
  * still in progress of writing the command string) and partially
  * parsed command is stored at *@partial (caller has to free it
- * afterwards). Among with @partial, caller must set @point which
- * is the position of cursor in @cmdstr (offset, numbered from 1).
- * Parser will then set @completeThis attribute to true for the
- * vshCmdOpt that appeared under the cursor.
+ * afterwards).
  */
 bool
 vshCommandStringParse(vshControl *ctl,
                       char *cmdstr,
-                      vshCmd **partial,
-                      size_t point)
+                      vshCmd **partial)
 {
     vshCommandParser parser = { 0 };
 
@@ -1755,8 +1870,6 @@ vshCommandStringParse(vshControl *ctl,
         return false;
 
     parser.pos = cmdstr;
-    parser.originalLine = cmdstr;
-    parser.point = point;
     parser.getNextArg = vshCommandStringGetArg;
     return vshCommandParse(ctl, &parser, partial);
 }
@@ -2506,6 +2619,35 @@ vshEditReadBackFile(vshControl *ctl, const char *filename)
     return ret;
 }
 
+int
+vshEditString(vshControl *ctl,
+              char **output,
+              const char *string)
+{
+    g_autoptr(vshTempFile) tmp = NULL;
+    char *tmpstr;
+
+    /* Create and open the temporary file. */
+    if (!(tmp = vshEditWriteToTempFile(ctl, string)))
+        return -1;
+
+    /* Start the editor. */
+    if (vshEditFile(ctl, tmp) == -1)
+        return -1;
+
+    /* Read back the edited file. */
+    if (!(*output = vshEditReadBackFile(ctl, tmp)))
+        return -1;
+
+    /* strip a possible newline at the end of file; some
+     * editors enforce a newline, this makes editing
+     * more convenient */
+    if ((tmpstr = strrchr(*output, '\n')) &&
+        *(tmpstr+1) == '\0')
+        *tmpstr = '\0';
+
+    return 0;
+}
 
 /* Tree listing helpers.  */
 
@@ -2609,7 +2751,7 @@ vshReadlineCommandGenerator(void)
         for (cmd_list_index = 0; cmds[cmd_list_index].name; cmd_list_index++) {
             const char *name = cmds[cmd_list_index].name;
 
-            if (cmds[cmd_list_index].flags & VSH_CMD_FLAG_ALIAS ||
+            if (cmds[cmd_list_index].alias ||
                 cmds[cmd_list_index].flags & VSH_CMD_FLAG_HIDDEN)
                 continue;
 
@@ -2635,70 +2777,30 @@ vshReadlineCommandGenerator(void)
 
 
 static char **
-vshReadlineOptionsGenerator(const vshCmdDef *cmd,
-                            vshCmd *last)
+vshReadlineOptionsGenerator(vshCmd *cmd)
 {
-    size_t list_index = 0;
     size_t ret_size = 0;
     g_auto(GStrv) ret = NULL;
+    vshCmdOpt *n;
 
-    if (!cmd)
-        return NULL;
-
-    if (!cmd->opts)
-        return NULL;
-
-    for (list_index = 0; cmd->opts[list_index].name; list_index++) {
-        const char *name = cmd->opts[list_index].name;
-        bool exists = false;
-        vshCmdOpt *opt =  last->opts;
-
+    for (n = cmd->opts; n && n->def; n++) {
         /* Skip aliases, we do not report them in help output either. */
-        if (cmd->opts[list_index].type == VSH_OT_ALIAS)
+        if (n->def->type == VSH_OT_ALIAS)
             continue;
 
-        while (opt) {
-            if (STREQ(opt->def->name, name) && opt->def->type != VSH_OT_ARGV) {
-                exists = true;
-                break;
-            }
-
-            opt = opt->next;
-        }
-
-        if (exists)
+        /* skip already populated single-instance arguments */
+        if (n->present && n->def->type != VSH_OT_ARGV)
             continue;
 
         VIR_REALLOC_N(ret, ret_size + 2);
 
-        ret[ret_size] = g_strdup_printf("--%s", name);
+        ret[ret_size] = g_strdup_printf("--%s", n->def->name);
         ret_size++;
         /* Terminate the string list properly. */
         ret[ret_size] = NULL;
     }
 
     return g_steal_pointer(&ret);
-}
-
-
-static const vshCmdOptDef *
-vshReadlineCommandFindOpt(const vshCmd *partial)
-{
-    const vshCmd *tmp = partial;
-
-    while (tmp) {
-        const vshCmdOpt *opt = tmp->opts;
-
-        while (opt) {
-            if (opt->completeThis)
-                return opt->def;
-
-            opt = opt->next;
-        }
-        tmp = tmp->next;
-    }
-
-    return NULL;
 }
 
 
@@ -2718,7 +2820,7 @@ vshCompleterFilter(char ***list,
     newList = g_new0(char *, list_len + 1);
 
     for (i = 0; i < list_len; i++) {
-        if (!STRPREFIX((*list)[i], text)) {
+        if (text && !STRPREFIX((*list)[i], text)) {
             g_clear_pointer(&(*list)[i], g_free);
             continue;
         }
@@ -2748,7 +2850,6 @@ vshReadlineParse(const char *text, int state)
     if (!state) {
         g_autoptr(vshCmd) partial = NULL;
         const vshCmdDef *cmd = NULL;
-        const vshCmdOptDef *opt = NULL;
         g_autofree char *line = g_strdup(rl_line_buffer);
 
         g_clear_pointer(&list, g_strfreev);
@@ -2756,7 +2857,7 @@ vshReadlineParse(const char *text, int state)
 
         *(line + rl_point) = '\0';
 
-        vshCommandStringParse(NULL, line, &partial, rl_point);
+        vshCommandStringParse(NULL, line, &partial);
 
         if (partial) {
             cmd = partial->def;
@@ -2774,16 +2875,36 @@ vshReadlineParse(const char *text, int state)
             cmd = NULL;
         }
 
-        opt = vshReadlineCommandFindOpt(partial);
-
         if (!cmd) {
             list = vshReadlineCommandGenerator();
-        } else if (!opt || opt->type == VSH_OT_BOOL) {
-            list = vshReadlineOptionsGenerator(cmd, partial);
-        } else if (opt && opt->completer) {
-            list = opt->completer(autoCompleteOpaque,
-                                  partial,
-                                  opt->completer_flags);
+        } else {
+            bool complete_argument = false;
+
+            /* attempt completion only when:
+                - there is an argument
+                - it has the 'data' field filled
+                - it has a completer (rules out booleans)
+            */
+            if (partial->lastopt && partial->lastopt->data && partial->lastopt->def->completer) {
+                /* Furthermore we want to do the completion only at the point of
+                 * user's cursor. This is the case if:
+                 * - value in 'data' is equal to 'text' (last component of the completed command)
+                 * - value in 'data' is a space when 'text' is empty (quirk)
+                 */
+                if (STREQ_NULLABLE(partial->lastopt->data, text))
+                    complete_argument = true;
+
+                if (STREQ_NULLABLE(partial->lastopt->data, " ") && *text == '\0')
+                    complete_argument = true;
+            }
+
+            if (complete_argument) {
+                list = partial->lastopt->def->completer(autoCompleteOpaque,
+                                                        partial,
+                                                        partial->lastopt->def->completer_flags);
+            } else {
+                list = vshReadlineOptionsGenerator(partial);
+            }
         }
 
         /* Escape completions, if needed (i.e. argument
@@ -2854,6 +2975,10 @@ vshReadlineInit(vshControl *ctl)
     const char *break_characters = " \t\n`@$><=;|&{(";
     const char *quote_characters = "\"'";
 
+    /* initialize readline stuff only once */
+    if (autoCompleteOpaque)
+        return 0;
+
     /* Opaque data for autocomplete callbacks. */
     autoCompleteOpaque = ctl;
 
@@ -2866,6 +2991,11 @@ vshReadlineInit(vshControl *ctl)
 
     rl_completer_quote_characters = quote_characters;
     rl_char_is_quoted_p = vshReadlineCharIsQuoted;
+
+    /* Stuff below is needed only for interactive mode. */
+    if (!ctl->imode) {
+        return 0;
+    }
 
     histsize_env = g_strdup_printf("%s_HISTSIZE", ctl->env_prefix);
 
@@ -3012,23 +3142,22 @@ vshInitDebug(vshControl *ctl)
  * Initialize global data
  */
 bool
-vshInit(vshControl *ctl, const vshCmdGrp *groups, const vshCmdDef *set)
+vshInit(vshControl *ctl, const vshCmdGrp *groups)
 {
     if (!ctl->hooks) {
         vshError(ctl, "%s", _("client hooks cannot be NULL"));
         return false;
     }
 
-    if (!groups && !set) {
-        vshError(ctl, "%s", _("command groups and command set cannot both be NULL"));
+    if (!groups) {
+        vshError(ctl, "%s", _("command groups must be non-NULL"));
         return false;
     }
 
     cmdGroups = groups;
-    cmdSet = set;
 
     if (vshInitDebug(ctl) < 0 ||
-        (ctl->imode && vshReadlineInit(ctl) < 0))
+        vshReadlineInit(ctl) < 0)
         return false;
 
     return true;
@@ -3037,8 +3166,8 @@ vshInit(vshControl *ctl, const vshCmdGrp *groups, const vshCmdDef *set)
 bool
 vshInitReload(vshControl *ctl)
 {
-    if (!cmdGroups && !cmdSet) {
-        vshError(ctl, "%s", _("command groups and command are both NULL run vshInit before reloading"));
+    if (!cmdGroups) {
+        vshError(ctl, "%s", _("command groups is NULL run vshInit before reloading"));
         return false;
     }
 
@@ -3047,7 +3176,7 @@ vshInitReload(vshControl *ctl)
 
     if (ctl->imode)
         vshReadlineDeinit(ctl);
-    if (ctl->imode && vshReadlineInit(ctl) < 0)
+    if (vshReadlineInit(ctl) < 0)
         return false;
 
     return true;
@@ -3079,21 +3208,17 @@ vshCompleteHelpCommand(vshControl *ctl G_GNUC_UNUSED,
 const vshCmdOptDef opts_help[] = {
     {.name = "command",
      .type = VSH_OT_STRING,
+     .positional = true,
      .completer = vshCompleteHelpCommand,
      .help = N_("Prints global help, command specific help, or help for a group of related commands")
     },
     {.name = NULL}
 };
 
-const vshCmdInfo info_help[] = {
-    {.name = "help",
-     .data = N_("print help")
-    },
-    {.name = "desc",
-     .data = N_("Prints global help, command specific help, or help for a\n"
-                "    group of related commands")
-    },
-    {.name = NULL}
+const vshCmdInfo info_help = {
+     .help = N_("print help"),
+     .desc = N_("Prints global help, command specific help, or help for a\n"
+                "    group of related commands"),
 };
 
 bool
@@ -3111,11 +3236,10 @@ cmdHelp(vshControl *ctl, const vshCmd *cmd)
                      grp->keyword);
 
             for (def = grp->commands; def->name; def++) {
-                if (def->flags & VSH_CMD_FLAG_ALIAS ||
+                if (def->alias ||
                     def->flags & VSH_CMD_FLAG_HIDDEN)
                     continue;
-                vshPrint(ctl, "    %-30s %s\n", def->name,
-                         _(vshCmddefGetInfo(def, "help")));
+                vshPrint(ctl, "    %-30s %s\n", def->name, _(def->info->help));
             }
 
             vshPrint(ctl, "\n");
@@ -3125,8 +3249,11 @@ cmdHelp(vshControl *ctl, const vshCmd *cmd)
     }
 
     if ((def = vshCmddefSearch(name))) {
-        if (def->flags & VSH_CMD_FLAG_ALIAS)
+        if (def->alias)
             def = vshCmddefSearch(def->alias);
+    }
+
+    if (def) {
         return vshCmddefHelp(def);
     } else if ((grp = vshCmdGrpSearch(name))) {
         return vshCmdGrpHelp(ctl, grp);
@@ -3139,19 +3266,15 @@ cmdHelp(vshControl *ctl, const vshCmd *cmd)
 const vshCmdOptDef opts_cd[] = {
     {.name = "dir",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("directory to switch to (default: home or else root)")
     },
     {.name = NULL}
 };
 
-const vshCmdInfo info_cd[] = {
-    {.name = "help",
-     .data = N_("change the current directory")
-    },
-    {.name = "desc",
-     .data = N_("Change the current directory.")
-    },
-    {.name = NULL}
+const vshCmdInfo info_cd = {
+    .help = N_("change the current directory"),
+    .desc = N_("Change the current directory."),
 };
 
 bool
@@ -3159,11 +3282,6 @@ cmdCd(vshControl *ctl, const vshCmd *cmd)
 {
     const char *dir = NULL;
     g_autofree char *dir_malloced = NULL;
-
-    if (!ctl->imode) {
-        vshError(ctl, "%s", _("cd: command valid only in interactive mode"));
-        return false;
-    }
 
     if (vshCommandOptStringQuiet(ctl, cmd, "dir", &dir) <= 0)
         dir = dir_malloced = virGetUserDirectory();
@@ -3204,21 +3322,21 @@ const vshCmdOptDef opts_echo[] = {
      .type = VSH_OT_ALIAS,
      .help = "string=hello"
     },
+    {.name = "prefix",
+     .type = VSH_OT_STRING,
+     .help = N_("prefix the message")
+    },
     {.name = "string",
      .type = VSH_OT_ARGV,
+     .positional = true,
      .help = N_("arguments to echo")
     },
     {.name = NULL}
 };
 
-const vshCmdInfo info_echo[] = {
-    {.name = "help",
-     .data = N_("echo arguments. Used for internal testing.")
-    },
-    {.name = "desc",
-     .data = N_("Echo back arguments, possibly with quoting. Used for internal testing.")
-    },
-    {.name = NULL}
+const vshCmdInfo info_echo = {
+    .help = N_("echo arguments. Used for internal testing."),
+    .desc = N_("Echo back arguments, possibly with quoting. Used for internal testing."),
 };
 
 /* Exists mainly for debugging virsh, but also handy for adding back
@@ -3231,16 +3349,22 @@ cmdEcho(vshControl *ctl, const vshCmd *cmd)
     bool xml = vshCommandOptBool(cmd, "xml");
     bool err = vshCommandOptBool(cmd, "err");
     bool split = vshCommandOptBool(cmd, "split");
-    const vshCmdOpt *opt = NULL;
+    const char *prefix;
     g_autofree char *arg = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    const char **o;
 
     VSH_EXCLUSIVE_OPTIONS_VAR(shell, xml);
     VSH_EXCLUSIVE_OPTIONS_VAR(shell, split);
     VSH_EXCLUSIVE_OPTIONS_VAR(xml, split);
 
-    while ((opt = vshCommandOptArgv(ctl, cmd, opt))) {
-        const char *curr = opt->data;
+    ignore_value(vshCommandOptString(ctl, cmd, "prefix", &prefix));
+
+    if (prefix)
+        virBufferAsprintf(&buf, "%s ", prefix);
+
+    for (o = vshCommandOptArgv(cmd, "string"); o && *o; o++) {
+        const char *curr = *o;
 
         if (xml) {
             virBufferEscapeString(&buf, "%s", curr);
@@ -3273,14 +3397,9 @@ cmdEcho(vshControl *ctl, const vshCmd *cmd)
     return true;
 }
 
-const vshCmdInfo info_pwd[] = {
-    {.name = "help",
-     .data = N_("print the current directory")
-    },
-    {.name = "desc",
-     .data = N_("Print the current directory.")
-    },
-    {.name = NULL}
+const vshCmdInfo info_pwd = {
+    .help = N_("print the current directory"),
+    .desc = N_("Print the current directory."),
 };
 
 bool
@@ -3293,14 +3412,9 @@ cmdPwd(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     return true;
 }
 
-const vshCmdInfo info_quit[] = {
-    {.name = "help",
-     .data = N_("quit this interactive terminal")
-    },
-    {.name = "desc",
-     .data = ""
-    },
-    {.name = NULL}
+const vshCmdInfo info_quit = {
+    .help = N_("quit this interactive terminal"),
+    .desc = "",
 };
 
 bool
@@ -3319,16 +3433,15 @@ const vshCmdOptDef opts_selftest[] = {
      .type = VSH_OT_BOOL,
      .help = N_("output the list of options which are missing completers")
     },
+    {.name = "dump-help",
+     .type = VSH_OT_BOOL,
+     .help = N_("output help for each command")
+    },
     {.name = NULL}
 };
-const vshCmdInfo info_selftest[] = {
-    {.name = "help",
-     .data = N_("internal command for testing virt shells")
-    },
-    {.name = "desc",
-     .data = N_("internal use only")
-    },
-    {.name = NULL}
+const vshCmdInfo info_selftest = {
+    .help = N_("internal command for testing virt shells"),
+    .desc = N_("internal use only"),
 };
 
 bool
@@ -3337,9 +3450,14 @@ cmdSelfTest(vshControl *ctl, const vshCmd *cmd)
     const vshCmdGrp *grp;
     const vshCmdDef *def;
     bool completers = vshCommandOptBool(cmd, "completers-missing");
+    bool dumphelp = vshCommandOptBool(cmd, "dump-help");
 
     for (grp = cmdGroups; grp->name; grp++) {
         for (def = grp->commands; def->name; def++) {
+
+            if (dumphelp && !def->alias)
+                vshCmddefHelp(def);
+
             if (vshCmddefCheckInternals(ctl, def, completers) < 0)
                 return false;
         }
@@ -3355,63 +3473,78 @@ cmdSelfTest(vshControl *ctl, const vshCmd *cmd)
 const vshCmdOptDef opts_complete[] = {
     {.name = "string",
      .type = VSH_OT_ARGV,
-     .flags = VSH_OFLAG_EMPTY_OK,
+     .positional = true,
+     .allowEmpty = true,
      .help = N_("partial string to autocomplete")
     },
     {.name = NULL}
 };
 
-const vshCmdInfo info_complete[] = {
-    {.name = "help",
-     .data = N_("internal command for autocompletion")
-    },
-    {.name = "desc",
-     .data = N_("internal use only")
-    },
-    {.name = NULL}
+const vshCmdInfo info_complete = {
+    .help = N_("internal command for autocompletion"),
+    .desc = N_("internal use only"),
 };
 
 
 #ifdef WITH_READLINE
+
+static virOnceControl vshCmdCompleteCloseStdinStderrOnce = VIR_ONCE_CONTROL_INITIALIZER;
+
+static void
+vshCmdCompleteCloseStdinStderr(void)
+{
+    /* In non-interactive mode which is how the 'complete' command is intended
+     * to be used we need to ensure that any authentication callback will not
+     * attempt to read any input which would break the completion. Similarly,
+     * printing anything onto stderr should be avoided. */
+    int stdin_fileno = STDIN_FILENO;
+    int stderr_fileno = STDERR_FILENO;
+
+    VIR_FORCE_CLOSE(stdin_fileno);
+    VIR_FORCE_CLOSE(stderr_fileno);
+}
+
+
 bool
 cmdComplete(vshControl *ctl, const vshCmd *cmd)
 {
     const vshClientHooks *hooks = ctl->hooks;
-    int stdin_fileno = STDIN_FILENO;
-    const char *arg = "";
-    const vshCmdOpt *opt = NULL;
+    const char *lastArg = NULL;
+    const char **args = NULL;
+    char *old_rl_line_buffer = NULL;
     g_auto(GStrv) matches = NULL;
     char **iter;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
-    if (vshCommandOptStringQuiet(ctl, cmd, "string", &arg) <= 0)
-        return false;
+    /* The completer needs also the last component */
+    for (args = vshCommandOptArgv(cmd, "string"); args && *args; args++)
+        lastArg = *args;
 
     /* This command is flagged VSH_CMD_FLAG_NOCONNECT because we
      * need to prevent auth hooks reading any input. Therefore, we
      * have to close stdin and then connect ourselves. */
-    VIR_FORCE_CLOSE(stdin_fileno);
+    if (!ctl->imode) {
+        if (virOnce(&vshCmdCompleteCloseStdinStderrOnce, vshCmdCompleteCloseStdinStderr) < 0)
+            return false;
+    }
 
     if (!(hooks && hooks->connHandler && hooks->connHandler(ctl)))
         return false;
 
-    while ((opt = vshCommandOptArgv(ctl, cmd, opt))) {
-        if (virBufferUse(&buf) != 0)
-            virBufferAddChar(&buf, ' ');
-        virBufferAddStr(&buf, opt->data);
-        arg = opt->data;
-    }
-
     vshReadlineInit(ctl);
 
-    if (!(rl_line_buffer = virBufferContentAndReset(&buf)))
+    old_rl_line_buffer = g_steal_pointer(&rl_line_buffer);
+    if (!(rl_line_buffer = g_strdup(vshCommandOptArgvString(cmd, "string"))))
         rl_line_buffer = g_strdup("");
 
     /* rl_point is current cursor position in rl_line_buffer.
      * In our case it's at the end of the whole line. */
     rl_point = strlen(rl_line_buffer);
 
-    if (!(matches = vshReadlineCompletion(arg, 0, 0)))
+    matches = vshReadlineCompletion(lastArg, 0, 0);
+    g_clear_pointer(&rl_line_buffer, g_free);
+    rl_line_buffer = g_steal_pointer(&old_rl_line_buffer);
+
+    if (!matches)
         return false;
 
     for (iter = matches; *iter; iter++) {

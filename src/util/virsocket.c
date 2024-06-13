@@ -382,38 +382,16 @@ vir_socket(int domain, int type, int protocol)
 /* virSocketSendFD sends the file descriptor fd along the socket
    to a process calling virSocketRecvFD on the other end.
 
-   Return 0 on success, or -1 with errno set in case of error.
+   Return 1 on success, or -1 with errno set in case of error.
 */
 int
 virSocketSendFD(int sock, int fd)
 {
     char byte = 0;
-    struct iovec iov;
-    struct msghdr msg = { 0 };
-    struct cmsghdr *cmsg;
-    char buf[CMSG_SPACE(sizeof(fd))];
+    int fds[] = { fd };
 
-    /* send at least one char */
-    iov.iov_base = &byte;
-    iov.iov_len = 1;
-    msg.msg_iov = &iov;
-    msg.msg_iovlen = 1;
-    msg.msg_name = NULL;
-    msg.msg_namelen = 0;
-
-    msg.msg_control = buf;
-    msg.msg_controllen = sizeof(buf);
-    cmsg = CMSG_FIRSTHDR(&msg);
-    cmsg->cmsg_level = SOL_SOCKET;
-    cmsg->cmsg_type = SCM_RIGHTS;
-    cmsg->cmsg_len = CMSG_LEN(sizeof(fd));
-    /* Initialize the payload: */
-    memcpy(CMSG_DATA(cmsg), &fd, sizeof(fd));
-    msg.msg_controllen = cmsg->cmsg_len;
-
-    if (sendmsg(sock, &msg, 0) != iov.iov_len)
-        return -1;
-    return 0;
+    return virSocketSendMsgWithFDs(sock, &byte, sizeof(byte),
+                                   fds, G_N_ELEMENTS(fds));
 }
 
 
@@ -482,6 +460,64 @@ virSocketRecvFD(int sock, int fdflags)
 
     return fd;
 }
+
+
+/**
+ * virSocketSendMsgWithFDs:
+ * @sock: socket to send payload and fds to
+ * @payload: payload to send
+ * @payload_len: length of @payload
+ * @fds: array of fds to send
+ * @fds_len: len of fds array
+
+ * Send @fds along with @payload to @sock using SCM_RIGHTS.
+ * Return number of bytes sent on success.
+ * On error, set errno and return -1.
+ */
+int
+virSocketSendMsgWithFDs(int sock,
+                        const char *payload,
+                        size_t payload_len,
+                        int *fds,
+                        size_t fds_len)
+{
+    g_autofree char *control = NULL;
+    const size_t control_size = CMSG_SPACE(sizeof(int) * fds_len);
+    struct cmsghdr *cmsg;
+    struct msghdr msg = { 0 };
+    struct iovec iov[1]; /* Send a single payload, so set vector len to 1 */
+    int ret;
+
+    control = g_new0(char, control_size);
+
+    iov[0].iov_base = (void *) payload;
+    iov[0].iov_len = payload_len;
+
+    msg.msg_iov = iov;
+    msg.msg_iovlen = 1;
+
+    msg.msg_control = control;
+    msg.msg_controllen = control_size;
+
+    cmsg = CMSG_FIRSTHDR(&msg);
+    /* check to eliminate "potential null pointer dereference" errors during build */
+    if (!cmsg) {
+        errno = ENOSPC;
+        return -1;
+    }
+
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int) * fds_len);
+    cmsg->cmsg_level = SOL_SOCKET;
+    cmsg->cmsg_type = SCM_RIGHTS;
+    memcpy(CMSG_DATA(cmsg), fds, sizeof(int) * fds_len);
+
+    do {
+        ret = sendmsg(sock, &msg, 0);
+    } while (ret < 0 && errno == EINTR);
+
+    return ret;
+}
+
 #else /* WIN32 */
 int
 virSocketSendFD(int sock G_GNUC_UNUSED, int fd G_GNUC_UNUSED)
@@ -492,6 +528,17 @@ virSocketSendFD(int sock G_GNUC_UNUSED, int fd G_GNUC_UNUSED)
 
 int
 virSocketRecvFD(int sock G_GNUC_UNUSED, int fdflags G_GNUC_UNUSED)
+{
+    errno = ENOSYS;
+    return -1;
+}
+
+int
+virSocketSendMsgWithFDs(int sock G_GNUC_UNUSED,
+                        const char *payload G_GNUC_UNUSED,
+                        size_t payload_len G_GNUC_UNUSED,
+                        int *fds G_GNUC_UNUSED,
+                        size_t fds_len G_GNUC_UNUSED)
 {
     errno = ENOSYS;
     return -1;

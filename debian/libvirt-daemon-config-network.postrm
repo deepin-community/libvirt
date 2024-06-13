@@ -43,13 +43,11 @@ remove_config_from_template() {
         return 0
     fi
 }
-
 systemd_daemon_reload() {
     if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
         systemctl --system daemon-reload >/dev/null || true
     fi
 }
-
 systemd_unit_restart_if_active() {
     if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
         for unit in "$@"; do

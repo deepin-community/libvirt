@@ -24,26 +24,23 @@
 /*
  * "backup-begin" command
  */
-static const vshCmdInfo info_backup_begin[] = {
-    {.name = "help",
-     .data = N_("Start a disk backup of a live domain")
-    },
-    {.name = "desc",
-     .data = N_("Use XML to start a full or incremental disk backup of a live "
-                "domain, optionally creating a checkpoint")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_backup_begin = {
+     .help = N_("Start a disk backup of a live domain"),
+     .desc = N_("Use XML to start a full or incremental disk backup of a live "
+                "domain, optionally creating a checkpoint"),
 };
 
 static const vshCmdOptDef opts_backup_begin[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "backupxml",
      .type = VSH_OT_STRING,
+     .positional = true,
      .completer = virshCompletePathLocalExisting,
      .help = N_("domain backup XML"),
     },
     {.name = "checkpointxml",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompletePathLocalExisting,
      .help = N_("domain checkpoint XML"),
     },
@@ -71,7 +68,7 @@ cmdBackupBegin(vshControl *ctl,
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "backupxml", &backup_from) < 0)
+    if (vshCommandOptString(ctl, cmd, "backupxml", &backup_from) < 0)
         return false;
 
     if (!backup_from) {
@@ -83,7 +80,7 @@ cmdBackupBegin(vshControl *ctl,
         }
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "checkpointxml", &check_from) < 0)
+    if (vshCommandOptString(ctl, cmd, "checkpointxml", &check_from) < 0)
         return false;
     if (check_from) {
         if (virFileReadAll(check_from, VSH_MAX_XML_FILE, &check_buffer) < 0) {
@@ -103,21 +100,15 @@ cmdBackupBegin(vshControl *ctl,
 /*
  * "backup-dumpxml" command
  */
-static const vshCmdInfo info_backup_dumpxml[] = {
-    {.name = "help",
-     .data = N_("Dump XML for an ongoing domain block backup job")
-    },
-    {.name = "desc",
-     .data = N_("Backup Dump XML")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_backup_dumpxml = {
+    .help = N_("Dump XML for an ongoing domain block backup job"),
+    .desc = N_("Backup Dump XML"),
 };
 
 static const vshCmdOptDef opts_backup_dumpxml[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -154,13 +145,13 @@ const vshCmdDef backupCmds[] = {
     {.name = "backup-begin",
      .handler = cmdBackupBegin,
      .opts = opts_backup_begin,
-     .info = info_backup_begin,
+     .info = &info_backup_begin,
      .flags = 0
     },
     {.name = "backup-dumpxml",
      .handler = cmdBackupDumpXML,
      .opts = opts_backup_dumpxml,
-     .info = info_backup_dumpxml,
+     .info = &info_backup_dumpxml,
      .flags = 0
     },
     {.name = NULL}

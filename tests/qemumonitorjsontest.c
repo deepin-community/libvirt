@@ -2262,13 +2262,16 @@ testQemuMonitorCPUInfoFormat(qemuMonitorCPUInfo *vcpus,
         if (vcpu->qom_path)
             virBufferAsprintf(&buf, "qom_path='%s'\n", vcpu->qom_path);
 
-        if (vcpu->socket_id != -1 || vcpu->core_id != -1 ||
+        if (vcpu->socket_id != -1 || vcpu->die_id != -1 ||
+            vcpu->cluster_id != -1 || vcpu->core_id != -1 ||
             vcpu->thread_id != -1 || vcpu->vcpus != 0) {
             virBufferAddLit(&buf, "topology:");
             if (vcpu->socket_id != -1)
                 virBufferAsprintf(&buf, " socket='%d'", vcpu->socket_id);
             if (vcpu->die_id != -1)
                 virBufferAsprintf(&buf, " die='%d'", vcpu->die_id);
+            if (vcpu->cluster_id != -1)
+                virBufferAsprintf(&buf, " cluster_id='%d'", vcpu->cluster_id);
             if (vcpu->core_id != -1)
                 virBufferAsprintf(&buf, " core='%d'", vcpu->core_id);
             if (vcpu->thread_id != -1)
@@ -2594,20 +2597,28 @@ testQemuMonitorJSONBlockdevReopen(const void *opaque)
     const testGenericData *data = opaque;
     g_autoptr(qemuMonitorTest) test = NULL;
     g_autoptr(virStorageSource) src = virStorageSourceNew();
+    g_autoptr(virJSONValue) reopenoptions = virJSONValueNewArray();
+    g_autoptr(virJSONValue) srcprops = NULL;
 
     if (!(test = qemuMonitorTestNewSchema(data->xmlopt, data->schema)))
         return -1;
 
     src->format = VIR_STORAGE_FILE_QCOW2;
     src->readonly = true;
-    src->nodeformat = g_strdup("test node");
-    src->nodestorage = g_strdup("backing nodename");
+    qemuBlockStorageSourceSetFormatNodename(src, g_strdup("test node"));
+    qemuBlockStorageSourceSetStorageNodename(src, g_strdup("backing nodename"));
     src->backingStore = virStorageSourceNew();
+
+    if (!(srcprops = qemuBlockStorageSourceGetFormatProps(src, src->backingStore)))
+        return -1;
+
+    if (virJSONValueArrayAppend(reopenoptions, &srcprops) < 0)
+        return -1;
 
     if (qemuMonitorTestAddItem(test, "blockdev-reopen", "{\"return\":{}}") < 0)
         return -1;
 
-    if (qemuBlockReopenFormatMon(qemuMonitorTestGetMonitor(test), src) < 0)
+    if (qemuMonitorBlockdevReopen(qemuMonitorTestGetMonitor(test), &reopenoptions) < 0)
         return -1;
 
     return 0;
@@ -2910,6 +2921,10 @@ mymain(void)
     DO_TEST_CPU_INFO("ppc64-hotplug-2", 24);
     DO_TEST_CPU_INFO("ppc64-hotplug-4", 24);
     DO_TEST_CPU_INFO("ppc64-no-threads", 16);
+
+    /* aarch64 doesn't support CPU hotplug yet, so the data used in
+     * this test is partially synthetic */
+    DO_TEST_CPU_INFO("aarch64-clusters", 16);
 
     DO_TEST_CPU_INFO("s390", 2);
 

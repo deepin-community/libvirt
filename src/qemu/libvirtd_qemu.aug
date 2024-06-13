@@ -139,13 +139,15 @@ module Libvirtd_qemu =
    let swtpm_entry = str_entry "swtpm_user"
                 | str_entry "swtpm_group"
 
+   let capability_filters_entry = str_array_entry "capability_filters"
+
+   let storage_entry = bool_entry "storage_use_nbdkit"
+
    (* Entries that used to exist in the config which are now
     * deleted. We keep on parsing them so we don't break
     * ability to parse old configs after upgrade
     *)
    let obsolete_entry = bool_entry "clear_emulator_capabilities"
-
-   let capability_filters_entry = str_array_entry "capability_filters"
 
    (* Each entry in the config is one of the following ... *)
    let entry = default_tls_entry
@@ -170,6 +172,7 @@ module Libvirtd_qemu =
              | nbd_entry
              | swtpm_entry
              | capability_filters_entry
+             | storage_entry
              | obsolete_entry
 
    let comment = [ label "#comment" . del /#[ \t]*/ "# " .  store /([^ \t\n][^\n]*)?/ . del /\n/ "\n" ]

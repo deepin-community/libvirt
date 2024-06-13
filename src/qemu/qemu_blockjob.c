@@ -252,7 +252,8 @@ qemuBlockJobDiskNewPull(virDomainObj *vm,
                         unsigned int jobflags)
 {
     g_autoptr(qemuBlockJobData) job = NULL;
-    g_autofree char *jobname = g_strdup_printf("pull-%s-%s", disk->dst, disk->src->nodeformat);
+    g_autofree char *jobname = g_strdup_printf("pull-%s-%s", disk->dst,
+                                               qemuBlockStorageSourceGetEffectiveNodename(disk->src));
 
     if (!(job = qemuBlockJobDataNew(QEMU_BLOCKJOB_TYPE_PULL, jobname)))
         return NULL;
@@ -278,7 +279,8 @@ qemuBlockJobDiskNewCommit(virDomainObj *vm,
                           unsigned int jobflags)
 {
     g_autoptr(qemuBlockJobData) job = NULL;
-    g_autofree char *jobname = g_strdup_printf("commit-%s-%s", disk->dst, top->nodeformat);
+    g_autofree char *jobname = g_strdup_printf("commit-%s-%s", disk->dst,
+                                               qemuBlockStorageSourceGetEffectiveNodename(top));
     qemuBlockJobType jobtype = QEMU_BLOCKJOB_TYPE_COMMIT;
 
     if (topparent == NULL)
@@ -309,10 +311,10 @@ qemuBlockJobNewCreate(virDomainObj *vm,
 {
     g_autoptr(qemuBlockJobData) job = NULL;
     g_autofree char *jobname = NULL;
-    const char *nodename = src->nodeformat;
+    const char *nodename = qemuBlockStorageSourceGetEffectiveNodename(src);
 
     if (storage)
-        nodename = src->nodestorage;
+        nodename = qemuBlockStorageSourceGetStorageNodename(src);
 
     jobname = g_strdup_printf("create-%s", nodename);
 
@@ -340,7 +342,8 @@ qemuBlockJobDiskNewCopy(virDomainObj *vm,
                         unsigned int jobflags)
 {
     g_autoptr(qemuBlockJobData) job = NULL;
-    g_autofree char *jobname = g_strdup_printf("copy-%s-%s", disk->dst, disk->src->nodeformat);
+    g_autofree char *jobname = g_strdup_printf("copy-%s-%s", disk->dst,
+                                               qemuBlockStorageSourceGetEffectiveNodename(disk->src));
 
     if (!(job = qemuBlockJobDataNew(QEMU_BLOCKJOB_TYPE_COPY, jobname)))
         return NULL;
@@ -368,7 +371,8 @@ qemuBlockJobDiskNewBackup(virDomainObj *vm,
     g_autoptr(qemuBlockJobData) job = NULL;
     g_autofree char *jobname = NULL;
 
-    jobname = g_strdup_printf("backup-%s-%s", disk->dst, disk->src->nodeformat);
+    jobname = g_strdup_printf("backup-%s-%s", disk->dst,
+                              qemuBlockStorageSourceGetEffectiveNodename(disk->src));
 
     if (!(job = qemuBlockJobDataNew(QEMU_BLOCKJOB_TYPE_BACKUP, jobname)))
         return NULL;
@@ -612,8 +616,8 @@ qemuBlockJobCleanStorageSourceRuntime(virStorageSource *src)
     src->detected = false;
     VIR_FREE(src->relPath);
     VIR_FREE(src->backingStoreRaw);
-    VIR_FREE(src->nodestorage);
-    VIR_FREE(src->nodeformat);
+    VIR_FREE(src->nodenamestorage);
+    VIR_FREE(src->nodenameformat);
     VIR_FREE(src->tlsAlias);
     VIR_FREE(src->tlsCertdir);
 }
@@ -1297,7 +1301,7 @@ qemuBlockJobProcessEventFailedActiveCommit(virQEMUDriver *driver,
         return;
 
     qemuMonitorBitmapRemove(priv->mon,
-                            disk->mirror->nodeformat,
+                            qemuBlockStorageSourceGetEffectiveNodename(disk->mirror),
                             "libvirt-tmp-activewrite");
 
     qemuDomainObjExitMonitor(vm);
@@ -1384,7 +1388,7 @@ qemuBlockJobProcessEventConcludedBackup(virQEMUDriver *driver,
 
     if (job->data.backup.bitmap)
         qemuMonitorBitmapRemove(qemuDomainGetMonitor(vm),
-                                job->disk->src->nodeformat,
+                                qemuBlockStorageSourceGetEffectiveNodename(job->disk->src),
                                 job->data.backup.bitmap);
 
     qemuDomainObjExitMonitor(vm);

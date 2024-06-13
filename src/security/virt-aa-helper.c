@@ -654,7 +654,8 @@ get_definition(vahControl * ctl, const char *xmlStr)
     ctl->def = virDomainDefParseString(xmlStr,
                                        ctl->xmlopt, NULL,
                                        VIR_DOMAIN_DEF_PARSE_SKIP_SECLABEL |
-                                       VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE);
+                                       VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE |
+                                       VIR_DOMAIN_DEF_PARSE_VOLUME_TRANSLATED);
 
     if (ctl->def == NULL) {
         vah_error(ctl, 0, _("could not parse XML"));
@@ -1091,9 +1092,10 @@ get_files(vahControl * ctl)
             case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI: {
                 virPCIDevice *pci = virPCIDeviceNew(&dev->source.subsys.u.pci.addr);
 
-                virDomainHostdevSubsysPCIBackendType backend = dev->source.subsys.u.pci.backend;
-                if (backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO ||
-                        backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT) {
+                virDeviceHostdevPCIDriverName driverName = dev->source.subsys.u.pci.driver.name;
+
+                if (driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO ||
+                    driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT) {
                     needsVfio = true;
                 }
 

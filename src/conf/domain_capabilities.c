@@ -245,7 +245,7 @@ virDomainCapsEnumSet(virDomainCapsEnum *capsEnum,
         if (!val) {
             /* Integer overflow */
             virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("integer overflow on %1$s. Please contact the libvirt development team at libvir-list@redhat.com"),
+                           _("integer overflow on %1$s. Please contact the libvirt development team at devel@lists.libvirt.org"),
                            capsEnumName);
             return -1;
         }
@@ -524,7 +524,7 @@ virDomainCapsDeviceHostdevFormat(virBuffer *buf,
     ENUM_PROCESS(hostdev, startupPolicy, virDomainStartupPolicyTypeToString);
     ENUM_PROCESS(hostdev, subsysType, virDomainHostdevSubsysTypeToString);
     ENUM_PROCESS(hostdev, capsType, virDomainHostdevCapsTypeToString);
-    ENUM_PROCESS(hostdev, pciBackend, virDomainHostdevSubsysPCIBackendTypeToString);
+    ENUM_PROCESS(hostdev, pciBackend, virDeviceHostdevPCIDriverNameTypeToString);
 
     FORMAT_EPILOGUE(hostdev);
 }

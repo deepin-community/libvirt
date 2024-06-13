@@ -151,11 +151,10 @@ struct _virNodeDevCapSystem {
 
 typedef struct _virNodeDevCapMdev virNodeDevCapMdev;
 struct _virNodeDevCapMdev {
-    char *type;
     unsigned int iommuGroupNumber;
     char *uuid;
-    virMediatedDeviceAttr **attributes;
-    size_t nattributes;
+    virMediatedDeviceConfig defined_config;
+    virMediatedDeviceConfig active_config;
     char *parent_addr;
     bool autostart;
 };
@@ -362,7 +361,7 @@ struct _virNodeDeviceDef {
 };
 
 char *
-virNodeDeviceDefFormat(const virNodeDeviceDef *def);
+virNodeDeviceDefFormat(const virNodeDeviceDef *def, unsigned int flags);
 
 
 typedef int (*virNodeDeviceDefPostParseCallback)(virNodeDeviceDef *dev,
@@ -433,9 +432,14 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNodeDevCapsDef, virNodeDevCapsDefFree);
     VIR_CONNECT_LIST_NODE_DEVICES_ACTIVE | \
     VIR_CONNECT_LIST_NODE_DEVICES_INACTIVE
 
+#define VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_PERSISTENT \
+    VIR_CONNECT_LIST_NODE_DEVICES_PERSISTENT | \
+    VIR_CONNECT_LIST_NODE_DEVICES_TRANSIENT
+
 #define VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_ALL \
     VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_CAP | \
-    VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_ACTIVE
+    VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_ACTIVE | \
+    VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_PERSISTENT
 
 int
 virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHost *scsi_host);
@@ -466,3 +470,6 @@ virNodeDeviceUpdateCaps(virNodeDeviceDef *def);
 int
 virNodeDeviceCapsListExport(virNodeDeviceDef *def,
                             virNodeDevCapType **list);
+
+void
+virNodeDeviceSyncMdevActiveConfig(virNodeDeviceDef *def);

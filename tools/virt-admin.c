@@ -72,14 +72,9 @@ vshAdmCatchDisconnect(virAdmConnectPtr conn G_GNUC_UNUSED,
 {
     vshControl *ctl = opaque;
     const char *str = "unknown reason";
-    virErrorPtr error;
-    g_autofree char *uri = NULL;
 
     if (reason == VIR_CONNECT_CLOSE_REASON_CLIENT)
         return;
-
-    virErrorPreserveLast(&error);
-    uri = virAdmConnectGetURI(conn);
 
     switch ((virConnectCloseReason) reason) {
     case VIR_CONNECT_CLOSE_REASON_ERROR:
@@ -96,8 +91,7 @@ vshAdmCatchDisconnect(virAdmConnectPtr conn G_GNUC_UNUSED,
         break;
     }
 
-    vshError(ctl, _(str), NULLSTR(uri));
-    virErrorRestore(&error);
+    vshError(ctl, _(str), NULLSTR(ctl->connname));
 }
 
 static int
@@ -108,6 +102,9 @@ vshAdmConnect(vshControl *ctl, unsigned int flags)
     priv->conn = virAdmConnectOpen(ctl->connname, flags);
 
     if (!priv->conn) {
+        if (!ctl->connname)
+            vshPrintExtra(ctl, "%s", _("NOTE: Connecting to default daemon. Specify daemon using '-c' (e.g. virtqemud:///system)\n"));
+
         if (priv->wantReconnect)
             vshError(ctl, "%s", _("Failed to reconnect to the admin server"));
         else
@@ -115,11 +112,14 @@ vshAdmConnect(vshControl *ctl, unsigned int flags)
         return -1;
     } else {
         if (virAdmConnectRegisterCloseCallback(priv->conn, vshAdmCatchDisconnect,
-                                               NULL, NULL) < 0)
+                                               ctl, NULL) < 0)
             vshError(ctl, "%s", _("Unable to register disconnect callback"));
 
         if (priv->wantReconnect)
             vshPrint(ctl, "%s\n", _("Reconnected to the admin server"));
+
+        if (!ctl->connname)
+            ctl->connname = virAdmConnectGetURI(priv->conn);
     }
 
     return 0;
@@ -167,14 +167,9 @@ vshAdmReconnect(vshControl *ctl)
  * 'uri' command
  */
 
-static const vshCmdInfo info_uri[] = {
-    {.name = "help",
-     .data = N_("print the admin server URI")
-    },
-    {.name = "desc",
-     .data = ""
-    },
-    {.name = NULL}
+static const vshCmdInfo info_uri = {
+    .help = N_("print the admin server URI"),
+    .desc = "",
 };
 
 static bool
@@ -198,14 +193,9 @@ cmdURI(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
  * "version" command
  */
 
-static const vshCmdInfo info_version[] = {
-    {.name = "help",
-     .data = N_("show version")
-    },
-    {.name = "desc",
-     .data = N_("Display the system and also the daemon version information.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_version = {
+    .help = N_("show version"),
+    .desc = N_("Display the system and also the daemon version information."),
 };
 
 static bool
@@ -264,20 +254,16 @@ cmdVersion(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 static const vshCmdOptDef opts_connect[] = {
     {.name = "name",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_EMPTY_OK,
+     .positional = true,
+     .allowEmpty = true,
      .help = N_("daemon's admin server connection URI")
     },
     {.name = NULL}
 };
 
-static const vshCmdInfo info_connect[] = {
-    {.name = "help",
-     .data = N_("connect to daemon's admin server")
-    },
-    {.name = "desc",
-     .data = N_("Connect to a daemon's administrating server.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_connect = {
+    .help = N_("connect to daemon's admin server"),
+    .desc = N_("Connect to a daemon's administrating server."),
 };
 
 static bool
@@ -287,7 +273,7 @@ cmdConnect(vshControl *ctl, const vshCmd *cmd)
     vshAdmControl *priv = ctl->privData;
     bool connected = priv->conn;
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0)
         return false;
 
     if (name) {
@@ -308,14 +294,9 @@ cmdConnect(vshControl *ctl, const vshCmd *cmd)
  * -------------------
  */
 
-static const vshCmdInfo info_srv_list[] = {
-    {.name = "help",
-     .data = N_("list available servers on a daemon")
-    },
-    {.name = "desc",
-     .data = N_("List all manageable servers on a daemon.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_srv_list = {
+    .help = N_("list available servers on a daemon"),
+    .desc = N_("List all manageable servers on a daemon."),
 };
 
 static bool
@@ -371,20 +352,16 @@ cmdSrvList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
  * ------------------------------
  */
 
-static const vshCmdInfo info_srv_threadpool_info[] = {
-    {.name = "help",
-     .data = N_("get server workerpool parameters")
-    },
-    {.name = "desc",
-     .data = N_("Retrieve threadpool attributes from a server. ")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_srv_threadpool_info = {
+    .help = N_("get server workerpool parameters"),
+    .desc = N_("Retrieve threadpool attributes from a server."),
 };
 
 static const vshCmdOptDef opts_srv_threadpool_info[] = {
     {.name = "server",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .completer = vshAdmServerCompleter,
      .help = N_("Server to retrieve threadpool attributes from."),
     },
@@ -402,7 +379,7 @@ cmdSrvThreadpoolInfo(vshControl *ctl, const vshCmd *cmd)
     virAdmServerPtr srv = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
@@ -432,34 +409,33 @@ cmdSrvThreadpoolInfo(vshControl *ctl, const vshCmd *cmd)
  * -----------------------------
  */
 
-static const vshCmdInfo info_srv_threadpool_set[] = {
-    {.name = "help",
-     .data = N_("set server workerpool parameters")
-    },
-    {.name = "desc",
-     .data = N_("Tune threadpool attributes on a server. See OPTIONS for "
-                "currently supported attributes.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_srv_threadpool_set = {
+     .help = N_("set server workerpool parameters"),
+     .desc = N_("Tune threadpool attributes on a server. See OPTIONS for "
+                "currently supported attributes."),
 };
 
 static const vshCmdOptDef opts_srv_threadpool_set[] = {
     {.name = "server",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .completer = vshAdmServerCompleter,
      .help = N_("Server to alter threadpool attributes on."),
     },
     {.name = "min-workers",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change bottom limit to number of workers."),
     },
     {.name = "max-workers",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change upper limit to number of workers."),
     },
     {.name = "priority-workers",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change the current number of priority workers"),
     },
     {.name = NULL}
@@ -478,7 +454,7 @@ cmdSrvThreadpoolSet(vshControl *ctl, const vshCmd *cmd)
     virAdmServerPtr srv = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
 #define PARSE_CMD_TYPED_PARAM(NAME, FIELD) \
@@ -539,20 +515,16 @@ cmdSrvThreadpoolSet(vshControl *ctl, const vshCmd *cmd)
  * ---------------------------
  */
 
-static const vshCmdInfo info_srv_clients_list[] = {
-    {.name = "help",
-     .data = N_("list clients connected to <server>")
-    },
-    {.name = "desc",
-     .data = N_("List all manageable clients connected to <server>.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_srv_clients_list = {
+    .help = N_("list clients connected to <server>"),
+    .desc = N_("List all manageable clients connected to <server>."),
 };
 
 static const vshCmdOptDef opts_srv_clients_list[] = {
     {.name = "server",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .completer = vshAdmServerCompleter,
      .help = N_("server which to list connected clients from"),
     },
@@ -573,7 +545,7 @@ cmdSrvClientsList(vshControl *ctl, const vshCmd *cmd)
     vshAdmControl *priv = ctl->privData;
     g_autoptr(vshTable) table = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
@@ -626,26 +598,23 @@ cmdSrvClientsList(vshControl *ctl, const vshCmd *cmd)
  * -------------------
  */
 
-static const vshCmdInfo info_client_info[] = {
-    {.name = "help",
-     .data = N_("retrieve client's identity info from server")
-    },
-    {.name = "desc",
-     .data = N_("Retrieve identity details about <client> from <server>")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_client_info = {
+    .help = N_("retrieve client's identity info from server"),
+    .desc = N_("Retrieve identity details about <client> from <server>"),
 };
 
 static const vshCmdOptDef opts_client_info[] = {
     {.name = "server",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .completer = vshAdmServerCompleter,
      .help = N_("server to which <client> is connected to"),
     },
     {.name = "client",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("client which to retrieve identity information for"),
     },
     {.name = NULL}
@@ -669,7 +638,7 @@ cmdClientInfo(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptULongLong(ctl, cmd, "client", &id) < 0)
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)) ||
@@ -712,27 +681,24 @@ cmdClientInfo(vshControl *ctl, const vshCmd *cmd)
  * -------------------------
  */
 
-static const vshCmdInfo info_client_disconnect[] = {
-    {.name = "help",
-     .data = N_("force disconnect a client from the given server")
-    },
-    {.name = "desc",
-     .data = N_("Force close a specific client's connection to the given "
-                "server.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_client_disconnect = {
+     .help = N_("force disconnect a client from the given server"),
+     .desc = N_("Force close a specific client's connection to the given "
+                "server."),
 };
 
 static const vshCmdOptDef opts_client_disconnect[] = {
     {.name = "server",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .completer = vshAdmServerCompleter,
      .help = N_("server which the client is currently connected to"),
     },
     {.name = "client",
      .type = VSH_OT_INT,
-     .flags = VSH_OFLAG_REQ,
+     .positional = true,
+     .required = true,
      .help = N_("client which to disconnect, specified by ID"),
     },
     {.name = NULL}
@@ -748,7 +714,7 @@ cmdClientDisconnect(vshControl *ctl, const vshCmd *cmd)
     virAdmClientPtr client = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (vshCommandOptULongLongWrap(ctl, cmd, "client", &id) < 0)
@@ -779,20 +745,16 @@ cmdClientDisconnect(vshControl *ctl, const vshCmd *cmd)
  * ---------------------------
  */
 
-static const vshCmdInfo info_srv_clients_info[] = {
-    {.name = "help",
-     .data = N_("get server's client-related configuration limits")
-    },
-    {.name = "desc",
-     .data = N_("Retrieve server's client-related configuration limits ")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_srv_clients_info = {
+    .help = N_("get server's client-related configuration limits"),
+    .desc = N_("Retrieve server's client-related configuration limits"),
 };
 
 static const vshCmdOptDef opts_srv_clients_info[] = {
     {.name = "server",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .completer = vshAdmServerCompleter,
      .help = N_("Server to retrieve the client limits from."),
     },
@@ -810,7 +772,7 @@ cmdSrvClientsInfo(vshControl *ctl, const vshCmd *cmd)
     virAdmServerPtr srv = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
@@ -837,31 +799,29 @@ cmdSrvClientsInfo(vshControl *ctl, const vshCmd *cmd)
  * --------------------------
  */
 
-static const vshCmdInfo info_srv_clients_set[] = {
-    {.name = "help",
-     .data = N_("set server's client-related configuration limits")
-    },
-    {.name = "desc",
-     .data = N_("Tune server's client-related configuration limits. "
-                "See OPTIONS for currently supported attributes.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_srv_clients_set = {
+     .help = N_("set server's client-related configuration limits"),
+     .desc = N_("Tune server's client-related configuration limits. "
+                "See OPTIONS for currently supported attributes."),
 };
 
 static const vshCmdOptDef opts_srv_clients_set[] = {
     {.name = "server",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .completer = vshAdmServerCompleter,
      .help = N_("Server to alter the client-related configuration limits on."),
     },
     {.name = "max-clients",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change the upper limit to overall number of clients "
                 "connected to the server."),
     },
     {.name = "max-unauth-clients",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("Change the upper limit to number of clients waiting for "
                 "authentication to be connected to the server"),
     },
@@ -881,7 +841,7 @@ cmdSrvClientsSet(vshControl *ctl, const vshCmd *cmd)
     virTypedParameterPtr params = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
 #define PARSE_CMD_TYPED_PARAM(NAME, FIELD) \
@@ -938,22 +898,18 @@ cmdSrvClientsSet(vshControl *ctl, const vshCmd *cmd)
  *  Command server-update-tls
  * --------------------------
  */
-static const vshCmdInfo info_srv_update_tls_file[] = {
-    {.name = "help",
-     .data = N_("notify server to update TLS related files online.")
-    },
-    {.name = "desc",
-     .data = N_("notify server to update the CA cert, "
+static const vshCmdInfo info_srv_update_tls_file = {
+     .help = N_("notify server to update TLS related files online."),
+     .desc = N_("notify server to update the CA cert, "
                 "CA CRL, server cert / key without restarts. "
-                "See OPTIONS for currently supported attributes.")
-    },
-    {.name = NULL}
+                "See OPTIONS for currently supported attributes."),
 };
 
 static const vshCmdOptDef opts_srv_update_tls_file[] = {
     {.name = "server",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("Available servers on a daemon. "
                 "Currently only supports 'libvirtd' or 'virtproxyd'.")
     },
@@ -969,7 +925,7 @@ cmdSrvUpdateTlsFiles(vshControl *ctl, const vshCmd *cmd)
     virAdmServerPtr srv = NULL;
     vshAdmControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "server", &srvname) < 0)
+    if (vshCommandOptString(ctl, cmd, "server", &srvname) < 0)
         return false;
 
     if (!(srv = virAdmConnectLookupServer(priv->conn, srvname, 0)))
@@ -992,24 +948,20 @@ cmdSrvUpdateTlsFiles(vshControl *ctl, const vshCmd *cmd)
  * Command daemon-log-filters
  * --------------------------
  */
-static const vshCmdInfo info_daemon_log_filters[] = {
-    {.name = "help",
-     .data = N_("fetch or set the currently defined set of logging filters on "
-                "daemon")
-    },
-    {.name = "desc",
-     .data = N_("Depending on whether run with or without options, the command "
+static const vshCmdInfo info_daemon_log_filters = {
+     .help = N_("fetch or set the currently defined set of logging filters on "
+                "daemon"),
+     .desc = N_("Depending on whether run with or without options, the command "
                 "fetches or redefines the existing active set of filters on "
-                "daemon.")
-    },
-    {.name = NULL}
+                "daemon."),
 };
 
 static const vshCmdOptDef opts_daemon_log_filters[] = {
     {.name = "filters",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("redefine the existing set of logging filters"),
-     .flags = VSH_OFLAG_EMPTY_OK
+     .allowEmpty = true
     },
     {.name = NULL}
 };
@@ -1021,7 +973,7 @@ cmdDaemonLogFilters(vshControl *ctl, const vshCmd *cmd)
 
     if (vshCommandOptBool(cmd, "filters")) {
         const char *filters = NULL;
-        if ((vshCommandOptStringReq(ctl, cmd, "filters", &filters) < 0 ||
+        if ((vshCommandOptString(ctl, cmd, "filters", &filters) < 0 ||
              virAdmConnectSetLoggingFilters(priv->conn, filters, 0) < 0)) {
             vshError(ctl, _("Unable to change daemon logging settings"));
             return false;
@@ -1045,24 +997,20 @@ cmdDaemonLogFilters(vshControl *ctl, const vshCmd *cmd)
  * Command daemon-log-outputs
  * --------------------------
  */
-static const vshCmdInfo info_daemon_log_outputs[] = {
-    {.name = "help",
-     .data = N_("fetch or set the currently defined set of logging outputs on "
-                "daemon")
-    },
-    {.name = "desc",
-     .data = N_("Depending on whether run with or without options, the command "
+static const vshCmdInfo info_daemon_log_outputs = {
+     .help = N_("fetch or set the currently defined set of logging outputs on "
+                "daemon"),
+     .desc = N_("Depending on whether run with or without options, the command "
                 "fetches or redefines the existing active set of outputs on "
-                "daemon.")
-    },
-    {.name = NULL}
+                "daemon."),
 };
 
 static const vshCmdOptDef opts_daemon_timeout[] = {
     {.name = "timeout",
      .type = VSH_OT_INT,
+     .required = true,
+     .positional = true,
      .help = N_("number of seconds the daemon will run without any active connection"),
-     .flags = VSH_OFLAG_REQ | VSH_OFLAG_REQ_OPT
     },
     {.name = NULL}
 };
@@ -1087,21 +1035,17 @@ cmdDaemonTimeout(vshControl *ctl, const vshCmd *cmd)
  * Command daemon-timeout
  * --------------------------
  */
-static const vshCmdInfo info_daemon_timeout[] = {
-    {.name = "help",
-     .data = N_("set the auto shutdown timeout of the daemon")
-    },
-    {.name = "desc",
-     .data = N_("set the auto shutdown timeout of the daemon")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_daemon_timeout = {
+    .help = N_("set the auto shutdown timeout of the daemon"),
+    .desc = N_("set the auto shutdown timeout of the daemon"),
 };
 
 static const vshCmdOptDef opts_daemon_log_outputs[] = {
     {.name = "outputs",
      .type = VSH_OT_STRING,
+     .positional = true,
      .help = N_("redefine the existing set of logging outputs"),
-     .flags = VSH_OFLAG_EMPTY_OK
+     .allowEmpty = true
     },
     {.name = NULL}
 };
@@ -1113,7 +1057,7 @@ cmdDaemonLogOutputs(vshControl *ctl, const vshCmd *cmd)
 
     if (vshCommandOptBool(cmd, "outputs")) {
         const char *outputs = NULL;
-        if ((vshCommandOptStringReq(ctl, cmd, "outputs", &outputs) < 0 ||
+        if ((vshCommandOptString(ctl, cmd, "outputs", &outputs) < 0 ||
              virAdmConnectSetLoggingOutputs(priv->conn, outputs, 0) < 0)) {
             vshError(ctl, _("Unable to change daemon logging settings"));
             return false;
@@ -1262,12 +1206,11 @@ vshAdmUsage(void)
         fprintf(stdout, _(" %1$s (help keyword '%2$s')\n"),
                 grp->name, grp->keyword);
         for (cmd = grp->commands; cmd->name; cmd++) {
-            if (cmd->flags & VSH_CMD_FLAG_ALIAS ||
+            if (cmd->alias ||
                 cmd->flags & VSH_CMD_FLAG_HIDDEN)
                 continue;
             fprintf(stdout,
-                    "    %-30s %s\n", cmd->name,
-                    _(vshCmddefGetInfo(cmd, "help")));
+                    "    %-30s %s\n", cmd->name, _(cmd->info->help));
         }
         fprintf(stdout, "\n");
     }
@@ -1389,7 +1332,7 @@ vshAdmParseArgv(vshControl *ctl, int argc, char **argv)
         ctl->imode = false;
         if (argc - optind == 1) {
             vshDebug(ctl, VSH_ERR_INFO, "commands: \"%s\"\n", argv[optind]);
-            return vshCommandStringParse(ctl, argv[optind], NULL, 0);
+            return vshCommandStringParse(ctl, argv[optind], NULL);
         } else {
             return vshCommandArgvParse(ctl, argc - optind, argv + optind);
         }
@@ -1409,19 +1352,19 @@ static const vshCmdDef vshAdmCmds[] = {
     {.name = "uri",
      .handler = cmdURI,
      .opts = NULL,
-     .info = info_uri,
+     .info = &info_uri,
      .flags = 0
     },
     {.name = "version",
      .handler = cmdVersion,
      .opts = NULL,
-     .info = info_version,
+     .info = &info_version,
      .flags = 0
     },
     {.name = "connect",
      .handler = cmdConnect,
      .opts = opts_connect,
-     .info = info_connect,
+     .info = &info_connect,
      .flags = VSH_CMD_FLAG_NOCONNECT
     },
     {.name = NULL}
@@ -1429,49 +1372,45 @@ static const vshCmdDef vshAdmCmds[] = {
 
 static const vshCmdDef monitoringCmds[] = {
     {.name = "srv-list",
-     .flags = VSH_CMD_FLAG_ALIAS,
      .alias = "server-list"
     },
     {.name = "server-list",
      .handler = cmdSrvList,
      .opts = NULL,
-     .info = info_srv_list,
+     .info = &info_srv_list,
      .flags = 0
     },
     {.name = "srv-threadpool-info",
-     .flags = VSH_CMD_FLAG_ALIAS,
      .alias = "server-threadpool-info"
     },
     {.name = "server-threadpool-info",
      .handler = cmdSrvThreadpoolInfo,
      .opts = opts_srv_threadpool_info,
-     .info = info_srv_threadpool_info,
+     .info = &info_srv_threadpool_info,
      .flags = 0
     },
     {.name = "srv-clients-list",
-     .flags = VSH_CMD_FLAG_ALIAS,
      .alias = "client-list"
     },
     {.name = "client-list",
      .handler = cmdSrvClientsList,
      .opts = opts_srv_clients_list,
-     .info = info_srv_clients_list,
+     .info = &info_srv_clients_list,
      .flags = 0
     },
     {.name = "client-info",
      .handler = cmdClientInfo,
      .opts = opts_client_info,
-     .info = info_client_info,
+     .info = &info_client_info,
      .flags = 0
     },
     {.name = "srv-clients-info",
-     .flags = VSH_CMD_FLAG_ALIAS,
      .alias = "server-clients-info"
     },
     {.name = "server-clients-info",
      .handler = cmdSrvClientsInfo,
      .opts = opts_srv_clients_info,
-     .info = info_srv_clients_info,
+     .info = &info_srv_clients_info,
      .flags = 0
     },
     {.name = NULL}
@@ -1479,57 +1418,54 @@ static const vshCmdDef monitoringCmds[] = {
 
 static const vshCmdDef managementCmds[] = {
     {.name = "srv-threadpool-set",
-     .flags = VSH_CMD_FLAG_ALIAS,
      .alias = "server-threadpool-set"
     },
     {.name = "server-threadpool-set",
      .handler = cmdSrvThreadpoolSet,
      .opts = opts_srv_threadpool_set,
-     .info = info_srv_threadpool_set,
+     .info = &info_srv_threadpool_set,
      .flags = 0
     },
     {.name = "client-disconnect",
      .handler = cmdClientDisconnect,
      .opts = opts_client_disconnect,
-     .info = info_client_disconnect,
+     .info = &info_client_disconnect,
      .flags = 0
     },
     {.name = "srv-clients-set",
-     .flags = VSH_CMD_FLAG_ALIAS,
      .alias = "server-clients-set"
     },
     {.name = "server-clients-set",
      .handler = cmdSrvClientsSet,
      .opts = opts_srv_clients_set,
-     .info = info_srv_clients_set,
+     .info = &info_srv_clients_set,
      .flags = 0
     },
     {.name = "srv-update-tls",
-     .flags = VSH_CMD_FLAG_ALIAS,
      .alias = "server-update-tls"
     },
     {.name = "server-update-tls",
      .handler = cmdSrvUpdateTlsFiles,
      .opts = opts_srv_update_tls_file,
-     .info = info_srv_update_tls_file,
+     .info = &info_srv_update_tls_file,
      .flags = 0
     },
     {.name = "daemon-log-filters",
      .handler = cmdDaemonLogFilters,
      .opts = opts_daemon_log_filters,
-     .info = info_daemon_log_filters,
+     .info = &info_daemon_log_filters,
      .flags = 0
     },
     {.name = "daemon-log-outputs",
      .handler = cmdDaemonLogOutputs,
      .opts = opts_daemon_log_outputs,
-     .info = info_daemon_log_outputs,
+     .info = &info_daemon_log_outputs,
      .flags = 0
     },
     {.name = "daemon-timeout",
      .handler = cmdDaemonTimeout,
      .opts = opts_daemon_timeout,
-     .info = info_daemon_timeout,
+     .info = &info_daemon_timeout,
      .flags = 0
     },
     {.name = NULL}
@@ -1594,7 +1530,7 @@ main(int argc, char **argv)
 
     virFileActivateDirOverrideForProg(argv[0]);
 
-    if (!vshInit(ctl, cmdGroups, NULL))
+    if (!vshInit(ctl, cmdGroups))
         exit(EXIT_FAILURE);
 
     if (!vshAdmParseArgv(ctl, argc, argv) ||
@@ -1623,7 +1559,7 @@ main(int argc, char **argv)
             if (*ctl->cmdstr) {
                 vshReadlineHistoryAdd(ctl->cmdstr);
 
-                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL, 0))
+                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL))
                     vshCommandRun(ctl, ctl->cmd);
             }
             VIR_FREE(ctl->cmdstr);

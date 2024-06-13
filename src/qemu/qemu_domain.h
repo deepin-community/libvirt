@@ -275,6 +275,7 @@ struct _qemuDomainDiskPrivate {
 
     bool migrating; /* the disk is being migrated */
     virStorageSource *migrSource; /* disk source object used for NBD migration */
+    bool migrationslice; /* storage slice was added for migration purposes */
 
     /* information about the device */
     bool tray; /* device has tray */
@@ -418,6 +419,8 @@ struct _qemuDomainGraphicsPrivate {
 typedef struct _qemuDomainNetworkPrivate qemuDomainNetworkPrivate;
 struct _qemuDomainNetworkPrivate {
     virObject parent;
+
+    /* Don't forget to possibly copy these members in qemuDomainChangeNet(). */
 
     /* True if the device was created by us. Otherwise we should
      * avoid removing it. Currently only used for
@@ -825,6 +828,7 @@ bool qemuDomainIsQ35(const virDomainDef *def);
 bool qemuDomainIsI440FX(const virDomainDef *def);
 bool qemuDomainIsS390CCW(const virDomainDef *def);
 bool qemuDomainIsARMVirt(const virDomainDef *def);
+bool qemuDomainIsLoongArchVirt(const virDomainDef *def);
 bool qemuDomainIsRISCVVirt(const virDomainDef *def);
 bool qemuDomainIsPSeries(const virDomainDef *def);
 bool qemuDomainIsMipsMalta(const virDomainDef *def);
@@ -833,8 +837,11 @@ bool qemuDomainHasPCIeRoot(const virDomainDef *def);
 bool qemuDomainHasBuiltinIDE(const virDomainDef *def);
 bool qemuDomainHasBuiltinESP(const virDomainDef *def);
 bool qemuDomainNeedsFDC(const virDomainDef *def);
-bool qemuDomainSupportsPCI(virDomainDef *def,
-                           virQEMUCaps *qemuCaps);
+bool qemuDomainSupportsPCI(const virDomainDef *def);
+bool qemuDomainSupportsPCIMultibus(const virDomainDef *def);
+int qemuDomainGetSCSIControllerModel(const virDomainDef *def,
+                                     const virDomainControllerDef *cont,
+                                     virQEMUCaps *qemuCaps);
 
 void qemuDomainUpdateCurrentMemorySize(virDomainObj *vm);
 
@@ -973,12 +980,12 @@ virStorageSource *qemuDomainGetStorageSourceByDevstr(const char *devstr,
                                                        virDomainDef *def,
                                                        virDomainBackupDef *backupdef);
 
-int
+void
 qemuDomainUpdateCPU(virDomainObj *vm,
                     virCPUDef *cpu,
                     virCPUDef **origCPU);
 
-int
+void
 qemuDomainFixupCPUs(virDomainObj *vm,
                     virCPUDef **origCPU);
 
@@ -1008,8 +1015,8 @@ qemuDomainPrepareDiskSource(virDomainDiskDef *disk,
                             qemuDomainObjPrivate *priv,
                             virQEMUDriverConfig *cfg);
 
-int
-qemuDomainDiskCachemodeFlags(int cachemode,
+bool
+qemuDomainDiskCachemodeFlags(virDomainDiskCache cachemode,
                              bool *writeback,
                              bool *direct,
                              bool *noflush);
@@ -1042,7 +1049,9 @@ qemuDomainSupportsCheckpointsBlockjobs(virDomainObj *vm)
     G_GNUC_WARN_UNUSED_RESULT;
 
 int
-qemuDomainMakeCPUMigratable(virCPUDef *cpu);
+qemuDomainMakeCPUMigratable(virArch arch,
+                            virCPUDef *cpu,
+                            virCPUDef *origCPU);
 
 int
 qemuDomainInitializePflashStorageSource(virDomainObj *vm,
@@ -1129,3 +1138,18 @@ void
 qemuDomainNumatuneMaybeFormatNodesetUnion(virDomainObj *vm,
                                           virBitmap **nodeset,
                                           char **nodesetStr);
+
+int
+qemuDomainStorageOpenStat(virQEMUDriverConfig *cfg,
+                          virDomainObj *vm,
+                          virStorageSource *src,
+                          int *ret_fd,
+                          struct stat *ret_sb,
+                          bool skipInaccessible);
+void
+qemuDomainStorageCloseStat(virStorageSource *src,
+                           int *fd);
+int
+qemuDomainStorageUpdatePhysical(virQEMUDriverConfig *cfg,
+                                virDomainObj *vm,
+                                virStorageSource *src);

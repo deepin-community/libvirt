@@ -1,0 +1,4 @@
+usr/bin/virt-qemu-qmp-proxy
+usr/bin/virt-qemu-sev-validate
+usr/share/man/man1/virt-qemu-qmp-proxy.1
+usr/share/man/man1/virt-qemu-sev-validate.1

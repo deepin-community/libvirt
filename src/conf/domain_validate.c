@@ -934,6 +934,14 @@ virDomainDiskDefValidate(const virDomainDef *def,
         }
     }
 
+    /* configuring both <driver iothread='n'> and it's <iothreads> sub-element
+     * isn't supported */
+    if (disk->iothread && disk->iothreads) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("disk driver 'iothread' attribute can't be used together with 'iothreads' subelement"));
+        return -1;
+    }
+
     return 0;
 }
 
@@ -1283,15 +1291,20 @@ virDomainDefHostdevValidate(const virDomainDef *def)
             }
         }
 
-        if (dev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
-            dev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV &&
-            dev->source.subsys.u.mdev.ramfb == VIR_TRISTATE_SWITCH_ON) {
-            if (ramfbEnabled) {
-                virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                               _("Only one vgpu device can have 'ramfb' enabled"));
-                return -1;
+        if (dev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS) {
+            virTristateSwitch *ramfbsetting = NULL;
+            if (dev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_MDEV)
+                ramfbsetting = &dev->source.subsys.u.mdev.ramfb;
+            else if (dev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI)
+                ramfbsetting = &dev->source.subsys.u.pci.ramfb;
+            if (ramfbsetting && *ramfbsetting == VIR_TRISTATE_SWITCH_ON) {
+                if (ramfbEnabled) {
+                    virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                        _("Only one vgpu device can have 'ramfb' enabled"));
+                    return -1;
+                }
+                ramfbEnabled = true;
             }
-            ramfbEnabled = true;
         }
     }
 
@@ -2217,15 +2230,165 @@ virDomainHostdevDefValidate(const virDomainHostdevDef *hostdev)
 }
 
 
+/**
+ * virDomainMemoryGetMappedSize:
+ * @mem: memory device definition
+ *
+ * For given memory device definition (@mem) calculate size mapped into
+ * the guest. This is usually mem->size, except for NVDIMM where its
+ * label is mapped elsewhere.
+ *
+ * Returns: Number of bytes a memory device takes when mapped into a
+ * guest.
+ */
+static unsigned long long
+virDomainMemoryGetMappedSize(const virDomainMemoryDef *mem)
+{
+    unsigned long long ret = mem->size;
+
+    if (mem->model == VIR_DOMAIN_MEMORY_MODEL_NVDIMM) {
+        unsigned long long alignsize = mem->source.nvdimm.alignsize;
+        unsigned long long labelsize = 0;
+
+        /* For NVDIMM the situation is a bit more complicated. Firstly,
+         * its <label/> is not mapped as a part of memory device, so we
+         * must subtract label size from NVDIMM size. Secondly,
+         * remaining memory is then aligned again (rounded down). But
+         * for our purposes we might just round label size up and
+         * achieve the same (numeric) result. */
+
+        if (alignsize == 0) {
+            long pagesize = virGetSystemPageSizeKB();
+
+            /* If no alignment is specified in the XML, fallback to
+             * system page size alignment. */
+            if (pagesize > 0)
+                alignsize = pagesize;
+        }
+
+        if (alignsize > 0) {
+            labelsize = VIR_ROUND_UP(mem->target.nvdimm.labelsize, alignsize);
+
+            ret -= labelsize;
+        }
+    }
+
+    return ret * 1024;
+}
+
+
+static int
+virDomainMemoryDefCheckConflict(const virDomainMemoryDef *mem,
+                                const virDomainDef *def)
+{
+    const virDomainDeviceDimmAddress *thisAddr = NULL;
+    unsigned long long thisStart = 0;
+    unsigned long long thisEnd = 0;
+    size_t i;
+
+    switch (mem->model) {
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+        thisStart = mem->target.virtio_pmem.address;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+        thisStart = mem->target.virtio_mem.address;
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+        if (mem->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM) {
+            thisAddr = &mem->info.addr.dimm;
+            thisStart = mem->info.addr.dimm.base;
+        }
+        break;
+    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+    case VIR_DOMAIN_MEMORY_MODEL_NONE:
+    case VIR_DOMAIN_MEMORY_MODEL_LAST:
+        break;
+    }
+
+    if (thisStart == 0 && !thisAddr) {
+        return 0;
+    }
+
+    /* thisStart and thisEnd are in bytes, mem->size in kibibytes */
+    thisEnd = thisStart + virDomainMemoryGetMappedSize(mem);
+
+    for (i = 0; i < def->nmems; i++) {
+        const virDomainMemoryDef *other = def->mems[i];
+        unsigned long long otherStart = 0;
+        unsigned long long otherEnd = 0;
+
+        if (other == mem)
+            continue;
+
+        if (thisAddr && other->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM &&
+            thisAddr->slot == other->info.addr.dimm.slot) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("memory device slot '%1$u' is already being used by another memory device"),
+                           thisAddr->slot);
+            return -1;
+        } else if (!thisAddr) {
+            /* In case we're updating an existing memory device (e.g.
+             * virtio-mem), then pointers will be different. But addresses and
+             * aliases are the same. However, STREQ_NULLABLE() returns true if
+             * both strings are NULL which is not what we want. */
+            if (virDomainDeviceInfoAddressIsEqual(&other->info,
+                                                  &mem->info)) {
+                continue;
+            }
+
+            if (mem->info.alias &&
+                STREQ_NULLABLE(other->info.alias,
+                               mem->info.alias)) {
+                continue;
+            }
+        }
+
+        switch (other->model) {
+        case VIR_DOMAIN_MEMORY_MODEL_NONE:
+        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
+        case VIR_DOMAIN_MEMORY_MODEL_LAST:
+            continue;
+            break;
+
+        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
+        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
+            if (other->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DIMM) {
+                otherStart = other->info.addr.dimm.base;
+            }
+            break;
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
+            otherStart = other->target.virtio_pmem.address;
+            break;
+        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
+            otherStart = other->target.virtio_mem.address;
+            break;
+        }
+
+        if (thisStart == 0 || otherStart == 0)
+            continue;
+
+        otherEnd = otherStart + virDomainMemoryGetMappedSize(other);
+
+        if ((thisStart <= otherStart && thisEnd > otherStart) ||
+            (otherStart <= thisStart && otherEnd > thisStart)) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("memory device address [0x%1$llx:0x%2$llx] overlaps with other memory device (0x%3$llx)"),
+                           thisStart, thisEnd, otherStart);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
 static int
 virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
                            const virDomainDef *def)
 {
     const long pagesize = virGetSystemPageSize();
     unsigned long long thpSize;
-    unsigned long long thisStart = 0;
-    unsigned long long thisEnd = 0;
-    size_t i;
 
     /* Guest NUMA nodes are continuous and indexed from zero. */
     if (mem->targetNode != -1) {
@@ -2307,7 +2470,6 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
                            pagesize);
             return -1;
         }
-        thisStart = mem->target.virtio_pmem.address;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
@@ -2351,7 +2513,6 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
                            _("memory device address must be aligned to blocksize"));
             return -1;
         }
-        thisStart = mem->target.virtio_mem.address;
         break;
 
     case VIR_DOMAIN_MEMORY_MODEL_DIMM:
@@ -2373,47 +2534,8 @@ virDomainMemoryDefValidate(const virDomainMemoryDef *mem,
         return -1;
     }
 
-    if (thisStart == 0) {
-        return 0;
-    }
-
-    /* thisStart and thisEnd are in bytes, mem->size in kibibytes */
-    thisEnd = thisStart + mem->size * 1024;
-
-    for (i = 0; i < def->nmems; i++) {
-        const virDomainMemoryDef *other = def->mems[i];
-        unsigned long long otherStart = 0;
-
-        if (other == mem)
-            continue;
-
-        switch (other->model) {
-        case VIR_DOMAIN_MEMORY_MODEL_NONE:
-        case VIR_DOMAIN_MEMORY_MODEL_DIMM:
-        case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
-        case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
-        case VIR_DOMAIN_MEMORY_MODEL_LAST:
-            continue;
-            break;
-
-        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-            otherStart = other->target.virtio_pmem.address;
-            break;
-        case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-            otherStart = other->target.virtio_mem.address;
-            break;
-        }
-
-        if (otherStart == 0)
-            continue;
-
-        if (thisStart <= otherStart && thisEnd > otherStart) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("memory device address [0x%1$llx:0x%2$llx] overlaps with other memory device (0x%3$llx)"),
-                           thisStart, thisEnd, otherStart);
-            return -1;
-        }
-    }
+    if (virDomainMemoryDefCheckConflict(mem, def) < 0)
+        return -1;
 
     return 0;
 }

@@ -245,7 +245,7 @@ udevGetDeviceSysfsAttr(struct udev_device *udev_device,
 }
 
 
-static int
+static void
 udevGetStringSysfsAttr(struct udev_device *udev_device,
                        const char *attr_name,
                        char **value)
@@ -256,8 +256,6 @@ udevGetStringSysfsAttr(struct udev_device *udev_device,
 
     if (*value != NULL && (STREQ(*value, "")))
         VIR_FREE(*value);
-
-    return 0;
 }
 
 
@@ -332,7 +330,7 @@ udevGenerateDeviceName(struct udev_device *device,
 
 static virMutex pciaccessMutex = VIR_MUTEX_INITIALIZER;
 
-static int
+static void
 udevTranslatePCIIds(unsigned int vendor,
                     unsigned int product,
                     char **vendor_string,
@@ -356,8 +354,6 @@ udevTranslatePCIIds(unsigned int vendor,
 
     *vendor_string = g_strdup(vendor_name);
     *product_string = g_strdup(device_name);
-
-    return 0;
 }
 
 
@@ -398,12 +394,10 @@ udevProcessPCI(struct udev_device *device,
     if (udevGetUintSysfsAttr(device, "device", &pci_dev->product, 16) < 0)
         goto cleanup;
 
-    if (udevTranslatePCIIds(pci_dev->vendor,
-                            pci_dev->product,
-                            &pci_dev->vendor_name,
-                            &pci_dev->product_name) != 0) {
-        goto cleanup;
-    }
+    udevTranslatePCIIds(pci_dev->vendor,
+                        pci_dev->product,
+                        &pci_dev->vendor_name,
+                        &pci_dev->product_name);
 
     udevGenerateDeviceName(device, def, NULL);
 
@@ -540,10 +534,10 @@ udevProcessUSBDevice(struct udev_device *device,
                           "ID_VENDOR_FROM_DATABASE",
                           &usb_dev->vendor_name);
 
-    if (!usb_dev->vendor_name &&
+    if (!usb_dev->vendor_name) {
         udevGetStringSysfsAttr(device, "manufacturer",
-                               &usb_dev->vendor_name) < 0)
-        return -1;
+                               &usb_dev->vendor_name);
+    }
 
     if (udevGetUintProperty(device, "ID_MODEL_ID", &usb_dev->product, 16) < 0)
         return -1;
@@ -552,10 +546,10 @@ udevProcessUSBDevice(struct udev_device *device,
                           "ID_MODEL_FROM_DATABASE",
                           &usb_dev->product_name);
 
-    if (!usb_dev->product_name &&
+    if (!usb_dev->product_name) {
         udevGetStringSysfsAttr(device, "product",
-                               &usb_dev->product_name) < 0)
-        return -1;
+                               &usb_dev->product_name);
+    }
 
     udevGenerateDeviceName(device, def, NULL);
 
@@ -606,9 +600,7 @@ udevProcessNetworkInterface(struct udev_device *device,
 
     udevGetStringProperty(device, "INTERFACE", &net->ifname);
 
-    if (udevGetStringSysfsAttr(device, "address",
-                               &net->address) < 0)
-        return -1;
+    udevGetStringSysfsAttr(device, "address", &net->address);
 
     if (udevGetUintSysfsAttr(device, "addr_len", &net->address_len, 0) < 0)
         return -1;
@@ -902,8 +894,7 @@ udevProcessDASD(struct udev_device *device,
 {
     virNodeDevCapStorage *storage = &def->caps->data.storage;
 
-    if (udevGetStringSysfsAttr(device, "device/uid", &storage->serial) < 0)
-        return -1;
+    udevGetStringSysfsAttr(device, "device/uid", &storage->serial);
 
     return udevProcessDisk(device, def);
 }
@@ -976,13 +967,11 @@ udevProcessStorage(struct udev_device *device,
     udevGetStringProperty(device, "ID_BUS", &storage->bus);
     udevGetStringProperty(device, "ID_SERIAL", &storage->serial);
 
-    if (udevGetStringSysfsAttr(device, "device/vendor", &storage->vendor) < 0)
-        goto cleanup;
+    udevGetStringSysfsAttr(device, "device/vendor", &storage->vendor);
     if (def->caps->data.storage.vendor)
         virTrimSpaces(def->caps->data.storage.vendor, NULL);
 
-    if (udevGetStringSysfsAttr(device, "device/model", &storage->model) < 0)
-        goto cleanup;
+    udevGetStringSysfsAttr(device, "device/model", &storage->model);
     if (def->caps->data.storage.model)
         virTrimSpaces(def->caps->data.storage.model, NULL);
     /* There is no equivalent of the hotpluggable property in libudev,
@@ -1080,7 +1069,7 @@ udevProcessMediatedDevice(struct udev_device *dev,
         return -1;
     }
 
-    data->type = g_path_get_basename(canonicalpath);
+    data->active_config.type = g_path_get_basename(canonicalpath);
 
     data->uuid = g_strdup(udev_device_get_sysname(dev));
     if ((iommugrp = virMediatedDeviceGetIOMMUGroupNum(data->uuid)) < 0)
@@ -1583,7 +1572,7 @@ udevAddOneDevice(struct udev_device *device)
         objdef = virNodeDeviceObjGetDef(obj);
 
         if (is_mdev)
-            nodeDeviceDefCopyFromMdevctl(def, objdef);
+            nodeDeviceDefCopyFromMdevctl(def, objdef, false);
 
         persistent = virNodeDeviceObjIsPersistent(obj);
         autostart = virNodeDeviceObjIsAutostart(obj);
@@ -1955,31 +1944,17 @@ udevGetDMIData(virNodeDevCapSystem *syscap)
         }
     }
 
-    if (udevGetStringSysfsAttr(device, "product_name",
-                               &syscap->product_name) < 0)
-        goto cleanup;
-    if (udevGetStringSysfsAttr(device, "sys_vendor",
-                               &hardware->vendor_name) < 0)
-        goto cleanup;
-    if (udevGetStringSysfsAttr(device, "product_version",
-                               &hardware->version) < 0)
-        goto cleanup;
-    if (udevGetStringSysfsAttr(device, "product_serial",
-                               &hardware->serial) < 0)
-        goto cleanup;
+    udevGetStringSysfsAttr(device, "product_name", &syscap->product_name);
+    udevGetStringSysfsAttr(device, "sys_vendor", &hardware->vendor_name);
+    udevGetStringSysfsAttr(device, "product_version", &hardware->version);
+    udevGetStringSysfsAttr(device, "product_serial", &hardware->serial);
 
     if (virGetHostUUID(hardware->uuid))
         goto cleanup;
 
-    if (udevGetStringSysfsAttr(device, "bios_vendor",
-                               &firmware->vendor_name) < 0)
-        goto cleanup;
-    if (udevGetStringSysfsAttr(device, "bios_version",
-                               &firmware->version) < 0)
-        goto cleanup;
-    if (udevGetStringSysfsAttr(device, "bios_date",
-                               &firmware->release_date) < 0)
-        goto cleanup;
+    udevGetStringSysfsAttr(device, "bios_vendor", &firmware->vendor_name);
+    udevGetStringSysfsAttr(device, "bios_version", &firmware->version);
+    udevGetStringSysfsAttr(device, "bios_date", &firmware->release_date);
 
  cleanup:
     if (device != NULL)
@@ -2254,7 +2229,7 @@ mdevctlEventHandleCallback(GFileMonitor *monitor G_GNUC_UNUSED,
 }
 
 
-static int
+static virDrvStateInitResult
 nodeStateInitialize(bool privileged,
                     const char *root,
                     bool monolithic G_GNUC_UNUSED,
@@ -2428,6 +2403,7 @@ static virNodeDeviceDriver udevNodeDeviceDriver = {
     .nodeDeviceGetAutostart = nodeDeviceGetAutostart, /* 7.8.0 */
     .nodeDeviceIsPersistent = nodeDeviceIsPersistent, /* 7.8.0 */
     .nodeDeviceIsActive = nodeDeviceIsActive, /* 7.8.0 */
+    .nodeDeviceUpdate = nodeDeviceUpdate, /* 10.1.0 */
 };
 
 

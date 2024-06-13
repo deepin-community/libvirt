@@ -307,9 +307,7 @@ qemuFirmwareInterfaceParse(const char *path,
     size_t i;
 
     if (!(interfacesJSON = virJSONValueObjectGetArray(doc, "interface-types"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to get interface-types from '%1$s'"),
-                       path);
+        VIR_DEBUG("failed to get interface-types from '%s'", path);
         return -1;
     }
 
@@ -323,9 +321,7 @@ qemuFirmwareInterfaceParse(const char *path,
         int tmp;
 
         if ((tmp = qemuFirmwareOSInterfaceTypeFromString(tmpStr)) <= 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unknown interface type: '%1$s'"),
-                           tmpStr);
+            VIR_DEBUG("unknown interface type: '%s'", tmpStr);
             return -1;
         }
 
@@ -351,18 +347,14 @@ qemuFirmwareFlashFileParse(const char *path,
     const char *format;
 
     if (!(filename = virJSONValueObjectGetString(doc, "filename"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing 'filename' in '%1$s'"),
-                       path);
+        VIR_DEBUG("missing 'filename' in '%s'", path);
         return -1;
     }
 
     flash->filename = g_strdup(filename);
 
     if (!(format = virJSONValueObjectGetString(doc, "format"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing 'format' in '%1$s'"),
-                       path);
+        VIR_DEBUG("missing 'format' in '%s'", path);
         return -1;
     }
 
@@ -388,24 +380,19 @@ qemuFirmwareMappingFlashParse(const char *path,
         const char *modestr = virJSONValueGetString(mode);
         int modeval;
         if (!modestr) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Firmware flash mode value was malformed"));
+            VIR_DEBUG("Firmware flash mode value was malformed");
             return -1;
         }
         modeval = qemuFirmwareFlashModeTypeFromString(modestr);
         if (modeval < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Firmware flash mode value '%1$s' unexpected"),
-                           modestr);
+            VIR_DEBUG("Firmware flash mode value '%s' unexpected", modestr);
             return -1;
         }
         flash->mode = modeval;
     }
 
     if (!(executable = virJSONValueObjectGet(doc, "executable"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing 'executable' in '%1$s'"),
-                       path);
+        VIR_DEBUG("missing 'executable' in '%s'", path);
         return -1;
     }
 
@@ -414,9 +401,7 @@ qemuFirmwareMappingFlashParse(const char *path,
 
     if (flash->mode == QEMU_FIRMWARE_FLASH_MODE_SPLIT) {
         if (!(nvram_template = virJSONValueObjectGet(doc, "nvram-template"))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("missing 'nvram-template' in '%1$s'"),
-                           path);
+            VIR_DEBUG("missing 'nvram-template' in '%s'", path);
             return -1;
         }
 
@@ -436,9 +421,8 @@ qemuFirmwareMappingKernelParse(const char *path,
     const char *filename;
 
     if (!(filename = virJSONValueObjectGetString(doc, "filename"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing 'filename' in '%1$s'"),
-                       path);
+        VIR_DEBUG("missing 'filename' in '%s'", path);
+        return -1;
     }
 
     kernel->filename = g_strdup(filename);
@@ -455,9 +439,8 @@ qemuFirmwareMappingMemoryParse(const char *path,
     const char *filename;
 
     if (!(filename = virJSONValueObjectGetString(doc, "filename"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing 'filename' in '%1$s'"),
-                       path);
+        VIR_DEBUG("missing 'filename' in '%s'", path);
+        return -1;
     }
 
     memory->filename = g_strdup(filename);
@@ -476,23 +459,17 @@ qemuFirmwareMappingParse(const char *path,
     int tmp;
 
     if (!(mapping = virJSONValueObjectGet(doc, "mapping"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing mapping in '%1$s'"),
-                       path);
+        VIR_DEBUG("missing mapping in '%s'", path);
         return -1;
     }
 
     if (!(deviceStr = virJSONValueObjectGetString(mapping, "device"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("missing device type in '%1$s'"),
-                       path);
+        VIR_DEBUG("missing device type in '%s'", path);
         return -1;
     }
 
     if ((tmp = qemuFirmwareDeviceTypeFromString(deviceStr)) <= 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unknown device type in '%1$s'"),
-                       path);
+        VIR_DEBUG("unknown device type in '%s'", path);
         return -1;
     }
 
@@ -533,9 +510,7 @@ qemuFirmwareTargetParse(const char *path,
     int ret = -1;
 
     if (!(targetsJSON = virJSONValueObjectGetArray(doc, "targets"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to get targets from '%1$s'"),
-                       path);
+        VIR_DEBUG("failed to get targets from '%s'", path);
         return -1;
     }
 
@@ -554,23 +529,17 @@ qemuFirmwareTargetParse(const char *path,
         t = g_new0(qemuFirmwareTarget, 1);
 
         if (!(architectureStr = virJSONValueObjectGetString(item, "architecture"))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("missing 'architecture' in '%1$s'"),
-                           path);
+            VIR_DEBUG("missing 'architecture' in '%s'", path);
             goto cleanup;
         }
 
         if ((t->architecture = virQEMUCapsArchFromString(architectureStr)) == VIR_ARCH_NONE) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unknown architecture '%1$s'"),
-                           architectureStr);
+            VIR_DEBUG("unknown architecture '%s'", architectureStr);
             goto cleanup;
         }
 
         if (!(machines = virJSONValueObjectGetArray(item, "machines"))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("missing 'machines' in '%1$s'"),
-                           path);
+            VIR_DEBUG("missing 'machines' in '%s'", path);
             goto cleanup;
         }
 
@@ -615,9 +584,7 @@ qemuFirmwareFeatureParse(const char *path,
     size_t i;
 
     if (!(featuresJSON = virJSONValueObjectGetArray(doc, "features"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("failed to get features from '%1$s'"),
-                       path);
+        VIR_DEBUG("failed to get features from '%s'", path);
         return -1;
     }
 
@@ -659,9 +626,7 @@ qemuFirmwareParse(const char *path)
         return NULL;
 
     if (!(doc = virJSONValueFromString(cont))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unable to parse json file '%1$s'"),
-                       path);
+        VIR_DEBUG("unable to parse json file '%s'", path);
         return NULL;
     }
 
@@ -1560,36 +1525,41 @@ qemuFirmwareFetchParsedConfigs(bool privileged,
                                qemuFirmware ***firmwaresRet,
                                char ***pathsRet)
 {
-    g_auto(GStrv) paths = NULL;
-    size_t npaths;
+    g_auto(GStrv) possiblePaths = NULL;
+    char **currentPath = NULL;
     qemuFirmware **firmwares = NULL;
-    size_t i;
+    char **paths = NULL;
+    size_t nfirmwares = 0;
+    size_t npaths = 0;
 
-    if (qemuFirmwareFetchConfigs(&paths, privileged) < 0)
+    if (qemuFirmwareFetchConfigs(&possiblePaths, privileged) < 0)
         return -1;
 
-    if (!paths)
+    if (!possiblePaths)
         return 0;
 
-    npaths = g_strv_length(paths);
+    for (currentPath = possiblePaths; *currentPath; currentPath++) {
+        qemuFirmware *firmware = qemuFirmwareParse(*currentPath);
 
-    firmwares = g_new0(qemuFirmware *, npaths);
+        if (!firmware)
+            continue;
 
-    for (i = 0; i < npaths; i++) {
-        if (!(firmwares[i] = qemuFirmwareParse(paths[i])))
-            goto error;
+        VIR_APPEND_ELEMENT(firmwares, nfirmwares, firmware);
+
+        if (pathsRet) {
+            char *path = g_strdup(*currentPath);
+            VIR_APPEND_ELEMENT(paths, npaths, path);
+        }
     }
 
-    *firmwaresRet = g_steal_pointer(&firmwares);
-    if (pathsRet)
-        *pathsRet = g_steal_pointer(&paths);
-    return npaths;
+    *firmwaresRet = firmwares;
+    if (pathsRet) {
+        char *terminator = NULL;
+        VIR_APPEND_ELEMENT(paths, npaths, terminator);
+        *pathsRet = paths;
+    }
 
- error:
-    while (i > 0)
-        qemuFirmwareFree(firmwares[--i]);
-    VIR_FREE(firmwares);
-    return -1;
+    return nfirmwares;
 }
 
 

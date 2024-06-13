@@ -1,8 +1,111 @@
-libvirt (9.8.0-1deepin1) UNRELEunstableASED; urgency=medium
+libvirt (10.4.0-1) unstable; urgency=medium
 
-  * Modify the polkitd version of libvirt daemon system dependency
+  * [7ed6608] New upstream version 10.4.0
+  * [d8acf23] patches: Drop backports
 
- -- bluesky <chenchongbiao@deepin.org>  Wed, 22 Nov 2023 10:52:24 +0800
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 04 Jun 2024 00:19:48 +0200
+
+libvirt (10.3.0-3) unstable; urgency=medium
+
+  * [aa7ed20] patches: Add backport/tests-fix-hang-in-virshtest[...]
+    - Fixes FTBFS
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 09 May 2024 00:03:19 +0200
+
+libvirt (10.3.0-2) unstable; urgency=medium
+
+  * [13f1f61] patches: Add backport/vsh-Don-t-init-history[...]
+    - Fixes FTBFS (Closes: #1070498)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 07 May 2024 00:04:24 +0200
+
+libvirt (10.3.0-1) unstable; urgency=medium
+
+  * [7845089] New upstream version 10.3.0
+  * [be65bee] patches: Add backport/rpc-ensure-temporary-GSource[...]
+    - Fixes CVE-2024-4418 (Closes: #1070330)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 04 May 2024 00:16:21 +0200
+
+libvirt (10.2.0-1) unstable; urgency=medium
+
+  * [c1118d1] New upstream version 10.2.0
+    - Fixes CVE-2024-2494 (Closes: #1067461)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 02 Apr 2024 23:42:38 +0200
+
+libvirt (10.1.0-1) unstable; urgency=medium
+
+  * [517918e] New upstream version 10.1.0
+    - Fixes CVE-2024-1441 (Closes: #1066058)
+  * [84128fe] patches: Drop backports
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 20 Mar 2024 00:18:12 +0100
+
+libvirt (10.0.0-3) experimental; urgency=medium
+
+  * [e31fc9e] control: Recommend pkgconf instead of pkg-config
+  * [fd2edf5] templates: Convert some files to templates
+    - Some of the packaging files are now maintained as templates,
+      where values are dynamically injected at build time. See
+      debian/README.source for additional information
+  * [ff0974e] control: Improve driver-specific package relationships
+    - Ensure installability on architectures where the QEMU
+      driver has been intentionally disabled
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 21 Feb 2024 23:04:34 +0100
+
+libvirt (10.0.0-2) unstable; urgency=medium
+
+  * [9a4ad47] patches: Add backport/scripts-Make-check-symfile[...]
+    - Fixes compilation on alpha
+  * [aa930a3] patches: Add backport/apparmor-Add-user-session-path[...]
+    - Fixes use of passt with qemu:///session and AppArmor enabled
+    - Closes: #1061678
+  * [8810281] rules: Don't attempt to update git submodules
+  * [bf4fab1] rules: Don't run syntax-check tests
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 04 Feb 2024 10:54:58 +0100
+
+libvirt (10.0.0-1) unstable; urgency=medium
+
+  * [c80339d] New upstream version 10.0.0
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Tue, 16 Jan 2024 23:11:05 +0100
+
+libvirt (9.10.0-1) unstable; urgency=medium
+
+  * [520e93f] New upstream version 9.10.0
+  * [59b48a9] patches: Drop obsolete patches
+    - forward/Pass-GPG_TTY-env-var-to-the-ssh-binary.patch
+  * [1aa8420] control: Recommend passt with QEMU driver
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 02 Dec 2023 00:13:16 +0100
+
+libvirt (9.9.0-1) unstable; urgency=medium
+
+  * [df62dc1] New upstream version 9.9.0
+  * [80870c1] patches: Drop obsolete patches
+    - backport/meson-Improve-nbdkit-configurability.patch
+    - forward/meson-Fix-XDR-check-for-GNU-Hurd.patch
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 04 Nov 2023 00:36:00 +0100
+
+libvirt (9.8.0-2) unstable; urgency=medium
+
+  [ Michal Maloszewski ]
+  * [03d707d] libvirtd.default: Document TCP/TLS usage
+    - Closes: #1050464
+    - LP: #1960937
+
+  [ Andrea Bolognani ]
+  * [53f248b] control: Make more packages Linux-only
+    - Among the packages that are currently arch:any only libvirt0,
+      libvirt-dev and libvirt-clients make sense on non-Linux
+  * [f1f8713] patches: Add forward/meson-Fix-XDR-check-for-GNU-Hurd.patch
+    - Make it possible to build on hurd-i386
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Fri, 13 Oct 2023 13:55:07 +0200
 
 libvirt (9.8.0-1) unstable; urgency=medium
 

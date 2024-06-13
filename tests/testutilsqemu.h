@@ -61,13 +61,15 @@ typedef enum {
     FLAG_FIPS_HOST          = 1 << 2, /* simulate host with FIPS mode enabled */
     FLAG_REAL_CAPS          = 1 << 3,
     FLAG_SLIRP_HELPER       = 1 << 4,
-    FLAG_SKIP_CONFIG_ACTIVE = 1 << 5, /* Skip 'active' config test in qemuxml2xmltest */
+    FLAG_ALLOW_DUPLICATE_OUTPUT = 1 << 5, /* allow multiple tests with the same output file */
 } testQemuInfoFlags;
 
 struct testQemuConf {
     GHashTable *capscache;
     GHashTable *capslatest;
     GHashTable *qapiSchemaCache;
+    GHashTable *duplicateTests; /* for checking duplicated invocations */
+    GHashTable *existingTestCases; /* for checking missing invocations */
 };
 
 typedef enum {
@@ -93,11 +95,14 @@ struct testQemuArgs {
     bool invalidarg;
 };
 
-struct testQemuInfo {
+struct _testQemuInfo {
     const char *name;
     char *infile;
     char *outfile;
+    char *out_xml_active;
+    char *out_xml_inactive;
     char *errfile;
+    virDomainDef *def; /* parsed domain definition */
     virQEMUCaps *qemuCaps;
     qemuNbdkitCaps *nbdkitCaps;
     const char *migrateFrom;
@@ -107,9 +112,19 @@ struct testQemuInfo {
     virArch arch;
     GHashTable *qmpSchema; /* borrowed pointer from the cache */
 
+    /* Some tests have a common prepare step for multiple cases, but
+     * the common setup needs to be invoked with each virTestRun to facilitate
+     * test skipping */
+    bool prepared;
+    bool prep_skip;
+
     struct testQemuArgs args;
     struct testQemuConf *conf;
 };
+
+typedef struct _testQemuInfo testQemuInfo;
+void testQemuInfoFree(testQemuInfo *info);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(testQemuInfo, testQemuInfoFree);
 
 virDomainXMLOption *testQemuXMLConfInit(void);
 
@@ -147,11 +162,9 @@ int testQemuCapsIterate(const char *suffix,
                         testQemuCapsIterateCallback callback,
                         void *opaque);
 
-void testQemuInfoSetArgs(struct testQemuInfo *info,
-                         struct testQemuConf *conf,
-                         ...);
-int testQemuInfoInitArgs(struct testQemuInfo *info);
-void testQemuInfoClear(struct testQemuInfo *info);
+void testQemuInfoSetArgs(testQemuInfo *info,
+                         va_list argptr);
+int testQemuInfoInitArgs(testQemuInfo *info);
 
 int testQemuPrepareHostBackendChardevOne(virDomainDeviceDef *dev,
                                          virDomainChrSourceDef *chardev,

@@ -508,6 +508,7 @@ static const struct virCapsGuestFeatureInfo virCapsGuestFeatureInfos[VIR_CAPS_GU
     [VIR_CAPS_GUEST_FEATURE_TYPE_DEVICEBOOT] = { "deviceboot", false },
     [VIR_CAPS_GUEST_FEATURE_TYPE_DISKSNAPSHOT] = { "disksnapshot", true },
     [VIR_CAPS_GUEST_FEATURE_TYPE_HAP] = { "hap", true },
+    [VIR_CAPS_GUEST_FEATURE_TYPE_EXTERNAL_SNAPSHOT] = { "externalSnapshot", false },
 };
 
 
@@ -590,7 +591,8 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
                                         virArch arch,
                                         virDomainVirtType domaintype,
                                         const char *emulator,
-                                        const char *machinetype)
+                                        const char *machinetype,
+                                        bool reportError)
 {
     virCapsGuest *foundguest = NULL;
     virCapsGuestDomain *founddomain = NULL;
@@ -679,6 +681,10 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
     /* XXX check default_emulator, see how it uses this */
     if (!foundguest) {
         g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+
+        if (!reportError)
+            return NULL;
+
         if (ostype)
             virBufferAsprintf(&buf, "ostype=%s ",
                               virDomainOSTypeToString(ostype));
@@ -698,7 +704,7 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
         virReportError(VIR_ERR_INVALID_ARG,
                        _("could not find capabilities for %1$s"),
                        virBufferCurrentContent(&buf));
-        return ret;
+        return NULL;
     }
 
     ret = g_new0(virCapsDomainData, 1);
@@ -725,6 +731,7 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
  * @domaintype: domain type to search for, of enum virDomainVirtType
  * @emulator: Emulator path to search for
  * @machinetype: Machine type to search for
+ * @reportError: whether to report error if no match is found
  *
  * Search capabilities for the passed values, and if found return
  * virCapabilitiesDomainDataLookup filled in with the default values
@@ -735,7 +742,8 @@ virCapabilitiesDomainDataLookup(virCaps *caps,
                                 virArch arch,
                                 int domaintype,
                                 const char *emulator,
-                                const char *machinetype)
+                                const char *machinetype,
+                                bool reportError)
 {
     virCapsDomainData *ret;
 
@@ -744,14 +752,16 @@ virCapabilitiesDomainDataLookup(virCaps *caps,
         ret = virCapabilitiesDomainDataLookupInternal(caps, ostype,
                                                       caps->host.arch,
                                                       domaintype,
-                                                      emulator, machinetype);
+                                                      emulator, machinetype,
+                                                      reportError);
         if (ret)
             return ret;
     }
 
     return virCapabilitiesDomainDataLookupInternal(caps, ostype,
                                                    arch, domaintype,
-                                                   emulator, machinetype);
+                                                   emulator, machinetype,
+                                                   reportError);
 }
 
 
@@ -759,14 +769,16 @@ bool
 virCapabilitiesDomainSupported(virCaps *caps,
                                int ostype,
                                virArch arch,
-                               int virttype)
+                               int virttype,
+                               bool reportError)
 {
     g_autofree virCapsDomainData *capsdata = NULL;
 
     capsdata = virCapabilitiesDomainDataLookup(caps, ostype,
                                                arch,
                                                virttype,
-                                               NULL, NULL);
+                                               NULL, NULL,
+                                               reportError);
 
     return capsdata != NULL;
 }
@@ -810,9 +822,10 @@ virCapsHostNUMACellCPUFormat(virBuffer *buf,
                 return -1;
 
             virBufferAsprintf(&childBuf,
-                              " socket_id='%d' die_id='%d' core_id='%d' siblings='%s'",
+                              " socket_id='%d' die_id='%d' cluster_id='%d' core_id='%d' siblings='%s'",
                               cpus[j].socket_id,
                               cpus[j].die_id,
+                              cpus[j].cluster_id,
                               cpus[j].core_id,
                               siblings);
         }
@@ -1452,6 +1465,7 @@ virCapabilitiesFillCPUInfo(int cpu_id G_GNUC_UNUSED,
 
     if (virHostCPUGetSocket(cpu_id, &cpu->socket_id) < 0 ||
         virHostCPUGetDie(cpu_id, &cpu->die_id) < 0 ||
+        virHostCPUGetCluster(cpu_id, &cpu->cluster_id) < 0 ||
         virHostCPUGetCore(cpu_id, &cpu->core_id) < 0)
         return -1;
 
@@ -1711,6 +1725,7 @@ virCapabilitiesHostNUMAInitFake(virCapsHostNUMA *caps)
                     if (tmp) {
                         cpus[cid].id = id;
                         cpus[cid].die_id = 0;
+                        cpus[cid].cluster_id = 0;
                         cpus[cid].socket_id = s;
                         cpus[cid].core_id = c;
                         cpus[cid].siblings = virBitmapNewCopy(siblings);
@@ -2072,7 +2087,8 @@ virCapsHostCacheBankFree(virCapsHostCacheBank *ptr)
 
 static int
 virCapsHostCacheBankSorter(const void *a,
-                           const void *b)
+                           const void *b,
+                           void *opaque G_GNUC_UNUSED)
 {
     virCapsHostCacheBank *ca = *(virCapsHostCacheBank **)a;
     virCapsHostCacheBank *cb = *(virCapsHostCacheBank **)b;
@@ -2272,8 +2288,9 @@ virCapabilitiesInitCaches(virCaps *caps)
      * still traverse the directory instead of guessing names (in case there is
      * 'index1' and 'index3' but no 'index2'). */
     if (caps->host.cache.banks) {
-        qsort(caps->host.cache.banks, caps->host.cache.nbanks,
-              sizeof(*caps->host.cache.banks), virCapsHostCacheBankSorter);
+        g_qsort_with_data(caps->host.cache.banks, caps->host.cache.nbanks,
+                          sizeof(*caps->host.cache.banks),
+                          virCapsHostCacheBankSorter, NULL);
     }
 
     if (virCapabilitiesInitResctrlMemory(caps) < 0)

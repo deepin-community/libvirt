@@ -17,42 +17,43 @@
   <!-- Import the main part of the site stylesheets -->
   <xsl:import href="page.xsl"/>
 
-  <xsl:output method="xml" encoding="UTF-8" indent="yes"/>
-
   <!-- Build keys for all symbols -->
   <xsl:key name="symbols" match="/api/symbols/*" use="@name"/>
 
   <!-- the target directory for the HTML output -->
   <xsl:variable name="htmldir">html</xsl:variable>
-  <xsl:variable name="href_base">../</xsl:variable>
 
   <xsl:template name="aclinfo">
     <xsl:param name="acl"/>
 
-    <xsl:if test="count($acl/check) > 0">
-      <h5>Access control parameter checks</h5>
-      <table>
-        <thead>
-          <tr>
-            <th>Object</th>
-            <th>Permission</th>
-            <th>Condition</th>
-          </tr>
-        </thead>
-        <xsl:apply-templates select="$acl/check" mode="acl"/>
-      </table>
-    </xsl:if>
-    <xsl:if test="count($acl/filter) > 0">
-      <h5>Access control return value filters</h5>
-      <table>
-        <thead>
-          <tr>
-            <th>Object</th>
-            <th>Permission</th>
-          </tr>
-        </thead>
-        <xsl:apply-templates select="$acl/filter" mode="acl"/>
-      </table>
+    <xsl:if test="count($acl/check) > 0 or count($acl/filter) > 0">
+      <div class="acl">
+        <xsl:if test="count($acl/check) > 0">
+          <h5>Access control parameter checks</h5>
+          <table>
+            <thead>
+              <tr>
+                <th>Object</th>
+                <th>Permission</th>
+                <th>Condition</th>
+              </tr>
+            </thead>
+            <xsl:apply-templates select="$acl/check" mode="acl"/>
+          </table>
+        </xsl:if>
+        <xsl:if test="count($acl/filter) > 0">
+          <h5>Access control return value filters</h5>
+          <table>
+            <thead>
+              <tr>
+                <th>Object</th>
+                <th>Permission</th>
+              </tr>
+            </thead>
+            <xsl:apply-templates select="$acl/filter" mode="acl"/>
+          </table>
+        </xsl:if>
+      </div>
     </xsl:if>
   </xsl:template>
 
@@ -61,7 +62,7 @@
       <td><a href="../acl.html#object_{@object}"><xsl:value-of select="@object"/></a></td>
       <td><a href="../acl.html#perm_{@object}_{@perm}"><xsl:value-of select="@perm"/></a></td>
       <xsl:choose>
-        <xsl:when test="@flags">
+        <xsl:when test="@flags != ''">
           <td><xsl:value-of select="@flags"/></td>
         </xsl:when>
         <xsl:otherwise>
@@ -221,6 +222,19 @@
     </xsl:if>
   </xsl:template>
 
+  <xsl:template name="formattextdiv">
+    <xsl:param name="text"/>
+    <xsl:param name="divclass"/>
+
+    <xsl:if test="$text">
+      <div class="{$divclass}">
+        <xsl:call-template name="formattext">
+          <xsl:with-param name="text" select="$text"/>
+        </xsl:call-template>
+      </div>
+    </xsl:if>
+  </xsl:template>
+
   <xsl:template match="macro" mode="toc">
     <span class="directive">#define</span><xsl:text> </xsl:text>
     <a href="#{@name}"><xsl:value-of select="@name"/></a>
@@ -286,11 +300,10 @@
   <xsl:template match="typedef[@type = 'enum']">
     <xsl:variable name="name" select="string(@name)"/>
     <h3><a id="{$name}"><code><xsl:value-of select="$name"/></code></a></h3>
-    <div class="description">
-    <xsl:call-template name="formattext">
+    <xsl:call-template name="formattextdiv">
       <xsl:with-param name="text" select="info"/>
+      <xsl:with-param name="divclass">description</xsl:with-param>
     </xsl:call-template>
-    </div>
     <div class="api">
       <pre>
         <span class="keyword">enum</span><xsl:text> </xsl:text>
@@ -304,9 +317,9 @@
           <tr>
             <td><a id="{@name}"><xsl:value-of select="@name"/></a></td>
             <td><xsl:text> = </xsl:text></td>
+            <td class="enumvalue"><xsl:call-template name="enumvalue"/></td>
             <xsl:choose>
               <xsl:when test="@info != ''">
-                <td class="enumvalue"><xsl:call-template name="enumvalue"/></td>
                 <td>
                   <div class="comment">
                     <xsl:call-template name="dumptext">
@@ -316,7 +329,7 @@
                 </td>
               </xsl:when>
               <xsl:otherwise>
-                <td colspan="2" class="enumvalue"><xsl:call-template name="enumvalue"/></td>
+                <td><xsl:comment> </xsl:comment></td>
               </xsl:otherwise>
             </xsl:choose>
           </tr>
@@ -342,11 +355,10 @@
         <xsl:text>;</xsl:text>
       </pre>
     </div>
-    <div class="description">
-    <xsl:call-template name="formattext">
+    <xsl:call-template name="formattextdiv">
       <xsl:with-param name="text" select="info"/>
+      <xsl:with-param name="divclass">description</xsl:with-param>
     </xsl:call-template>
-    </div>
   </xsl:template>
 
   <xsl:template match="struct" mode="toc">
@@ -372,7 +384,7 @@
           <xsl:for-each select="field">
             <xsl:choose>
               <xsl:when test='@type = "union"'>
-                <tr><td><span class="keyword">union</span> {</td></tr>
+                <tr><td colspan="3"><span class="keyword">union</span> {</td></tr>
                 <tr>
                   <td><table>
                     <xsl:for-each select="union/field">
@@ -385,31 +397,35 @@
                           </span>
                         </td>
                         <td><xsl:value-of select="@name"/></td>
-                        <xsl:if test="@info != ''">
-                          <td>
+                        <td>
+                          <xsl:if test="@info != ''">
                             <div class="comment">
                               <xsl:call-template name="dumptext">
                                 <xsl:with-param name="text" select="@info"/>
                               </xsl:call-template>
                             </div>
-                          </td>
-                        </xsl:if>
+                          </xsl:if>
+                          <xsl:comment> </xsl:comment>
+                        </td>
                       </tr>
                     </xsl:for-each>
                   </table></td>
-                <td></td></tr>
-                <tr><td>}</td>
-                <td><xsl:value-of select="@name"/></td>
-                <xsl:if test="@info != ''">
+                  <td colspan="2"><xsl:comment> </xsl:comment></td>
+                </tr>
+                <tr>
+                  <td>}</td>
+                  <td><xsl:value-of select="@name"/></td>
                   <td>
-                    <div class="comment">
-                      <xsl:call-template name="dumptext">
-                        <xsl:with-param name="text" select="@info"/>
-                      </xsl:call-template>
-                    </div>
+                    <xsl:if test="@info != ''">
+                      <div class="comment">
+                        <xsl:call-template name="dumptext">
+                          <xsl:with-param name="text" select="@info"/>
+                        </xsl:call-template>
+                      </div>
+                    </xsl:if>
+                    <xsl:comment> </xsl:comment>
                   </td>
-                </xsl:if>
-                <td></td></tr>
+                </tr>
               </xsl:when>
               <xsl:otherwise>
                 <tr>
@@ -421,15 +437,16 @@
                     </span>
                   </td>
                   <td><xsl:value-of select="@name"/></td>
-                  <xsl:if test="@info != ''">
-                    <td>
+                  <td>
+                    <xsl:if test="@info != ''">
                       <div class="comment">
                         <xsl:call-template name="dumptext">
                         <xsl:with-param name="text" select="@info"/>
                         </xsl:call-template>
                       </div>
-                    </td>
-                  </xsl:if>
+                    </xsl:if>
+                    <xsl:comment> </xsl:comment>
+                  </td>
                 </tr>
               </xsl:otherwise>
             </xsl:choose>
@@ -451,11 +468,11 @@
     <xsl:variable name="name" select="string(@name)"/>
     <h3><a id="{$name}"><code><xsl:value-of select="$name"/></code></a></h3>
     <pre class="api"><span class="directive">#define</span><xsl:text> </xsl:text><xsl:value-of select="$name"/></pre>
-    <div class="description">
-    <xsl:call-template name="formattext">
+    <xsl:call-template name="formattextdiv">
       <xsl:with-param name="text" select="info"/>
+      <xsl:with-param name="divclass">description</xsl:with-param>
     </xsl:call-template>
-    </div><xsl:text>
+    <xsl:text>
 </xsl:text>
   </xsl:template>
 
@@ -603,11 +620,10 @@
     <xsl:text>)
 </xsl:text>
     </pre>
-    <div class="description">
-    <xsl:call-template name="formattext">
+    <xsl:call-template name="formattextdiv">
       <xsl:with-param name="text" select="info"/>
+      <xsl:with-param name="divclass">description</xsl:with-param>
     </xsl:call-template>
-    </div>
     <xsl:if test="arg | return">
       <dl class="variablelist">
       <xsl:for-each select="arg">
@@ -679,11 +695,11 @@
     </xsl:for-each>
     <xsl:text>)</xsl:text>
     </pre>
-    <div class="description">
-    <xsl:call-template name="formattext">
+    <xsl:call-template name="formattextdiv">
       <xsl:with-param name="text" select="info"/>
+      <xsl:with-param name="divclass">description</xsl:with-param>
     </xsl:call-template>
-    </div><xsl:text>
+    <xsl:text>
 </xsl:text>
     <xsl:if test="arg | return/@info">
       <dl class="variablelist">
@@ -705,11 +721,9 @@
         </xsl:if>
       </dl>
     </xsl:if>
-    <div class="acl">
-      <xsl:call-template name="aclinfo">
-        <xsl:with-param name="acl" select="acls"/>
-      </xsl:call-template>
-    </div>
+    <xsl:call-template name="aclinfo">
+      <xsl:with-param name="acl" select="acls"/>
+    </xsl:call-template>
   </xsl:template>
 
   <xsl:template match="exports" mode="toc">
@@ -812,10 +826,13 @@
       <xsl:document
         href="{concat($htmldir, '/libvirt-', @name, '.html')}"
         method="xml"
-        indent="yes"
-        encoding="UTF-8">
+        omit-xml-declaration="yes"
+        encoding="UTF-8"
+        indent="yes">
         <xsl:apply-templates select="exsl:node-set($subpage)" mode="page">
           <xsl:with-param name="timestamp" select="$timestamp"/>
+          <xsl:with-param name="link_href_base" select="$href_base"/>
+          <xsl:with-param name="asset_href_base" select="$href_base"/>
         </xsl:apply-templates>
       </xsl:document>
     </xsl:for-each>

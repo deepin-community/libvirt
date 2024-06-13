@@ -58,11 +58,15 @@
 
 static int (*real_chown)(const char *path, uid_t uid, gid_t gid);
 static int (*real_open)(const char *path, int flags, ...);
+#if WITH___OPEN_2
+static int (*real___open_2)(const char *path, int flags);
+#endif
 static int (*real_close)(int fd);
 #ifdef WITH_SELINUX
 static int (*real_setfilecon_raw)(const char *path, const char *context);
 static int (*real_getfilecon_raw)(const char *path, char **context);
 #endif
+static bool (*real_virFileExists)(const char *file);
 
 
 /* Global mutex to avoid races */
@@ -112,11 +116,15 @@ init_syms(void)
 
     VIR_MOCK_REAL_INIT(chown);
     VIR_MOCK_REAL_INIT(open);
+#if WITH___OPEN_2
+    VIR_MOCK_REAL_INIT(__open_2);
+#endif
     VIR_MOCK_REAL_INIT(close);
 #ifdef WITH_SELINUX
     VIR_MOCK_REAL_INIT(setfilecon_raw);
     VIR_MOCK_REAL_INIT(getfilecon_raw);
 #endif
+    VIR_MOCK_REAL_INIT(virFileExists);
 
     /* Intentionally not calling init_hash() here */
 }
@@ -324,6 +332,24 @@ open(const char *path, int flags, ...)
 }
 
 
+#if WITH___OPEN_2
+int
+__open_2(const char *path, int flags)
+{
+    int ret;
+
+    init_syms();
+
+    if (getenv(ENVVAR)) {
+        ret = 42; /* Some dummy FD */
+    } else {
+        ret = real___open_2(path, flags);
+    }
+
+    return ret;
+}
+#endif
+
 int
 close(int fd)
 {
@@ -355,6 +381,27 @@ int virFileUnlock(int fd G_GNUC_UNUSED,
                   off_t len G_GNUC_UNUSED)
 {
     return 0;
+}
+
+
+bool virFileExists(const char *path)
+{
+    VIR_LOCK_GUARD lock = virLockGuardLock(&m);
+
+    if (getenv(ENVVAR) == NULL) {
+        init_syms();
+
+        return real_virFileExists(path);
+    }
+
+    init_hash();
+    if (virHashHasEntry(chown_paths, path))
+        return true;
+
+    if (virHashHasEntry(selinux_paths, path))
+        return true;
+
+    return false;
 }
 
 

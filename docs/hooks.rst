@@ -34,7 +34,7 @@ The libvirt hook scripts are located in the directory
    ``/etc/libvirt/hooks/``. Other Linux distributions may do this differently.
 -  If your installation of libvirt has instead been compiled from source, it is
    likely to be ``/usr/local/etc/libvirt/hooks/``.
--  :since:`Since 6.5.0` , you can also place several hook scripts in the
+-  :since:`Since 6.5.0`, you can also place several hook scripts in the
    directories ``/etc/libvirt/hooks/<driver>.d/``.
 
 To use hook scripts, you will need to create this ``hooks`` directory manually,
@@ -60,7 +60,7 @@ At present, there are five hook scripts that can be called:
    Executed when a network is started or stopped or an interface is
    plugged/unplugged to/from the network
 
-:since:`Since 6.5.0` , you can also have several scripts with any name in the
+:since:`Since 6.5.0`, you can also have several scripts with any name in the
 directories ``/etc/libvirt/hooks/<driver>.d/``. They are executed in
 alphabetical order after main script.
 
@@ -151,20 +151,20 @@ This translates to the following specifics for each hook script:
 /etc/libvirt/hooks/daemon
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
--  | When the libvirt daemon is started, this script is called as:
+-  When the libvirt daemon is started, this script is called as:
 
    ::
 
       /etc/libvirt/hooks/daemon - start - start
 
--  | When the libvirt daemon is shut down, this script is called as:
+-  When the libvirt daemon is shut down, this script is called as:
 
    ::
 
       /etc/libvirt/hooks/daemon - shutdown - shutdown
 
--  | When the libvirt daemon receives the SIGHUP signal, it reloads its
-     configuration and triggers the hook script as:
+-  When the libvirt daemon receives the SIGHUP signal, it reloads its
+   configuration and triggers the hook script as:
 
    ::
 
@@ -177,47 +177,47 @@ operation. There is no specific operation to indicate a "restart" is occurring.
 /etc/libvirt/hooks/qemu
 ^^^^^^^^^^^^^^^^^^^^^^^
 
--  | Before a QEMU guest is started, the qemu hook script is called in three
-     locations; if any location fails, the guest is not started. The first
-     location, :since:`since 0.9.0` , is before libvirt performs any resource
-     labeling, and the hook can allocate resources not managed by libvirt such
-     as DRBD or missing bridges. This is called as:
+-  Before a QEMU guest is started, the qemu hook script is called in three
+   locations; if any location fails, the guest is not started. The first
+   location, :since:`since 0.9.0`, is before libvirt performs any resource
+   labeling, and the hook can allocate resources not managed by libvirt such
+   as DRBD or missing bridges. This is called as:
 
    ::
 
       /etc/libvirt/hooks/qemu guest_name prepare begin -
 
-   | The second location, available :since:`Since 0.8.0` , occurs after libvirt
-     has finished labeling all resources, but has not yet started the guest,
-     called as:
+   The second location, available :since:`Since 0.8.0`, occurs after libvirt
+   has finished labeling all resources, but has not yet started the guest,
+   called as:
 
    ::
 
       /etc/libvirt/hooks/qemu guest_name start begin -
 
-   | The third location, :since:`0.9.13` , occurs after the QEMU process has
-     successfully started up:
+   The third location, :since:`0.9.13`, occurs after the QEMU process has
+   successfully started up:
 
    ::
 
       /etc/libvirt/hooks/qemu guest_name started begin -
 
--  | When a QEMU guest is stopped, the qemu hook script is called in two
-     locations, to match the startup. First, :since:`since 0.8.0` , the hook is
-     called before libvirt restores any labels:
+-  When a QEMU guest is stopped, the qemu hook script is called in two
+   locations, to match the startup. First, :since:`since 0.8.0`, the hook is
+   called before libvirt restores any labels:
 
    ::
 
       /etc/libvirt/hooks/qemu guest_name stopped end -
 
-   | Then, after libvirt has released all resources, the hook is called again,
-     :since:`since 0.9.0` , to allow any additional resource cleanup:
+   Then, after libvirt has released all resources, the hook is called again,
+   :since:`since 0.9.0`, to allow any additional resource cleanup:
 
    ::
 
       /etc/libvirt/hooks/qemu guest_name release end -
 
--  :since:`Since 0.9.11` , the qemu hook script is also called at the beginning
+-  :since:`Since 0.9.11`, the qemu hook script is also called at the beginning
    of incoming migration. It is called as:
 
    ::
@@ -231,7 +231,7 @@ operation. There is no specific operation to indicate a "restart" is occurring.
    is not valid, incoming migration will be canceled. This hook may be used,
    e.g., to change location of disk images for incoming domains.
 
--  :since:`Since 1.2.9` , the qemu hook script is also called when restoring a
+-  :since:`Since 1.2.9`, the qemu hook script is also called when restoring a
    saved image either via the API or automatically when restoring a managed save
    machine. It is called as:
 
@@ -246,7 +246,7 @@ operation. There is no specific operation to indicate a "restart" is occurring.
    is not valid, restore of the image will be aborted. This hook may be used,
    e.g., to change location of disk images for restored domains.
 
--  :since:`Since 6.5.0` , you can also place several hook scripts in the
+-  :since:`Since 6.5.0`, you can also place several hook scripts in the
    directory ``/etc/libvirt/hooks/qemu.d/``. They are executed in alphabetical
    order after main script. In this case each script also acts as filter and can
    modify the domain XML and print it out on its standard output. This script
@@ -255,7 +255,7 @@ operation. There is no specific operation to indicate a "restart" is occurring.
    case any script returns failure common process will be aborted, but all
    scripts from the directory will are executed.
 
--  :since:`Since 0.9.13` , the qemu hook script is also called when the libvirtd
+-  :since:`Since 0.9.13`, the qemu hook script is also called when the libvirtd
    daemon restarts and reconnects to previously running QEMU processes. If the
    script fails, the existing QEMU process will be killed off. It is called as:
 
@@ -263,7 +263,7 @@ operation. There is no specific operation to indicate a "restart" is occurring.
 
       /etc/libvirt/hooks/qemu guest_name reconnect begin -
 
--  :since:`Since 0.9.13` , the qemu hook script is also called when the QEMU
+-  :since:`Since 0.9.13`, the qemu hook script is also called when the QEMU
    driver is told to attach to an externally launched QEMU process. It is called
    as:
 
@@ -274,47 +274,47 @@ operation. There is no specific operation to indicate a "restart" is occurring.
 /etc/libvirt/hooks/lxc
 ^^^^^^^^^^^^^^^^^^^^^^
 
--  | Before a LXC guest is started, the lxc hook script is called in three
-     locations; if any location fails, the guest is not started. The first
-     location, :since:`since 0.9.13` , is before libvirt performs any resource
-     labeling, and the hook can allocate resources not managed by libvirt such
-     as DRBD or missing bridges. This is called as:
+-  Before a LXC guest is started, the lxc hook script is called in three
+   locations; if any location fails, the guest is not started. The first
+   location, :since:`since 0.9.13`, is before libvirt performs any resource
+   labeling, and the hook can allocate resources not managed by libvirt such
+   as DRBD or missing bridges. This is called as:
 
    ::
 
       /etc/libvirt/hooks/lxc guest_name prepare begin -
 
-   | The second location, available :since:`Since 0.8.0` , occurs after libvirt
-     has finished labeling all resources, but has not yet started the guest,
-     called as:
+   The second location, available :since:`Since 0.8.0`, occurs after libvirt
+   has finished labeling all resources, but has not yet started the guest,
+   called as:
 
    ::
 
       /etc/libvirt/hooks/lxc guest_name start begin -
 
-   | The third location, :since:`0.9.13` , occurs after the LXC process has
-     successfully started up:
+   The third location, :since:`0.9.13`, occurs after the LXC process has
+   successfully started up:
 
    ::
 
       /etc/libvirt/hooks/lxc guest_name started begin -
 
--  | When a LXC guest is stopped, the lxc hook script is called in two
-     locations, to match the startup. First, :since:`since 0.8.0` , the hook is
-     called before libvirt restores any labels:
+-  When a LXC guest is stopped, the lxc hook script is called in two
+   locations, to match the startup. First, :since:`since 0.8.0`, the hook is
+   called before libvirt restores any labels:
 
    ::
 
       /etc/libvirt/hooks/lxc guest_name stopped end -
 
-   | Then, after libvirt has released all resources, the hook is called again,
-     :since:`since 0.9.0` , to allow any additional resource cleanup:
+   Then, after libvirt has released all resources, the hook is called again,
+   :since:`since 0.9.0`, to allow any additional resource cleanup:
 
    ::
 
       /etc/libvirt/hooks/lxc guest_name release end -
 
--  :since:`Since 0.9.13` , the lxc hook script is also called when the libvirtd
+-  :since:`Since 0.9.13`, the lxc hook script is also called when the libvirtd
    daemon restarts and reconnects to previously running LXC processes. If the
    script fails, the existing LXC process will be killed off. It is called as:
 
@@ -325,47 +325,47 @@ operation. There is no specific operation to indicate a "restart" is occurring.
 /etc/libvirt/hooks/libxl
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
--  | Before a Xen guest is started using libxl driver, the libxl hook script is
-     called in three locations; if any location fails, the guest is not started.
-     The first location, :since:`since 2.1.0` , is before libvirt performs any
-     resource labeling, and the hook can allocate resources not managed by
-     libvirt. This is called as:
+-  Before a Xen guest is started using libxl driver, the libxl hook script is
+   called in three locations; if any location fails, the guest is not started.
+   The first location, :since:`since 2.1.0`, is before libvirt performs any
+   resource labeling, and the hook can allocate resources not managed by
+   libvirt. This is called as:
 
    ::
 
       /etc/libvirt/hooks/libxl guest_name prepare begin -
 
-   | The second location, available :since:`Since 2.1.0` , occurs after libvirt
-     has finished labeling all resources, but has not yet started the guest,
-     called as:
+   The second location, available :since:`Since 2.1.0`, occurs after libvirt
+   has finished labeling all resources, but has not yet started the guest,
+   called as:
 
    ::
 
       /etc/libvirt/hooks/libxl guest_name start begin -
 
-   | The third location, :since:`2.1.0` , occurs after the domain has
-     successfully started up:
+   The third location, :since:`2.1.0`, occurs after the domain has
+   successfully started up:
 
    ::
 
       /etc/libvirt/hooks/libxl guest_name started begin -
 
--  | When a libxl-handled Xen guest is stopped, the libxl hook script is called
-     in two locations, to match the startup. First, :since:`since 2.1.0` , the
-     hook is called before libvirt restores any labels:
+-  When a libxl-handled Xen guest is stopped, the libxl hook script is called
+   in two locations, to match the startup. First, :since:`since 2.1.0`, the
+   hook is called before libvirt restores any labels:
 
    ::
 
       /etc/libvirt/hooks/libxl guest_name stopped end -
 
-   | Then, after libvirt has released all resources, the hook is called again,
-     :since:`since 2.1.0` , to allow any additional resource cleanup:
+   Then, after libvirt has released all resources, the hook is called again,
+   :since:`since 2.1.0`, to allow any additional resource cleanup:
 
    ::
 
       /etc/libvirt/hooks/libxl guest_name release end -
 
--  :since:`Since 2.1.0` , the libxl hook script is also called at the beginning
+-  :since:`Since 2.1.0`, the libxl hook script is also called at the beginning
    of incoming migration. It is called as:
 
    ::
@@ -379,7 +379,7 @@ operation. There is no specific operation to indicate a "restart" is occurring.
    is not valid, incoming migration will be canceled. This hook may be used,
    e.g., to change location of disk images for incoming domains.
 
--  :since:`Since 6.5.0` , you can also place several hook scripts in the
+-  :since:`Since 6.5.0`, you can also place several hook scripts in the
    directory ``/etc/libvirt/hooks/libxl.d/``. They are executed in alphabetical
    order after main script. In this case each script also acts as filter and can
    modify the domain XML and print it out on its standard output. This script
@@ -388,7 +388,7 @@ operation. There is no specific operation to indicate a "restart" is occurring.
    case any script returns failure common process will be aborted, but all
    scripts from the directory will are executed.
 
--  :since:`Since 2.1.0` , the libxl hook script is also called when the libvirtd
+-  :since:`Since 2.1.0`, the libxl hook script is also called when the libvirtd
    daemon restarts and reconnects to previously running Xen domains. If the
    script fails, the existing Xen domains will be killed off. It is called as:
 
@@ -399,41 +399,41 @@ operation. There is no specific operation to indicate a "restart" is occurring.
 /etc/libvirt/hooks/bhyve
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
--  | Before an bhyve guest is started, the bhyve hook script is called in three
-     locations; if any location fails, the guest is not started. The first
-     location, :since:`since 6.1.0` , is before libvirt performs any resource
-     labeling, and the hook can allocate resources not managed by libvirt. This is
-     called as:
+-  Before an bhyve guest is started, the bhyve hook script is called in three
+   locations; if any location fails, the guest is not started. The first
+   location, :since:`since 6.1.0`, is before libvirt performs any resource
+   labeling, and the hook can allocate resources not managed by libvirt. This is
+   called as:
 
    ::
 
       /etc/libvirt/hooks/bhyve guest_name prepare begin -
 
-   | The second location, available :since:`Since 6.1.0` , occurs after libvirt
-     has finished labeling all resources, but has not yet started the guest,
-     called as:
+   The second location, available :since:`Since 6.1.0`, occurs after libvirt
+   has finished labeling all resources, but has not yet started the guest,
+   called as:
 
    ::
 
       /etc/libvirt/hooks/bhyve guest_name start begin -
 
-   | The third location, :since:`6.1.0` , occurs after the bhyve process has
-     successfully started up:
+   The third location, :since:`6.1.0`, occurs after the bhyve process has
+   successfully started up:
 
    ::
 
       /etc/libvirt/hooks/bhyve guest_name started begin -
 
--  | When an bhyve guest is stopped, the bhyve hook script is called in two
-     locations, to match the startup. First, :since:`since 6.1.0` , the hook is
-     called before libvirt restores any labels:
+-  When an bhyve guest is stopped, the bhyve hook script is called in two
+   locations, to match the startup. First, :since:`since 6.1.0`, the hook is
+   called before libvirt restores any labels:
 
    ::
 
       /etc/libvirt/hooks/bhyve guest_name stopped end -
 
-   | Then, after libvirt has released all resources, the hook is called again,
-     :since:`since 6.1.0` , to allow any additional resource cleanup:
+   Then, after libvirt has released all resources, the hook is called again,
+   :since:`since 6.1.0`, to allow any additional resource cleanup:
 
    ::
 
@@ -442,27 +442,27 @@ operation. There is no specific operation to indicate a "restart" is occurring.
 /etc/libvirt/hooks/network
 ^^^^^^^^^^^^^^^^^^^^^^^^^^
 
--  | :since:`Since 1.2.2` , before a network is started, this script is called
-     as:
+-  :since:`Since 1.2.2`, before a network is started, this script is called
+   as:
 
    ::
 
       /etc/libvirt/hooks/network network_name start begin -
 
--  | After the network is started, up & running, the script is called as:
+-  After the network is started, up & running, the script is called as:
 
    ::
 
       /etc/libvirt/hooks/network network_name started begin -
 
--  | When a network is shut down, this script is called as:
+-  When a network is shut down, this script is called as:
 
    ::
 
       /etc/libvirt/hooks/network network_name stopped end -
 
--  | Later, when network is started and there's an interface from a domain to be
-     plugged into the network, the hook script is called as:
+-  Later, when network is started and there's an interface from a domain to be
+   plugged into the network, the hook script is called as:
 
    ::
 
@@ -471,14 +471,14 @@ operation. There is no specific operation to indicate a "restart" is occurring.
    Please note, that in this case, the script is passed both network and port
    XMLs on its stdin.
 
--  | When network is updated, the hook script is called as:
+-  When network is updated, the hook script is called as:
 
    ::
 
       /etc/libvirt/hooks/network network_name updated begin -
 
--  | When the domain from previous case is shutting down, the interface is
-     unplugged. This leads to another script invocation:
+-  When the domain from previous case is shutting down, the interface is
+   unplugged. This leads to another script invocation:
 
    ::
 

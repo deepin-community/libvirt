@@ -735,8 +735,7 @@ virExec(virCommand *cmd)
         childerr = null;
     }
 
-    if ((ngroups = virGetGroupList(cmd->uid, cmd->gid, &groups)) < 0)
-        goto cleanup;
+    ngroups = virGetGroupList(cmd->uid, cmd->gid, &groups);
 
     pid = virFork();
 
@@ -2227,7 +2226,7 @@ virCommandProcessIO(virCommand *cmd)
     int outfd = -1, errfd = -1;
     size_t inlen = 0, outlen = 0, errlen = 0;
     size_t inoff = 0;
-    int ret = 0;
+    int ret = -1;
     g_autofree struct pollfd *fds = NULL;
 
     if (dryRunBuffer || dryRunCallback) {
@@ -2254,9 +2253,6 @@ virCommandProcessIO(virCommand *cmd)
         VIR_FREE(*cmd->errbuf);
         *cmd->errbuf = g_new0(char, 1);
     }
-    if (ret == -1)
-        goto cleanup;
-    ret = -1;
 
     fds = g_new0(struct pollfd, 3 + virCommandGetNumSendBuffers(cmd));
 

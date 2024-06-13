@@ -9,7 +9,7 @@ Forwarded: not-needed
  2 files changed, 10 insertions(+), 11 deletions(-)
 
 diff --git a/docs/manpages/libvirt-guests.rst b/docs/manpages/libvirt-guests.rst
-index f27eaad..62b279c 100644
+index 42dae28..69bc270 100644
 --- a/docs/manpages/libvirt-guests.rst
 +++ b/docs/manpages/libvirt-guests.rst
 @@ -51,7 +51,7 @@ The following variables are supported:
@@ -31,7 +31,7 @@ index f27eaad..62b279c 100644
    Action taken on host shutdown
  
 diff --git a/tools/libvirt-guests.sh.in b/tools/libvirt-guests.sh.in
-index 344b543..9ea221c 100644
+index c3c5954..e2a3744 100644
 --- a/tools/libvirt-guests.sh.in
 +++ b/tools/libvirt-guests.sh.in
 @@ -20,19 +20,19 @@ sysconfdir="@sysconfdir@"
@@ -60,7 +60,7 @@ index 344b543..9ea221c 100644
  SHUTDOWN_TIMEOUT=300
  PARALLEL_SHUTDOWN=0
  START_DELAY=0
-@@ -43,7 +43,7 @@ test -f "$initconfdir"/libvirt-guests &&
+@@ -44,7 +44,7 @@ test -f "$initconfdir"/libvirt-guests &&
      . "$initconfdir"/libvirt-guests
  
  LISTFILE="$localstatedir"/lib/libvirt/libvirt-guests
@@ -69,7 +69,7 @@ index 344b543..9ea221c 100644
  
  RETVAL=0
  
-@@ -562,8 +562,7 @@ gueststatus() {
+@@ -585,8 +585,7 @@ gueststatus() {
  
  # rh_status
  # Display current status: whether saved state exists, and whether start

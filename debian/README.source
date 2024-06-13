@@ -1,6 +1,6 @@
-This package is maintained with git-buildpackage(1). It follows DEP-14
-for branch naming (e.g. using debian/sid for the current version
-in Debian unstable).
+This package is maintained with git-buildpackage(1). It follows
+DEP-14 for branch naming (e.g. using debian/latest for the current
+development target).
 
 It uses pristine-tar(1) to store enough information in git to generate
 bit identical tarballs when building the package without having
@@ -16,14 +16,26 @@ a nice git commit message that can then end up in the changelog.
 
 It is recommended to build the package with pbuilder using:
 
-    gbp builpackage --git-pbuilder
+    gbp buildpackage --git-pbuilder
 
 For information on how to set up a pbuilder environment see the
 git-pbuilder(1) manpage. In short:
 
     DIST=sid git-pbuilder create
-    gbp clone https://anonscm.debian.org/git/pkg-libvirt/libvirt.git
+    gbp clone https://salsa.debian.org/libvirt-team/libvirt.git
     cd libvirt
     gbp buildpackage --git-pbuilder
+
+Some of the files in debian/ are generated from templates. When
+making changes, edit debian/foo.in, not debian/foo; in most cases,
+the latter is not even included in the repository.
+
+As a special case, debian/control needs to be regenerated after
+changes are made to its template: this can be achieved by running
+
+    debian/scripts/process-templates.py
+
+and then committing both files. For all other files, templates are
+processed at build time, so this additional step is unnecessary.
 
  -- Guido Günther <agx@sigxcpu.org>, Wed,  2 Dec 2015 18:51:15 +0100

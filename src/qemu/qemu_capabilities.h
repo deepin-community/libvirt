@@ -310,7 +310,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_MIGRATION_EVENT, /* MIGRATION event */
 
     /* 190 */
-    QEMU_CAPS_OBJECT_GPEX, /* have generic PCI host controller */
+    X_QEMU_CAPS_OBJECT_GPEX, /* have generic PCI host controller */
     QEMU_CAPS_DEVICE_IOH3420, /* -device ioh3420 */
     QEMU_CAPS_DEVICE_X3130_UPSTREAM, /* -device x3130-upstream */
     QEMU_CAPS_DEVICE_XIO3130_DOWNSTREAM, /* -device xio3130-downstream */
@@ -677,6 +677,16 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     /* 450 */
     QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN, /* asynchronous teardown -run-with async-teardown=on|off */
     QEMU_CAPS_DEVICE_VIRTIO_BLK_VHOST_VDPA, /* virtio-blk-vhost-vdpa block driver */
+    QEMU_CAPS_VIRTIO_BLK_IOTHREAD_MAPPING, /* virtio-blk supports per-virtqueue iothread mapping */
+    QEMU_CAPS_SMP_CLUSTERS, /* -smp clusters= */
+    QEMU_CAPS_DEVICE_VIRTIO_MEM_PCI_DYNAMIC_MEMSLOTS, /* -device virtio-mem-pci.dynamic-memslots= */
+
+    /* 455 */
+    QEMU_CAPS_BLOCKJOB_BACKING_MASK_PROTOCOL, /* backing-mask-protocol of block-commit/block-stream */
+    QEMU_CAPS_DISPLAY_RELOAD, /* 'display-reload' qmp command is supported */
+    QEMU_CAPS_DEVICE_USB_MTP, /* -device usb-mtp */
+    QEMU_CAPS_MACHINE_VIRT_RAS, /* -machine virt,ras= */
+    QEMU_CAPS_DEVICE_VIRTIO_SOUND, /* -device virtio-sound-* */
 
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
@@ -698,8 +708,6 @@ bool virQEMUCapsGet(virQEMUCaps *qemuCaps,
                     virQEMUCapsFlags flag);
 
 void virQEMUCapsInitProcessCapsInterlock(virQEMUCaps *qemuCaps);
-
-bool virQEMUCapsHasPCIMultiBus(const virDomainDef *def);
 
 bool virQEMUCapsSupportsVmport(virQEMUCaps *qemuCaps,
                                const virDomainDef *def);
@@ -766,6 +774,9 @@ const char *virQEMUCapsGetMachineDefaultCPU(virQEMUCaps *qemuCaps,
 bool virQEMUCapsIsCPUDeprecated(virQEMUCaps *qemuCaps,
                                 virDomainVirtType type,
                                 const char *model);
+bool virQEMUCapsIsCPUUsable(virQEMUCaps *qemuCaps,
+                            virDomainVirtType type,
+                            virCPUDef *cpu);
 bool virQEMUCapsIsMachineDeprecated(virQEMUCaps *qemuCaps,
                                     virDomainVirtType type,
                                     const char *machine);

@@ -1,0 +1,55 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#CREATE_CONFIG_FROM_TEMPLATE#
+#FINISH_CONFFILE_TRANSFER#
+#SYSTEMD_DAEMON_RELOAD#
+#SYSTEMD_UNIT_RESTART_IF_ACTIVE#
+
+case "$1" in
+    configure)
+        create_config_from_template \
+            "/etc/libvirt/qemu/networks/default.xml" \
+            "/usr/share/libvirt/networks/default.xml" \
+            "6.9.0-2~" \
+            -- \
+            "$@"
+        finish_conffile_transfer \
+            "/etc/libvirt/qemu/networks/default.xml" \
+            "6.9.0-2~" \
+            "libvirt-daemon-system" \
+            "libvirt-daemon-config-network" \
+            -- \
+            "$@"
+
+        # Since we might have changed the on-disk configuration for some
+        # services, restart them so that they can pick up the new settings
+        systemd_daemon_reload
+        systemd_unit_restart_if_active libvirtd.service
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

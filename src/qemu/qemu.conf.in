@@ -565,7 +565,8 @@
 #cgroup_device_acl = [
 #    "/dev/null", "/dev/full", "/dev/zero",
 #    "/dev/random", "/dev/urandom",
-#    "/dev/ptmx", "/dev/kvm"
+#    "/dev/ptmx", "/dev/kvm",
+#    "/dev/userfaultfd"
 #]
 #
 # RDMA migration requires the following extra files to be added to the list:
@@ -581,10 +582,9 @@
 # memory from the domain is dumped out directly to a file.  If you have
 # guests with a large amount of memory, however, this can take up quite
 # a bit of space.  If you would like to compress the images while they
-# are being saved to disk, you can also set "lzop", "gzip", "bzip2", or "xz"
-# for save_image_format.  Note that this means you slow down the process of
-# saving a domain in order to save disk space; the list above is in descending
-# order by performance and ascending order by compression ratio.
+# are being saved to disk, you can also set "zstd", "lzop", "gzip", "bzip2",
+# or "xz" for save_image_format. Note that this means you slow down the process
+# of saving a domain in order to save disk space.
 #
 # save_image_format is used when you use 'virsh save' or 'virsh managedsave'
 # at scheduled saving, and it is an error if the specified save_image_format
@@ -974,3 +974,14 @@
 # "full"    -  both QEMU and its helper processes are placed into separate
 #              scheduling group
 #sched_core = "none"
+
+# Using nbdkit to access remote disk sources
+#
+# If this is set then libvirt will use nbdkit to access remote disk sources
+# when available. nbdkit will export an NBD share to QEMU rather than having
+# QEMU attempt to access the remote server directly.
+#
+# Possible values are 0 or 1. Default value is @USE_NBDKIT_DEFAULT@. Please
+# note that the default might change in future releases.
+#
+#storage_use_nbdkit = @USE_NBDKIT_DEFAULT@

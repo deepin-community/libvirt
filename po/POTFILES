@@ -21,6 +21,7 @@ src/bhyve/bhyve_process.c
 src/ch/ch_conf.c
 src/ch/ch_domain.c
 src/ch/ch_driver.c
+src/ch/ch_interface.c
 src/ch/ch_monitor.c
 src/ch/ch_process.c
 src/conf/backup_conf.c
@@ -92,6 +93,7 @@ src/hyperv/hyperv_util.c
 src/hyperv/hyperv_wmi.c
 src/hypervisor/domain_cgroup.c
 src/hypervisor/domain_driver.c
+src/hypervisor/domain_interface.c
 src/hypervisor/virhostdev.c
 src/interface/interface_backend_netcf.c
 src/interface/interface_backend_udev.c
@@ -142,6 +144,8 @@ src/network/bridge_driver.c
 src/network/bridge_driver_conf.c
 src/network/bridge_driver_linux.c
 src/network/leaseshelper.c
+src/network/network_iptables.c
+src/network/network_nftables.c
 src/node_device/node_device_driver.c
 src/node_device/node_device_udev.c
 src/nwfilter/nwfilter_dhcpsnoop.c
@@ -286,7 +290,6 @@ src/util/virhostmem.c
 src/util/virhostuptime.c
 src/util/viridentity.c
 src/util/virinitctl.c
-src/util/viriptables.c
 src/util/viriscsi.c
 src/util/virjson.c
 src/util/virlease.c
@@ -311,7 +314,6 @@ src/util/virnuma.c
 src/util/virnvme.c
 src/util/virobject.c
 src/util/virpci.c
-src/util/virpcivpd.c
 src/util/virperf.c
 src/util/virpidfile.c
 src/util/virpolkit.c
@@ -358,6 +360,7 @@ src/vz/vz_utils.c
 src/vz/vz_utils.h
 tests/virpolkittest.c
 tools/libvirt-guests.sh.in
+tools/ssh-proxy/ssh-proxy.c
 tools/virsh-backup.c
 tools/virsh-checkpoint.c
 tools/virsh-completer-host.c

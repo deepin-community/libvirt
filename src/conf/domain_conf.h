@@ -201,18 +201,6 @@ typedef enum {
     VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_LAST
 } virDomainHostdevSubsysType;
 
-/* the backend driver used for PCI hostdev devices */
-typedef enum {
-    VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT = 0, /* detect automatically, prefer VFIO */
-    VIR_DOMAIN_HOSTDEV_PCI_BACKEND_KVM,    /* force legacy kvm style */
-    VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO,   /* force vfio */
-    VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN,    /* force legacy xen style, use pciback */
-
-    VIR_DOMAIN_HOSTDEV_PCI_BACKEND_TYPE_LAST
-} virDomainHostdevSubsysPCIBackendType;
-
-VIR_ENUM_DECL(virDomainHostdevSubsysPCIBackend);
-
 typedef enum {
     VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_NONE,
     VIR_DOMAIN_HOSTDEV_SCSI_PROTOCOL_TYPE_ISCSI,
@@ -247,7 +235,9 @@ struct _virDomainHostdevSubsysUSB {
 
 struct _virDomainHostdevSubsysPCI {
     virPCIDeviceAddress addr; /* host address */
-    virDomainHostdevSubsysPCIBackendType backend;
+    virDeviceHostdevPCIDriverInfo driver;
+    virTristateSwitch display;
+    virTristateSwitch ramfb;
 
     virBitmap *origstates;
 };
@@ -414,17 +404,6 @@ typedef enum {
 } virDomainDiskBus;
 
 typedef enum {
-    VIR_DOMAIN_DISK_CACHE_DEFAULT,
-    VIR_DOMAIN_DISK_CACHE_DISABLE,
-    VIR_DOMAIN_DISK_CACHE_WRITETHRU,
-    VIR_DOMAIN_DISK_CACHE_WRITEBACK,
-    VIR_DOMAIN_DISK_CACHE_DIRECTSYNC,
-    VIR_DOMAIN_DISK_CACHE_UNSAFE,
-
-    VIR_DOMAIN_DISK_CACHE_LAST
-} virDomainDiskCache;
-
-typedef enum {
     VIR_DOMAIN_DISK_ERROR_POLICY_DEFAULT,
     VIR_DOMAIN_DISK_ERROR_POLICY_STOP,
     VIR_DOMAIN_DISK_ERROR_POLICY_REPORT,
@@ -450,32 +429,6 @@ typedef enum {
 
     VIR_DOMAIN_DISK_TRANS_LAST
 } virDomainDiskGeometryTrans;
-
-typedef enum {
-    VIR_DOMAIN_DISK_IO_DEFAULT = 0,
-    VIR_DOMAIN_DISK_IO_NATIVE,
-    VIR_DOMAIN_DISK_IO_THREADS,
-    VIR_DOMAIN_DISK_IO_URING,
-
-    VIR_DOMAIN_DISK_IO_LAST
-} virDomainDiskIo;
-
-typedef enum {
-    VIR_DOMAIN_DISK_DISCARD_DEFAULT = 0,
-    VIR_DOMAIN_DISK_DISCARD_UNMAP,
-    VIR_DOMAIN_DISK_DISCARD_IGNORE,
-
-    VIR_DOMAIN_DISK_DISCARD_LAST
-} virDomainDiskDiscard;
-
-typedef enum {
-    VIR_DOMAIN_DISK_DETECT_ZEROES_DEFAULT = 0,
-    VIR_DOMAIN_DISK_DETECT_ZEROES_OFF,
-    VIR_DOMAIN_DISK_DETECT_ZEROES_ON,
-    VIR_DOMAIN_DISK_DETECT_ZEROES_UNMAP,
-
-    VIR_DOMAIN_DISK_DETECT_ZEROES_LAST
-} virDomainDiskDetectZeroes;
 
 typedef enum {
     VIR_DOMAIN_DISK_MODEL_DEFAULT = 0,
@@ -552,6 +505,19 @@ typedef enum {
 VIR_ENUM_DECL(virDomainSnapshotLocation);
 
 
+struct _virDomainDiskIothreadDef {
+    unsigned int id;
+
+    /* optional list of virtqueues the iothread should handle */
+    unsigned int *queues;
+    size_t nqueues;
+};
+
+typedef struct _virDomainDiskIothreadDef virDomainDiskIothreadDef;
+void virDomainDiskIothreadDefFree(virDomainDiskIothreadDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainDiskIothreadDef, virDomainDiskIothreadDefFree);
+
+
 /* Stores the virtual disk configuration */
 struct _virDomainDiskDef {
     virStorageSource *src; /* non-NULL.  XXX Allow NULL for empty cdrom? */
@@ -606,6 +572,7 @@ struct _virDomainDiskDef {
     virDomainDeviceSGIO sgio;
     virDomainDiskDiscard discard;
     unsigned int iothread; /* unused = 0, > 0 specific thread # */
+    GSList *iothreads; /* List of virDomainDiskIothreadsDef */
     virDomainDiskDetectZeroes detect_zeroes;
     virTristateSwitch discard_no_unref;
     char *domain_name; /* backend domain name */
@@ -744,7 +711,7 @@ struct _virDomainVirtioSerialOpts {
 
 struct _virDomainPCIControllerOpts {
     bool pcihole64;
-    unsigned long pcihole64size;
+    unsigned long long pcihole64size;
 
     /* the exact controller name is in the "model" subelement, e.g.:
      * <controller type='pci' model='pcie-root-port'>
@@ -771,6 +738,9 @@ struct _virDomainPCIControllerOpts {
      */
     int numaNode;
     virTristateSwitch hotplug; /* 'off' to prevent hotplug/unplug, default 'on' */
+
+    unsigned long long memReserve; /* used by pci-bridge and pcie-root-port,
+                                      0 == undef, KiB */
 };
 
 struct _virDomainUSBControllerOpts {
@@ -802,6 +772,20 @@ struct _virDomainControllerDef {
     virDomainVirtioOptions *virtio;
 };
 
+struct _virDomainIdMapEntry {
+    unsigned int start;
+    unsigned int target;
+    unsigned int count;
+};
+
+struct _virDomainIdMapDef {
+    size_t nuidmap;
+    virDomainIdMapEntry *uidmap;
+
+    size_t ngidmap;
+    virDomainIdMapEntry *gidmap;
+};
+
 
 /* Types of disk backends */
 typedef enum {
@@ -825,6 +809,7 @@ typedef enum {
     VIR_DOMAIN_FS_DRIVER_TYPE_NBD,
     VIR_DOMAIN_FS_DRIVER_TYPE_PLOOP,
     VIR_DOMAIN_FS_DRIVER_TYPE_VIRTIOFS,
+    VIR_DOMAIN_FS_DRIVER_TYPE_MTP,
 
     VIR_DOMAIN_FS_DRIVER_TYPE_LAST
 } virDomainFSDriverType;
@@ -911,6 +896,7 @@ struct _virDomainFSDef {
     virTristateSwitch flock;
     virDomainFSSandboxMode sandbox;
     int thread_pool_size;
+    virDomainIdMapDef idmap;
     virDomainVirtioOptions *virtio;
     virObject *privateData;
 };
@@ -1582,6 +1568,7 @@ typedef enum {
     VIR_DOMAIN_SOUND_MODEL_ICH9,
     VIR_DOMAIN_SOUND_MODEL_USB,
     VIR_DOMAIN_SOUND_MODEL_ICH7,
+    VIR_DOMAIN_SOUND_MODEL_VIRTIO,
 
     VIR_DOMAIN_SOUND_MODEL_LAST
 } virDomainSoundModel;
@@ -1603,6 +1590,9 @@ struct _virDomainSoundDef {
     virTristateBool multichannel;
 
     unsigned int audioId;
+
+    unsigned int streams;
+    virDomainVirtioOptions *virtio;
 };
 
 typedef enum {
@@ -1616,6 +1606,7 @@ typedef enum {
     VIR_DOMAIN_AUDIO_TYPE_SPICE,
     VIR_DOMAIN_AUDIO_TYPE_FILE,
     VIR_DOMAIN_AUDIO_TYPE_DBUS,
+    VIR_DOMAIN_AUDIO_TYPE_PIPEWIRE,
 
     VIR_DOMAIN_AUDIO_TYPE_LAST
 } virDomainAudioType;
@@ -1691,6 +1682,13 @@ struct _virDomainAudioIOSDL {
     unsigned int bufferCount;
 };
 
+typedef struct _virDomainAudioIOPipewireAudio virDomainAudioIOPipewireAudio;
+struct _virDomainAudioIOPipewireAudio {
+    char *name;
+    char *streamName;
+    unsigned int latency;
+};
+
 struct _virDomainAudioDef {
     virDomainAudioType type;
 
@@ -1734,6 +1732,11 @@ struct _virDomainAudioDef {
         struct {
             char *path;
         } file;
+        struct {
+            virDomainAudioIOPipewireAudio input;
+            virDomainAudioIOPipewireAudio output;
+            char *runtimeDir;
+        } pipewire;
     } backend;
 };
 
@@ -2172,6 +2175,7 @@ typedef enum {
     VIR_DOMAIN_FEATURE_IBS,
     VIR_DOMAIN_FEATURE_TCG,
     VIR_DOMAIN_FEATURE_ASYNC_TEARDOWN,
+    VIR_DOMAIN_FEATURE_RAS,
 
     VIR_DOMAIN_FEATURE_LAST
 } virDomainFeature;
@@ -2683,6 +2687,7 @@ struct _virDomainMemoryDef {
             unsigned long long currentsize; /* kibibytes, valid for an active
                                                domain only and parsed */
             unsigned long long address; /* address where memory is mapped */
+            virTristateBool dynamicMemslots;
         } virtio_mem;
         struct {
         } sgx_epc;
@@ -2694,20 +2699,6 @@ struct _virDomainMemoryDef {
 virDomainMemoryDef *virDomainMemoryDefNew(virDomainMemoryModel model);
 void virDomainMemoryDefFree(virDomainMemoryDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainMemoryDef, virDomainMemoryDefFree);
-
-struct _virDomainIdMapEntry {
-    unsigned int start;
-    unsigned int target;
-    unsigned int count;
-};
-
-struct _virDomainIdMapDef {
-    size_t nuidmap;
-    virDomainIdMapEntry *uidmap;
-
-    size_t ngidmap;
-    virDomainIdMapEntry *gidmap;
-};
 
 
 typedef enum {
@@ -3734,6 +3725,8 @@ typedef enum {
      * post parse callbacks before starting. Failure of the post parse callback
      * is recorded as def->postParseFail */
     VIR_DOMAIN_DEF_PARSE_ALLOW_POST_PARSE_FAIL = 1 << 11,
+    /* Parse the translated disk type='volume' data if present */
+    VIR_DOMAIN_DEF_PARSE_VOLUME_TRANSLATED = 1 << 12,
 } virDomainDefParseFlags;
 
 typedef enum {
@@ -3749,6 +3742,8 @@ typedef enum {
     VIR_DOMAIN_DEF_FORMAT_ALLOW_ROM       = 1 << 6,
     VIR_DOMAIN_DEF_FORMAT_ALLOW_BOOT      = 1 << 7,
     VIR_DOMAIN_DEF_FORMAT_CLOCK_ADJUST    = 1 << 8,
+    /* format disk type='volume' translated data if present */
+    VIR_DOMAIN_DEF_FORMAT_VOLUME_TRANSLATED = 1 << 9,
 } virDomainDefFormatFlags;
 
 /* Use these flags to skip specific domain ABI consistency checks done
@@ -3910,7 +3905,7 @@ virDomainNetDef *virDomainNetFind(virDomainDef *def, const char *device);
 virDomainNetDef *virDomainNetFindByName(virDomainDef *def, const char *ifname);
 bool virDomainHasNet(virDomainDef *def, virDomainNetDef *net);
 int virDomainNetInsert(virDomainDef *def, virDomainNetDef *net);
-int virDomainNetUpdate(virDomainDef *def, size_t netidx, virDomainNetDef *newnet);
+void virDomainNetUpdate(virDomainDef *def, size_t netidx, virDomainNetDef *newnet);
 bool virDomainNetBackendIsEqual(virDomainNetBackend *src,
                                 virDomainNetBackend *dst);
 int virDomainNetDHCPInterfaces(virDomainDef *def, virDomainInterfacePtr **ifaces);
@@ -4423,9 +4418,8 @@ virDomainNetNotifyActualDevice(virConnectPtr conn,
 
 int
 virDomainNetReleaseActualDevice(virConnectPtr conn,
-                                virDomainDef *dom,
                                 virDomainNetDef *iface)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+    ATTRIBUTE_NONNULL(1);
 
 int
 virDomainNetBandwidthUpdate(virDomainNetDef *iface,
@@ -4439,7 +4433,7 @@ virDomainNetResolveActualType(virDomainNetDef *iface)
 
 int virDomainDiskTranslateSourcePool(virDomainDiskDef *def);
 
-int
+virDomainDiskDetectZeroes
 virDomainDiskGetDetectZeroesMode(virDomainDiskDiscard discard,
                                  virDomainDiskDetectZeroes detect_zeroes);
 
@@ -4450,7 +4444,7 @@ bool
 virDomainDefHasNVMeDisk(const virDomainDef *def);
 
 bool
-virDomainDefHasVFIOHostdev(const virDomainDef *def);
+virDomainDefHasPCIHostdev(const virDomainDef *def);
 
 bool
 virDomainDefHasMdevHostdev(const virDomainDef *def);
@@ -4508,7 +4502,7 @@ bool
 virHostdevIsMdevDevice(const virDomainHostdevDef *hostdev)
     ATTRIBUTE_NONNULL(1);
 bool
-virHostdevIsVFIODevice(const virDomainHostdevDef *hostdev)
+virHostdevIsPCIDevice(const virDomainHostdevDef *hostdev)
     ATTRIBUTE_NONNULL(1);
 
 int

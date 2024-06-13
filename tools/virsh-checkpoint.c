@@ -71,21 +71,17 @@ virshCheckpointCreate(vshControl *ctl,
 /*
  * "checkpoint-create" command
  */
-static const vshCmdInfo info_checkpoint_create[] = {
-    {.name = "help",
-     .data = N_("Create a checkpoint from XML")
-    },
-    {.name = "desc",
-     .data = N_("Create a checkpoint from XML for use in "
-                "future incremental backups")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_checkpoint_create = {
+     .help = N_("Create a checkpoint from XML"),
+     .desc = N_("Create a checkpoint from XML for use in "
+                "future incremental backups"),
 };
 
 static const vshCmdOptDef opts_checkpoint_create[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "xmlfile",
      .type = VSH_OT_STRING,
+     .positional = true,
      .completer = virshCompletePathLocalExisting,
      .help = N_("domain checkpoint XML")
     },
@@ -125,7 +121,7 @@ cmdCheckpointCreate(vshControl *ctl,
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "xmlfile", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "xmlfile", &from) < 0)
         return false;
     if (!from) {
         buffer = g_strdup("<domaincheckpoint/>");
@@ -183,26 +179,23 @@ virshParseCheckpointDiskspec(vshControl *ctl,
     return ret;
 }
 
-static const vshCmdInfo info_checkpoint_create_as[] = {
-    {.name = "help",
-     .data = N_("Create a checkpoint from a set of args")
-    },
-    {.name = "desc",
-     .data = N_("Create a checkpoint from arguments for use in "
-                "future incremental backups")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_checkpoint_create_as = {
+     .help = N_("Create a checkpoint from a set of args"),
+     .desc = N_("Create a checkpoint from arguments for use in "
+                "future incremental backups"),
 };
 
 static const vshCmdOptDef opts_checkpoint_create_as[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "name",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("name of checkpoint")
     },
     {.name = "description",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshCompleteEmpty,
      .help = N_("description of checkpoint")
     },
@@ -216,6 +209,7 @@ static const vshCmdOptDef opts_checkpoint_create_as[] = {
     },
     {.name = "diskspec",
      .type = VSH_OT_ARGV,
+     .unwanted_positional = true,
      .help = N_("disk attributes: disk[,checkpoint=type][,bitmap=name]")
     },
     {.name = NULL}
@@ -232,7 +226,7 @@ cmdCheckpointCreateAs(vshControl *ctl,
     const char *desc = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     unsigned int flags = 0;
-    const vshCmdOpt *opt = NULL;
+    const char **diskspec = NULL;
 
     if (vshCommandOptBool(cmd, "quiesce"))
         flags |= VIR_DOMAIN_CHECKPOINT_CREATE_QUIESCE;
@@ -240,8 +234,8 @@ cmdCheckpointCreateAs(vshControl *ctl,
     if (!(dom = virshCommandOptDomain(ctl, cmd, NULL)))
         return false;
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0 ||
-        vshCommandOptStringReq(ctl, cmd, "description", &desc) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0 ||
+        vshCommandOptString(ctl, cmd, "description", &desc) < 0)
         return false;
 
     virBufferAddLit(&buf, "<domaincheckpoint>\n");
@@ -249,13 +243,15 @@ cmdCheckpointCreateAs(vshControl *ctl,
     virBufferEscapeString(&buf, "<name>%s</name>\n", name);
     virBufferEscapeString(&buf, "<description>%s</description>\n", desc);
 
-    if (vshCommandOptBool(cmd, "diskspec")) {
+    if ((diskspec = vshCommandOptArgv(cmd, "diskspec"))) {
         virBufferAddLit(&buf, "<disks>\n");
         virBufferAdjustIndent(&buf, 2);
-        while ((opt = vshCommandOptArgv(ctl, cmd, opt))) {
-            if (virshParseCheckpointDiskspec(ctl, &buf, opt->data) < 0)
+
+        for (; *diskspec; diskspec++) {
+            if (virshParseCheckpointDiskspec(ctl, &buf, *diskspec) < 0)
                 return false;
         }
+
         virBufferAdjustIndent(&buf, -2);
         virBufferAddLit(&buf, "</disks>\n");
     }
@@ -287,19 +283,11 @@ virshLookupCheckpoint(vshControl *ctl,
 {
     const char *chkname = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, arg, &chkname) < 0)
+    if (vshCommandOptString(ctl, cmd, arg, &chkname) < 0)
         return -1;
 
-    if (chkname) {
-        *chk = virDomainCheckpointLookupByName(dom, chkname, 0);
-    } else {
-        vshError(ctl, _("--%1$s is required"), arg);
+    if (!(*chk = virDomainCheckpointLookupByName(dom, chkname, 0)))
         return -1;
-    }
-    if (!*chk) {
-        vshReportError(ctl);
-        return -1;
-    }
 
     *name = virDomainCheckpointGetName(*chk);
     return 0;
@@ -309,20 +297,17 @@ virshLookupCheckpoint(vshControl *ctl,
 /*
  * "checkpoint-edit" command
  */
-static const vshCmdInfo info_checkpoint_edit[] = {
-    {.name = "help",
-     .data = N_("edit XML for a checkpoint")
-    },
-    {.name = "desc",
-     .data = N_("Edit the domain checkpoint XML for a named checkpoint")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_checkpoint_edit = {
+    .help = N_("edit XML for a checkpoint"),
+    .desc = N_("Edit the domain checkpoint XML for a named checkpoint"),
 };
 
 static const vshCmdOptDef opts_checkpoint_edit[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("checkpoint name"),
      .completer = virshCheckpointNameCompleter,
     },
@@ -425,20 +410,17 @@ virshGetCheckpointParent(vshControl *ctl,
 /*
  * "checkpoint-info" command
  */
-static const vshCmdInfo info_checkpoint_info[] = {
-    {.name = "help",
-     .data = N_("checkpoint information")
-    },
-    {.name = "desc",
-     .data = N_("Returns basic information about a checkpoint.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_checkpoint_info = {
+    .help = N_("checkpoint information"),
+    .desc = N_("Returns basic information about a checkpoint."),
 };
 
 static const vshCmdOptDef opts_checkpoint_info[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("checkpoint name"),
      .completer = virshCheckpointNameCompleter,
     },
@@ -526,7 +508,8 @@ virshCheckpointListFree(struct virshCheckpointList *checkpointlist)
 
 static int
 virshChkSorter(const void *a,
-               const void *b)
+               const void *b,
+               void *opaque G_GNUC_UNUSED)
 {
     const struct virshChk *sa = a;
     const struct virshChk *sb = b;
@@ -594,9 +577,10 @@ virshCheckpointListCollect(vshControl *ctl,
     }
 
     if (!(orig_flags & VIR_DOMAIN_CHECKPOINT_LIST_TOPOLOGICAL) &&
-        checkpointlist->chks)
-        qsort(checkpointlist->chks, checkpointlist->nchks,
-              sizeof(*checkpointlist->chks), virshChkSorter);
+        checkpointlist->chks) {
+        g_qsort_with_data(checkpointlist->chks, checkpointlist->nchks,
+                          sizeof(*checkpointlist->chks), virshChkSorter, NULL);
+    }
 
     ret = g_steal_pointer(&checkpointlist);
 
@@ -621,14 +605,9 @@ virshCheckpointListLookup(int id,
 /*
  * "checkpoint-list" command
  */
-static const vshCmdInfo info_checkpoint_list[] = {
-    {.name = "help",
-     .data = N_("List checkpoints for a domain")
-    },
-    {.name = "desc",
-     .data = N_("Checkpoint List")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_checkpoint_list = {
+    .help = N_("List checkpoints for a domain"),
+    .desc = N_("Checkpoint List"),
 };
 
 static const vshCmdOptDef opts_checkpoint_list[] = {
@@ -655,6 +634,7 @@ static const vshCmdOptDef opts_checkpoint_list[] = {
     },
     {.name = "from",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .help = N_("limit list to children of given checkpoint"),
      .completer = virshCheckpointNameCompleter,
     },
@@ -776,12 +756,6 @@ cmdCheckpointList(vshControl *ctl,
         chk_name = virDomainCheckpointGetName(checkpoint);
         assert(chk_name);
 
-        if (name) {
-            /* just print the checkpoint name */
-            vshPrint(ctl, "%s\n", chk_name);
-            continue;
-        }
-
         if (!(doc = virDomainCheckpointGetXMLDesc(checkpoint, 0)))
             continue;
 
@@ -791,6 +765,18 @@ cmdCheckpointList(vshControl *ctl,
         if (parent)
             parent_chk = virXPathString("string(/domaincheckpoint/parent/name)",
                                         ctxt);
+
+        if (name) {
+            vshPrint(ctl, "%s", chk_name);
+
+            if (parent_chk)
+                vshPrint(ctl, "\t%s", parent_chk);
+
+            vshPrint(ctl, "\n");
+
+            /* just print the checkpoint name */
+            continue;
+        }
 
         if (virXPathLongLong("string(/domaincheckpoint/creationTime)", ctxt,
                              &creation_longlong) < 0)
@@ -823,20 +809,17 @@ cmdCheckpointList(vshControl *ctl,
 /*
  * "checkpoint-dumpxml" command
  */
-static const vshCmdInfo info_checkpoint_dumpxml[] = {
-    {.name = "help",
-     .data = N_("Dump XML for a domain checkpoint")
-    },
-    {.name = "desc",
-     .data = N_("Checkpoint Dump XML")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_checkpoint_dumpxml = {
+    .help = N_("Dump XML for a domain checkpoint"),
+    .desc = N_("Checkpoint Dump XML"),
 };
 
 static const vshCmdOptDef opts_checkpoint_dumpxml[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("checkpoint name"),
      .completer = virshCheckpointNameCompleter,
     },
@@ -854,7 +837,6 @@ static const vshCmdOptDef opts_checkpoint_dumpxml[] = {
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -904,20 +886,17 @@ cmdCheckpointDumpXML(vshControl *ctl,
 /*
  * "checkpoint-parent" command
  */
-static const vshCmdInfo info_checkpoint_parent[] = {
-    {.name = "help",
-     .data = N_("Get the name of the parent of a checkpoint")
-    },
-    {.name = "desc",
-     .data = N_("Extract the checkpoint's parent, if any")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_checkpoint_parent = {
+    .help = N_("Get the name of the parent of a checkpoint"),
+    .desc = N_("Extract the checkpoint's parent, if any"),
 };
 
 static const vshCmdOptDef opts_checkpoint_parent[] = {
     VIRSH_COMMON_OPT_DOMAIN_FULL(VIR_CONNECT_LIST_DOMAINS_HAS_CHECKPOINT),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("find parent of checkpoint name"),
      .completer = virshCheckpointNameCompleter,
     },
@@ -957,14 +936,9 @@ cmdCheckpointParent(vshControl *ctl,
 /*
  * "checkpoint-delete" command
  */
-static const vshCmdInfo info_checkpoint_delete[] = {
-    {.name = "help",
-     .data = N_("Delete a domain checkpoint")
-    },
-    {.name = "desc",
-     .data = N_("Checkpoint Delete")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_checkpoint_delete = {
+    .help = N_("Delete a domain checkpoint"),
+    .desc = N_("Checkpoint Delete"),
 };
 
 static const vshCmdOptDef opts_checkpoint_delete[] = {
@@ -972,6 +946,8 @@ static const vshCmdOptDef opts_checkpoint_delete[] = {
                                  VIR_CONNECT_LIST_DOMAINS_ACTIVE),
     {.name = "checkpointname",
      .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("checkpoint name"),
      .completer = virshCheckpointNameCompleter,
     },
@@ -1032,49 +1008,49 @@ const vshCmdDef checkpointCmds[] = {
     {.name = "checkpoint-create",
      .handler = cmdCheckpointCreate,
      .opts = opts_checkpoint_create,
-     .info = info_checkpoint_create,
+     .info = &info_checkpoint_create,
      .flags = 0
     },
     {.name = "checkpoint-create-as",
      .handler = cmdCheckpointCreateAs,
      .opts = opts_checkpoint_create_as,
-     .info = info_checkpoint_create_as,
+     .info = &info_checkpoint_create_as,
      .flags = 0
     },
     {.name = "checkpoint-delete",
      .handler = cmdCheckpointDelete,
      .opts = opts_checkpoint_delete,
-     .info = info_checkpoint_delete,
+     .info = &info_checkpoint_delete,
      .flags = 0
     },
     {.name = "checkpoint-dumpxml",
      .handler = cmdCheckpointDumpXML,
      .opts = opts_checkpoint_dumpxml,
-     .info = info_checkpoint_dumpxml,
+     .info = &info_checkpoint_dumpxml,
      .flags = 0
     },
     {.name = "checkpoint-edit",
      .handler = cmdCheckpointEdit,
      .opts = opts_checkpoint_edit,
-     .info = info_checkpoint_edit,
+     .info = &info_checkpoint_edit,
      .flags = 0
     },
     {.name = "checkpoint-info",
      .handler = cmdCheckpointInfo,
      .opts = opts_checkpoint_info,
-     .info = info_checkpoint_info,
+     .info = &info_checkpoint_info,
      .flags = 0
     },
     {.name = "checkpoint-list",
      .handler = cmdCheckpointList,
      .opts = opts_checkpoint_list,
-     .info = info_checkpoint_list,
+     .info = &info_checkpoint_list,
      .flags = 0
     },
     {.name = "checkpoint-parent",
      .handler = cmdCheckpointParent,
      .opts = opts_checkpoint_parent,
-     .info = info_checkpoint_parent,
+     .info = &info_checkpoint_parent,
      .flags = 0
     },
     {.name = NULL}

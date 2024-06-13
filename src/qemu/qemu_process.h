@@ -23,6 +23,7 @@
 
 #include "qemu_conf.h"
 #include "qemu_domain.h"
+#include "qemu_saveimage.h"
 #include "vireventthread.h"
 
 int qemuProcessPrepareMonitorChr(virDomainChrSourceDef *monConfig,
@@ -90,6 +91,18 @@ int qemuProcessStart(virConnectPtr conn,
                      virNetDevVPortProfileOp vmop,
                      unsigned int flags);
 
+int qemuProcessStartWithMemoryState(virConnectPtr conn,
+                                    virQEMUDriver *driver,
+                                    virDomainObj *vm,
+                                    int *fd,
+                                    const char *path,
+                                    virDomainMomentObj *snapshot,
+                                    virQEMUSaveData *data,
+                                    virDomainAsyncJob asyncJob,
+                                    unsigned int start_flags,
+                                    const char *reason,
+                                    bool *started);
+
 int qemuProcessCreatePretendCmdPrepare(virQEMUDriver *driver,
                                        virDomainObj *vm,
                                        const char *migrateURI,
@@ -119,6 +132,13 @@ int qemuProcessPrepareHostBackendChardevHotplug(virDomainObj *vm,
 int qemuProcessPrepareHost(virQEMUDriver *driver,
                            virDomainObj *vm,
                            unsigned int flags);
+
+int qemuProcessPrepareHostStorageSource(virDomainObj *vm,
+                                        virStorageSource *src);
+int qemuProcessPrepareHostStorageSourceChain(virDomainObj *vm,
+                                             virStorageSource *chain);
+int qemuProcessPrepareHostStorageDisk(virDomainObj *vm,
+                                  virDomainDiskDef *disk);
 
 int qemuProcessDeleteThreadContext(virDomainObj *vm);
 

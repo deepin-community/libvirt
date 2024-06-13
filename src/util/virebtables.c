@@ -78,20 +78,20 @@ ebtablesContextFree(ebtablesContext *ctx)
 int
 ebtablesAddForwardPolicyReject(ebtablesContext *ctx)
 {
-    g_autoptr(virFirewall) fw = virFirewallNew();
+    g_autoptr(virFirewall) fw = virFirewallNew(VIR_FIREWALL_BACKEND_IPTABLES);
 
     virFirewallStartTransaction(fw, VIR_FIREWALL_TRANSACTION_IGNORE_ERRORS);
-    virFirewallAddRule(fw, VIR_FIREWALL_LAYER_ETHERNET,
-                       "--new-chain", ctx->chain,
-                       NULL);
-    virFirewallAddRule(fw, VIR_FIREWALL_LAYER_ETHERNET,
-                       "--insert", "FORWARD",
-                       "--jump", ctx->chain, NULL);
+    virFirewallAddCmd(fw, VIR_FIREWALL_LAYER_ETHERNET,
+                      "--new-chain", ctx->chain,
+                      NULL);
+    virFirewallAddCmd(fw, VIR_FIREWALL_LAYER_ETHERNET,
+                      "--insert", "FORWARD",
+                      "--jump", ctx->chain, NULL);
 
     virFirewallStartTransaction(fw, 0);
-    virFirewallAddRule(fw, VIR_FIREWALL_LAYER_ETHERNET,
-                       "-P", ctx->chain, "DROP",
-                       NULL);
+    virFirewallAddCmd(fw, VIR_FIREWALL_LAYER_ETHERNET,
+                      "-P", ctx->chain, "DROP",
+                      NULL);
 
     return virFirewallApply(fw);
 }
@@ -106,16 +106,16 @@ ebtablesForwardAllowIn(ebtablesContext *ctx,
                        const char *macaddr,
                        int action)
 {
-    g_autoptr(virFirewall) fw = virFirewallNew();
+    g_autoptr(virFirewall) fw = virFirewallNew(VIR_FIREWALL_BACKEND_IPTABLES);
 
     virFirewallStartTransaction(fw, 0);
-    virFirewallAddRule(fw, VIR_FIREWALL_LAYER_ETHERNET,
-                       action == ADD ? "--insert" : "--delete",
-                       ctx->chain,
-                       "--in-interface", iface,
-                       "--source", macaddr,
-                       "--jump", "ACCEPT",
-                       NULL);
+    virFirewallAddCmd(fw, VIR_FIREWALL_LAYER_ETHERNET,
+                      action == ADD ? "--insert" : "--delete",
+                      ctx->chain,
+                      "--in-interface", iface,
+                      "--source", macaddr,
+                      "--jump", "ACCEPT",
+                      NULL);
 
     return virFirewallApply(fw);
 }
