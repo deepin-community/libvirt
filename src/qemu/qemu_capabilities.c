@@ -1137,7 +1137,8 @@ virQEMUCapsInitGuestFromBinary(virCaps *caps,
                                       NULL, NULL, 0, NULL);
     }
 
-    if ((ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64))
+    if (ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64 ||
+        ARCH_IS_LOONGARCH(guestarch))
         virCapabilitiesAddGuestFeatureWithToggle(guest, VIR_CAPS_GUEST_FEATURE_TYPE_ACPI,
                                                  true, true);
 
@@ -2072,9 +2073,10 @@ bool virQEMUCapsHasPCIMultiBus(const virDomainDef *def)
     if (ARCH_IS_S390(def->os.arch))
         return true;
 
-    /* If the virt machine, both on ARM and RISC-V, supports PCI,
+    /* If the virt machine, both on ARM and RISC-V and LOONGARCH64, supports PCI,
      * then it also supports multibus */
     if (qemuDomainIsARMVirt(def) ||
+        qemuDomainIsLoongArchVirt(def) ||
         qemuDomainIsRISCVVirt(def)) {
         return true;
     }
@@ -2664,36 +2666,37 @@ static const char *preferredMachines[] =
     NULL, /* VIR_ARCH_ITANIUM (doesn't exist in QEMU any more) */
     "lm32-evr", /* VIR_ARCH_LM32 */
 
+    "virt", /* VIR_ARCH_LOONGARCH64 */
     "mcf5208evb", /* VIR_ARCH_M68K */
     "petalogix-s3adsp1800", /* VIR_ARCH_MICROBLAZE */
     "petalogix-s3adsp1800", /* VIR_ARCH_MICROBLAZEEL */
     "malta", /* VIR_ARCH_MIPS */
-    "malta", /* VIR_ARCH_MIPSEL */
 
+    "malta", /* VIR_ARCH_MIPSEL */
     "malta", /* VIR_ARCH_MIPS64 */
     "malta", /* VIR_ARCH_MIPS64EL */
     "or1k-sim", /* VIR_ARCH_OR32 */
     NULL, /* VIR_ARCH_PARISC (no QEMU impl) */
-    NULL, /* VIR_ARCH_PARISC64 (no QEMU impl) */
 
+    NULL, /* VIR_ARCH_PARISC64 (no QEMU impl) */
     "g3beige", /* VIR_ARCH_PPC */
     "g3beige", /* VIR_ARCH_PPCLE */
     "pseries", /* VIR_ARCH_PPC64 */
     "pseries", /* VIR_ARCH_PPC64LE */
-    "bamboo", /* VIR_ARCH_PPCEMB */
 
+    "bamboo", /* VIR_ARCH_PPCEMB */
     "virt", /* VIR_ARCH_RISCV32 */
     "virt", /* VIR_ARCH_RISCV64 */
     NULL, /* VIR_ARCH_S390 (no QEMU impl) */
     "s390-ccw-virtio", /* VIR_ARCH_S390X */
-    "shix", /* VIR_ARCH_SH4 */
 
+    "shix", /* VIR_ARCH_SH4 */
     "shix", /* VIR_ARCH_SH4EB */
     "SS-5", /* VIR_ARCH_SPARC */
     "sun4u", /* VIR_ARCH_SPARC64 */
     "puv3", /* VIR_ARCH_UNICORE32 */
-    "pc", /* VIR_ARCH_X86_64 */
 
+    "pc", /* VIR_ARCH_X86_64 */
     "sim", /* VIR_ARCH_XTENSA */
     "sim", /* VIR_ARCH_XTENSAEB */
 };
@@ -3739,7 +3742,7 @@ virQEMUCapsInitCPUModel(virQEMUCaps *qemuCaps,
     } else if (ARCH_IS_X86(qemuCaps->arch)) {
         ret = virQEMUCapsInitCPUModelX86(qemuCaps, type, modelInfo,
                                          cpu, migratable);
-    } else if (ARCH_IS_ARM(qemuCaps->arch)) {
+    } else if (ARCH_IS_ARM(qemuCaps->arch) || ARCH_IS_LOONGARCH(qemuCaps->arch)) {
         ret = 2;
     }
 
