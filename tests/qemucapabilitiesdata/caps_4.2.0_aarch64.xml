@@ -45,7 +45,6 @@
   <flag name='vmware-svga.vgamem_mb'/>
   <flag name='pc-dimm'/>
   <flag name='pci-serial'/>
-  <flag name='gpex-pcihost'/>
   <flag name='ioh3420'/>
   <flag name='x3130-upstream'/>
   <flag name='xio3130-downstream'/>
@@ -106,6 +105,7 @@
   <flag name='virtio-blk.queue-size'/>
   <flag name='usb-host.guest-resets-all'/>
   <flag name='virtio-crypto'/>
+  <flag name='usb-mtp'/>
   <version>4002000</version>
   <microcodeVersion>61700242</microcodeVersion>
   <package>v4.1.0-2221-g36609b4fa3</package>

@@ -19,6 +19,7 @@ scripts = [
   'header-ifdef.py',
   'hvsupport.py',
   'hyperv_wmi_generator.py',
+  'merge-systemd-units.py',
   'meson-dist.py',
   'meson-gen-authors.py',
   'meson-gen-def.py',
@@ -30,9 +31,12 @@ scripts = [
   'meson-timestamp.py',
   'mock-noinline.py',
   'prohibit-duplicate-header.py',
+  'qemu-replies-tool.py',
 ]
 
 foreach name : scripts
   sname = name.split('.')[0].underscorify()
   set_variable('@0@_prog'.format(sname), find_program(name))
 endforeach
+
+subdir('rpcgen')

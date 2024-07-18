@@ -233,6 +233,28 @@ virHostCPUGetDie(unsigned int cpu, unsigned int *die)
 }
 
 int
+virHostCPUGetCluster(unsigned int cpu, unsigned int *cluster)
+{
+    int cluster_id;
+    int ret = virFileReadValueInt(&cluster_id,
+                                  "%s/cpu/cpu%u/topology/cluster_id",
+                                  SYSFS_SYSTEM_PATH, cpu);
+
+    if (ret == -1)
+        return -1;
+
+    /* If the file doesn't exists (old kernel) or the value contained
+     * in it is -1 (architecture without CPU clusters), report 0 to
+     * indicate the lack of information */
+    if (ret == -2 || cluster_id < 0)
+        cluster_id = 0;
+
+    *cluster = cluster_id;
+
+    return 0;
+}
+
+int
 virHostCPUGetCore(unsigned int cpu, unsigned int *core)
 {
     int ret = virFileReadValueUint(core,
@@ -553,6 +575,8 @@ virHostCPUParseFrequency(FILE *cpuinfo,
         prefix = "clock";
     else if (ARCH_IS_S390(arch))
         prefix = "cpu MHz dynamic";
+    else if (ARCH_IS_LOONGARCH(arch))
+        prefix = "CPU MHz";
 
     if (!prefix) {
         VIR_WARN("%s is not supported by the %s parser",
@@ -579,7 +603,7 @@ virHostCPUParsePhysAddrSize(FILE *cpuinfo, unsigned int *addrsz)
         char *str;
         char *endptr;
 
-        if (!(str = STRSKIP(line, "address sizes")))
+        if (!(str = STRCASESKIP(line, "address sizes")))
             continue;
 
         /* Skip the colon. */
@@ -1128,6 +1152,37 @@ virHostCPUGetAvailableCPUsBitmap(void)
 }
 
 
+/**
+ * virHostCPUGetIsolated:
+ * @isolated: returned bitmap of isolated CPUs
+ *
+ * Sets @isolated to point to a bitmap of isolated CPUs (e.g. those passed to
+ * isolcpus= kernel cmdline). If the file doesn't exist, @isolated is set to
+ * NULL and success is returned. If the file does exist but it's empty,
+ * @isolated is set to an empty bitmap and success is returned.
+ *
+ * Returns: 0 on success,
+ *         -1 otherwise (with error reported).
+ */
+int
+virHostCPUGetIsolated(virBitmap **isolated)
+{
+    g_autoptr(virBitmap) bitmap = NULL;
+    int rc;
+
+    rc = virFileReadValueBitmapAllowEmpty(&bitmap, "%s/cpu/isolated", SYSFS_SYSTEM_PATH);
+    if (rc == -2) {
+        *isolated = NULL;
+        return 0;
+    } else if (rc < 0) {
+        return -1;
+    }
+
+    *isolated = g_steal_pointer(&bitmap);
+    return 0;
+}
+
+
 #if WITH_LINUX_KVM_H && defined(KVM_CAP_PPC_SMT)
 
 /* Get the number of threads per subcore.
@@ -1650,7 +1705,8 @@ virHostCPUGetPhysAddrSize(const virArch hostArch,
 {
     g_autoptr(FILE) cpuinfo = NULL;
 
-    if (ARCH_IS_S390(hostArch)) {
+    if (!(ARCH_IS_X86(hostArch) || ARCH_IS_SH4(hostArch) ||
+          ARCH_IS_LOONGARCH(hostArch))) {
         /* Ensure size is set to 0 as physical address size is unknown */
         *size = 0;
         return 0;

@@ -558,6 +558,7 @@ bhyveBuildSoundArgStr(const virDomainDef *def G_GNUC_UNUSED,
         case VIR_DOMAIN_AUDIO_TYPE_SPICE:
         case VIR_DOMAIN_AUDIO_TYPE_FILE:
         case VIR_DOMAIN_AUDIO_TYPE_DBUS:
+        case VIR_DOMAIN_AUDIO_TYPE_PIPEWIRE:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("unsupported audio backend '%1$s'"),
                            virDomainAudioTypeTypeToString(audio->type));
@@ -610,6 +611,7 @@ bhyveBuildFSArgStr(const virDomainDef *def G_GNUC_UNUSED,
     case VIR_DOMAIN_FS_DRIVER_TYPE_LOOP:
     case VIR_DOMAIN_FS_DRIVER_TYPE_NBD:
     case VIR_DOMAIN_FS_DRIVER_TYPE_PLOOP:
+    case VIR_DOMAIN_FS_DRIVER_TYPE_MTP:
     case VIR_DOMAIN_FS_DRIVER_TYPE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("unsupported filesystem driver '%1$s'"),
@@ -669,6 +671,11 @@ virBhyveProcessBuildBhyveCmd(struct _bhyveConn *driver, virDomainDef *def,
         if (def->cpu->dies != 1) {
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("Only 1 die per socket is supported"));
+            return NULL;
+        }
+        if (def->cpu->clusters != 1) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("Only 1 cluster per die is supported"));
             return NULL;
         }
         if (nvcpus != def->cpu->sockets * def->cpu->cores * def->cpu->threads) {

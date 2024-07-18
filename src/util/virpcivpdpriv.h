@@ -66,14 +66,5 @@ bool virPCIVPDResourceIsValidTextValue(const char *value);
 gboolean
 virPCIVPDResourceCustomCompareIndex(virPCIVPDResourceCustom *a, virPCIVPDResourceCustom *b);
 
-bool
+void
 virPCIVPDResourceCustomUpsertValue(GPtrArray *arr, char index, const char *const value);
-
-size_t
-virPCIVPDReadVPDBytes(int vpdFileFd, uint8_t *buf, size_t count, off_t offset, uint8_t *csum);
-
-bool virPCIVPDParseVPDLargeResourceFields(int vpdFileFd, uint16_t resPos, uint16_t resDataLen,
-                                          bool readOnly, uint8_t *csum, virPCIVPDResource *res);
-
-bool virPCIVPDParseVPDLargeResourceString(int vpdFileFd, uint16_t resPos, uint16_t resDataLen,
-                                          uint8_t *csum, virPCIVPDResource *res);

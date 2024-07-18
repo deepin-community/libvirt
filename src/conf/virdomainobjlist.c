@@ -497,8 +497,7 @@ virDomainObjListLoadConfig(virDomainObjList *doms,
     if ((autostartLink = virDomainConfigFile(autostartDir, name)) == NULL)
         return NULL;
 
-    if ((autostart = virFileLinkPointsTo(autostartLink, configFile)) < 0)
-        return NULL;
+    autostart = virFileLinkPointsTo(autostartLink, configFile);
 
     if (!(dom = virDomainObjListAddLocked(doms, &def, xmlopt, 0, &oldDef)))
         return NULL;
@@ -532,7 +531,8 @@ virDomainObjListLoadStatus(virDomainObjList *doms,
                                       VIR_DOMAIN_DEF_PARSE_ACTUAL_NET |
                                       VIR_DOMAIN_DEF_PARSE_PCI_ORIG_STATES |
                                       VIR_DOMAIN_DEF_PARSE_SKIP_VALIDATE |
-                                      VIR_DOMAIN_DEF_PARSE_ALLOW_POST_PARSE_FAIL)))
+                                      VIR_DOMAIN_DEF_PARSE_ALLOW_POST_PARSE_FAIL |
+                                      VIR_DOMAIN_DEF_PARSE_VOLUME_TRANSLATED)))
         goto error;
 
     virUUIDFormat(obj->def->uuid, uuidstr);

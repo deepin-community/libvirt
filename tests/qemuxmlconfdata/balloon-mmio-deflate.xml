@@ -1,0 +1,18 @@
+<domain type="qemu">
+  <name>aarch64test</name>
+  <uuid>496d7ea8-9739-544b-4ebd-ef08be936e8b</uuid>
+  <memory>1048576</memory>
+  <vcpu placement='static'>1</vcpu>
+  <os>
+    <type arch="aarch64" machine="virt">hvm</type>
+  </os>
+  <cpu match='exact'>
+    <model>cortex-a53</model>
+  </cpu>
+  <devices>
+    <emulator>/usr/bin/qemu-system-aarch64</emulator>
+    <memballoon model='virtio' autodeflate='on'>
+      <address type='virtio-mmio'/>
+    </memballoon>
+  </devices>
+</domain>

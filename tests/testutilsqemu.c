@@ -623,17 +623,14 @@ testQemuCapsIterate(const char *suffix,
 
 
 void
-testQemuInfoSetArgs(struct testQemuInfo *info,
-                    struct testQemuConf *conf, ...)
+testQemuInfoSetArgs(testQemuInfo *info,
+                    va_list argptr)
 {
-    va_list argptr;
     testQemuInfoArgName argname;
     int flag;
 
-    info->conf = conf;
     info->args.newargs = true;
 
-    va_start(argptr, conf);
     while ((argname = va_arg(argptr, testQemuInfoArgName)) != ARG_END) {
         switch (argname) {
         case ARG_QEMU_CAPS:
@@ -748,8 +745,6 @@ testQemuInfoSetArgs(struct testQemuInfo *info,
         if (info->args.invalidarg)
             break;
     }
-
-    va_end(argptr);
 }
 
 
@@ -900,7 +895,7 @@ testQemuInsertRealCaps(virFileCache *cache,
 
 
 int
-testQemuInfoInitArgs(struct testQemuInfo *info)
+testQemuInfoInitArgs(testQemuInfo *info)
 {
     ssize_t cap;
 
@@ -959,17 +954,22 @@ testQemuInfoInitArgs(struct testQemuInfo *info)
 
 
 void
-testQemuInfoClear(struct testQemuInfo *info)
+testQemuInfoFree(testQemuInfo *info)
 {
     VIR_FREE(info->infile);
     VIR_FREE(info->outfile);
+    VIR_FREE(info->out_xml_active);
+    VIR_FREE(info->out_xml_inactive);
     VIR_FREE(info->errfile);
+    virDomainDefFree(info->def);
     virObjectUnref(info->qemuCaps);
     g_clear_pointer(&info->args.fakeCapsAdd, virBitmapFree);
     g_clear_pointer(&info->args.fakeCapsDel, virBitmapFree);
     g_clear_pointer(&info->args.fds, g_hash_table_unref);
+    g_clear_pointer(&info->args.vdpafds, g_hash_table_unref);
     g_clear_object(&info->nbdkitCaps);
     g_clear_pointer(&info->args.fakeNbdkitCaps, virBitmapFree);
+    g_free(info);
 }
 
 

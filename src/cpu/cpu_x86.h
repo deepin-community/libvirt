@@ -25,13 +25,13 @@
 
 extern struct cpuArchDriver cpuDriverX86;
 
-int virCPUx86DataAdd(virCPUData *cpuData,
-                     const virCPUx86DataItem *cpuid);
+void virCPUx86DataAdd(virCPUData *cpuData,
+                      const virCPUx86DataItem *cpuid);
 
-int virCPUx86DataSetSignature(virCPUData *cpuData,
-                              unsigned int family,
-                              unsigned int model,
-                              unsigned int stepping);
+void virCPUx86DataSetSignature(virCPUData *cpuData,
+                               unsigned int family,
+                               unsigned int model,
+                               unsigned int stepping);
 
 uint32_t virCPUx86DataGetSignature(virCPUData *cpuData,
                                    unsigned int *family,
@@ -48,3 +48,6 @@ bool virCPUx86FeatureFilterSelectMSR(const char *name,
 bool virCPUx86FeatureFilterDropMSR(const char *name,
                                    virCPUFeaturePolicy policy,
                                    void *opaque);
+
+int virCPUx86GetAddedFeatures(const char *modelName,
+                              const char * const **features);

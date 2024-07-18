@@ -25,6 +25,7 @@
 #include "virstring.h"
 #include "virxml.h"
 
+#include <libxml/xmlsave.h>
 #include <libxml/xpathInternals.h>
 
 #define VIR_FROM_THIS VIR_FROM_VBOX
@@ -364,11 +365,11 @@ virVBoxSnapshotConfSerializeSnapshot(xmlNodePtr node,
     xmlParserErrors parseError = XML_ERR_OK;
     char *uuid = NULL;
     char *timeStamp = NULL;
-
     g_auto(GStrv) firstRegex = NULL;
     int firstRegexResult = 0;
     g_auto(GStrv) secondRegex = NULL;
     int secondRegexResult = 0;
+    const int parseFlags = XML_PARSE_NONET | XML_PARSE_NOBLANKS;
 
     uuid = g_strdup_printf("{%s}", snapshot->uuid);
 
@@ -406,7 +407,7 @@ virVBoxSnapshotConfSerializeSnapshot(xmlNodePtr node,
     parseError = xmlParseInNodeContext(node,
                                        snapshot->hardware,
                                        (int)strlen(snapshot->hardware),
-                                       0,
+                                       parseFlags,
                                        &hardwareNode);
     if (parseError != XML_ERR_OK) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -418,7 +419,7 @@ virVBoxSnapshotConfSerializeSnapshot(xmlNodePtr node,
     /* storageController */
     if (xmlParseInNodeContext(node, snapshot->storageController,
                               (int)strlen(snapshot->storageController),
-                              0,
+                              parseFlags,
                               &storageControllerNode) != XML_ERR_OK) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("Unable to add the snapshot storageController"));
@@ -458,8 +459,6 @@ virVBoxSnapshotConfAllChildren(virVBoxSnapshotConfHardDisk *disk,
     virVBoxSnapshotConfHardDisk **tempList = NULL;
     size_t i = 0;
     size_t j = 0;
-
-    ret = g_new0(virVBoxSnapshotConfHardDisk *, 0);
 
     for (i = 0; i < disk->nchildren; i++) {
         size_t tempSize = virVBoxSnapshotConfAllChildren(disk->children[i], &tempList);
@@ -939,11 +938,14 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
     xmlParserErrors parseError = XML_ERR_OK;
     char *currentSnapshot = NULL;
     char *timeStamp = NULL;
-
     g_auto(GStrv) firstRegex = NULL;
     int firstRegexResult = 0;
     g_auto(GStrv) secondRegex = NULL;
     int secondRegexResult = 0;
+    const int parseFlags = XML_PARSE_NONET | XML_PARSE_NOBLANKS;
+    int oldIndentTreeOutput = xmlIndentTreeOutput;
+
+    xmlIndentTreeOutput = 1;
 
     if (machine == NULL) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -1051,7 +1053,7 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
         parseError = xmlParseInNodeContext(mediaRegistryNode,
                               machine->mediaRegistry->otherMedia[i],
                               (int)strlen(machine->mediaRegistry->otherMedia[i]),
-                              0,
+                              parseFlags,
                               &cur);
         if (parseError != XML_ERR_OK) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -1071,7 +1073,7 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
     parseError = xmlParseInNodeContext(machineNode,
                                        machine->hardware,
                                        (int)strlen(machine->hardware),
-                                       0,
+                                       parseFlags,
                                        &cur);
     if (parseError != XML_ERR_OK) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -1084,7 +1086,7 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
         parseError = xmlParseInNodeContext(xmlDocGetRootElement(xml),
                                            machine->extraData,
                                            (int)strlen(machine->extraData),
-                                           0,
+                                           parseFlags,
                                            &cur);
         if (parseError != XML_ERR_OK) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -1097,7 +1099,7 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
     parseError = xmlParseInNodeContext(machineNode,
                                        machine->storageController,
                                        (int)strlen(machine->storageController),
-                                       0,
+                                       parseFlags,
                                        &cur);
     if (parseError != XML_ERR_OK) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
@@ -1125,6 +1127,8 @@ virVBoxSnapshotConfSaveVboxFile(virVBoxSnapshotConfMachine *machine,
     ret = 0;
 
  cleanup:
+    xmlIndentTreeOutput = oldIndentTreeOutput;
+
     VIR_FREE(currentSnapshot);
     VIR_FREE(timeStamp);
 
@@ -1308,8 +1312,6 @@ virVBoxSnapshotConfRemoveFakeDisks(virVBoxSnapshotConfMachine *machine)
     virVBoxSnapshotConfHardDisk **tempList = NULL;
     virVBoxSnapshotConfHardDisk **diskList = NULL;
 
-    diskList = g_new0(virVBoxSnapshotConfHardDisk *, 0);
-
     for (i = 0; i < machine->mediaRegistry->ndisks; i++) {
         tempSize = virVBoxSnapshotConfAllChildren(machine->mediaRegistry->disks[i], &tempList);
         VIR_EXPAND_N(diskList, diskSize, tempSize);
@@ -1357,8 +1359,6 @@ virVBoxSnapshotConfDiskIsInMediaRegistry(virVBoxSnapshotConfMachine *machine,
     size_t diskSize = 0;
     virVBoxSnapshotConfHardDisk **tempList = NULL;
     virVBoxSnapshotConfHardDisk **diskList = NULL;
-
-    diskList = g_new0(virVBoxSnapshotConfHardDisk *, 0);
 
     for (i = 0; i < machine->mediaRegistry->ndisks; i++) {
         tempSize = virVBoxSnapshotConfAllChildren(machine->mediaRegistry->disks[i], &tempList);

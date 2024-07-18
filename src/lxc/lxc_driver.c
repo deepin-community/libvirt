@@ -70,6 +70,7 @@
 #include "virhostdev.h"
 #include "netdev_bandwidth_conf.h"
 #include "virutil.h"
+#include "domain_interface.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -1428,11 +1429,12 @@ lxcSecurityInit(virLXCDriverConfig *cfg)
 }
 
 
-static int lxcStateInitialize(bool privileged,
-                              const char *root,
-                              bool monolithic G_GNUC_UNUSED,
-                              virStateInhibitCallback callback G_GNUC_UNUSED,
-                              void *opaque G_GNUC_UNUSED)
+static virDrvStateInitResult
+lxcStateInitialize(bool privileged,
+                   const char *root,
+                   bool monolithic G_GNUC_UNUSED,
+                   virStateInhibitCallback callback G_GNUC_UNUSED,
+                   void *opaque G_GNUC_UNUSED)
 {
     virLXCDriverConfig *cfg = NULL;
     bool autostart = true;
@@ -3084,8 +3086,7 @@ lxcDomainUpdateDeviceConfig(virDomainDef *vmdef,
                                          false) < 0)
             return -1;
 
-        if (virDomainNetUpdate(vmdef, idx, net) < 0)
-            return -1;
+        virDomainNetUpdate(vmdef, idx, net);
 
         virDomainNetDefFree(oldDev.data.net);
         dev->data.net = NULL;
@@ -4043,7 +4044,6 @@ lxcDomainDetachDeviceNetLive(virDomainObj *vm,
     int detachidx, ret = -1;
     virDomainNetType actualType;
     virDomainNetDef *detach = NULL;
-    const virNetDevVPortProfile *vport = NULL;
     virErrorPtr save_err = NULL;
 
     if ((detachidx = virDomainNetFindIdx(vm->def, dev->data.net)) < 0)
@@ -4053,10 +4053,7 @@ lxcDomainDetachDeviceNetLive(virDomainObj *vm,
     actualType = virDomainNetGetActualType(detach);
 
     /* clear network bandwidth */
-    if (virDomainNetGetActualBandwidth(detach) &&
-        virNetDevSupportsBandwidth(actualType) &&
-        virNetDevBandwidthClear(detach->ifname))
-        goto cleanup;
+    virDomainInterfaceClearQoS(vm->def, detach);
 
     switch (actualType) {
     case VIR_DOMAIN_NET_TYPE_BRIDGE:
@@ -4099,11 +4096,8 @@ lxcDomainDetachDeviceNetLive(virDomainObj *vm,
 
     virDomainConfNWFilterTeardown(detach);
 
-    vport = virDomainNetGetActualVirtPortProfile(detach);
-    if (vport && vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH)
-        ignore_value(virNetDevOpenvswitchRemovePort(
-                        virDomainNetGetActualBridgeName(detach),
-                        detach->ifname));
+    virDomainInterfaceVportRemove(detach);
+
     ret = 0;
  cleanup:
     if (!ret) {
@@ -4111,7 +4105,7 @@ lxcDomainDetachDeviceNetLive(virDomainObj *vm,
         if (detach->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             g_autoptr(virConnect) conn = virGetConnectNetwork();
             if (conn)
-                virDomainNetReleaseActualDevice(conn, vm->def, detach);
+                virDomainNetReleaseActualDevice(conn, detach);
             else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(detach->ifname));
         }
@@ -4692,8 +4686,7 @@ static int lxcDomainLxcOpenNamespace(virDomainPtr dom,
         goto endjob;
     }
 
-    if (virProcessGetNamespaces(priv->initpid, &nfds, fdlist) < 0)
-        goto endjob;
+    virProcessGetNamespaces(priv->initpid, &nfds, fdlist);
 
     ret = nfds;
 

@@ -21,14 +21,22 @@ lxc_monitor_protocol_generated += custom_target(
   'lxc_monitor_protocol_h',
   input: lxc_monitor_protocol,
   output: 'lxc_monitor_protocol.h',
-  command: [ genprotocol_prog, rpcgen_prog, '-h', '@INPUT@', '@OUTPUT@' ]
+  depend_files: rpcgen_src,
+  command: [
+    rpcgen_prog,
+    '--mode=header', '@INPUT@', '@OUTPUT@',
+  ]
 )
 
 lxc_monitor_protocol_generated += custom_target(
   'lxc_monitor_protocol_c',
   input: lxc_monitor_protocol,
   output: 'lxc_monitor_protocol.c',
-  command: [ genprotocol_prog, rpcgen_prog, '-c', '@INPUT@', '@OUTPUT@' ]
+  depend_files: rpcgen_src,
+  command: [
+    rpcgen_prog,
+    '--mode=source', '--header=lxc_monitor_protocol.h', '@INPUT@', '@OUTPUT@',
+  ],
 )
 
 lxc_monitor_generated = custom_target(
@@ -164,8 +172,16 @@ if conf.has('WITH_LXC')
 
   virt_daemon_units += {
     'service': 'virtlxcd',
-    'service_in': files('virtlxcd.service.in'),
-    'name': 'Libvirt lxc',
+    'name': 'LXC',
+    'service_extra_in': [
+      files('virtlxcd.service.extra.in'),
+      systemd_service_limitnofile_extra_in,
+      systemd_service_tasksmax_extra_in,
+      systemd_service_limitmemlock_extra_in,
+    ],
+    'socket_extra_in': [
+      files('virtlxcd.socket.extra.in'),
+    ],
   }
 
   openrc_init_files += {

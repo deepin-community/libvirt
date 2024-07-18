@@ -42,8 +42,8 @@ The first elements provide basic metadata about the virtual network.
    The content of the ``name`` element provides a short name for the virtual
    network. This name should consist only of alphanumeric characters and is
    required to be unique within the scope of a single host. It is used to form
-   the filename for storing the persistent configuration file. :since:`Since
-   0.3.0`
+   the filename for storing the persistent configuration file.
+   :since:`Since 0.3.0`
 ``uuid``
    The content of the ``uuid`` element provides a globally unique identifier for
    the virtual network. The format must be RFC 4122 compliant, eg
@@ -70,7 +70,7 @@ The first elements provide basic metadata about the virtual network.
    setting in the network.
 ``title``
    The optional element ``title`` provides space for a short description of the
-   network. The title should not contain any newlines. :since:`Since 9.7.0` .
+   network. The title should not contain any newlines. :since:`Since 9.7.0`.
 ``description``
    The content of the ``description`` element provides a human readable
    description of the network. This data is not used by libvirt in any
@@ -88,7 +88,7 @@ to the physical LAN (if at all).
    ...
    <bridge name="virbr0" stp="on" delay="5" macTableManager="libvirt"/>
    <mtu size="9000"/>
-   <domain name="example.com" localOnly="no"/>
+   <domain name="example.com" localOnly="no" register="no"/>
    <forward mode="nat" dev="eth0"/>
    ...
 
@@ -106,7 +106,8 @@ to the physical LAN (if at all).
    prefix "virbr" is recommended (and that is what is auto-generated), but not
    enforced. Attribute ``stp`` specifies if Spanning Tree Protocol is 'on' or
    'off' (default is 'on'). Attribute ``delay`` sets the bridge's forward delay
-   value in seconds (default is 0). :since:`Since 0.3.0`
+   value in seconds (default is 0. As the kernel has a minimum delay, values
+   below it may not be counted). :since:`Since 0.3.0`
 
    The ``macTableManager`` attribute of the bridge element is used to tell
    libvirt how the bridge's MAC address table (used to determine the correct
@@ -126,8 +127,7 @@ to the physical LAN (if at all).
    bridge (in particular, the port attaching the bridge to the physical
    network). However, it can also cause some networking setups to stop working
    (e.g. vlan tagging, multicast, guest-initiated changes to MAC address) and is
-   not supported by older kernels. :since:`Since 1.2.11, requires kernel 3.17 or
-   newer`
+   not supported by kernels older than 3.17. :since:`Since 1.2.11`
 
    The optional ``zone`` attribute of the ``bridge`` element is used to specify
    the `firewalld <https://firewalld.org>`__ zone for the bridge of a network
@@ -140,8 +140,8 @@ to the physical LAN (if at all).
    (which will also be managed using firewalld tools). :since:`Since 5.1.0`
 
 ``mtu``
-   The ``size`` attribute of the ``mtu>`` element specifies the Maximum
-   Transmission Unit (MTU) for the network. :since:`Since 3.1.0` . In the case
+   The ``size`` attribute of the ``<mtu>`` element specifies the Maximum
+   Transmission Unit (MTU) for the network. :since:`Since 3.1.0`. In the case
    of a libvirt-managed network (one with forward mode of ``nat``, ``route``,
    ``open``, or no ``forward`` element (i.e. an isolated network), this will be
    the MTU assigned to the bridge device when libvirt creates it, and thereafter
@@ -161,9 +161,16 @@ to the physical LAN (if at all).
    DNS server. If ``localOnly`` is "no", and by default, unresolved requests
    **will** be forwarded. :since:`Since 1.2.12`
 
+   :since:`Since 10.1.0` the optional ``register`` attribute can be used to
+   request registering the DNS server for resolving this domain with the host's
+   DNS resolver. When set to "yes", the host resolver will forward all requests
+   for domain names from this domain to the DNS server created for this virtual
+   network. To avoid DNS loops ``localOnly`` has to be set to "yes" as well.
+   This feature requires ``systemd-resolved`` to be running on the host.
+
 ``forward``
    Inclusion of the ``forward`` element indicates that the virtual network is to
-   be connected to the physical LAN. :since:`Since 0.3.0.` The ``mode``
+   be connected to the physical LAN. :since:`Since 0.3.0`. The ``mode``
    attribute determines the method of forwarding. If there is no ``forward``
    element, the network will be isolated from any other network (unless a guest
    connected to that network is acting as a router, of course). The following
@@ -280,8 +287,8 @@ to the physical LAN (if at all).
       802.1Qbh-capable hardware switch), each physical interface can only be in
       use by a single guest interface at a time; in modes other than 802.1Qbh,
       multiple guest interfaces can share each physical interface (libvirt will
-      attempt to balance usage between all available interfaces). :since:`Since
-      0.9.4`
+      attempt to balance usage between all available interfaces).
+      :since:`Since 0.9.4`
    ``vepa``
       This network uses a macvtap "direct" connection in "vepa" mode to connect
       each guest to the network (this requires that the physical interfaces used
@@ -312,20 +319,17 @@ to the physical LAN (if at all).
       single-port PCI ethernet card driver design - only SR-IOV (Single Root I/O
       Virtualization) virtual function (VF) devices can be assigned in this
       manner; to assign a standard single-port PCI or PCIe ethernet card to a
-      guest, use the traditional ``<hostdev>`` device definition. :since:` Since
-      0.10.0`
+      guest, use the traditional ``<hostdev>`` device definition.
+      :since:`Since 0.10.0`
 
-      To force use of a particular type of device assignment, a <forward
-      type='hostdev'> interface can have an optional ``driver`` sub-element with
-      a ``name`` attribute set to either "vfio" (VFIO is a new method of device
-      assignment that is compatible with UEFI Secure Boot) or "kvm" (the legacy
-      device assignment handled directly by the KVM kernel module) :since:`Since
-      1.0.5 (QEMU and KVM only, requires kernel 3.6 or newer)` . When specified,
-      device assignment will fail if the requested method of device assignment
-      isn't available on the host. When not specified, the default is "vfio" on
-      systems where the VFIO driver is available and loaded, and "kvm" on older
-      systems, or those where the VFIO driver hasn't been loaded :since:`Since
-      1.1.3` (prior to that the default was always "kvm").
+      To force use of a particular device-specific VFIO driver when
+      assigning the devices to a guest, a <forward type='hostdev'>
+      interface can have an optional ``driver`` sub-element with a
+      ``model`` attribute set to the name of the driver to use
+      :since:`Since 10.0.0 (QEMU only)`. When not specified, libvirt
+      will attempt to find a suitable VFIO variant driver for the
+      device, and if not found it will use the generic driver
+      "vfio-pci".
 
       Note that this "intelligent passthrough" of network devices is very
       similar to the functionality of a standard ``<hostdev>`` device, the
@@ -356,12 +360,12 @@ to the physical LAN (if at all).
         </forward>
       ...
 
-   :since:`since 0.10.0` , ``<interface>`` also has an optional read-only
+   :since:`since 0.10.0`, ``<interface>`` also has an optional read-only
    attribute - when examining the live configuration of a network, the attribute
    ``connections``, if present, specifies the number of guest interfaces
    currently connected via this physical interface.
 
-   Additionally, :since:`since 0.9.10` , libvirt allows a shorthand for
+   Additionally, :since:`since 0.9.10`, libvirt allows a shorthand for
    specifying all virtual interfaces associated with a single physical function,
    by using the ``<pf>`` subelement to call out the corresponding physical
    interface associated with multiple virtual interfaces:
@@ -392,7 +396,6 @@ to the physical LAN (if at all).
 
       ...
         <forward mode='hostdev' managed='yes'>
-          <driver name='vfio'/>
           <address type='pci' domain='0' bus='4' slot='0' function='1'/>
           <address type='pci' domain='0' bus='4' slot='0' function='2'/>
           <address type='pci' domain='0' bus='4' slot='0' function='3'/>
@@ -486,9 +489,7 @@ follows, where accepted values for each attribute is an integer number.
    ``peak`` and ``burst`` attributes still require ``average``. Currently, the
    Linux kernel doesn't allow ingress qdiscs to have any classes therefore
    ``floor`` can be applied only on ``inbound`` and not ``outbound``.
-
-Attributes ``average``, ``peak``, and ``burst`` are available :since:`since
-0.9.4` , while the ``floor`` attribute is available :since:`since 1.0.1` .
+   :since:`Since 1.0.1`
 
 Setting VLAN tag (on supported network types only)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -515,17 +516,18 @@ Setting VLAN tag (on supported network types only)
 
 If (and only if) the network connection used by the guest supports VLAN tagging
 transparent to the guest, an optional ``<vlan>`` element can specify one or more
-VLAN tags to apply to the guest's network traffic :since:`Since 0.10.0` .
-Network connections that support guest-transparent VLAN tagging include 1)
-type='bridge' interfaces connected to an Open vSwitch bridge :since:`Since
-0.10.0` , 2) SRIOV Virtual Functions (VF) used via type='hostdev' (direct device
-assignment) :since:`Since 0.10.0` , and 3) SRIOV VFs used via type='direct' with
-mode='passthrough' (macvtap "passthru" mode) :since:`Since 1.3.5` . All other
+VLAN tags to apply to the guest's network traffic :since:`Since 0.10.0`.
+
+Network connections that support guest-transparent VLAN tagging include
+``type='bridge'`` interfaces connected to an Open vSwitch bridge, SRIOV
+Virtual Functions (VF) used via ``type='hostdev'`` (direct device assignment)
+and, :since:`since 1.3.5`, SRIOV VFs used via ``type='direct'`` with
+``mode='passthrough'`` (macvtap "passthru" mode). All other
 connection types, including standard linux bridges and libvirt's own virtual
 networks, **do not** support it. 802.1Qbh (vn-link) and 802.1Qbg (VEPA) switches
 provide their own way (outside of libvirt) to tag guest traffic onto a specific
 VLAN. Each tag is given in a separate ``<tag>`` subelement of ``<vlan>`` (for
-example: ``<tag       id='42'/>``). For VLAN trunking of multiple tags (which is
+example: ``<tag id='42'/>``). For VLAN trunking of multiple tags (which is
 supported only on Open vSwitch connections), multiple ``<tag>`` subelements can
 be specified, which implies that the user wants to do VLAN trunking on the
 interface for all the specified tags. In the case that VLAN trunking of a single
@@ -534,7 +536,7 @@ toplevel ``<vlan>`` element to differentiate trunking of a single tag from
 normal tagging.
 
 For network connections using Open vSwitch it is also possible to configure
-'native-tagged' and 'native-untagged' VLAN modes :since:`Since 1.1.0.` This is
+'native-tagged' and 'native-untagged' VLAN modes :since:`Since 1.1.0`. This is
 done with the optional ``nativeMode`` attribute on the ``<tag>`` subelement:
 ``nativeMode`` may be set to 'tagged' or 'untagged'. The ``id`` attribute of the
 ``<tag>`` subelement containing ``nativeMode`` sets which VLAN is considered to
@@ -560,7 +562,7 @@ Isolating ports from one another
      <port isolated='yes'/>
    </network>
 
-:since:`Since 6.1.0.` The ``port`` element property ``isolated``, when set to
+:since:`Since 6.1.0`. The ``port`` element property ``isolated``, when set to
 ``yes`` (default setting is ``no``) is used to isolate the network traffic of
 each guest on the network from all other guests connected to the network; it
 does not have an effect on communication between the guests and the host, or
@@ -638,7 +640,7 @@ Static Routes
 Static route definitions are used to provide routing information to the
 virtualization host for networks which are not directly reachable from the
 virtualization host, but \*are\* reachable from a guest domain that is itself
-reachable from the host :since:`since 1.0.6` .
+reachable from the host :since:`since 1.0.6`.
 
 As shown in `Network config with no gateway addresses`_ example, it is
 possible to define a virtual network interface with no IPv4 or IPv6 addresses.
@@ -727,17 +729,18 @@ of 'route' or 'nat'.
    libvirt is running. :since:`Since 0.8.8`
 ``dns``
    The dns element of a network contains configuration information for the
-   virtual network's DNS server :since:`Since 0.9.3` .
+   virtual network's DNS server :since:`Since 0.9.3`.
 
-   The dns element can have an optional ``enable`` attribute :since:`Since
-   2.2.0` . If ``enable`` is "no", then no DNS server will be setup by libvirt
+   The dns element can have an optional ``enable`` attribute
+   :since:`Since 2.2.0`.
+   If ``enable`` is "no", then no DNS server will be setup by libvirt
    for this network (and any other configuration in ``<dns>`` will be ignored).
    If ``enable`` is "yes" or unspecified (including the complete absence of any
    ``<dns>`` element) then a DNS server will be setup by libvirt to listen on
    all IP addresses specified in the network's configuration.
 
    The dns element can have an optional ``forwardPlainNames`` attribute
-   :since:`Since 1.1.2` . If ``forwardPlainNames`` is "no", then DNS resolution
+   :since:`Since 1.1.2`. If ``forwardPlainNames`` is "no", then DNS resolution
    requests for names that are not qualified with a domain (i.e. names with no
    "." character) will not be forwarded to the host's upstream DNS server - they
    will only be resolved if they are known locally within the virtual network's
@@ -759,7 +762,7 @@ of 'route' or 'nat'.
       they can't be resolved locally). If an ``addr`` is specified by itself,
       then all DNS requests to the network's DNS server will be forwarded to the
       DNS server at that address with no exceptions. ``addr`` :since:`Since
-      1.1.3` , ``domain`` :since:`Since 2.2.0` .
+      1.1.3` , ``domain`` :since:`Since 2.2.0`.
    ``txt``
       A ``dns`` element can have 0 or more ``txt`` elements. Each txt element
       defines a DNS TXT record and has two attributes, both required: a name
@@ -800,9 +803,9 @@ of 'route' or 'nat'.
    network configured by the ``address`` and ``netmask``/``prefix`` attributes.
    For some unusual network prefixes (not divisible by 8 for IPv4 or not
    divisible by 4 for IPv6) libvirt may be unable to compute the PTR domain
-   automatically. The ``ip`` element is supported :since:`since 0.3.0` . IPv6,
+   automatically. The ``ip`` element is supported :since:`since 0.3.0`. IPv6,
    multiple addresses on a single network, ``family``, and ``prefix`` are
-   supported :since:`since 0.8.7` . The ``ip`` element may contain the following
+   supported :since:`since 0.8.7`. The ``ip`` element may contain the following
    elements:
 
    ``tftp``
@@ -841,25 +844,26 @@ of 'route' or 'nat'.
          The optional ``bootp`` element specifies BOOTP options to be provided
          by the DHCP server for IPv4 only. Two attributes are supported:
          ``file`` is mandatory and gives the file to be used for the boot image;
-         ``server`` is optional and gives the address of the TFTP server from
+         ``server`` (:since:`since 0.7.3`) is optional and
+         gives the address of the TFTP server from
          which the boot image will be fetched. ``server`` defaults to the same
          host that runs the DHCP server, as is the case when the ``tftp``
          element is used. The BOOTP options currently have to be the same for
-         all address ranges and statically assigned addresses. :since:`Since
-         0.7.1` (``server`` :since:`since 0.7.3` )
+         all address ranges and statically assigned addresses.
+         :since:`Since 0.7.1`
 
       Optionally, ``range`` and ``host`` elements can have ``lease`` child
       element which specifies the lease time through it's attributes ``expiry``
       and ``unit`` (which accepts ``seconds``, ``minutes`` and ``hours`` and
       defaults to ``minutes`` if omitted). The minimal lease time is 2 minutes,
-      except when setting an infinite lease time (``expiry='0'``). :since:`Since
-      6.3.0`
+      except when setting an infinite lease time (``expiry='0'``).
+      :since:`Since 6.3.0`
 
 Network namespaces
 ~~~~~~~~~~~~~~~~~~
 
 A special XML namespace is available for passing options directly to the
-underlying dnsmasq configuration file :since:`since 5.6.0` . Usage of XML
+underlying dnsmasq configuration file :since:`since 5.6.0`. Usage of XML
 namespaces comes with no support guarantees, so use at your own risk.
 
 This example XML will pass the option strings ``foo=bar`` and
@@ -1106,7 +1110,8 @@ will be no restrictions on inbound or outbound connections).
 Using a macvtap "direct" connection
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:since:`Since 0.9.4, QEMU and KVM only, requires Linux kernel 2.6.34 or newer`
+:since:`Since 0.9.4, QEMU and KVM only`. Requires Linux kernel 2.6.34 or newer.
+
 This shows how to use macvtap to connect to the physical network directly
 through one of a group of physical devices (without using a host bridge device).
 As with the host bridge network, the guests will effectively be directly

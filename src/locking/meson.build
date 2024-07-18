@@ -18,8 +18,10 @@ lock_protocol_generated += custom_target(
   'lock_protocol.h',
   input: lock_protocol,
   output: 'lock_protocol.h',
+  depend_files: rpcgen_src,
   command: [
-    genprotocol_prog, rpcgen_prog, '-h', '@INPUT@', '@OUTPUT@',
+    rpcgen_prog,
+    '--mode=header', '@INPUT@', '@OUTPUT@',
   ],
 )
 
@@ -27,8 +29,10 @@ lock_protocol_generated += custom_target(
   'lock_protocol.c',
   input: lock_protocol,
   output: 'lock_protocol.c',
+  depend_files: rpcgen_src,
   command: [
-    genprotocol_prog, rpcgen_prog, '-c', '@INPUT@', '@OUTPUT@',
+    rpcgen_prog,
+    '--mode=source', '--header=lock_protocol.h', '@INPUT@', '@OUTPUT@',
   ],
 )
 
@@ -143,11 +147,19 @@ if conf.has('WITH_LIBVIRTD')
 
   virt_daemon_units += {
     'service': 'virtlockd',
+    'name': 'locking',
     'service_in': files('virtlockd.service.in'),
-    'name': 'Libvirt locking',
+    'service_extra_in': [
+      files('virtlockd.service.extra.in'),
+      systemd_service_oomscoreadjust_extra_in,
+      systemd_service_limitnofile_extra_in,
+    ],
     'sockets': [ 'main', 'admin' ],
     'socket_in': files('virtlockd.socket.in'),
     'socket_admin_in': files('virtlockd-admin.socket.in'),
+    'socket_extra_in': [
+      files('virtlockd.socket.extra.in'),
+    ],
   }
 
   openrc_init_files += {

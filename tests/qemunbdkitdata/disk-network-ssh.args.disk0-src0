@@ -1,0 +1,7 @@
+nbdkit \
+--unix /tmp/domain-QEMUGuest1/nbdkit-disk0-src0.socket \
+--foreground ssh \
+host=example.org \
+port=2222 \
+path=test.img \
+known-hosts=/path/to/ssh_known_hosts

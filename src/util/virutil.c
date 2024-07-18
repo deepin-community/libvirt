@@ -62,6 +62,8 @@ G_STATIC_ASSERT(sizeof(gid_t) <= sizeof(unsigned int) &&
 
 VIR_LOG_INIT("util.util");
 
+#define UDEVADM "udevadm"
+
 #ifndef WIN32
 
 int virSetInherit(int fd, bool inherit)
@@ -878,14 +880,16 @@ VIR_WARNINGS_NO_POINTER_SIGN
  * storing a malloc'd result into @list. If uid is -1 or doesn't exist in the
  * system database querying of the supplementary groups is skipped.
  *
- * Returns the size of the list on success, or -1 on failure with error
- * reported and errno set. May not be called between fork and exec.
+ * Returns the size of the list. Doesn't have an error path.
+ * May not be called between fork and exec.
  * */
 int
-virGetGroupList(uid_t uid, gid_t gid, gid_t **list)
+virGetGroupList(uid_t uid,
+                gid_t gid,
+                gid_t **list)
 {
     int ret = 0;
-    char *user = NULL;
+    g_autofree char *user = NULL;
     gid_t primary;
 
     *list = NULL;
@@ -923,14 +927,12 @@ virGetGroupList(uid_t uid, gid_t gid, gid_t **list)
 
         for (i = 0; i < ret; i++) {
             if ((*list)[i] == gid)
-                goto cleanup;
+                return ret;
         }
         VIR_APPEND_ELEMENT(*list, i, gid);
-        ret = i;
+        return i;
     }
 
- cleanup:
-    VIR_FREE(user);
     return ret;
 }
 
@@ -1083,6 +1085,76 @@ virGetGroupName(gid_t gid G_GNUC_UNUSED)
     return NULL;
 }
 #endif /* WITH_GETPWUID_R */
+
+void
+virSubIDsFree(virSubID **uids, size_t n)
+{
+    size_t i;
+
+    for (i = 0; i < n; i++) {
+        if ((*uids)[i].idstr)
+            g_free((*uids)[i].idstr);
+    }
+    g_clear_pointer(uids, g_free);
+}
+
+int
+virGetSubIDs(virSubID **retval, const char *file)
+{
+    g_autofree char *buf = NULL;
+    g_auto(GStrv) lines = NULL;
+    virSubID *entries = NULL;
+    size_t i = 0;
+    size_t len;
+    int ret = -1;
+
+    *retval = NULL;
+
+    if (virFileReadAll(file, BUFSIZ, &buf) < 0)
+        return -1;
+
+    lines = g_strsplit(buf, "\n", 0);
+    if (!lines)
+        return -1;
+
+    len = g_strv_length(lines);
+    entries = g_new0(virSubID, len);
+
+    for (i = 0; i < len; i++) {
+        g_auto(GStrv) fields = NULL;
+        unsigned long ulong_id;
+
+        fields = g_strsplit(lines[i], ":", 0);
+        if (!fields)
+            goto cleanup;
+
+        if (g_strv_length(fields) != 3)
+            break;
+
+        if (g_ascii_isdigit(fields[0][0])) {
+            if (virStrToLong_ul(fields[0], NULL, 10, &ulong_id) < 0)
+                goto cleanup;
+            entries[i].id = ulong_id;
+        } else {
+            entries[i].idstr = g_strdup(fields[0]);
+        }
+
+        if (virStrToLong_ul(fields[1], NULL, 10, &ulong_id) < 0)
+            goto cleanup;
+        entries[i].start = ulong_id;
+
+        if (virStrToLong_ul(fields[2], NULL, 10, &ulong_id) < 0)
+            goto cleanup;
+        entries[i].range = ulong_id;
+    }
+
+    *retval = g_steal_pointer(&entries);
+    ret = i;
+ cleanup:
+    if (entries)
+        virSubIDsFree(&entries, len);
+    return ret;
+}
 
 #if WITH_CAPNG
 /* Set the real and effective uid and gid to the given values, while

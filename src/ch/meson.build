@@ -1,10 +1,14 @@
 ch_driver_sources = [
+  'ch_capabilities.h',
+  'ch_capabilities.c',
   'ch_conf.c',
   'ch_conf.h',
   'ch_domain.c',
   'ch_domain.h',
   'ch_driver.c',
   'ch_driver.h',
+  'ch_interface.c',
+  'ch_interface.h',
   'ch_monitor.c',
   'ch_monitor.h',
   'ch_process.c',
@@ -57,8 +61,16 @@ if conf.has('WITH_CH')
 
   virt_daemon_units += {
     'service': 'virtchd',
-    'service_in': files('virtchd.service.in'),
-    'name': 'Libvirt ch',
+    'name': 'Cloud Hypervisor',
+    'service_extra_in': [
+      files('virtchd.service.extra.in'),
+      systemd_service_limitnofile_extra_in,
+      systemd_service_tasksmax_extra_in,
+      systemd_service_limitmemlock_extra_in,
+    ],
+    'socket_extra_in': [
+      files('virtchd.socket.extra.in'),
+    ],
   }
 
   virt_install_dirs += [

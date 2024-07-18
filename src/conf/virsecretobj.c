@@ -865,25 +865,24 @@ virSecretLoad(virSecretObjList *secrets,
               const char *path,
               const char *configDir)
 {
-    virSecretDef *def = NULL;
+    g_autoptr(virSecretDef) def = NULL;
     virSecretObj *obj = NULL;
 
     if (!(def = virSecretDefParse(NULL, path, 0)))
-        goto cleanup;
+        return NULL;
 
     if (virSecretLoadValidateUUID(def, file) < 0)
-        goto cleanup;
+        return NULL;
 
     if (!(obj = virSecretObjListAdd(secrets, &def, configDir, NULL)))
-        goto cleanup;
+        return NULL;
 
     if (virSecretLoadValue(obj) < 0) {
         virSecretObjListRemove(secrets, obj);
         g_clear_pointer(&obj, virObjectUnref);
+        return NULL;
     }
 
- cleanup:
-    virSecretDefFree(def);
     return obj;
 }
 
@@ -902,7 +901,7 @@ virSecretLoadAllConfigs(virSecretObjList *secrets,
     /* Ignore errors reported by readdir or other calls within the
      * loop (if any).  It's better to keep the secrets we managed to find. */
     while (virDirRead(dir, &de, NULL) > 0) {
-        char *path;
+        g_autofree char *path = NULL;
         virSecretObj *obj;
 
         if (!virStringHasSuffix(de->d_name, ".xml"))
@@ -914,11 +913,9 @@ virSecretLoadAllConfigs(virSecretObjList *secrets,
         if (!(obj = virSecretLoad(secrets, de->d_name, path, configDir))) {
             VIR_ERROR(_("Error reading secret: %1$s"),
                       virGetLastErrorMessage());
-            VIR_FREE(path);
             continue;
         }
 
-        VIR_FREE(path);
         virSecretObjEndAPI(&obj);
     }
 

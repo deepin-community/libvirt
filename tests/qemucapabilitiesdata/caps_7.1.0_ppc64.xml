@@ -154,6 +154,9 @@
   <flag name='virtio-crypto'/>
   <flag name='pvpanic-pci'/>
   <flag name='virtio-gpu.blob'/>
+  <flag name='smp-clusters'/>
+  <flag name='display-reload'/>
+  <flag name='usb-mtp'/>
   <version>7001000</version>
   <microcodeVersion>42900244</microcodeVersion>
   <package>v7.1.0</package>

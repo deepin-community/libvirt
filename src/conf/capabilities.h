@@ -40,6 +40,7 @@ typedef enum {
     VIR_CAPS_GUEST_FEATURE_TYPE_DEVICEBOOT,
     VIR_CAPS_GUEST_FEATURE_TYPE_DISKSNAPSHOT,
     VIR_CAPS_GUEST_FEATURE_TYPE_HAP,
+    VIR_CAPS_GUEST_FEATURE_TYPE_EXTERNAL_SNAPSHOT,
 
     VIR_CAPS_GUEST_FEATURE_TYPE_LAST
 } virCapsGuestFeatureType;
@@ -88,6 +89,7 @@ struct _virCapsHostNUMACellCPU {
     unsigned int id;
     unsigned int socket_id;
     unsigned int die_id;
+    unsigned int cluster_id;
     unsigned int core_id;
     virBitmap *siblings;
 };
@@ -307,13 +309,15 @@ virCapabilitiesDomainDataLookup(virCaps *caps,
                                 virArch arch,
                                 int domaintype,
                                 const char *emulator,
-                                const char *machinetype);
+                                const char *machinetype,
+                                bool reportError);
 
 bool
 virCapabilitiesDomainSupported(virCaps *caps,
                                int ostype,
                                virArch arch,
-                               int domaintype);
+                               int domaintype,
+                               bool reportError);
 
 
 void

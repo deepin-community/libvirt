@@ -1,0 +1,69 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <new-preinst> `install'
+#   * <new-preinst> `install' <old-version> <new-version>
+#   * <new-preinst> `upgrade' <old-version> <new-version>
+#   * <old-preinst> `abort-upgrade' <new-version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#PREPARE_CONFFILE_TRANSFER#
+
+NWFILTERS="
+    allow-arp
+    allow-dhcp
+    allow-dhcp-server
+    allow-incoming-ipv4
+    allow-ipv4
+    clean-traffic
+    clean-traffic-gateway
+    no-arp-ip-spoofing
+    no-arp-mac-spoofing
+    no-arp-spoofing
+    no-ip-multicast
+    no-ip-spoofing
+    no-mac-broadcast
+    no-mac-spoofing
+    no-other-l2-traffic
+    no-other-rarp-traffic
+    qemu-announce-self
+    qemu-announce-self-rarp
+"
+
+case "$1" in
+    install|upgrade)
+        prepare_conffile_transfer \
+            "/etc/libvirt/qemu/networks/default.xml" \
+            "6.9.0-2~" \
+            "libvirt-daemon-system" \
+            "libvirt-daemon-config-network" \
+            -- \
+            "$@"
+        for nwfilter in $NWFILTERS; do
+            prepare_conffile_transfer \
+                "/etc/libvirt/nwfilter/$nwfilter.xml" \
+                "6.9.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-config-nwfilter" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    abort-upgrade)
+    ;;
+
+    *)
+        echo "preinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -56,7 +56,6 @@
   <flag name='pc-dimm'/>
   <flag name='machine-vmport-opt'/>
   <flag name='pci-serial'/>
-  <flag name='gpex-pcihost'/>
   <flag name='ioh3420'/>
   <flag name='x3130-upstream'/>
   <flag name='xio3130-downstream'/>
@@ -196,6 +195,9 @@
   <flag name='virtio-gpu.blob'/>
   <flag name='rbd-encryption-layering'/>
   <flag name='rbd-encryption-luks-any'/>
+  <flag name='smp-clusters'/>
+  <flag name='display-reload'/>
+  <flag name='usb-mtp'/>
   <version>8000000</version>
   <microcodeVersion>43100244</microcodeVersion>
   <package>v8.0.0</package>

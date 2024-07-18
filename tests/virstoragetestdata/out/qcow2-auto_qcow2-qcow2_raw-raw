@@ -1,9 +1,10 @@
 path:ABS_BUILDDIR/virstoragedata/wrap
 backingStoreRaw: <null>
+backingStoreRawFormat: none(0)
 capacity: 0
 encryption: 0
 relPath:<null>
-type:1
-format:1
+type:file
+format:raw
 protocol:none
 hostname:<null>

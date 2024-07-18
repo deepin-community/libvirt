@@ -472,13 +472,14 @@ A traffic filtering rule starts with the ``rule`` node. This node may contain up
 to three attributes
 
 -  action -- mandatory; must either be ``drop`` (matching the rule silently
-   discards the packet with no further analysis), ``reject`` (matching the rule
-   generates an ICMP reject message with no further analysis) :since:`(since
-   0.9.0)` , ``accept`` (matching the rule accepts the packet with no further
-   analysis), ``return`` (matching the rule passes this filter, but returns
-   control to the calling filter for further analysis) :since:`(since 0.9.7)` ,
-   or ``continue`` (matching the rule goes on to the next rule for further
-   analysis) :since:`(since 0.9.7)` .
+   discards the packet with no further analysis), ``reject``
+   (:since:`since 0.9.0`; matching the rule generates an ICMP reject message
+   with no further analysis),
+   ``accept`` (matching the rule accepts the packet with no further
+   analysis), ``return`` (:since:`since 0.9.7`; matching the rule passes this
+   filter, but returns control to the calling filter for further analysis),
+   or ``continue`` (:since:`since 0.9.7`; matching the rule goes on to the next
+   rule for further analysis).
 
 -  direction -- mandatory; must either be ``in``, ``out`` or ``inout`` if the
    rule is for incoming, outgoing or incoming-and-outgoing traffic
@@ -592,8 +593,8 @@ Note: Rules of this type should go into the ``root`` chain.
 | protocolid              | UINT16 (0x600-0xffff),  | Layer 3 protocol ID     |
 |                         | STRING                  |                         |
 +-------------------------+-------------------------+-------------------------+
-| comment :since:`(Since  | STRING                  | text with max. 256      |
-| 0.8.5)`                 |                         | characters              |
+| comment                 | STRING                  | text with max. 256      |
+| :since:`(Since 0.8.5)`  |                         | characters              |
 +-------------------------+-------------------------+-------------------------+
 
 Valid Strings for ``protocolid`` are: arp, rarp, ipv4, ipv6
@@ -709,20 +710,20 @@ chain.
 | arpsrcipaddr                | IP_ADDR        | Source IP address in        |
 |                             |                | ARP/RARP packet             |
 +-----------------------------+----------------+-----------------------------+
-| arpsrcipmask :since:`(Since | IP_MASK        | Source IP mask              |
-| 1.2.3)`                     |                |                             |
+| arpsrcipmask                |  IP_MASK       | Source IP mask              |
+| :since:`(Since 1.2.3)`      |                |                             |
 +-----------------------------+----------------+-----------------------------+
 | arpdstipaddr                | IP_ADDR        | Destination IP address in   |
 |                             |                | ARP/RARP packet             |
 +-----------------------------+----------------+-----------------------------+
-| arpdstipmask :since:`(Since | IP_MASK        | Destination IP mask         |
-| 1.2.3)`                     |                |                             |
+| arpdstipmask                | IP_MASK        | Destination IP mask         |
+| :since:`(Since 1.2.3)`      |                |                             |
 +-----------------------------+----------------+-----------------------------+
-| comment :since:`(Since      | STRING         | text with max. 256          |
-| 0.8.5)`                     |                | characters                  |
+| comment                     | STRING         | text with max. 256          |
+| :since:`(Since 0.8.5)`      |                | characters                  |
 +-----------------------------+----------------+-----------------------------+
-| gratuitous :since:`(Since   | BOOLEAN        | boolean indicating whether  |
-| 0.9.2)`                     |                | to check for gratuitous ARP |
+| gratuitous                  | BOOLEAN        | boolean indicating whether  |
+| :since:`(Since 0.9.2)`      |                | to check for gratuitous ARP |
 |                             |                | packet                      |
 +-----------------------------+----------------+-----------------------------+
 
@@ -782,8 +783,8 @@ Note: Rules of this type should either go into the ``root`` or ``ipv4`` chain.
 | dscp                    | UINT8 (0x0-0x3f, 0 -    | Differentiated Services |
 |                         | 63)                     | Code Point              |
 +-------------------------+-------------------------+-------------------------+
-| comment :since:`(Since  | STRING                  | text with max. 256      |
-| 0.8.5)`                 |                         | characters              |
+| comment                 | STRING                  | text with max. 256      |
+| :since:`(Since 0.8.5)`  |                         | characters              |
 +-------------------------+-------------------------+-------------------------+
 
 Valid strings for ``protocol`` are: tcp, udp, udplite, esp, ah, icmp, igmp, sctp
@@ -838,8 +839,8 @@ Note: Rules of this type should either go into the ``root`` or ``ipv6`` chain.
 |                                |           | ``protocol`` to be set to      |
 |                                |           | ``icmpv6``                     |
 +--------------------------------+-----------+--------------------------------+
-| typeend :since:`(Since         | UINT8     | ICMPv6 type end of range;      |
-| 1.2.12)`                       |           | requires ``protocol`` to be    |
+| typeend                        | UINT8     | ICMPv6 type end of range;      |
+| :since:`(Since 1.2.12)`        |           | requires ``protocol`` to be    |
 |                                |           | set to ``icmpv6``              |
 +--------------------------------+-----------+--------------------------------+
 | code :since:`(Since 1.2.12)`   | UINT8     | ICMPv6 code; requires          |
@@ -905,23 +906,23 @@ be omitted or set to ``root``.
 | dscp                    | UINT8 (0x0-0x3f, 0 -    | Differentiated Services |
 |                         | 63)                     | Code Point              |
 +-------------------------+-------------------------+-------------------------+
-| comment :since:`(Since  | STRING                  | text with max. 256      |
-| 0.8.5)`                 |                         | characters              |
+| comment                 | STRING                  | text with max. 256      |
+| :since:`(Since 0.8.5)`  |                         | characters              |
 +-------------------------+-------------------------+-------------------------+
-| state :since:`(Since    | STRING                  | comma separated list of |
-| 0.8.5)`                 |                         | NEW,ESTA                |
-|                         |                         | BLISHED,RELATED,INVALID |
+| state                   | STRING                  | comma separated list of |
+| :since:`(Since 0.8.5)`  |                         | NEW, ESTABLISHED,       |
+|                         |                         | RELATED, INVALID        |
 |                         |                         | or NONE                 |
 +-------------------------+-------------------------+-------------------------+
-| flags :since:`(Since    | STRING                  | TCP-only: format of     |
-| 0.9.1)`                 |                         | mask/flags with mask    |
+| flags                   | STRING                  | TCP-only: format of     |
+| :since:`(Sinc 0.9.1)`   |                         | mask/flags with mask    |
 |                         |                         | and flags each being a  |
 |                         |                         | comma separated list of |
 |                         |                         | SYN,ACK,URG,PSH,FIN,RST |
 |                         |                         | or NONE or ALL          |
 +-------------------------+-------------------------+-------------------------+
-| ipset :since:`(Since    | STRING                  | The name of an IPSet    |
-| 0.9.13)`                |                         | managed outside of      |
+| ipset                   | STRING                  | The name of an IPSet    |
+| :since:`(Since 0.9.13)` |                         | managed outside of      |
 |                         |                         | libvirt                 |
 +-------------------------+-------------------------+-------------------------+
 | ipsetflags              | IPSETFLAGS              | flags for the IPSet;    |
@@ -980,16 +981,16 @@ be omitted or set to ``root``.
 | dscp                    | UINT8 (0x0-0x3f, 0 -    | Differentiated Services |
 |                         | 63)                     | Code Point              |
 +-------------------------+-------------------------+-------------------------+
-| comment :since:`(Since  | STRING                  | text with max. 256      |
-| 0.8.5)`                 |                         | characters              |
+| comment                 | STRING                  | text with max. 256      |
+| :since:`(Since 0.8.5)`  |                         | characters              |
 +-------------------------+-------------------------+-------------------------+
-| state :since:`(Since    | STRING                  | comma separated list of |
-| 0.8.5)`                 |                         | NEW,ESTA                |
-|                         |                         | BLISHED,RELATED,INVALID |
+| state                   | STRING                  | comma separated list of |
+| :since:`(Since 0.8.5)`  |                         | NEW, ESTABLISHED,       |
+|                         |                         | RELATED, INVALID        |
 |                         |                         | or NONE                 |
 +-------------------------+-------------------------+-------------------------+
-| ipset :since:`(Since    | STRING                  | The name of an IPSet    |
-| 0.9.13)`                |                         | managed outside of      |
+| ipset                   | STRING                  | The name of an IPSet    |
+| :since:`(Since 0.9.13)` |                         | managed outside of      |
 |                         |                         | libvirt                 |
 +-------------------------+-------------------------+-------------------------+
 | ipsetflags              | IPSETFLAGS              | flags for the IPSet;    |
@@ -1044,16 +1045,16 @@ be omitted or set to ``root``.
 | dscp                    | UINT8 (0x0-0x3f, 0 -    | Differentiated Services |
 |                         | 63)                     | Code Point              |
 +-------------------------+-------------------------+-------------------------+
-| comment :since:`(Since  | STRING                  | text with max. 256      |
-| 0.8.5)`                 |                         | characters              |
+| comment                 | STRING                  | text with max. 256      |
+| :since:`(Since 0.8.5)`  |                         | characters              |
 +-------------------------+-------------------------+-------------------------+
-| state :since:`(Since    | STRING                  | comma separated list of |
-| 0.8.5)`                 |                         | NEW,ESTA                |
-|                         |                         | BLISHED,RELATED,INVALID |
+| state                   | STRING                  | comma separated list of |
+| :since:`(Since 0.8.5)`  |                         | NEW, ESTABLISHED,       |
+|                         |                         | RELATED, INVALID        |
 |                         |                         | or NONE                 |
 +-------------------------+-------------------------+-------------------------+
-| ipset :since:`(Since    | STRING                  | The name of an IPSet    |
-| 0.9.13)`                |                         | managed outside of      |
+| ipset                   | STRING                  | The name of an IPSet    |
+| :since:`(Since 0.9.13)` |                         | managed outside of      |
 |                         |                         | libvirt                 |
 +-------------------------+-------------------------+-------------------------+
 | ipsetflags              | IPSETFLAGS              | flags for the IPSet;    |
@@ -1111,23 +1112,23 @@ be omitted or set to ``root``.
 | dscp                    | UINT8 (0x0-0x3f, 0 -    | Differentiated Services |
 |                         | 63)                     | Code Point              |
 +-------------------------+-------------------------+-------------------------+
-| comment :since:`(Since  | STRING                  | text with max. 256      |
-| 0.8.5)`                 |                         | characters              |
+| comment                 | STRING                  | text with max. 256      |
+| :since:`(Since 0.8.5)`  |                         | characters              |
 +-------------------------+-------------------------+-------------------------+
-| state :since:`(Since    | STRING                  | comma separated list of |
-| 0.8.5)`                 |                         | NEW,ESTA                |
-|                         |                         | BLISHED,RELATED,INVALID |
+| state                   | STRING                  | comma separated list of |
+| :since:`(Since 0.8.5)`  |                         | NEW, ESTABLISHED,       |
+|                         |                         | RELATED, INVALID        |
 |                         |                         | or NONE                 |
 +-------------------------+-------------------------+-------------------------+
-| flags :since:`(Since    | STRING                  | TCP-only: format of     |
-| 0.9.1)`                 |                         | mask/flags with mask    |
+| flags                   | STRING                  | TCP-only: format of     |
+| :since:`(Since 0.9.1)`  |                         | mask/flags with mask    |
 |                         |                         | and flags each being a  |
 |                         |                         | comma separated list of |
 |                         |                         | SYN,ACK,URG,PSH,FIN,RST |
 |                         |                         | or NONE or ALL          |
 +-------------------------+-------------------------+-------------------------+
-| ipset :since:`(Since    | STRING                  | The name of an IPSet    |
-| 0.9.13)`                |                         | managed outside of      |
+| ipset                   | STRING                  | The name of an IPSet    |
+| :since:`(Since 0.9.13)` |                         | managed outside of      |
 |                         |                         | libvirt                 |
 +-------------------------+-------------------------+-------------------------+
 | ipsetflags              | IPSETFLAGS              | flags for the IPSet;    |
@@ -1179,16 +1180,16 @@ be omitted or set to ``root``.
 | dscp                    | UINT8 (0x0-0x3f, 0 -    | Differentiated Services |
 |                         | 63)                     | Code Point              |
 +-------------------------+-------------------------+-------------------------+
-| comment :since:`(Since  | STRING                  | text with max. 256      |
-| 0.8.5)`                 |                         | characters              |
+| comment                 | STRING                  | text with max. 256      |
+| :since:`(Since 0.8.5)`  |                         | characters              |
 +-------------------------+-------------------------+-------------------------+
-| state :since:`(Since    | STRING                  | comma separated list of |
-| 0.8.5)`                 |                         | NEW,ESTA                |
-|                         |                         | BLISHED,RELATED,INVALID |
+| state                   | STRING                  | comma separated list of |
+| :since:`(Since 0.8.5)`  |                         | NEW, ESTABLISHED,       |
+|                         |                         | RELATED, INVALID        |
 |                         |                         | or NONE                 |
 +-------------------------+-------------------------+-------------------------+
-| ipset :since:`(Since    | STRING                  | The name of an IPSet    |
-| 0.9.13)`                |                         | managed outside of      |
+| ipset                   | STRING                  | The name of an IPSet    |
+| :since:`(Since 0.9.13)` |                         | managed outside of      |
 |                         |                         | libvirt                 |
 +-------------------------+-------------------------+-------------------------+
 | ipsetflags              | IPSETFLAGS              | flags for the IPSet;    |
@@ -1236,16 +1237,16 @@ be omitted or set to ``root``.
 | dscp                    | UINT8 (0x0-0x3f, 0 -    | Differentiated Services |
 |                         | 63)                     | Code Point              |
 +-------------------------+-------------------------+-------------------------+
-| comment :since:`(Since  | STRING                  | text with max. 256      |
-| 0.8.5)`                 |                         | characters              |
+| comment                 | STRING                  | text with max. 256      |
+| :since:`(Since 0.8.5)`  |                         | characters              |
 +-------------------------+-------------------------+-------------------------+
-| state :since:`(Since    | STRING                  | comma separated list of |
-| 0.8.5)`                 |                         | NEW,ESTA                |
-|                         |                         | BLISHED,RELATED,INVALID |
+| state                   | STRING                  | comma separated list of |
+| :since:`(Since 0.8.5)`  |                         | NEW, ESTABLISHED,       |
+|                         |                         | RELATED, INVALID        |
 |                         |                         | or NONE                 |
 +-------------------------+-------------------------+-------------------------+
-| ipset :since:`(Since    | STRING                  | The name of an IPSet    |
-| 0.9.13)`                |                         | managed outside of      |
+| ipset                   | STRING                  | The name of an IPSet    |
+| :since:`(Since 0.9.13)` |                         | managed outside of      |
 |                         |                         | libvirt                 |
 +-------------------------+-------------------------+-------------------------+
 | ipsetflags              | IPSETFLAGS              | flags for the IPSet;    |
@@ -1600,8 +1601,8 @@ Second example custom filter
 
 In this example we now want to build a similar filter as in the example above,
 but extend the list of requirements with an ftp server located inside the VM.
-Further, we will be using features that have been added in :since:`version
-0.8.5` . The requirements for this filter are:
+Further, we will be using features that have been available
+:since:`since 0.8.5`. The requirements for this filter are:
 
 -  prevents a VM's interface from MAC, IP and ARP spoofing
 
@@ -1631,8 +1632,8 @@ connection, thus we want to allow it to let packets pass the firewall. The
 outgoing TCP connection for the ftp data path. Afterwards, the state to compare
 against is ``ESTABLISHED``, which then applies equally to the incoming and
 outgoing direction. All this is related to the ftp data traffic originating from
-TCP port 20 of the VM. This then leads to the following solution :since:`(since
-0.8.5 (QEMU, KVM))` :
+TCP port 20 of the VM. This then leads to the following solution
+:since:`(since 0.8.5 (QEMU, KVM))` :
 
 ::
 

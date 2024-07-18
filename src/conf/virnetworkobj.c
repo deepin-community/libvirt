@@ -55,6 +55,11 @@ struct _virNetworkObj {
 
     unsigned int taint;
 
+    /* fwRemoval contains all commands needed to remove the firewall
+     * that was added for this network.
+     */
+    virFirewall *fwRemoval;
+
     /* Immutable pointer, self locking APIs */
     virMacMap *macmap;
 
@@ -236,6 +241,25 @@ virNetworkObjSetFloorSum(virNetworkObj *obj,
                          unsigned long long floor_sum)
 {
     obj->floor_sum = floor_sum;
+}
+
+
+virFirewall *
+virNetworkObjGetFwRemoval(virNetworkObj *obj)
+{
+    return obj->fwRemoval;
+}
+
+
+void
+virNetworkObjSetFwRemoval(virNetworkObj *obj,
+                          virFirewall *fwRemoval)
+{
+    virFirewallFree(obj->fwRemoval);
+    obj->fwRemoval = fwRemoval;
+    /* give it a name so it's identifiable in the XML */
+    if (fwRemoval)
+        virFirewallSetName(fwRemoval, "fwRemoval");
 }
 
 
@@ -444,6 +468,7 @@ virNetworkObjDispose(void *opaque)
     virNetworkDefFree(obj->newDef);
     virBitmapFree(obj->classIdMap);
     virObjectUnref(obj->macmap);
+    virFirewallFree(obj->fwRemoval);
 }
 
 
@@ -792,6 +817,9 @@ virNetworkObjFormat(virNetworkObj *obj,
     if (virNetworkDefFormatBuf(&buf, obj->def, xmlopt, flags) < 0)
         return NULL;
 
+    if (obj->fwRemoval && virFirewallFormat(&buf, obj->fwRemoval) < 0)
+        return NULL;
+
     virBufferAdjustIndent(&buf, -2);
     virBufferAddLit(&buf, "</networkstatus>");
 
@@ -807,6 +835,7 @@ virNetworkObjSaveStatus(const char *statusDir,
     int flags = 0;
     g_autofree char *xml = NULL;
 
+    VIR_DEBUG("Writing network status to disk");
     if (!(xml = virNetworkObjFormat(obj, xmlopt, flags)))
         return -1;
 
@@ -826,6 +855,7 @@ virNetworkLoadState(virNetworkObjList *nets,
     g_autofree char *configFile = NULL;
     g_autoptr(virNetworkDef) def = NULL;
     virNetworkObj *obj = NULL;
+    g_autoptr(virFirewall) fwRemoval = NULL;
     g_autoptr(xmlDoc) xml = NULL;
     xmlNodePtr node = NULL;
     g_autoptr(xmlXPathContext) ctxt = NULL;
@@ -868,6 +898,7 @@ virNetworkLoadState(virNetworkObjList *nets,
         g_autofree char *classIdStr = NULL;
         g_autofree char *floor_sum = NULL;
         g_autofree xmlNodePtr *nodes = NULL;
+        xmlNodePtr fwNode;
 
         ctxt->node = node;
         if ((classIdStr = virXPathString("string(./class_id[1]/@bitmap)",
@@ -902,6 +933,15 @@ virNetworkLoadState(virNetworkObjList *nets,
                 taint |= (1 << flag);
             }
         }
+        if ((fwNode = virXPathNode("./firewall", ctxt))) {
+            g_autoptr(virFirewall) fwTmp = NULL;
+
+            if (virFirewallParseXML(&fwTmp, fwNode, ctxt) < 0)
+                return NULL;
+
+            if (STREQ_NULLABLE(virFirewallGetName(fwTmp), "fwRemoval"))
+                fwRemoval = g_steal_pointer(&fwTmp);
+        }
     }
 
     /* create the object */
@@ -909,6 +949,8 @@ virNetworkLoadState(virNetworkObjList *nets,
         return NULL;
 
     def = NULL;
+
+    virNetworkObjSetFwRemoval(obj, g_steal_pointer(&fwRemoval));
 
     /* assign status data stored in the network object */
     if (classIdMap) {
@@ -945,8 +987,7 @@ virNetworkLoadConfig(virNetworkObjList *nets,
     if ((autostartLink = virNetworkConfigFile(autostartDir, name)) == NULL)
         return NULL;
 
-    if ((autostart = virFileLinkPointsTo(autostartLink, configFile)) < 0)
-        return NULL;
+    autostart = virFileLinkPointsTo(autostartLink, configFile);
 
     if (!(def = virNetworkDefParse(NULL, configFile, xmlopt, false)))
         return NULL;

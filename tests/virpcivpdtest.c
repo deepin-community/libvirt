@@ -64,11 +64,6 @@ testPCIVPDResourceBasic(const void *data G_GNUC_UNUSED)
         {.keyword = "SN", .value = "serial2", .actual = &ro->serial_number},
         {.keyword = "serial_number", .value = "serial3", .actual = &ro->serial_number},
     };
-    const TestPCIVPDKeywordValue readWriteCases[] = {
-        {.keyword = "YA", .value = "tag1", .actual = &ro->change_level},
-        {.keyword = "YA", .value = "tag2", .actual = &ro->change_level},
-        {.keyword = "asset_tag", .value = "tag3", .actual = &ro->change_level},
-    };
     const TestPCIVPDKeywordValue unsupportedFieldCases[] = {
         {.keyword = "FG", .value = "42", .actual = NULL},
         {.keyword = "LC", .value = "42", .actual = NULL},
@@ -77,7 +72,6 @@ testPCIVPDResourceBasic(const void *data G_GNUC_UNUSED)
         {.keyword = "EX", .value = "42", .actual = NULL},
     };
     size_t numROCases = G_N_ELEMENTS(readOnlyCases);
-    size_t numRWCases = G_N_ELEMENTS(readWriteCases);
     size_t numUnsupportedCases = G_N_ELEMENTS(unsupportedFieldCases);
     g_autoptr(virPCIVPDResource) res = g_new0(virPCIVPDResource, 1);
     virPCIVPDResourceCustom *custom = NULL;
@@ -85,36 +79,20 @@ testPCIVPDResourceBasic(const void *data G_GNUC_UNUSED)
     g_autofree char *val = g_strdup("testval");
     res->name = g_steal_pointer(&val);
 
-    /* RO has not been initialized - make sure updates fail. */
-    for (i = 0; i < numROCases; ++i) {
-        if (virPCIVPDResourceUpdateKeyword(res, true,
-                                           readOnlyCases[i].keyword,
-                                           readOnlyCases[i].value))
-            return -1;
-    }
-    /* RW has not been initialized - make sure updates fail. */
-    for (i = 0; i < numRWCases; ++i) {
-        if (virPCIVPDResourceUpdateKeyword(res, false,
-                                           readWriteCases[i].keyword,
-                                           readWriteCases[i].value))
-            return -1;
-    }
     /* Initialize RO */
     res->ro = g_steal_pointer(&ro);
 
     /* Update keywords one by one and compare actual values with the expected ones. */
     for (i = 0; i < numROCases; ++i) {
-        if (!virPCIVPDResourceUpdateKeyword(res, true,
-                                            readOnlyCases[i].keyword,
-                                            readOnlyCases[i].value))
-            return -1;
+        virPCIVPDResourceUpdateKeyword(res, true,
+                                       readOnlyCases[i].keyword,
+                                       readOnlyCases[i].value);
         if (STRNEQ(readOnlyCases[i].value, *readOnlyCases[i].actual))
             return -1;
     }
 
     /* Do a basic vendor field check. */
-    if (!virPCIVPDResourceUpdateKeyword(res, true, "V0", "vendor0"))
-        return -1;
+    virPCIVPDResourceUpdateKeyword(res, true, "V0", "vendor0");
 
     if (res->ro->vendor_specific->len != 1)
         return -1;
@@ -125,32 +103,23 @@ testPCIVPDResourceBasic(const void *data G_GNUC_UNUSED)
 
     /* Make sure unsupported RO keyword updates are not fatal. */
     for (i = 0; i < numUnsupportedCases; ++i) {
-        if (!virPCIVPDResourceUpdateKeyword(res, true,
-                                            unsupportedFieldCases[i].keyword,
-                                            unsupportedFieldCases[i].value))
-            return -1;
+        virPCIVPDResourceUpdateKeyword(res, true,
+                                       unsupportedFieldCases[i].keyword,
+                                       unsupportedFieldCases[i].value);
     }
-
-    /* Check that RW updates fail if RW has not been initialized. */
-    if (virPCIVPDResourceUpdateKeyword(res, false, "YA", "tag1"))
-        return -1;
-
-    if (virPCIVPDResourceUpdateKeyword(res, false, "asset_tag", "tag1"))
-        return -1;
 
     /* Initialize RW */
     res->rw = g_steal_pointer(&rw);
-    if (!virPCIVPDResourceUpdateKeyword(res, false, "YA", "tag1")
-        || STRNEQ(res->rw->asset_tag, "tag1"))
+    virPCIVPDResourceUpdateKeyword(res, false, "YA", "tag1");
+    if (STRNEQ(res->rw->asset_tag, "tag1"))
         return -1;
 
-    if (!virPCIVPDResourceUpdateKeyword(res, false, "asset_tag", "tag2")
-        || STRNEQ(res->rw->asset_tag, "tag2"))
+    virPCIVPDResourceUpdateKeyword(res, false, "asset_tag", "tag2");
+    if (STRNEQ(res->rw->asset_tag, "tag2"))
         return -1;
 
     /* Do a basic system field check. */
-    if (!virPCIVPDResourceUpdateKeyword(res, false, "Y0", "system0"))
-        return -1;
+    virPCIVPDResourceUpdateKeyword(res, false, "Y0", "system0");
 
     if (res->rw->system_specific->len != 1)
         return -1;
@@ -161,10 +130,12 @@ testPCIVPDResourceBasic(const void *data G_GNUC_UNUSED)
 
     /* Make sure unsupported RW keyword updates are not fatal. */
     for (i = 0; i < numUnsupportedCases; ++i) {
-        if (!virPCIVPDResourceUpdateKeyword(res, false,
-                                            unsupportedFieldCases[i].keyword,
-                                            unsupportedFieldCases[i].value))
-            return -1;
+        /* This test is deliberately left in despite
+         * virPCIVPDResourceUpdateKeyword always succeeding to prevent
+         * possible regressions if the function is ever rewritten */
+        virPCIVPDResourceUpdateKeyword(res, false,
+                                       unsupportedFieldCases[i].keyword,
+                                       unsupportedFieldCases[i].value);
     }
 
 
@@ -244,8 +215,7 @@ testPCIVPDResourceCustomUpsertValue(const void *data G_GNUC_UNUSED)
 {
     g_autoptr(GPtrArray) arr = g_ptr_array_new_full(0, (GDestroyNotify)virPCIVPDResourceCustomFree);
     virPCIVPDResourceCustom *custom = NULL;
-    if (!virPCIVPDResourceCustomUpsertValue(arr, 'A', "testval"))
-        return -1;
+    virPCIVPDResourceCustomUpsertValue(arr, 'A', "testval");
 
     if (arr->len != 1)
         return -1;
@@ -255,8 +225,7 @@ testPCIVPDResourceCustomUpsertValue(const void *data G_GNUC_UNUSED)
         return -1;
 
     /* Idempotency */
-    if (!virPCIVPDResourceCustomUpsertValue(arr, 'A', "testval"))
-        return -1;
+    virPCIVPDResourceCustomUpsertValue(arr, 'A', "testval");
 
     if (arr->len != 1)
         return -1;
@@ -266,8 +235,7 @@ testPCIVPDResourceCustomUpsertValue(const void *data G_GNUC_UNUSED)
         return -1;
 
     /* Existing value updates. */
-    if (!virPCIVPDResourceCustomUpsertValue(arr, 'A', "testvalnew"))
-        return -1;
+    virPCIVPDResourceCustomUpsertValue(arr, 'A', "testvalnew");
 
     if (arr->len != 1)
         return -1;
@@ -277,8 +245,7 @@ testPCIVPDResourceCustomUpsertValue(const void *data G_GNUC_UNUSED)
         return -1;
 
     /* Inserting multiple values */
-    if (!virPCIVPDResourceCustomUpsertValue(arr, '1', "42"))
-        return -1;
+    virPCIVPDResourceCustomUpsertValue(arr, '1', "42");
 
     if (arr->len != 2)
         return -1;
@@ -424,85 +391,10 @@ testPCIVPDGetFieldValueFormat(const void *data G_GNUC_UNUSED)
 
 # define VPD_W_EXAMPLE_FIELDS \
     'V', 'Z', 0x02, '4', '2', \
-    'Y', 'A', 0x04, 'I', 'D', '4', '2', \
+    'Y', 'A', 0x04, '!', '<', '>', ':', \
     'Y', 'F', 0x02, 'E', 'X', \
     'Y', 'E', 0x00, \
     'R', 'W', 0x02, 0x00, 0x00
-
-static int
-testVirPCIVPDReadVPDBytes(const void *opaque G_GNUC_UNUSED)
-{
-    VIR_AUTOCLOSE fd = -1;
-    g_autofree uint8_t *buf = NULL;
-    uint8_t csum = 0;
-    size_t readBytes = 0;
-    size_t dataLen = 0;
-
-    /* An example of a valid VPD record with one VPD-R resource and 2 fields. */
-    uint8_t fullVPDExample[] = {
-        VPD_STRING_RESOURCE_EXAMPLE_HEADER, VPD_STRING_RESOURCE_EXAMPLE_DATA,
-        VPD_R_FIELDS_EXAMPLE_HEADER, VPD_R_FIELDS_EXAMPLE_DATA,
-        PCI_VPD_RESOURCE_END_VAL
-    };
-    dataLen = G_N_ELEMENTS(fullVPDExample) - 2;
-    buf = g_malloc0(dataLen);
-
-    if ((fd = virCreateAnonymousFile(fullVPDExample, dataLen)) < 0)
-        return -1;
-
-    readBytes = virPCIVPDReadVPDBytes(fd, buf, dataLen, 0, &csum);
-
-    if (readBytes != dataLen) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "The number of bytes read %zu is lower than expected %zu ",
-                       readBytes, dataLen);
-        return -1;
-    }
-
-    if (csum) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "The sum of all VPD bytes up to and including the checksum byte"
-                       "is equal to zero: 0x%02x", csum);
-        return -1;
-    }
-    return 0;
-}
-
-static int
-testVirPCIVPDParseVPDStringResource(const void *opaque G_GNUC_UNUSED)
-{
-    VIR_AUTOCLOSE fd = -1;
-    uint8_t csum = 0;
-    size_t dataLen = 0;
-    bool result = false;
-
-    g_autoptr(virPCIVPDResource) res = g_new0(virPCIVPDResource, 1);
-    const char *expectedValue = "testname";
-
-    const uint8_t stringResExample[] = {
-        VPD_STRING_RESOURCE_EXAMPLE_DATA
-    };
-
-    dataLen = G_N_ELEMENTS(stringResExample);
-    if ((fd = virCreateAnonymousFile(stringResExample, dataLen)) < 0)
-        return -1;
-
-    result = virPCIVPDParseVPDLargeResourceString(fd, 0, dataLen, &csum, res);
-
-    if (!result) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       "Could not parse the example resource.");
-        return -1;
-    }
-
-    if (STRNEQ(expectedValue, res->name)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "Unexpected string resource value: %s, expected: %s",
-                       res->name, expectedValue);
-        return -1;
-    }
-    return 0;
-}
 
 static int
 testVirPCIVPDValidateExampleReadOnlyFields(virPCIVPDResource *res)
@@ -579,7 +471,7 @@ testVirPCIVPDParseFullVPD(const void *opaque G_GNUC_UNUSED)
     if (testVirPCIVPDValidateExampleReadOnlyFields(res))
         return -1;
 
-    if (STRNEQ_NULLABLE(res->rw->asset_tag, "ID42"))
+    if (STRNEQ_NULLABLE(res->rw->asset_tag, "!<>:"))
         return -1;
 
     if (!res->rw->vendor_specific)
@@ -1002,10 +894,6 @@ mymain(void)
         ret = -1;
     if (virTestRun("Determining a field value format by a key ",
                    testPCIVPDGetFieldValueFormat, NULL) < 0)
-        ret = -1;
-    if (virTestRun("Reading VPD bytes ", testVirPCIVPDReadVPDBytes, NULL) < 0)
-        ret = -1;
-    if (virTestRun("Parsing VPD string resources ", testVirPCIVPDParseVPDStringResource, NULL) < 0)
         ret = -1;
     if (virTestRun("Parsing a VPD resource with a zero-length RW ",
                    testVirPCIVPDParseZeroLengthRW, NULL) < 0)

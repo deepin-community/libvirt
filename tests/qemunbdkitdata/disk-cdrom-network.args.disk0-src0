@@ -1,0 +1,6 @@
+nbdkit \
+--unix /tmp/domain-QEMUGuest1/nbdkit-disk0-src0.socket \
+--foreground \
+--readonly curl \
+protocols=ftp \
+url=ftp://host.name:21/url/path/file.iso

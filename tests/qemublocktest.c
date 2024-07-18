@@ -59,10 +59,8 @@ testBackingXMLjsonXML(const void *args)
     g_autoptr(virStorageSource) xmlsrc = NULL;
     g_autoptr(virStorageSource) jsonsrc = NULL;
     g_auto(virBuffer) debug = VIR_BUFFER_INITIALIZER;
-    unsigned int backendpropsflags = 0;
+    unsigned int backendpropsflags = QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_TARGET_ONLY;
 
-    if (data->legacy)
-        backendpropsflags |= QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_LEGACY;
 
     xmlsrc = virStorageSourceNew();
     xmlsrc->type = data->type;
@@ -81,17 +79,15 @@ testBackingXMLjsonXML(const void *args)
         return -1;
     }
 
-    if (!data->legacy) {
-        if (testQEMUSchemaValidate(backendprops, data->schemaroot,
-                                   data->schema, false, &debug) < 0) {
-            g_autofree char *debugmsg = virBufferContentAndReset(&debug);
-            g_autofree char *debugprops = virJSONValueToString(backendprops, true);
+    if (testQEMUSchemaValidate(backendprops, data->schemaroot,
+                               data->schema, false, &debug) < 0) {
+        g_autofree char *debugmsg = virBufferContentAndReset(&debug);
+        g_autofree char *debugprops = virJSONValueToString(backendprops, true);
 
-            VIR_TEST_VERBOSE("json does not conform to QAPI schema");
-            VIR_TEST_DEBUG("json:\n%s\ndoes not match schema. Debug output:\n %s",
-                           debugprops, NULLSTR(debugmsg));
-            return -1;
-        }
+        VIR_TEST_VERBOSE("json does not conform to QAPI schema");
+        VIR_TEST_DEBUG("json:\n%s\ndoes not match schema. Debug output:\n %s",
+                       debugprops, NULLSTR(debugmsg));
+        return -1;
     }
 
     if (virJSONValueObjectAdd(&wrapper, "a:file", &backendprops, NULL) < 0)
@@ -157,7 +153,7 @@ testJSONtoJSON(const void *args)
     }
 
     if (!(jsonsrcout = qemuBlockStorageSourceGetBackendProps(src,
-                                                             QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_AUTO_READONLY))) {
+                                                             QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_TARGET_ONLY))) {
         fprintf(stderr, "failed to format disk source json\n");
         return -1;
     }
@@ -233,7 +229,7 @@ testQemuDiskXMLToJSONFakeSecrets(virStorageSource *src)
 
         srcpriv->secinfo->username = g_strdup(src->auth->username);
         srcpriv->secinfo->alias = g_strdup_printf("%s-secalias",
-                                                  NULLSTR(src->nodestorage));
+                                                  NULLSTR(qemuBlockStorageSourceGetStorageNodename(src)));
     }
 
     if (src->encryption) {
@@ -241,7 +237,7 @@ testQemuDiskXMLToJSONFakeSecrets(virStorageSource *src)
         srcpriv->encinfo[0] = g_new0(qemuDomainSecretInfo, 1);
 
         srcpriv->encinfo[0]->alias = g_strdup_printf("%s-encalias",
-                                                     NULLSTR(src->nodeformat));
+                                                     qemuBlockStorageSourceGetFormatNodename(src));
         srcpriv->enccount = 1;
     }
 
@@ -289,9 +285,6 @@ testQemuDiskXMLToProps(const void *opaque)
 
     for (n = disk->src; virStorageSourceIsBacking(n); n = n->backingStore) {
         g_autofree char *backingstore = NULL;
-        unsigned int backendpropsflagsnormal = QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_AUTO_READONLY;
-        unsigned int backendpropsflagstarget = QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_AUTO_READONLY |
-                                               QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_TARGET_ONLY;
 
         if (testQemuDiskXMLToJSONFakeSecrets(n) < 0)
             return -1;
@@ -301,9 +294,9 @@ testQemuDiskXMLToProps(const void *opaque)
 
         qemuDomainPrepareDiskSourceData(disk, n);
 
-        if (!(formatProps = qemuBlockStorageSourceGetBlockdevProps(n, n->backingStore)) ||
-            !(storageSrcOnlyProps = qemuBlockStorageSourceGetBackendProps(n, backendpropsflagstarget)) ||
-            !(storageProps = qemuBlockStorageSourceGetBackendProps(n, backendpropsflagsnormal)) ||
+        if (!(formatProps = qemuBlockStorageSourceGetFormatProps(n, n->backingStore)) ||
+            !(storageSrcOnlyProps = qemuBlockStorageSourceGetBackendProps(n, QEMU_BLOCK_STORAGE_SOURCE_BACKEND_PROPS_TARGET_ONLY)) ||
+            !(storageProps = qemuBlockStorageSourceGetBackendProps(n, 0)) ||
             !(backingstore = qemuBlockGetBackingStoreString(n, true))) {
             if (!data->fail) {
                 VIR_TEST_VERBOSE("failed to generate qemu blockdev props");
@@ -653,7 +646,7 @@ testQemuBitmapListPrint(const char *title,
 
     for (; next; next = next->next) {
         virStorageSource *src = next->data;
-        virBufferAsprintf(buf, "%s\n", src->nodeformat);
+        virBufferAsprintf(buf, "%s\n", qemuBlockStorageSourceGetFormatNodename(src));
     }
 }
 
@@ -667,8 +660,8 @@ testQemuBackupIncrementalBitmapCalculateGetFakeImage(size_t idx)
    ret->type = VIR_STORAGE_TYPE_FILE;
    ret->format = VIR_STORAGE_FILE_QCOW2;
    ret->path = g_strdup_printf("/image%zu", idx);
-   ret->nodestorage = g_strdup_printf("libvirt-%zu-storage", idx);
-   ret->nodeformat = g_strdup_printf("libvirt-%zu-format", idx);
+   qemuBlockStorageSourceSetStorageNodename(ret, g_strdup_printf("libvirt-%zu-storage", idx));
+   qemuBlockStorageSourceSetFormatNodename(ret, g_strdup_printf("libvirt-%zu-format", idx));
 
    return ret;
 }
@@ -741,7 +734,7 @@ testQemuBackupIncrementalBitmapCalculate(const void *opaque)
     }
 
     target = virStorageSourceNew();
-    target->nodeformat = g_strdup_printf("target_node");
+    qemuBlockStorageSourceSetFormatNodename(target, g_strdup_printf("target_node"));
 
     if (qemuBackupDiskPrepareOneBitmapsChain(data->chain,
                                              target,
@@ -872,7 +865,7 @@ testQemuBlockBitmapBlockcopy(const void *opaque)
     g_autoptr(virStorageSource) fakemirror = virStorageSourceNew();
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
 
-    fakemirror->nodeformat = g_strdup("mirror-format-node");
+    qemuBlockStorageSourceSetFormatNodename(fakemirror, g_strdup("mirror-format-node"));
 
     expectpath = g_strdup_printf("%s/%s%s-out.json", abs_srcdir,
                                  blockcopyPrefix, data->name);
@@ -1012,10 +1005,6 @@ mymain(void)
     do { \
         xmljsonxmldata.type = tpe; \
         xmljsonxmldata.xml = xmlstr; \
-        xmljsonxmldata.legacy = true; \
-        if (virTestRun(virTestCounterNext(), testBackingXMLjsonXML, \
-                       &xmljsonxmldata) < 0) \
-        xmljsonxmldata.legacy = false; \
         if (virTestRun(virTestCounterNext(), testBackingXMLjsonXML, \
                        &xmljsonxmldata) < 0) \
             ret = -1; \
@@ -1083,12 +1072,6 @@ mymain(void)
                          "</source>\n");
     TEST_JSON_FORMAT_NET("<source protocol='iscsi' name='iqn.2016-12.com.virttest:emulated-iscsi-noauth.target/6'>\n"
                          "  <host name='test.org' port='1234'/>\n"
-                         "</source>\n");
-    TEST_JSON_FORMAT_NET("<source protocol='sheepdog' name='test'>\n"
-                         "  <host name='example.com' port='321'/>\n"
-                         "</source>\n");
-    TEST_JSON_FORMAT_NET("<source protocol='vxhs' name='c6718f6b-0401-441d-a8c3-1f0064d75ee0'>\n"
-                         "  <host name='example.com' port='9999'/>\n"
                          "</source>\n");
 
 #define TEST_DISK_TO_JSON_FULL(nme, fl) \

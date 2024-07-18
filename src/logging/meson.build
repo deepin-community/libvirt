@@ -10,8 +10,10 @@ log_protocol_header_generated = custom_target(
   'log_protocol.h',
   input: log_protocol,
   output: 'log_protocol.h',
+  depend_files: rpcgen_src,
   command: [
-    genprotocol_prog, rpcgen_prog, '-h', '@INPUT@', '@OUTPUT@'
+    rpcgen_prog,
+    '--mode=header', '@INPUT@', '@OUTPUT@',
   ],
 )
 log_protocol_generated += log_protocol_header_generated
@@ -20,8 +22,10 @@ log_protocol_generated += custom_target(
   'log_protocol.c',
   input: log_protocol,
   output: 'log_protocol.c',
+  depend_files: rpcgen_src,
   command: [
-    genprotocol_prog, rpcgen_prog, '-c', '@INPUT@', '@OUTPUT@'
+    rpcgen_prog,
+    '--mode=source', '--header=log_protocol.h', '@INPUT@', '@OUTPUT@',
   ],
 )
 
@@ -90,11 +94,19 @@ if conf.has('WITH_LIBVIRTD')
 
   virt_daemon_units += {
     'service': 'virtlogd',
+    'name': 'logging',
     'service_in': files('virtlogd.service.in'),
-    'name': 'Libvirt logging',
+    'service_extra_in': [
+      files('virtlogd.service.extra.in'),
+      systemd_service_oomscoreadjust_extra_in,
+      systemd_service_limitnofile_extra_in,
+    ],
     'sockets': [ 'main', 'admin' ],
     'socket_in': files('virtlogd.socket.in'),
     'socket_admin_in': files('virtlogd-admin.socket.in'),
+    'socket_extra_in': [
+      files('virtlogd.socket.extra.in'),
+    ],
   }
 
   openrc_init_files += {

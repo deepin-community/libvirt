@@ -1039,7 +1039,7 @@ virSecuritySELinuxReserveLabel(virSecurityManager *mgr,
 }
 
 
-static int
+static virSecurityDriverStatus
 virSecuritySELinuxDriverProbe(const char *virtDriver)
 {
     if (is_selinux_enabled() <= 0)
@@ -1488,6 +1488,8 @@ virSecuritySELinuxRestoreFileLabel(virSecurityManager *mgr,
      */
     if (!path)
         return 0;
+    if (!virFileExists(path))
+        return 0;
 
     VIR_INFO("Restoring SELinux context on '%s'", path);
 
@@ -1774,10 +1776,10 @@ virSecuritySELinuxRestoreTPMFileLabelInt(virSecurityManager *mgr,
 
 
 static int
-virSecuritySELinuxRestoreImageLabelSingle(virSecurityManager *mgr,
-                                          virDomainDef *def,
-                                          virStorageSource *src,
-                                          bool migrated)
+virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
+                                       virDomainDef *def,
+                                       virStorageSource *src,
+                                       bool migrated)
 {
     virSecurityLabelDef *seclabel;
     virSecurityDeviceLabelDef *disk_seclabel;
@@ -1860,19 +1862,6 @@ virSecuritySELinuxRestoreImageLabelSingle(virSecurityManager *mgr,
     }
 
     return virSecuritySELinuxRestoreFileLabel(mgr, path, true);
-}
-
-
-static int
-virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
-                                       virDomainDef *def,
-                                       virStorageSource *src,
-                                       bool migrated)
-{
-    if (virSecuritySELinuxRestoreImageLabelSingle(mgr, def, src, migrated) < 0)
-        return -1;
-
-    return 0;
 }
 
 
@@ -1988,28 +1977,17 @@ virSecuritySELinuxSetImageLabelInternal(virSecurityManager *mgr,
         ret = virSecuritySELinuxSetFilecon(mgr, path, use_label, remember);
     }
 
-    if (ret == 1 && !disk_seclabel) {
-        /* If we failed to set a label, but virt_use_nfs let us
-         * proceed anyway, then we don't need to relabel later.  */
-        disk_seclabel = virSecurityDeviceLabelDefNew(SECURITY_SELINUX_NAME);
-        if (!disk_seclabel)
-            return -1;
-        disk_seclabel->labelskip = true;
-        VIR_APPEND_ELEMENT(src->seclabels, src->nseclabels, disk_seclabel);
-        ret = 0;
-    }
-
     return ret;
 }
 
 
 static int
-virSecuritySELinuxSetImageLabelRelative(virSecurityManager *mgr,
-                                        virDomainDef *def,
-                                        virStorageSource *src,
-                                        virStorageSource *parent,
-                                        virSecurityDomainImageLabelFlags flags)
+virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
+                               virDomainDef *def,
+                               virStorageSource *src,
+                               virSecurityDomainImageLabelFlags flags)
 {
+    virStorageSource *parent = src;
     virStorageSource *n;
 
     for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
@@ -2027,15 +2005,6 @@ virSecuritySELinuxSetImageLabelRelative(virSecurityManager *mgr,
     return 0;
 }
 
-
-static int
-virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
-                                virDomainDef *def,
-                                virStorageSource *src,
-                                virSecurityDomainImageLabelFlags flags)
-{
-    return virSecuritySELinuxSetImageLabelRelative(mgr, def, src, src, flags);
-}
 
 struct virSecuritySELinuxMoveImageMetadataData {
     virSecurityManager *mgr;
@@ -2212,7 +2181,7 @@ virSecuritySELinuxSetHostdevSubsysLabel(virSecurityManager *mgr,
         if (!pci)
             return -1;
 
-        if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
+        if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
             g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
             if (!vfioGroupDev)
@@ -2448,7 +2417,7 @@ virSecuritySELinuxRestoreHostdevSubsysLabel(virSecurityManager *mgr,
         if (!pci)
             return -1;
 
-        if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
+        if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
             g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
             if (!vfioGroupDev)

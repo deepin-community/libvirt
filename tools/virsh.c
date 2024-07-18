@@ -67,18 +67,13 @@ static int disconnected; /* we may have been disconnected */
  * handler, just save the fact it was raised.
  */
 static void
-virshCatchDisconnect(virConnectPtr conn,
+virshCatchDisconnect(virConnectPtr conn G_GNUC_UNUSED,
                      int reason,
                      void *opaque)
 {
     if (reason != VIR_CONNECT_CLOSE_REASON_CLIENT) {
         vshControl *ctl = opaque;
         const char *str = "unknown reason";
-        virErrorPtr error;
-        g_autofree char *uri = NULL;
-
-        virErrorPreserveLast(&error);
-        uri = virConnectGetURI(conn);
 
         switch ((virConnectCloseReason) reason) {
         case VIR_CONNECT_CLOSE_REASON_ERROR:
@@ -94,9 +89,8 @@ virshCatchDisconnect(virConnectPtr conn,
         case VIR_CONNECT_CLOSE_REASON_LAST:
             break;
         }
-        vshError(ctl, _(str), NULLSTR(uri));
+        vshError(ctl, _(str), NULLSTR(ctl->connname));
 
-        virErrorRestore(&error);
         disconnected++;
         vshEventDone(ctl);
     }
@@ -225,6 +219,9 @@ virshReconnect(vshControl *ctl, const char *name, bool readonly, bool force)
             ctl->connname = g_strdup(name);
         }
 
+        if (!ctl->connname)
+            ctl->connname = virConnectGetURI(priv->conn);
+
         priv->readonly = readonly;
 
         if (virConnectRegisterCloseCallback(priv->conn, virshCatchDisconnect,
@@ -248,7 +245,8 @@ virshReconnect(vshControl *ctl, const char *name, bool readonly, bool force)
 static const vshCmdOptDef opts_connect[] = {
     {.name = "name",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_EMPTY_OK,
+     .positional = true,
+     .allowEmpty = true,
      .completer = virshCompleteEmpty,
      .help = N_("hypervisor connection URI")
     },
@@ -259,15 +257,10 @@ static const vshCmdOptDef opts_connect[] = {
     {.name = NULL}
 };
 
-static const vshCmdInfo info_connect[] = {
-    {.name = "help",
-     .data = N_("(re)connect to hypervisor")
-    },
-    {.name = "desc",
-     .data = N_("Connect to local hypervisor. This is built-in "
-                "command after shell start up.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_connect = {
+     .help = N_("(re)connect to hypervisor"),
+     .desc = N_("Connect to local hypervisor. This is built-in "
+                "command after shell start up."),
 };
 
 static bool
@@ -276,7 +269,7 @@ cmdConnect(vshControl *ctl, const vshCmd *cmd)
     bool ro = vshCommandOptBool(cmd, "readonly");
     const char *name = NULL;
 
-    if (vshCommandOptStringReq(ctl, cmd, "name", &name) < 0)
+    if (vshCommandOptString(ctl, cmd, "name", &name) < 0)
         return false;
 
     if (virshReconnect(ctl, name, ro, true) < 0)
@@ -463,12 +456,11 @@ virshUsage(void)
         fprintf(stdout, _(" %1$s (help keyword '%2$s')\n"),
                 grp->name, grp->keyword);
         for (cmd = grp->commands; cmd->name; cmd++) {
-            if (cmd->flags & VSH_CMD_FLAG_ALIAS ||
+            if (cmd->alias ||
                 cmd->flags & VSH_CMD_FLAG_HIDDEN)
                 continue;
             fprintf(stdout,
-                    "    %-30s %s\n", cmd->name,
-                    _(vshCmddefGetInfo(cmd, "help")));
+                    "    %-30s %s\n", cmd->name, _(cmd->info->help));
         }
         fprintf(stdout, "\n");
     }
@@ -778,7 +770,7 @@ virshParseArgv(vshControl *ctl, int argc, char **argv)
         ctl->imode = false;
         if (argc - optind == 1) {
             vshDebug(ctl, VSH_ERR_INFO, "commands: \"%s\"\n", argv[optind]);
-            return vshCommandStringParse(ctl, argv[optind], NULL, 0);
+            return vshCommandStringParse(ctl, argv[optind], NULL);
         } else {
             return vshCommandArgvParse(ctl, argc - optind, argv + optind);
         }
@@ -798,7 +790,7 @@ static const vshCmdDef virshCmds[] = {
     {.name = "connect",
      .handler = cmdConnect,
      .opts = opts_connect,
-     .info = info_connect,
+     .info = &info_connect,
      .flags = VSH_CMD_FLAG_NOCONNECT
     },
     {.name = NULL}
@@ -881,7 +873,7 @@ main(int argc, char **argv)
 
     virFileActivateDirOverrideForProg(argv[0]);
 
-    if (!vshInit(ctl, cmdGroups, NULL))
+    if (!vshInit(ctl, cmdGroups))
         exit(EXIT_FAILURE);
 
     if (!virshParseArgv(ctl, argc, argv) ||
@@ -916,7 +908,7 @@ main(int argc, char **argv)
             if (*ctl->cmdstr) {
                 vshReadlineHistoryAdd(ctl->cmdstr);
 
-                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL, 0))
+                if (vshCommandStringParse(ctl, ctl->cmdstr, NULL))
                     vshCommandRun(ctl, ctl->cmd);
             }
             VIR_FREE(ctl->cmdstr);

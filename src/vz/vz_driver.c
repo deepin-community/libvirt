@@ -241,7 +241,8 @@ vzDomainDefPostParse(virDomainDef *def,
     struct _vzDriver *driver = opaque;
     if (!virCapabilitiesDomainSupported(driver->caps, def->os.type,
                                         def->os.arch,
-                                        def->virtType))
+                                        def->virtType,
+                                        true))
         return -1;
 
     if (vzDomainDefAddDefaultInputDevices(def) < 0)
@@ -4067,7 +4068,7 @@ vzStateCleanup(void)
     return 0;
 }
 
-static int
+static virDrvStateInitResult
 vzStateInitialize(bool privileged,
                   const char *root,
                   bool monolithic G_GNUC_UNUSED,

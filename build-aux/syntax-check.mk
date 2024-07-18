@@ -1,13 +1,12 @@
 #
-# Rules for running syntax-check, derived from gnulib's
-# maint.mk
+# Rules for running syntax-check, derived from gnulib's top/maint.mk
 #
 # Specifically, all shared code should match gnulib commit
 #
-#   dd2503c8e73621e919e8e214a29c495ac89d8a92 (2022-05-21)
+#   d5191e456737661d4a0df5287f6c2064ab74dbbe (2024-02-15)
 #
 # Copyright (C) 2008-2019 Red Hat, Inc.
-# Copyright (C) 2001-2022 Free Software Foundation, Inc.
+# Copyright (C) 2001-2024 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -248,6 +247,13 @@ sc_prohibit_canonicalize_file_name:
 	halt='use virFileCanonicalizePath() instead of canonicalize_file_name()' \
 	  $(_sc_search_regexp)
 
+# qsort from glibc has unstable sort ordering for "equal" members
+sc_prohibit_qsort:
+	@prohibit='\<(qsort|qsort_r) *\(' \
+	exclude='exempt from syntax-check' \
+	halt='use g_qsort_with_data instead of qsort' \
+	  $(_sc_search_regexp)
+
 # Insist on correct types for [pug]id.
 sc_correct_id_types:
 	@prohibit='\<(int|long) *[pug]id\>' \
@@ -380,7 +386,7 @@ sc_prohibit_unsigned_pid:
 # Many of the function names below came from this filter:
 # git grep -B2 '\<_('|grep -E '\.c- *[[:alpha:]_][[:alnum:]_]* ?\(.*[,;]$' \
 # |sed 's/.*\.c-  *//'|perl -pe 's/ ?\(.*//'|sort -u \
-# |grep -vE '^(qsort|if|close|assert|fputc|free|N_|vir.*GetName|.*Unlock|virNodeListDevices|virHashRemoveEntry|freeaddrinfo|.*[fF]ree|xdrmem_create|xmlXPathFreeObject|virUUIDFormat|openvzSetProgramSentinal|polkit_action_unref)$'
+# |grep -vE '^(if|close|assert|fputc|free|N_|vir.*GetName|.*Unlock|virNodeListDevices|virHashRemoveEntry|freeaddrinfo|.*[fF]ree|xdrmem_create|xmlXPathFreeObject|virUUIDFormat|openvzSetProgramSentinal|polkit_action_unref)$'
 
 msg_gen_function =
 msg_gen_function += VIR_ERROR
@@ -581,15 +587,22 @@ sc_prohibit_python_without_env:
 
 # We're intentionally ignoring a few warnings
 #
+# E302: whitespace before ':'. This is something that is
+# desirable when indexing array slices and is used by the
+# 'black' formatting tool
+#
 # E501: Force breaking lines at < 80 characters results in
 # some really unnatural code formatting which harms
 # readability.
+#
+# W503: line break before binary operator, because this
+# is contrary to what 'black' formatting tool wants
 #
 # W504: Knuth code style requires the operators "or" and "and" etc
 # to be at the start of line in a multi-line conditional.
 # This the opposite to what is normal libvirt practice.
 #
-FLAKE8_IGNORE = E501,W504
+FLAKE8_IGNORE = E203,E501,W503,W504
 
 sc_flake8:
 	@if [ -n "$(FLAKE8)" ]; then \
@@ -599,6 +612,16 @@ sc_flake8:
 		echo "$$ALL_PY" | xargs $(FLAKE8) --ignore $(FLAKE8_IGNORE) --show-source; \
 	else \
 		echo 'skipping test $@: flake8 not installed' 1>&2; \
+	fi
+
+sc_black:
+	if [ -n "$(BLACK)" ]; then \
+		DOT_PY=$$($(VC_LIST_EXCEPT) | $(GREP) '\.py$$'); \
+		BANG_PY=$$($(VC_LIST_EXCEPT) | xargs grep -l '^#!/usr/bin/env python3$$'); \
+		ALL_PY=$$(printf "%s\n%s" "$$DOT_PY" "$$BANG_PY" | sort -u); \
+		echo "$$ALL_PY" | xargs --no-run-if-empty $(BLACK) --check; \
+	else \
+		echo 'skipping test $@: black not installed' 1>&2; \
 	fi
 
 # mymain() in test files should use return, not exit, for nicer output
@@ -1059,7 +1082,8 @@ sc_prohibit_stdio--_without_use:
 	@h='stdio--.h' re='\<((f(re)?|p)open|tmpfile) *\(' \
 	  $(_sc_header_without_use)
 
-_stddef_syms_re = NULL|offsetof|ptrdiff_t|size_t|wchar_t
+_stddef_syms_re = \
+  NULL|max_align_t|nullptr_t|offsetof|ptrdiff_t|size_t|unreachable|wchar_t
 # Prohibit the inclusion of stddef.h without an actual use.
 sc_prohibit_stddef_without_use:
 	@h='stddef.h' \
@@ -1286,21 +1310,9 @@ sc_prohibit_path_max_allocation:
 	halt='Avoid stack allocations of size PATH_MAX' \
 	  $(_sc_search_regexp)
 
-ifneq ($(_gl-Makefile),)
-syntax-check: sc_spacing-check \
-	sc_prohibit-duplicate-header sc_mock-noinline sc_group-qemu-caps \
-        sc_header-ifdef
-	@if ! cppi --version >/dev/null 2>&1; then \
-		echo "*****************************************************" >&2; \
-		echo "* cppi not installed, some checks have been skipped *" >&2; \
-		echo "*****************************************************" >&2; \
-	fi; \
-	if [ -z "$(FLAKE8)" ]; then \
-		echo "*****************************************************" >&2; \
-		echo "* flake8 not installed, sc_flake8 has been skipped  *" >&2; \
-		echo "*****************************************************" >&2; \
-	fi
-endif
+sc_unportable_grep_q:
+	@prohibit='grep ''-q' halt="unportable 'grep ""-q', use >/dev/null instead" \
+	  $(_sc_search_regexp)
 
 # Don't include duplicate header in the source (either *.c or *.h)
 sc_prohibit-duplicate-header:
@@ -1330,6 +1342,11 @@ sc_prohibit_enum_impl_with_vir_prefix_in_virsh:
 	halt='avoid "vir" prefix for enums in virsh' \
 	  $(_sc_search_regexp)
 
+sc_rst_since:
+	@prohibit=':since:`[^`]+$|:since:`[^`]+[.,;]`|:since:`[^`]+` [.,;]' \
+	halt='format :since: correctly' \
+	  $(_sc_search_regexp)
+
 
 ## ---------- ##
 ## Exceptions ##
@@ -1340,7 +1357,7 @@ exclude_file_name_regexp--sc_avoid_strcase = ^tools/(vsh\.h|nss/libvirt_nss_(lea
 exclude_file_name_regexp--sc_avoid_write = ^src/libvirt-stream\.c$$
 
 exclude_file_name_regexp--sc_gettext_init = \
-	^((tests|examples)/|tools/virt-login-shell.c)
+	^((tests|examples)/|tools/virt-login-shell\.c$$|scripts/rpcgen/tests/test_demo\.c$$)
 
 exclude_file_name_regexp--sc_copyright_usage = \
   ^COPYING(|\.LESSER)$$
@@ -1369,7 +1386,7 @@ exclude_file_name_regexp--sc_prohibit_close = \
   (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)|tools/virt-qemu-qmp-proxy$$)
 
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
-  (^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest|qemunbdkit)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)
+  ((^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest|qemunbdkit|virshtest)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)|\.bin)
 
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
   (^(src/(util/(vircommand|virdaemon)|lxc/lxc_controller)|tests/testutils)\.c$$)
@@ -1414,13 +1431,13 @@ exclude_file_name_regexp--sc_prohibit_xmlURI = ^src/util/viruri\.c$$
 exclude_file_name_regexp--sc_prohibit_return_as_function = \.py$$
 
 exclude_file_name_regexp--sc_require_config_h = \
-	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers.c)
+	^(examples/c/.*/.*\.c|tools/virsh-edit\.c|tests/virmockstathelpers\.c|scripts/rpcgen/tests/(test_)?demo\.c)$$
 
 exclude_file_name_regexp--sc_require_config_h_first = \
-	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers.c)
+	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers\.c$$|scripts/rpcgen/tests/test_demo\.c$$)
 
 exclude_file_name_regexp--sc_trailing_blank = \
-  /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo$$
+  /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo|tests/virshtestdata/.*$$
 
 exclude_file_name_regexp--sc_unmarked_diagnostics = \
   ^(scripts/apibuild.py|tests/virt-aa-helper-test|docs/js/.*\.js)$$
@@ -1449,7 +1466,7 @@ exclude_file_name_regexp--sc_prohibit_mixed_case_abbreviations = \
   ^src/(vbox/vbox_CAPI.*.h|esx/esx_vi.(c|h)|esx/esx_storage_backend_iscsi.c)$$
 
 exclude_file_name_regexp--sc_prohibit_empty_first_line = \
-  ^tests/vmwareverdata/fusion-5.0.3.txt$$
+  ^tests/vmwareverdata/fusion-5.0.3.txt|scripts/rpcgen/tests/demo\.c|^tests/virshtestdata/.*$$
 
 exclude_file_name_regexp--sc_prohibit_useless_translation = \
   ^tests/virpolkittest.c
@@ -1478,6 +1495,14 @@ exclude_file_name_regexp--sc_prohibit_strcmp = \
 exclude_file_name_regexp--sc_prohibit_select = \
   ^build-aux/syntax-check\.mk|src/util/vireventglibwatch\.c|tests/meson\.build$$
 
+exclude_file_name_regexp--sc_header-ifdef = \
+  ^scripts/rpcgen/tests/demo\.[ch]$$
+
+exclude_file_name_regexp--sc_black = \
+  ^tools/|src/|tests/|ci/|run\.in|scripts/[^/]*\.py
+
+exclude_file_name_regexp--sc_spacing-check = \
+  ^scripts/rpcgen/tests/test_demo\.[ch]$$
 
 ## -------------- ##
 ## Implementation ##
