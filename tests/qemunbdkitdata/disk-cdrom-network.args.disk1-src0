@@ -1,0 +1,8 @@
+nbdkit \
+--unix /tmp/domain-QEMUGuest1/nbdkit-disk1-src0.socket \
+--foreground \
+--readonly curl \
+protocols=ftps \
+url=ftps://host.name:990/url/path/file.iso \
+user=testuser \
+password=-777

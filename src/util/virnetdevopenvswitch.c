@@ -164,7 +164,9 @@ int virNetDevOpenvswitchAddPort(const char *brname, const char *ifname,
 
     cmd = virNetDevOpenvswitchCreateCmd(&errbuf);
     virCommandAddArgList(cmd, "--", "--may-exist",
-                         "add-port", brname, ifname, NULL);
+                         "add-port", brname, ifname,
+                         "--", "set", "Port", ifname, "other_config:transient=true",
+                         NULL);
 
     virNetDevOpenvswitchConstructVlans(cmd, virtVlan);
 
@@ -206,7 +208,7 @@ int virNetDevOpenvswitchAddPort(const char *brname, const char *ifname,
  *
  * Returns 0 in case of success or -1 in case of failure.
  */
-int virNetDevOpenvswitchRemovePort(const char *brname G_GNUC_UNUSED, const char *ifname)
+int virNetDevOpenvswitchRemovePort(const char *ifname)
 {
     g_autofree char *errbuf = NULL;
     g_autoptr(virCommand) cmd = virNetDevOpenvswitchCreateCmd(&errbuf);
@@ -427,7 +429,7 @@ virNetDevOpenvswitchInterfaceStats(const char *ifname,
 
 
 /**
- * virNetDeOpenvswitchGetMaster:
+ * virNetDevOpenvswitchInterfaceGetMaster:
  * @ifname: name of interface we're interested in
  * @master: used to return a string containing the name of @ifname's "master"
  *          (this is the bridge or bond device that this device is attached to)

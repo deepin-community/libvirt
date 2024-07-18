@@ -27,6 +27,7 @@
 #include "cpu_ppc64.h"
 #include "cpu_s390.h"
 #include "cpu_arm.h"
+#include "cpu_loongarch.h"
 #include "cpu_riscv64.h"
 #include "capabilities.h"
 
@@ -41,6 +42,7 @@ static struct cpuArchDriver *drivers[] = {
     &cpuDriverS390,
     &cpuDriverArm,
     &cpuDriverRiscv64,
+    &cpuDriverLoongArch,
 };
 
 
@@ -435,6 +437,7 @@ virCPUGetHost(virArch arch,
     if (nodeInfo) {
         cpu->sockets = nodeInfo->sockets;
         cpu->dies = 1;
+        cpu->clusters = 1;
         cpu->cores = nodeInfo->cores;
         cpu->threads = nodeInfo->threads;
     }
@@ -557,19 +560,23 @@ virCPUBaseline(virArch arch,
  * @arch: CPU architecture
  * @guest: guest CPU definition to be updated
  * @host: host CPU definition
+ * @removedPolicy: default policy for features removed from the CPU model
  *
  * Updates @guest CPU definition possibly taking @host CPU into account. This
  * is required for maintaining compatibility with older libvirt releases or to
  * support guest CPU definitions specified relatively to host CPU, such as CPUs
  * with VIR_CPU_MODE_CUSTOM and optional features or VIR_CPU_MATCH_MINIMUM, or
- * CPUs with VIR_CPU_MODE_HOST_MODEL.
+ * CPUs with VIR_CPU_MODE_HOST_MODEL. If @guest CPU uses a CPU model which
+ * specifies some features as removed, such features that were not already
+ * present in the @guest CPU definition will be added there with @removedPolicy.
  *
  * Returns 0 on success, -1 on error.
  */
 int
 virCPUUpdate(virArch arch,
              virCPUDef *guest,
-             const virCPUDef *host)
+             const virCPUDef *host,
+             virCPUFeaturePolicy removedPolicy)
 {
     struct cpuArchDriver *driver;
     bool relative;
@@ -619,7 +626,7 @@ virCPUUpdate(virArch arch,
         return -1;
     }
 
-    if (driver->update(guest, host, relative) < 0)
+    if (driver->update(guest, host, relative, removedPolicy) < 0)
         return -1;
 
     VIR_DEBUG("model=%s", NULLSTR(guest->model));
@@ -1045,7 +1052,8 @@ virCPUConvertLegacy(virArch arch,
 
 static int
 virCPUFeatureCompare(const void *p1,
-                     const void *p2)
+                     const void *p2,
+                     void *opaque G_GNUC_UNUSED)
 {
     const virCPUFeatureDef *f1 = p1;
     const virCPUFeatureDef *f2 = p2;
@@ -1085,8 +1093,8 @@ virCPUExpandFeatures(virArch arch,
         driver->expandFeatures(cpu) < 0)
         return -1;
 
-    qsort(cpu->features, cpu->nfeatures, sizeof(*cpu->features),
-          virCPUFeatureCompare);
+    g_qsort_with_data(cpu->features, cpu->nfeatures, sizeof(*cpu->features),
+                      virCPUFeatureCompare, NULL);
 
     VIR_DEBUG("nfeatures=%zu", cpu->nfeatures);
     return 0;

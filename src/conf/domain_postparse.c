@@ -657,6 +657,7 @@ virDomainInputDefPostParse(virDomainInputDef *input,
             if ((input->type == VIR_DOMAIN_INPUT_TYPE_MOUSE ||
                  input->type == VIR_DOMAIN_INPUT_TYPE_KBD) &&
                 (ARCH_IS_X86(def->os.arch) || def->os.arch == VIR_ARCH_NONE)) {
+                    input->bus = VIR_DOMAIN_INPUT_BUS_PS2;
             } else if (ARCH_IS_S390(def->os.arch) ||
                        input->type == VIR_DOMAIN_INPUT_TYPE_PASSTHROUGH) {
                 input->bus = VIR_DOMAIN_INPUT_BUS_VIRTIO;
@@ -674,6 +675,13 @@ virDomainInputDefPostParse(virDomainInputDef *input,
                 input->bus = VIR_DOMAIN_INPUT_BUS_PARALLELS;
         }
     }
+}
+
+static void
+virDomainSoundDefPostParse(virDomainSoundDef *sound)
+{
+    if (sound->model == VIR_DOMAIN_SOUND_MODEL_VIRTIO && sound->streams == 0)
+        sound->streams = 2;
 }
 
 static int
@@ -729,9 +737,13 @@ virDomainDeviceDefPostParseCommon(virDomainDeviceDef *dev,
         ret = 0;
         break;
 
+    case VIR_DOMAIN_DEVICE_SOUND:
+        virDomainSoundDefPostParse(dev->data.sound);
+        ret = 0;
+        break;
+
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_NET:
-    case VIR_DOMAIN_DEVICE_SOUND:
     case VIR_DOMAIN_DEVICE_WATCHDOG:
     case VIR_DOMAIN_DEVICE_GRAPHICS:
     case VIR_DOMAIN_DEVICE_HUB:
@@ -1334,6 +1346,7 @@ virDomainAssignControllerIndexes(virDomainDef *def)
      * unused index.
      */
     size_t outer;
+    bool reinsert = false;
 
     for (outer = 0; outer < def->ncontrollers; outer++) {
         virDomainControllerDef *cont = def->controllers[outer];
@@ -1361,6 +1374,13 @@ virDomainAssignControllerIndexes(virDomainDef *def)
              * index as the previous controller.
              */
             int prevIdx;
+
+            /* virDomainControllerInsert enforces an ordering of USB2 controllers
+             * based on their master port, which doesn't happen on the initial
+             * parse if the index wasn't yet allocated. If we encounter a USB2
+             * controller where we populated the index, we need to re-shuffle
+             * the controllers after allocating the index */
+            reinsert = true;
 
             prevIdx = outer - 1;
             while (prevIdx >= 0 &&
@@ -1397,6 +1417,19 @@ virDomainAssignControllerIndexes(virDomainDef *def)
         /* if none of the above applied, prev will be NULL */
         if (!prev)
             cont->idx = virDomainControllerFindUnusedIndex(def, cont->type);
+    }
+
+    if (reinsert) {
+        g_autofree virDomainControllerDef **controllers = g_steal_pointer(&def->controllers);
+        size_t ncontrollers = def->ncontrollers;
+        size_t i;
+
+        def->controllers = g_new0(virDomainControllerDef *, ncontrollers);
+        def->ncontrollers = 0;
+
+        for (i = 0; i < ncontrollers; i++) {
+            virDomainControllerInsertPreAlloced(def, controllers[i]);
+        }
     }
 }
 

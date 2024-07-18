@@ -184,20 +184,23 @@ testStorageChain(const void *args)
         virBufferAsprintf(&buf,
                           "path:%s\n"
                           "backingStoreRaw: %s\n"
+                          "backingStoreRawFormat: %s(%d)\n"
                           "capacity: %lld\n"
                           "encryption: %d\n"
                           "relPath:%s\n"
-                          "type:%d\n"
-                          "format:%d\n"
+                          "type:%s\n"
+                          "format:%s\n"
                           "protocol:%s\n"
                           "hostname:%s\n\n",
                           strippedPath,
                           strippedBackingStoreRaw,
+                          NULLSTR(virStorageFileFormatTypeToString(elt->backingStoreRawFormat)),
+                          elt->backingStoreRawFormat,
                           elt->capacity,
                           !!elt->encryption,
                           strippedRelPath,
-                          elt->type,
-                          elt->format,
+                          NULLSTR(virStorageTypeToString(elt->type)),
+                          NULLSTR(virStorageFileFormatTypeToString(elt->format)),
                           virStorageNetProtocolTypeToString(elt->protocol),
                           NULLSTR(elt->nhosts ? elt->hosts[0].name : NULL));
     }
@@ -473,6 +476,14 @@ mymain(void)
                VIR_STORAGE_FILE_QCOW2, EXP_FAIL);
     TEST_CHAIN("qcow2-qcow2_qcow2-auto",
                abs_srcdir "/virstoragetestdata/images/qcow2_qcow2-auto.qcow2",
+               VIR_STORAGE_FILE_QCOW2, EXP_PASS);
+
+    /* QCOW2 with protocol recorded inside the 'backing file format field */
+    TEST_CHAIN("qcow2-protocol-backing-file",
+               abs_srcdir "/virstoragetestdata/images/qcow2-protocol-backing-file.qcow2",
+               VIR_STORAGE_FILE_QCOW2, EXP_PASS);
+    TEST_CHAIN("qcow2-protocol-backing-nbd",
+               abs_srcdir "/virstoragetestdata/images/qcow2-protocol-backing-nbd.qcow2",
                VIR_STORAGE_FILE_QCOW2, EXP_PASS);
 
     /* Qcow2 file with missing backing file but specified type */

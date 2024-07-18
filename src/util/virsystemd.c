@@ -34,7 +34,6 @@
 #include "virerror.h"
 #include "virfile.h"
 #include "virhash.h"
-#include "virsocketaddr.h"
 
 #define VIR_FROM_THIS VIR_FROM_SYSTEMD
 
@@ -127,6 +126,7 @@ char *virSystemdMakeSliceName(const char *partition)
 
 static int virSystemdHasMachinedCachedValue = -1;
 static int virSystemdHasLogindCachedValue = -1;
+static int virSystemdHasResolvedCachedValue = -1;
 
 /* Reset the cache from tests for testing the underlying dbus calls
  * as well */
@@ -140,58 +140,42 @@ void virSystemdHasLogindResetCachedValue(void)
     virSystemdHasLogindCachedValue = -1;
 }
 
-
-/* -2 = machine1 is not supported on this machine
- * -1 = error
- *  0 = machine1 is available
- */
-int
-virSystemdHasMachined(void)
+void
+virSystemdHasResolvedResetCachedValue(void)
 {
-    int ret;
-    int val;
-
-    val = g_atomic_int_get(&virSystemdHasMachinedCachedValue);
-    if (val != -1)
-        return val;
-
-    if ((ret = virGDBusIsServiceEnabled("org.freedesktop.machine1")) < 0) {
-        if (ret == -2)
-            g_atomic_int_set(&virSystemdHasMachinedCachedValue, -2);
-        return ret;
-    }
-
-    if ((ret = virGDBusIsServiceRegistered("org.freedesktop.systemd1")) == -1)
-        return ret;
-    g_atomic_int_set(&virSystemdHasMachinedCachedValue, ret);
-    return ret;
+    virSystemdHasResolvedCachedValue = -1;
 }
 
-int
-virSystemdHasLogind(void)
+
+/**
+ * virSystemdHasService:
+ *
+ * Check whether a DBus @service is enabled and either the service itself is
+ * running or will be started on demand by a running systemd1 service.
+ *
+ * Returns
+ *   -2 when service is not supported on this machine
+ *   -1 on error
+ *    0 when service is available
+ */
+static int
+virSystemdHasService(const char *service,
+                     int *cached)
 {
     int ret;
     int val;
 
-    val = g_atomic_int_get(&virSystemdHasLogindCachedValue);
+    val = g_atomic_int_get(cached);
     if (val != -1)
         return val;
 
-    ret = virGDBusIsServiceEnabled("org.freedesktop.login1");
-    if (ret < 0) {
+    if ((ret = virGDBusIsServiceEnabled(service)) < 0) {
         if (ret == -2)
-            g_atomic_int_set(&virSystemdHasLogindCachedValue, -2);
+            g_atomic_int_set(cached, -2);
         return ret;
     }
 
-    /*
-     * Want to use logind if:
-     *   - logind is already running
-     * Or
-     *   - logind is not running, but this is a systemd host
-     *     (rely on dbus activation)
-     */
-    if ((ret = virGDBusIsServiceRegistered("org.freedesktop.login1")) == -1)
+    if ((ret = virGDBusIsServiceRegistered(service)) == -1)
         return ret;
 
     if (ret == -2) {
@@ -199,8 +183,32 @@ virSystemdHasLogind(void)
             return ret;
     }
 
-    g_atomic_int_set(&virSystemdHasLogindCachedValue, ret);
+    g_atomic_int_set(cached, ret);
     return ret;
+}
+
+
+int
+virSystemdHasMachined(void)
+{
+    return virSystemdHasService("org.freedesktop.machine1",
+                                &virSystemdHasMachinedCachedValue);
+}
+
+
+int
+virSystemdHasLogind(void)
+{
+    return virSystemdHasService("org.freedesktop.login1",
+                                &virSystemdHasLogindCachedValue);
+}
+
+
+int
+virSystemdHasResolved(void)
+{
+    return virSystemdHasService("org.freedesktop.resolve1",
+                                &virSystemdHasResolvedCachedValue);
 }
 
 
@@ -1030,4 +1038,82 @@ virSystemdActivationFree(virSystemdActivation *act)
     g_clear_pointer(&act->fds, g_hash_table_unref);
 
     g_free(act);
+}
+
+
+/**
+ * virSystemdResolvedRegisterNameServer:
+ * @link: network interface ID
+ * @domain: registered domain
+ * @addr: address the DNS server is listening on
+ *
+ * Talk to systemd-resolved and register a DNS server listening on @addr
+ * as a resolver for @domain. This configuration is bound to @link interface
+ * and automatically dropped when the interface goes away.
+ *
+ * Returns -2 when systemd-resolved is unavailable,
+ *         -1 on error,
+ *          0 on success.
+ */
+int
+virSystemdResolvedRegisterNameServer(int link,
+                                     const char *domain,
+                                     virSocketAddr *addr)
+{
+    int rc;
+    GDBusConnection *conn;
+    GVariant *params;
+    GVariant *byteArray;
+    unsigned char addrBytes[16];
+    int nBytes;
+
+    if ((rc = virSystemdHasResolved()) < 0)
+        return rc;
+
+    if (!(conn = virGDBusGetSystemBus()))
+        return -1;
+
+    /*
+     * SetLinkDomains(in  i ifindex,
+     *                in  a(sb) domains);
+     */
+    params = g_variant_new_parsed("(%i, [(%s, true)])",
+                                  (gint32) link,
+                                  domain);
+
+    rc = virGDBusCallMethod(conn, NULL, NULL, NULL,
+                            "org.freedesktop.resolve1",
+                            "/org/freedesktop/resolve1",
+                            "org.freedesktop.resolve1.Manager",
+                            "SetLinkDomains",
+                            params);
+    g_variant_unref(params);
+
+    if (rc < 0)
+        return -1;
+
+    /*
+     * SetLinkDNS(in  i ifindex,
+     *            in  a(iay) addresses);
+     */
+    nBytes = virSocketAddrBytes(addr, addrBytes, sizeof(addrBytes));
+    byteArray = g_variant_new_fixed_array(G_VARIANT_TYPE("y"),
+                                          addrBytes, nBytes, 1);
+    params = g_variant_new_parsed("(%i, [(%i, %@ay)])",
+                                  (gint32) link,
+                                  VIR_SOCKET_ADDR_FAMILY(addr),
+                                  byteArray);
+
+    rc = virGDBusCallMethod(conn, NULL, NULL, NULL,
+                            "org.freedesktop.resolve1",
+                            "/org/freedesktop/resolve1",
+                            "org.freedesktop.resolve1.Manager",
+                            "SetLinkDNS",
+                            params);
+    g_variant_unref(params);
+
+    if (rc < 0)
+        return -1;
+
+    return 0;
 }

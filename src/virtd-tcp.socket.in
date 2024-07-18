@@ -1,0 +1,13 @@
+[Unit]
+Description=libvirt @name@ daemon non-TLS IP socket
+BindsTo=@service@.socket
+After=@service@.socket
+Conflicts=libvirtd-tcp.socket
+After=libvirtd-tcp.socket
+
+[Socket]
+ListenStream=16509
+Service=@service@.service
+
+[Install]
+WantedBy=sockets.target

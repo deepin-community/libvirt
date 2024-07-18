@@ -123,9 +123,19 @@ VIR_ONCE_GLOBAL_INIT(virNetSocket);
 #ifndef WIN32
 static int virNetSocketForkDaemon(const char *binary)
 {
-    g_autoptr(virCommand) cmd = virCommandNewArgList(binary,
-                                                     "--timeout=120",
-                                                     NULL);
+    g_autofree char *binarypath = virFindFileInPath(binary);
+    g_autoptr(virCommand) cmd = NULL;
+
+    if (!binarypath) {
+        virReportSystemError(ENOENT,
+                             _("binary '%1$s' does not exist in $PATH"),
+                             binary);
+        return -1;
+    }
+
+    cmd = virCommandNewArgList(binarypath,
+                               "--timeout=120",
+                               NULL);
 
     virCommandAddEnvPassCommon(cmd);
     virCommandAddEnvPass(cmd, "XDG_CACHE_HOME");
@@ -843,6 +853,11 @@ int virNetSocketNewConnectSSH(const char *nodename,
     virCommandAddEnvPass(cmd, "OPENSSL_CONF");
     virCommandAddEnvPass(cmd, "DISPLAY");
     virCommandAddEnvPass(cmd, "XAUTHORITY");
+    if (!noTTY) {
+        /* Needed for gpg-agent's curses-based authentication prompt */
+        virCommandAddEnvPass(cmd, "GPG_TTY");
+        virCommandAddEnvPass(cmd, "TERM");
+    }
     virCommandClearCaps(cmd);
 
     if (service)

@@ -7,8 +7,6 @@ remote_driver_generated = []
 
 foreach name : [ 'remote', 'qemu', 'lxc' ]
   client_bodies_h = '@0@_client_bodies.h'.format(name)
-  protocol_c = '@0@_protocol.c'.format(name)
-  protocol_h = '@0@_protocol.h'.format(name)
   protocol_x = '@0@_protocol.x'.format(name)
 
   remote_driver_generated += custom_target(
@@ -20,22 +18,34 @@ foreach name : [ 'remote', 'qemu', 'lxc' ]
     ],
     capture: true,
   )
+endforeach
 
-  remote_driver_generated += custom_target(
+remote_protocol_generated = []
+
+foreach name : [ 'remote', 'qemu', 'lxc' ]
+  protocol_c = '@0@_protocol.c'.format(name)
+  protocol_h = '@0@_protocol.h'.format(name)
+  protocol_x = '@0@_protocol.x'.format(name)
+
+  remote_protocol_generated += custom_target(
     protocol_h,
     input: protocol_x,
     output: protocol_h,
+    depend_files: rpcgen_src,
     command: [
-      genprotocol_prog, rpcgen_prog, '-h', '@INPUT@', '@OUTPUT@',
+      rpcgen_prog,
+      '--mode=header', '@INPUT@', '@OUTPUT@',
     ],
   )
 
-  remote_driver_generated += custom_target(
+  remote_protocol_generated += custom_target(
     protocol_c,
     input: protocol_x,
     output: protocol_c,
+    depend_files: rpcgen_src,
     command: [
-      genprotocol_prog, rpcgen_prog, '-c', '@INPUT@', '@OUTPUT@',
+      rpcgen_prog,
+      '--mode=source', '--header=' + protocol_h, '@INPUT@', '@OUTPUT@',
     ],
   )
 
@@ -128,8 +138,6 @@ libvirtd_socket_unit_files = [
   'libvirtd-tls.socket',
 ]
 
-libvirtd_socket_conflicts = ' '.join(libvirtd_socket_unit_files)
-
 logrotate_files = [
   'libvirtd.qemu',
   'libvirtd.lxc',
@@ -141,6 +149,7 @@ if conf.has('WITH_REMOTE')
   remote_driver_lib = static_library(
     'virt_remote_driver',
     [
+      remote_protocol_generated,
       remote_driver_sources,
       remote_driver_generated,
     ],
@@ -192,10 +201,23 @@ if conf.has('WITH_REMOTE')
 
     virt_daemon_units += {
       'service': 'libvirtd',
+      'name': 'legacy monolithic',
       'service_in': files('libvirtd.service.in'),
-      'name': 'Libvirt',
-      'sockprefix': 'libvirt',
+      'service_extra_in': [
+        files('libvirtd.service.extra.in'),
+        systemd_service_limitnofile_extra_in,
+        systemd_service_tasksmax_extra_in,
+        systemd_service_limitmemlock_extra_in,
+      ],
       'sockets': [ 'main', 'ro', 'admin', 'tcp', 'tls' ],
+      'socket_in': files('libvirtd.socket.in'),
+      'socket_ro_in': files('libvirtd-ro.socket.in'),
+      'socket_admin_in': files('libvirtd-admin.socket.in'),
+      'socket_tcp_in': files('libvirtd-tcp.socket.in'),
+      'socket_tls_in': files('libvirtd-tls.socket.in'),
+      'socket_extra_in': [
+        files('libvirtd.socket.extra.in'),
+      ],
     }
 
     openrc_init_files += {
@@ -221,11 +243,15 @@ if conf.has('WITH_REMOTE')
 
     virt_daemon_units += {
       'service': 'virtproxyd',
-      'service_in': files('virtproxyd.service.in'),
-      'name': 'Libvirt proxy',
+      'name': 'proxy',
+      'service_extra_in': [
+        files('virtproxyd.service.extra.in'),
+      ],
       'sockprefix': 'libvirt',
       'sockets': [ 'main', 'ro', 'admin', 'tcp', 'tls' ],
-      'deps': 'Conflicts=' + libvirtd_socket_conflicts,
+      'socket_extra_in': [
+        files('virtproxyd.socket.extra.in'),
+      ],
     }
 
     openrc_init_files += {

@@ -22,6 +22,8 @@
 
 #include "virdomainobjlist.h"
 #include "virthread.h"
+#include "ch_capabilities.h"
+#include "virebtables.h"
 
 #define CH_DRIVER_NAME "CH"
 #define CH_CMD "cloud-hypervisor"
@@ -35,6 +37,7 @@ struct _virCHDriverConfig {
 
     char *stateDir;
     char *logDir;
+    char *saveDir;
 
     int cgroupControllers;
 
@@ -54,6 +57,11 @@ struct _virCHDriver
      * lockless access thereafter */
     virCaps *caps;
 
+    /* Immutable pointer, Immutable object
+     * Initialized once and reused as needed
+     */
+    virBitmap *chCaps;
+
     /* Immutable pointer, Immutable object */
     virDomainXMLOption *xmlopt;
 
@@ -69,6 +77,20 @@ struct _virCHDriver
 
     /* pid file FD, ensures two copies of the driver can't use the same root */
     int lockFD;
+
+    /* Immutable pointer, lockless APIs. Pointless abstraction */
+    ebtablesContext *ebtables;
+};
+
+#define CH_SAVE_MAGIC "libvirt-xml\n \0 \r"
+#define CH_SAVE_XML "libvirt-save.xml"
+
+typedef struct _CHSaveXMLHeader CHSaveXMLHeader;
+struct _CHSaveXMLHeader {
+    char magic[sizeof(CH_SAVE_MAGIC)-1];
+    uint32_t xmlLen;
+    /* 20 bytes used, pad up to 64 bytes */
+    uint32_t unused[11];
 };
 
 virCaps *virCHDriverCapsInit(void);

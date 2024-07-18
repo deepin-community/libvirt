@@ -791,7 +791,8 @@ static int lxcContainerSetReadOnly(void)
     if (!mounts)
         return 0;
 
-    qsort(mounts, nmounts, sizeof(mounts[0]), virStringSortRevCompare);
+    g_qsort_with_data(mounts, nmounts,
+                      sizeof(mounts[0]), virStringSortRevCompare, NULL);
 
     /* turn 'mounts' into a proper GStrv */
     VIR_EXPAND_N(mounts, nmounts, 1);
@@ -1467,12 +1468,13 @@ static int lxcContainerMountAllFS(virDomainDef *vmDef,
         if (STREQ(vmDef->fss[i]->dst, "/"))
             continue;
 
-        VIR_DEBUG("Mounting '%s' -> '%s'", vmDef->fss[i]->src->path, vmDef->fss[i]->dst);
+        VIR_DEBUG("Mounting '%s' -> '%s'", NULLSTR(vmDef->fss[i]->src->path),
+                  vmDef->fss[i]->dst);
 
         if (lxcContainerResolveSymlinks(vmDef->fss[i], false) < 0)
             return -1;
 
-        if (!(vmDef->fss[i]->src && vmDef->fss[i]->src->path &&
+        if (!(vmDef->fss[i]->src->path &&
               STRPREFIX(vmDef->fss[i]->src->path, vmDef->fss[i]->dst)) &&
             lxcContainerUnmountSubtree(vmDef->fss[i]->dst, false) < 0)
             return -1;
@@ -2057,9 +2059,8 @@ static int lxcContainerChild(void *data)
     /* TODO is it safe to call it here or should this call be moved in
      * front of the clone() as otherwise there might be a risk for a
      * deadlock */
-    if ((ngroups = virGetGroupList(virCommandGetUID(cmd), virCommandGetGID(cmd),
-                                   &groups)) < 0)
-        goto cleanup;
+    ngroups = virGetGroupList(virCommandGetUID(cmd), virCommandGetGID(cmd),
+                              &groups);
 
     ret = 0;
  cleanup:

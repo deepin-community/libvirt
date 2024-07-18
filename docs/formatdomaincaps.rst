@@ -237,10 +237,12 @@ more details about it:
    using the CPU model and no additional feature elements. Models marked as
    usable (``usable='yes'``) can be safely used in domain XMLs with
    ``check='none'`` as the hypervisor guarantees the model can be used on the
-   current host and additional checks done by libvirt are redundant. In fact,
-   disabling libvirt checks via ``check='none'`` for such models is recommended
-   to avoid needless issues with starting domains when libvirt's definition of
-   a particular model differs from hypervisor's definition. The
+   current host and additional checks done by libvirt are redundant.
+   :since:`Since 10.2.0` libvirt automatically detects this situation and
+   avoids the redundant checks even when ``check='partial'`` is used, with
+   older releases disabling libvirt checks via ``check='none'`` for such models
+   is recommended to avoid needless issues with starting domains when libvirt's
+   definition of a particular model differs from hypervisor's definition. The
    ``deprecated`` attribute reflects the hypervisor's policy on usage of this
    model :since:`(since 7.1.0)`. The ``vendor`` attribute :since:`(since 8.9.0)`
    contains the vendor of the CPU model for users who want to use CPU models
@@ -796,3 +798,13 @@ are supported. The ``features`` enum corresponds to the ``<hyperv/>`` element
 Please note that depending on the QEMU version some capabilities might be
 missing even though QEMU does support them. This is because prior to QEMU-6.1.0
 not all features were reported by QEMU.
+
+Launch security
+^^^^^^^^^^^^^^^
+
+The ``launchSecurity`` element exposes supported aspects of encrypted guests.
+The ``sectype`` enum corresponds to ``type`` attribute of ``<launchSecurity/>``
+element as documented in `Launch Security
+<formatdomain.html#launch-security>`__.  :since:`(Since 10.5.0)` For additional
+information on individual types, see sections above: `s390-pv capability`_ for
+S390 PV, `SEV capabilities`_ for AMD SEV and/or AMD SEV-SNP.

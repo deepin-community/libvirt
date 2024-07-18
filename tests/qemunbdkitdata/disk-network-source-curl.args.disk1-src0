@@ -1,0 +1,9 @@
+nbdkit \
+--unix /tmp/domain-QEMUGuest1/nbdkit-disk1-src0.socket \
+--foreground curl \
+protocols=https \
+'url=https://https.example.org:8443/path/to/disk5.iso?foo=bar' \
+user=myname \
+password=-779 \
+cookie=-781 \
+sslverify=false

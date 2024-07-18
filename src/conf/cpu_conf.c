@@ -241,6 +241,7 @@ virCPUDefCopyWithoutModel(const virCPUDef *cpu)
     copy->fallback = cpu->fallback;
     copy->sockets = cpu->sockets;
     copy->dies = cpu->dies;
+    copy->clusters = cpu->clusters;
     copy->cores = cpu->cores;
     copy->threads = cpu->threads;
     copy->arch = cpu->arch;
@@ -572,6 +573,12 @@ virCPUDefParseXML(xmlXPathContextPtr ctxt,
             return -1;
         }
 
+        if (virXMLPropUIntDefault(topology, "clusters", 10,
+                                  VIR_XML_PROP_NONZERO,
+                                  &def->clusters, 1) < 0) {
+            return -1;
+        }
+
         if (virXMLPropUInt(topology, "cores", 10,
                            VIR_XML_PROP_REQUIRED | VIR_XML_PROP_NONZERO,
                            &def->cores) < 0) {
@@ -827,10 +834,11 @@ virCPUDefFormatBuf(virBuffer *buf,
         virBufferAddLit(buf, "/>\n");
     }
 
-    if (def->sockets && def->dies && def->cores && def->threads) {
+    if (def->sockets && def->dies && def->clusters && def->cores && def->threads) {
         virBufferAddLit(buf, "<topology");
         virBufferAsprintf(buf, " sockets='%u'", def->sockets);
         virBufferAsprintf(buf, " dies='%u'", def->dies);
+        virBufferAsprintf(buf, " clusters='%u'", def->clusters);
         virBufferAsprintf(buf, " cores='%u'", def->cores);
         virBufferAsprintf(buf, " threads='%u'", def->threads);
         virBufferAddLit(buf, "/>\n");
@@ -930,13 +938,13 @@ virCPUDefAddFeatureInternal(virCPUDef *def,
     return 0;
 }
 
-int
+void
 virCPUDefUpdateFeature(virCPUDef *def,
                        const char *name,
                        int policy)
 {
-    return virCPUDefAddFeatureInternal(def, name, policy,
-                                       VIR_CPU_ADD_FEATURE_MODE_UPDATE);
+    virCPUDefAddFeatureInternal(def, name, policy,
+                                VIR_CPU_ADD_FEATURE_MODE_UPDATE);
 }
 
 int
@@ -949,13 +957,13 @@ virCPUDefAddFeature(virCPUDef *def,
 }
 
 
-int
+void
 virCPUDefAddFeatureIfMissing(virCPUDef *def,
                              const char *name,
                              int policy)
 {
-    return virCPUDefAddFeatureInternal(def, name, policy,
-                                       VIR_CPU_ADD_FEATURE_MODE_NEW);
+    virCPUDefAddFeatureInternal(def, name, policy,
+                                VIR_CPU_ADD_FEATURE_MODE_NEW);
 }
 
 
@@ -971,6 +979,30 @@ virCPUDefFindFeature(const virCPUDef *def,
     }
 
     return NULL;
+}
+
+
+/**
+ * virCPUDefListExplicitFeatures:
+ * @def: CPU definition
+ *
+ * Provides a list of feature names explicitly mentioned in the CPU definition
+ * regardless of the policy. The caller is responsible for freeing the list.
+ *
+ * Returns a NULL-terminated list of feature names.
+ */
+char **
+virCPUDefListExplicitFeatures(const virCPUDef *def)
+{
+    char **list;
+    size_t i;
+
+    list = g_new0(char *, def->nfeatures + 1);
+
+    for (i = 0; i < def->nfeatures; i++)
+        list[i] = g_strdup(def->features[i].name);
+
+    return list;
 }
 
 
@@ -1103,6 +1135,12 @@ virCPUDefIsEqual(virCPUDef *src,
     if (src->dies != dst->dies) {
         MISMATCH(_("Target CPU dies %1$d does not match source %2$d"),
                  dst->dies, src->dies);
+        return false;
+    }
+
+    if (src->clusters != dst->clusters) {
+        MISMATCH(_("Target CPU clusters %1$d does not match source %2$d"),
+                 dst->clusters, src->clusters);
         return false;
     }
 

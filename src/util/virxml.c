@@ -24,6 +24,7 @@
 #include <math.h>               /* for isnan() */
 #include <sys/stat.h>
 
+#include <libxml/xmlsave.h>
 #include <libxml/xpathInternals.h>
 
 #include "virerror.h"
@@ -903,33 +904,28 @@ virXMLNodeGetSubelement(xmlNodePtr node,
  * virXMLNodeGetSubelementList:
  * @node: node to get subelement of
  * @name: name of subelement to fetch (NULL to fetch all sub-elements)
- * @list: If non-NULL, filled with a list of pointers to the nodes. Caller is
- *        responsible for freeing the list but not the members.
  *
- * Find and return a sub-elements node of @node named @name in a list.
- * Returns the number of subelements with @name
+ * Find and return a sub-elements node of @node named @name in a GPtrArray
+ * populated with the xmlNodePtr objects. Caller is responsible for freeing the
+ * array but not the contained xmlNode objects.
  */
-size_t
+GPtrArray *
 virXMLNodeGetSubelementList(xmlNodePtr node,
-                            const char *name,
-                            xmlNodePtr **list)
+                            const char *name)
 {
+    GPtrArray *ret = g_ptr_array_new();
     xmlNodePtr n;
-    size_t nelems = 0;
 
     for (n = node->children; n; n = n->next) {
         if (n->type == XML_ELEMENT_NODE) {
             if (name && !virXMLNodeNameEqual(n, name))
                 continue;
 
-            if (list)
-                VIR_APPEND_ELEMENT_COPY(*list, nelems, n);
-            else
-                nelems++;
+            g_ptr_array_add(ret, n);
         }
     }
 
-    return nelems;
+    return ret;
 }
 
 
@@ -1128,13 +1124,15 @@ virXMLParseHelper(int domcode,
                   const char *rootelement,
                   xmlXPathContextPtr *ctxt,
                   const char *schemafile,
-                  bool validate)
+                  bool validate,
+                  bool keepindent)
 {
     struct virParserData private;
     g_autoptr(xmlParserCtxt) pctxt = NULL;
     g_autoptr(xmlDoc) xml = NULL;
     xmlNodePtr rootnode;
     const char *docname;
+    int parseFlags = XML_PARSE_NONET | XML_PARSE_NOWARNING;
 
     if (filename)
         docname = filename;
@@ -1152,14 +1150,14 @@ virXMLParseHelper(int domcode,
     pctxt->_private = &private;
     pctxt->sax->error = catchXMLError;
 
+    if (keepindent) {
+        parseFlags |= XML_PARSE_NOBLANKS;
+    }
+
     if (filename) {
-        xml = xmlCtxtReadFile(pctxt, filename, NULL,
-                              XML_PARSE_NONET |
-                              XML_PARSE_NOWARNING);
+        xml = xmlCtxtReadFile(pctxt, filename, NULL, parseFlags);
     } else {
-        xml = xmlCtxtReadDoc(pctxt, BAD_CAST xmlStr, url, NULL,
-                             XML_PARSE_NONET |
-                             XML_PARSE_NOWARNING);
+        xml = xmlCtxtReadDoc(pctxt, BAD_CAST xmlStr, url, NULL, parseFlags);
     }
 
     if (!xml) {

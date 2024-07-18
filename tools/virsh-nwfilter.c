@@ -38,7 +38,7 @@ virshCommandOptNWFilterBy(vshControl *ctl, const vshCmd *cmd,
 
     virCheckFlags(VIRSH_BYUUID | VIRSH_BYNAME, NULL);
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     vshDebug(ctl, VSH_ERR_INFO, "%s: found option <%s>: %s\n",
@@ -69,14 +69,9 @@ virshCommandOptNWFilterBy(vshControl *ctl, const vshCmd *cmd,
 /*
  * "nwfilter-define" command
  */
-static const vshCmdInfo info_nwfilter_define[] = {
-    {.name = "help",
-     .data = N_("define or update a network filter from an XML file")
-    },
-    {.name = "desc",
-     .data = N_("Define a new network filter or update an existing one.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_define = {
+    .help = N_("define or update a network filter from an XML file"),
+    .desc = N_("Define a new network filter or update an existing one."),
 };
 
 static const vshCmdOptDef opts_nwfilter_define[] = {
@@ -99,7 +94,7 @@ cmdNWFilterDefine(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -126,20 +121,16 @@ cmdNWFilterDefine(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nwfilter-undefine" command
  */
-static const vshCmdInfo info_nwfilter_undefine[] = {
-    {.name = "help",
-     .data = N_("undefine a network filter")
-    },
-    {.name = "desc",
-     .data = N_("Undefine a given network filter.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_undefine = {
+    .help = N_("undefine a network filter"),
+    .desc = N_("Undefine a given network filter."),
 };
 
 static const vshCmdOptDef opts_nwfilter_undefine[] = {
     {.name = "nwfilter",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("network filter name or uuid"),
      .completer = virshNWFilterNameCompleter,
     },
@@ -169,26 +160,21 @@ cmdNWFilterUndefine(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nwfilter-dumpxml" command
  */
-static const vshCmdInfo info_nwfilter_dumpxml[] = {
-    {.name = "help",
-     .data = N_("network filter information in XML")
-    },
-    {.name = "desc",
-     .data = N_("Output the network filter information as an XML dump to stdout.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_dumpxml = {
+    .help = N_("network filter information in XML"),
+    .desc = N_("Output the network filter information as an XML dump to stdout."),
 };
 
 static const vshCmdOptDef opts_nwfilter_dumpxml[] = {
     {.name = "nwfilter",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("network filter name or uuid"),
      .completer = virshNWFilterNameCompleter,
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -220,7 +206,9 @@ cmdNWFilterDumpXML(vshControl *ctl, const vshCmd *cmd)
 }
 
 static int
-virshNWFilterSorter(const void *a, const void *b)
+virshNWFilterSorter(const void *a,
+                    const void *b,
+                    void *opaque G_GNUC_UNUSED)
 {
     virNWFilterPtr *fa = (virNWFilterPtr *) a;
     virNWFilterPtr *fb = (virNWFilterPtr *) b;
@@ -323,9 +311,10 @@ virshNWFilterListCollect(vshControl *ctl,
 
  finished:
     /* sort the list */
-    if (list->filters && list->nfilters)
-        qsort(list->filters, list->nfilters,
-              sizeof(*list->filters), virshNWFilterSorter);
+    if (list->filters && list->nfilters) {
+        g_qsort_with_data(list->filters, list->nfilters,
+                          sizeof(*list->filters), virshNWFilterSorter, NULL);
+    }
 
     /* truncate the list for not found filter objects */
     if (deleted)
@@ -348,14 +337,9 @@ virshNWFilterListCollect(vshControl *ctl,
 /*
  * "nwfilter-list" command
  */
-static const vshCmdInfo info_nwfilter_list[] = {
-    {.name = "help",
-     .data = N_("list network filters")
-    },
-    {.name = "desc",
-     .data = N_("Returns list of network filters.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_list = {
+    .help = N_("list network filters"),
+    .desc = N_("Returns list of network filters."),
 };
 
 static const vshCmdOptDef opts_nwfilter_list[] = {
@@ -400,20 +384,16 @@ cmdNWFilterList(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "nwfilter-edit" command
  */
-static const vshCmdInfo info_nwfilter_edit[] = {
-    {.name = "help",
-     .data = N_("edit XML configuration for a network filter")
-    },
-    {.name = "desc",
-     .data = N_("Edit the XML configuration for a network filter.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_edit = {
+    .help = N_("edit XML configuration for a network filter"),
+    .desc = N_("Edit the XML configuration for a network filter."),
 };
 
 static const vshCmdOptDef opts_nwfilter_edit[] = {
     {.name = "nwfilter",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("network filter name or uuid"),
      .completer = virshNWFilterNameCompleter,
     },
@@ -467,7 +447,7 @@ virshCommandOptNWFilterBindingBy(vshControl *ctl,
 
     virCheckFlags(0, NULL);
 
-    if (vshCommandOptStringReq(ctl, cmd, optname, &n) < 0)
+    if (vshCommandOptString(ctl, cmd, optname, &n) < 0)
         return NULL;
 
     vshDebug(ctl, VSH_ERR_INFO, "%s: found option <%s>: %s\n",
@@ -490,14 +470,9 @@ virshCommandOptNWFilterBindingBy(vshControl *ctl,
 /*
  * "nwfilter-binding-create" command
  */
-static const vshCmdInfo info_nwfilter_binding_create[] = {
-    {.name = "help",
-     .data = N_("create a network filter binding from an XML file")
-    },
-    {.name = "desc",
-     .data = N_("Create a new network filter binding.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_binding_create = {
+    .help = N_("create a network filter binding from an XML file"),
+    .desc = N_("Create a new network filter binding."),
 };
 
 static const vshCmdOptDef opts_nwfilter_binding_create[] = {
@@ -519,7 +494,7 @@ cmdNWFilterBindingCreate(vshControl *ctl, const vshCmd *cmd)
     unsigned int flags = 0;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (vshCommandOptBool(cmd, "validate"))
@@ -545,20 +520,16 @@ cmdNWFilterBindingCreate(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nwfilter-binding-delete" command
  */
-static const vshCmdInfo info_nwfilter_binding_delete[] = {
-    {.name = "help",
-     .data = N_("delete a network filter binding")
-    },
-    {.name = "desc",
-     .data = N_("Delete a given network filter binding.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_binding_delete = {
+    .help = N_("delete a network filter binding"),
+    .desc = N_("Delete a given network filter binding."),
 };
 
 static const vshCmdOptDef opts_nwfilter_binding_delete[] = {
     {.name = "binding",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("network filter binding port dev"),
      .completer = virshNWFilterBindingNameCompleter,
     },
@@ -590,26 +561,21 @@ cmdNWFilterBindingDelete(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nwfilter-binding-dumpxml" command
  */
-static const vshCmdInfo info_nwfilter_binding_dumpxml[] = {
-    {.name = "help",
-     .data = N_("network filter information in XML")
-    },
-    {.name = "desc",
-     .data = N_("Output the network filter information as an XML dump to stdout.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_binding_dumpxml = {
+    .help = N_("network filter information in XML"),
+    .desc = N_("Output the network filter information as an XML dump to stdout."),
 };
 
 static const vshCmdOptDef opts_nwfilter_binding_dumpxml[] = {
     {.name = "binding",
-     .type = VSH_OT_DATA,
-     .flags = VSH_OFLAG_REQ,
+     .type = VSH_OT_STRING,
+     .positional = true,
+     .required = true,
      .help = N_("network filter binding portdev"),
      .completer = virshNWFilterBindingNameCompleter,
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
-     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -644,7 +610,9 @@ cmdNWFilterBindingDumpXML(vshControl *ctl, const vshCmd *cmd)
 
 
 static int
-virshNWFilterBindingSorter(const void *a, const void *b)
+virshNWFilterBindingSorter(const void *a,
+                           const void *b,
+                           void *opaque G_GNUC_UNUSED)
 {
     virNWFilterBindingPtr *fa = (virNWFilterBindingPtr *) a;
     virNWFilterBindingPtr *fb = (virNWFilterBindingPtr *) b;
@@ -702,9 +670,10 @@ virshNWFilterBindingListCollect(vshControl *ctl,
     list->nbindings = ret;
 
     /* sort the list */
-    if (list->bindings && list->nbindings > 1)
-        qsort(list->bindings, list->nbindings,
-              sizeof(*list->bindings), virshNWFilterBindingSorter);
+    if (list->bindings && list->nbindings > 1) {
+        g_qsort_with_data(list->bindings, list->nbindings,
+                          sizeof(*list->bindings), virshNWFilterBindingSorter, NULL);
+    }
 
     success = true;
 
@@ -720,14 +689,9 @@ virshNWFilterBindingListCollect(vshControl *ctl,
 /*
  * "nwfilter-binding-list" command
  */
-static const vshCmdInfo info_nwfilter_binding_list[] = {
-    {.name = "help",
-     .data = N_("list network filter bindings")
-    },
-    {.name = "desc",
-     .data = N_("Returns list of network filter bindings.")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_nwfilter_binding_list = {
+    .help = N_("list network filter bindings"),
+    .desc = N_("Returns list of network filter bindings."),
 };
 
 static const vshCmdOptDef opts_nwfilter_binding_list[] = {
@@ -772,55 +736,55 @@ const vshCmdDef nwfilterCmds[] = {
     {.name = "nwfilter-define",
      .handler = cmdNWFilterDefine,
      .opts = opts_nwfilter_define,
-     .info = info_nwfilter_define,
+     .info = &info_nwfilter_define,
      .flags = 0
     },
     {.name = "nwfilter-dumpxml",
      .handler = cmdNWFilterDumpXML,
      .opts = opts_nwfilter_dumpxml,
-     .info = info_nwfilter_dumpxml,
+     .info = &info_nwfilter_dumpxml,
      .flags = 0
     },
     {.name = "nwfilter-edit",
      .handler = cmdNWFilterEdit,
      .opts = opts_nwfilter_edit,
-     .info = info_nwfilter_edit,
+     .info = &info_nwfilter_edit,
      .flags = 0
     },
     {.name = "nwfilter-list",
      .handler = cmdNWFilterList,
      .opts = opts_nwfilter_list,
-     .info = info_nwfilter_list,
+     .info = &info_nwfilter_list,
      .flags = 0
     },
     {.name = "nwfilter-undefine",
      .handler = cmdNWFilterUndefine,
      .opts = opts_nwfilter_undefine,
-     .info = info_nwfilter_undefine,
+     .info = &info_nwfilter_undefine,
      .flags = 0
     },
     {.name = "nwfilter-binding-create",
      .handler = cmdNWFilterBindingCreate,
      .opts = opts_nwfilter_binding_create,
-     .info = info_nwfilter_binding_create,
+     .info = &info_nwfilter_binding_create,
      .flags = 0
     },
     {.name = "nwfilter-binding-delete",
      .handler = cmdNWFilterBindingDelete,
      .opts = opts_nwfilter_binding_delete,
-     .info = info_nwfilter_binding_delete,
+     .info = &info_nwfilter_binding_delete,
      .flags = 0
     },
     {.name = "nwfilter-binding-dumpxml",
      .handler = cmdNWFilterBindingDumpXML,
      .opts = opts_nwfilter_binding_dumpxml,
-     .info = info_nwfilter_binding_dumpxml,
+     .info = &info_nwfilter_binding_dumpxml,
      .flags = 0
     },
     {.name = "nwfilter-binding-list",
      .handler = cmdNWFilterBindingList,
      .opts = opts_nwfilter_binding_list,
-     .info = info_nwfilter_binding_list,
+     .info = &info_nwfilter_binding_list,
      .flags = 0
     },
     {.name = NULL}

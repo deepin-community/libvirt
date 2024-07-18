@@ -49,28 +49,27 @@ static int
 virSecretDefParseUsage(xmlXPathContextPtr ctxt,
                        virSecretDef *def)
 {
-    g_autofree char *type_str = NULL;
-    int type;
+    xmlNodePtr node = NULL;
+    VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
-    type_str = virXPathString("string(./usage/@type)", ctxt);
-    if (type_str == NULL) {
-        virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("unknown secret usage type"));
+    if (!(node = virXPathNode("./usage", ctxt)))
+        return 0;
+
+    ctxt->node = node;
+
+    if (virXMLPropEnum(node, "type",
+                       virSecretUsageTypeFromString,
+                       VIR_XML_PROP_REQUIRED,
+                       &def->usage_type) < 0) {
         return -1;
     }
-    type = virSecretUsageTypeFromString(type_str);
-    if (type < 0) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("unknown secret usage type %1$s"), type_str);
-        return -1;
-    }
-    def->usage_type = type;
+
     switch (def->usage_type) {
     case VIR_SECRET_USAGE_TYPE_NONE:
         break;
 
     case VIR_SECRET_USAGE_TYPE_VOLUME:
-        def->usage_id = virXPathString("string(./usage/volume)", ctxt);
+        def->usage_id = virXPathString("string(./volume)", ctxt);
         if (!def->usage_id) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("volume usage specified, but volume path is missing"));
@@ -79,7 +78,7 @@ virSecretDefParseUsage(xmlXPathContextPtr ctxt,
         break;
 
     case VIR_SECRET_USAGE_TYPE_CEPH:
-        def->usage_id = virXPathString("string(./usage/name)", ctxt);
+        def->usage_id = virXPathString("string(./name)", ctxt);
         if (!def->usage_id) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Ceph usage specified, but name is missing"));
@@ -88,7 +87,7 @@ virSecretDefParseUsage(xmlXPathContextPtr ctxt,
         break;
 
     case VIR_SECRET_USAGE_TYPE_ISCSI:
-        def->usage_id = virXPathString("string(./usage/target)", ctxt);
+        def->usage_id = virXPathString("string(./target)", ctxt);
         if (!def->usage_id) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("iSCSI usage specified, but target is missing"));
@@ -97,7 +96,7 @@ virSecretDefParseUsage(xmlXPathContextPtr ctxt,
         break;
 
     case VIR_SECRET_USAGE_TYPE_TLS:
-        def->usage_id = virXPathString("string(./usage/name)", ctxt);
+        def->usage_id = virXPathString("string(./name)", ctxt);
         if (!def->usage_id) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("TLS usage specified, but name is missing"));
@@ -106,7 +105,7 @@ virSecretDefParseUsage(xmlXPathContextPtr ctxt,
         break;
 
     case VIR_SECRET_USAGE_TYPE_VTPM:
-        def->usage_id = virXPathString("string(./usage/name)", ctxt);
+        def->usage_id = virXPathString("string(./name)", ctxt);
         if (!def->usage_id) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("vTPM usage specified, but name is missing"));
@@ -114,6 +113,7 @@ virSecretDefParseUsage(xmlXPathContextPtr ctxt,
         }
         break;
 
+    case VIR_SECRET_USAGE_TYPE_LAST:
     default:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("unexpected secret usage type %1$d"),
@@ -166,8 +166,8 @@ virSecretParseXML(xmlXPathContext *ctxt)
     }
 
     def->description = virXPathString("string(./description)", ctxt);
-    if (virXPathNode("./usage", ctxt) != NULL
-        && virSecretDefParseUsage(ctxt, def) < 0)
+
+    if (virSecretDefParseUsage(ctxt, def) < 0)
         return NULL;
 
     return g_steal_pointer(&def);
@@ -195,49 +195,43 @@ static int
 virSecretDefFormatUsage(virBuffer *buf,
                         const virSecretDef *def)
 {
-    const char *type;
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(buf);
 
-    type = virSecretUsageTypeToString(def->usage_type);
-    if (type == NULL) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected secret usage type %1$d"),
-                       def->usage_type);
-        return -1;
-    }
-    virBufferAsprintf(buf, "<usage type='%s'>\n", type);
-    virBufferAdjustIndent(buf, 2);
+    virBufferAsprintf(&attrBuf, " type='%s'",
+                      virSecretUsageTypeToString(def->usage_type));
+
     switch (def->usage_type) {
     case VIR_SECRET_USAGE_TYPE_NONE:
         break;
 
     case VIR_SECRET_USAGE_TYPE_VOLUME:
-        virBufferEscapeString(buf, "<volume>%s</volume>\n", def->usage_id);
+        virBufferEscapeString(&childBuf, "<volume>%s</volume>\n", def->usage_id);
         break;
 
     case VIR_SECRET_USAGE_TYPE_CEPH:
-        virBufferEscapeString(buf, "<name>%s</name>\n", def->usage_id);
+        virBufferEscapeString(&childBuf, "<name>%s</name>\n", def->usage_id);
         break;
 
     case VIR_SECRET_USAGE_TYPE_ISCSI:
-        virBufferEscapeString(buf, "<target>%s</target>\n", def->usage_id);
+        virBufferEscapeString(&childBuf, "<target>%s</target>\n", def->usage_id);
         break;
 
     case VIR_SECRET_USAGE_TYPE_TLS:
-        virBufferEscapeString(buf, "<name>%s</name>\n", def->usage_id);
+        virBufferEscapeString(&childBuf, "<name>%s</name>\n", def->usage_id);
         break;
 
     case VIR_SECRET_USAGE_TYPE_VTPM:
-        virBufferEscapeString(buf, "<name>%s</name>\n", def->usage_id);
+        virBufferEscapeString(&childBuf, "<name>%s</name>\n", def->usage_id);
         break;
 
     default:
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("unexpected secret usage type %1$d"),
-                       def->usage_type);
+    case VIR_SECRET_USAGE_TYPE_LAST:
+        virReportEnumRangeError(virSecretUsageType, def->usage_type);
         return -1;
     }
-    virBufferAdjustIndent(buf, -2);
-    virBufferAddLit(buf, "</usage>\n");
+
+    virXMLFormatElement(buf, "usage", &attrBuf, &childBuf);
 
     return 0;
 }
@@ -246,25 +240,23 @@ char *
 virSecretDefFormat(const virSecretDef *def)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    const unsigned char *uuid;
+    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) childBuf = VIR_BUFFER_INIT_CHILD(&buf);
     char uuidstr[VIR_UUID_STRING_BUFLEN];
 
-    virBufferAsprintf(&buf, "<secret ephemeral='%s' private='%s'>\n",
+    virBufferAsprintf(&attrBuf, " ephemeral='%s' private='%s'",
                       def->isephemeral ? "yes" : "no",
                       def->isprivate ? "yes" : "no");
 
-    uuid = def->uuid;
-    virUUIDFormat(uuid, uuidstr);
-    virBufferAdjustIndent(&buf, 2);
-    virBufferEscapeString(&buf, "<uuid>%s</uuid>\n", uuidstr);
+    virUUIDFormat(def->uuid, uuidstr);
+    virBufferEscapeString(&childBuf, "<uuid>%s</uuid>\n", uuidstr);
     if (def->description != NULL)
-        virBufferEscapeString(&buf, "<description>%s</description>\n",
+        virBufferEscapeString(&childBuf, "<description>%s</description>\n",
                               def->description);
     if (def->usage_type != VIR_SECRET_USAGE_TYPE_NONE &&
-        virSecretDefFormatUsage(&buf, def) < 0)
+        virSecretDefFormatUsage(&childBuf, def) < 0)
         return NULL;
-    virBufferAdjustIndent(&buf, -2);
-    virBufferAddLit(&buf, "</secret>\n");
 
+    virXMLFormatElement(&buf, "secret", &attrBuf, &childBuf);
     return virBufferContentAndReset(&buf);
 }

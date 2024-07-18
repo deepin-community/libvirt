@@ -582,6 +582,7 @@ virTestCompareToFileFull(const char *actual,
     g_autofree char *filecontent = NULL;
     g_autofree char *fixedcontent = NULL;
     const char *cmpcontent = actual;
+    size_t cmpcontentLen;
 
     if (!cmpcontent)
         cmpcontent = "";
@@ -594,16 +595,12 @@ virTestCompareToFileFull(const char *actual,
             return -1;
     }
 
-    if (filecontent) {
-        size_t filecontentLen = strlen(filecontent);
-        size_t cmpcontentLen = strlen(cmpcontent);
+    cmpcontentLen = strlen(cmpcontent);
 
-        if (filecontentLen > 0 &&
-            filecontent[filecontentLen - 1] == '\n' &&
-            (cmpcontentLen == 0 || cmpcontent[cmpcontentLen - 1] != '\n')) {
-            fixedcontent = g_strdup_printf("%s\n", cmpcontent);
-            cmpcontent = fixedcontent;
-        }
+    if (cmpcontentLen > 0 &&
+        cmpcontent[cmpcontentLen - 1] != '\n') {
+        fixedcontent = g_strdup_printf("%s\n", cmpcontent);
+        cmpcontent = fixedcontent;
     }
 
     if (STRNEQ_NULLABLE(cmpcontent, filecontent)) {
@@ -746,6 +743,20 @@ virTestGetRegenerate(void)
     return testRegenerate;
 }
 
+
+/**
+ * virTestHasRangeBitmap:
+ *
+ * Returns whether the test was invoked with VIR_TEST_RANGE declared thus
+ * limiting the run only on specific test cases.
+ */
+bool
+virTestHasRangeBitmap(void)
+{
+    return !!testBitmap;
+}
+
+
 static int
 virTestSetEnvPath(void)
 {
@@ -826,8 +837,10 @@ int virTestMain(int argc,
 
     va_start(ap, func);
     while ((lib = va_arg(ap, const char *))) {
-        if (!virFileIsExecutable(lib)) {
-            perror(lib);
+        g_autofree char *abs_lib_path = g_strdup_printf("%s/%s", abs_builddir, lib);
+
+        if (!virFileIsExecutable(abs_lib_path)) {
+            perror(abs_lib_path);
             va_end(ap);
             return EXIT_FAILURE;
         }
@@ -1034,25 +1047,24 @@ int
 testCompareDomXML2XMLFiles(virCaps *caps G_GNUC_UNUSED,
                            virDomainXMLOption *xmlopt,
                            const char *infile, const char *outfile, bool live,
-                           unsigned int parseFlags,
+                           unsigned int parse_flags,
                            testCompareDomXML2XMLResult expectResult)
 {
     g_autofree char *actual = NULL;
     int ret = -1;
     testCompareDomXML2XMLResult result;
     g_autoptr(virDomainDef) def = NULL;
-    unsigned int parse_flags = live ? 0 : VIR_DOMAIN_DEF_PARSE_INACTIVE;
     unsigned int format_flags = VIR_DOMAIN_DEF_FORMAT_SECURE;
-
-    parse_flags |= parseFlags;
 
     if (!virFileExists(infile)) {
         VIR_TEST_DEBUG("Test input file '%s' is missing", infile);
         return -1;
     }
 
-    if (!live)
+    if (!live) {
         format_flags |= VIR_DOMAIN_DEF_FORMAT_INACTIVE;
+        parse_flags |= VIR_DOMAIN_DEF_PARSE_INACTIVE;
+    }
 
     if (!(def = virDomainDefParseFile(infile, xmlopt, NULL, parse_flags))) {
         result = TEST_COMPARE_DOM_XML2XML_RESULT_FAIL_PARSE;

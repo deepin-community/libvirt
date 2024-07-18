@@ -1,0 +1,7 @@
+nbdkit \
+--unix /tmp/domain-QEMUGuest1/nbdkit-disk2-src0.socket \
+--foreground \
+--readonly curl \
+protocols=http,https \
+url=http://http.example.org:8080/path/to/disk2.iso \
+cookie=-783

@@ -859,21 +859,21 @@ virshDomainEventNameCompleter(vshControl *ctl G_GNUC_UNUSED,
 }
 
 
-static const vshCmdInfo info_event[] = {
-    {.name = "help",
-     .data = N_("Domain Events")
-    },
-    {.name = "desc",
-     .data = N_("List event types, or wait for domain events to occur")
-    },
-    {.name = NULL}
+static const vshCmdInfo info_event = {
+    .help = N_("Domain Events"),
+    .desc = N_("List event types, or wait for domain events to occur"),
 };
 
 static const vshCmdOptDef opts_event[] = {
-    VIRSH_COMMON_OPT_DOMAIN_OT_STRING(N_("filter by domain name, id or uuid"),
-                                      0, 0),
+    {.name = "domain",
+     .type = VSH_OT_STRING,
+     .unwanted_positional = true,
+     .help = N_("filter by domain name, id or uuid"),
+     .completer = virshDomainNameCompleter,
+    },
     {.name = "event",
      .type = VSH_OT_STRING,
+     .unwanted_positional = true,
      .completer = virshDomainEventNameCompleter,
      .help = N_("which event type to wait for")
     },
@@ -887,6 +887,7 @@ static const vshCmdOptDef opts_event[] = {
     },
     {.name = "timeout",
      .type = VSH_OT_INT,
+     .unwanted_positional = true,
      .help = N_("timeout seconds")
     },
     {.name = "list",
@@ -926,7 +927,7 @@ cmdEvent(vshControl *ctl, const vshCmd *cmd)
         return true;
     }
 
-    if (vshCommandOptStringReq(ctl, cmd, "event", &eventName) < 0)
+    if (vshCommandOptString(ctl, cmd, "event", &eventName) < 0)
         return false;
 
     if (!eventName && !all) {
@@ -1017,7 +1018,7 @@ const vshCmdDef domEventCmds[] = {
     {.name = "event",
      .handler = cmdEvent,
      .opts = opts_event,
-     .info = info_event,
+     .info = &info_event,
      .flags = 0
     },
     {.name = NULL}

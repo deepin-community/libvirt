@@ -159,12 +159,16 @@ load_profile(virSecurityManager *mgr G_GNUC_UNUSED,
              bool append)
 {
     bool create = true;
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     g_autofree char *xml = NULL;
     g_autoptr(virCommand) cmd = NULL;
 
-    xml = virDomainDefFormat(def, NULL, VIR_DOMAIN_DEF_FORMAT_SECURE);
-    if (!xml)
+    if (virDomainDefFormatInternal(def, NULL, &buf,
+                                   VIR_DOMAIN_DEF_FORMAT_SECURE |
+                                   VIR_DOMAIN_DEF_FORMAT_VOLUME_TRANSLATED) < 0)
         return -1;
+
+    xml = virBufferContentAndReset(&buf);
 
     if (profile_status_file(profile) >= 0)
         create = false;
@@ -311,7 +315,7 @@ AppArmorSetSecurityHostLabel(virSCSIVHostDevice *dev G_GNUC_UNUSED,
 }
 
 /* Called on libvirtd startup to see if AppArmor is available */
-static int
+static virSecurityDriverStatus
 AppArmorSecurityManagerProbe(const char *virtDriver G_GNUC_UNUSED)
 {
     g_autofree char *template_qemu = NULL;
@@ -865,7 +869,7 @@ AppArmorSetSecurityHostdevLabel(virSecurityManager *mgr,
         if (!pci)
             goto done;
 
-        if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
+        if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
             char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
             if (!vfioGroupDev) {

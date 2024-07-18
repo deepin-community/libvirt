@@ -1,0 +1,49 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postrm> `remove'
+#   * <postrm> `purge'
+#   * <old-postrm> `upgrade' <new-version>
+#   * <disappearer's-postrm> `disappear' <overwriter> <overwriter-version>
+#   * <new-postrm> `failed-upgrade' <old-version> <new-version>
+#   * <new-postrm> `abort-install'
+#   * <new-postrm> `abort-install' <old-version> <new-version>
+#   * <new-postrm> `abort-upgrade' <old-version> <new-version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#REMOVE_CONFIG_FROM_TEMPLATE#
+#SYSTEMD_DAEMON_RELOAD#
+#SYSTEMD_UNIT_RESTART_IF_ACTIVE#
+
+case "$1" in
+    remove|purge)
+        remove_config_from_template \
+            "/etc/libvirt/qemu/networks/default.xml" \
+            "/usr/share/libvirt/networks/default.xml" \
+            "6.9.0-2~" \
+            -- \
+            "$@"
+
+        # Since we might have changed the on-disk configuration for some
+        # services, restart them so that they can pick up the new settings
+        systemd_daemon_reload
+        systemd_unit_restart_if_active libvirtd.service
+    ;;
+
+    upgrade|disappear|failed-upgrade|abort-install|abort-upgrade)
+    ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

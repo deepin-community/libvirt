@@ -27,6 +27,7 @@ index_api_gen = custom_target(
     xsltproc_prog, '--nonet', '-o', docs_builddir,
     '--stringparam', 'builddir', meson.project_build_root(),
     '--stringparam', 'timestamp', docs_timestamp,
+    '--stringparam', 'href_base', '../',
     '@INPUT@',
   ],
   install: true,
@@ -53,6 +54,7 @@ foreach name : [ 'admin', 'lxc', 'qemu' ]
       xsltproc_prog, '--nonet', '-o', docs_builddir,
       '--stringparam', 'builddir', meson.project_build_root(),
       '--stringparam', 'timestamp', docs_timestamp,
+      '--stringparam', 'href_base', '../',
       '@INPUT@',
     ],
     install: true,
@@ -119,12 +121,14 @@ html_xslt_gen = []
 
 # --- end of XSLT processing ---
 
-test(
-  'check-html',
-  xmllint_prog,
-  args: [
-    '--nonet', '--noout', docs_html_paths,
-  ],
-  depends: docs_html_dep,
-  suite: 'script'
-)
+if tests_enabled[0]
+  test(
+    'check-html',
+    xmllint_prog,
+    args: [
+      '--nonet', '--noout', docs_html_paths,
+    ],
+    depends: docs_html_dep,
+    suite: 'script'
+  )
+endif

@@ -1,0 +1,138 @@
+nft \
+list \
+table \
+ip \
+libvirt_network
+nft \
+add \
+table \
+ip \
+libvirt_network
+nft \
+add \
+chain \
+ip \
+libvirt_network \
+forward \
+'{ type filter hook forward priority 0; policy accept; }'
+nft \
+add \
+chain \
+ip \
+libvirt_network \
+guest_output
+nft \
+insert \
+rule \
+ip \
+libvirt_network \
+forward \
+counter \
+jump \
+guest_output
+nft \
+add \
+chain \
+ip \
+libvirt_network \
+guest_input
+nft \
+insert \
+rule \
+ip \
+libvirt_network \
+forward \
+counter \
+jump \
+guest_input
+nft \
+add \
+chain \
+ip \
+libvirt_network \
+guest_cross
+nft \
+insert \
+rule \
+ip \
+libvirt_network \
+forward \
+counter \
+jump \
+guest_cross
+nft \
+add \
+chain \
+ip \
+libvirt_network \
+guest_nat \
+'{ type nat hook postrouting priority 100; policy accept; }'
+nft \
+list \
+table \
+ip6 \
+libvirt_network
+nft \
+add \
+table \
+ip6 \
+libvirt_network
+nft \
+add \
+chain \
+ip6 \
+libvirt_network \
+forward \
+'{ type filter hook forward priority 0; policy accept; }'
+nft \
+add \
+chain \
+ip6 \
+libvirt_network \
+guest_output
+nft \
+insert \
+rule \
+ip6 \
+libvirt_network \
+forward \
+counter \
+jump \
+guest_output
+nft \
+add \
+chain \
+ip6 \
+libvirt_network \
+guest_input
+nft \
+insert \
+rule \
+ip6 \
+libvirt_network \
+forward \
+counter \
+jump \
+guest_input
+nft \
+add \
+chain \
+ip6 \
+libvirt_network \
+guest_cross
+nft \
+insert \
+rule \
+ip6 \
+libvirt_network \
+forward \
+counter \
+jump \
+guest_cross
+nft \
+add \
+chain \
+ip6 \
+libvirt_network \
+guest_nat \
+'{ type nat hook postrouting priority 100; policy accept; }'

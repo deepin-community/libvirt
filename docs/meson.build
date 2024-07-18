@@ -97,6 +97,7 @@ docs_rst_files = [
   'python',
   'remote',
   'securityprocess',
+  'ssh-proxy',
   'storage',
   'strategy',
   'styleguide',
@@ -351,14 +352,17 @@ run_target(
   depends: install_web_deps,
 )
 
-test(
-  'check-html-references',
-  python3_prog,
-  args: [
-    check_html_references_prog.full_path(),
-    '--webroot',
-    meson.project_build_root() / 'docs'
-  ],
-  env: runutf8,
-  suite: 'script'
-)
+if tests_enabled[0]
+  test(
+    'check-html-references',
+    python3_prog,
+    args: [
+      check_html_references_prog.full_path(),
+      '--webroot',
+      meson.project_build_root() / 'docs'
+    ],
+    depends: install_web_deps,
+    env: runutf8,
+    suite: 'script'
+  )
+endif

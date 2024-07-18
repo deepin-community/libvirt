@@ -1,29 +1,32 @@
 path:ABS_BUILDDIR/virstoragedata/wrap
 backingStoreRaw: ABS_BUILDDIR/virstoragedata/qcow2
+backingStoreRawFormat: qcow2(14)
 capacity: 1024
 encryption: 0
 relPath:<null>
-type:1
-format:14
+type:file
+format:qcow2
 protocol:none
 hostname:<null>
 
 path:ABS_BUILDDIR/virstoragedata/qcow2
 backingStoreRaw: ABS_BUILDDIR/virstoragedata/raw
+backingStoreRawFormat: raw(1)
 capacity: 1024
 encryption: 0
 relPath:<null>
-type:1
-format:14
+type:file
+format:qcow2
 protocol:none
 hostname:<null>
 
 path:ABS_BUILDDIR/virstoragedata/raw
 backingStoreRaw: <null>
+backingStoreRawFormat: none(0)
 capacity: 0
 encryption: 0
 relPath:<null>
-type:1
-format:1
+type:file
+format:raw
 protocol:none
 hostname:<null>

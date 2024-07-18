@@ -31,6 +31,7 @@
 #include "qemu_domain.h"
 #include "qemu_migration_cookie.h"
 #include "qemu_migration_params.h"
+#include "qemu_block.h"
 
 
 #define VIR_FROM_THIS VIR_FROM_QEMU
@@ -507,7 +508,7 @@ qemuMigrationCookieAddNBD(qemuMigrationCookie *mig,
         virDomainDiskDef *disk = vm->def->disks[i];
         qemuBlockStats *entry;
 
-        if (!(entry = virHashLookup(stats, disk->src->nodeformat)))
+        if (!(entry = virHashLookup(stats, qemuBlockStorageSourceGetEffectiveNodename(disk->src))))
             continue;
 
         mig->nbd->disks[mig->nbd->ndisks].target = g_strdup(disk->dst);
@@ -539,12 +540,15 @@ static int
 qemuMigrationCookieAddCPU(qemuMigrationCookie *mig,
                           virDomainObj *vm)
 {
+    qemuDomainObjPrivate *priv = vm->privateData;
+
     if (mig->cpu)
         return 0;
 
     mig->cpu = virCPUDefCopy(vm->def->cpu);
 
-    if (qemuDomainMakeCPUMigratable(mig->cpu) < 0)
+    if (qemuDomainMakeCPUMigratable(vm->def->os.arch, mig->cpu,
+                                    priv->origCPU) < 0)
         return -1;
 
     mig->flags |= QEMU_MIGRATION_COOKIE_CPU;
@@ -946,11 +950,8 @@ qemuMigrationCookieNetworkXMLParse(xmlXPathContextPtr ctxt)
     g_autofree xmlNodePtr *interfaces = NULL;
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
 
-    if ((n = virXPathNodeSet("./network/interface", ctxt, &interfaces)) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       "%s", _("missing interface information"));
+    if ((n = virXPathNodeSet("./network/interface", ctxt, &interfaces)) < 0)
         return NULL;
-    }
 
     optr->nnets = n;
     optr->net = g_new0(qemuMigrationCookieNetData, optr->nnets);
@@ -1572,7 +1573,7 @@ qemuMigrationCookieBlockDirtyBitmapsMatchDisks(virDomainDef *def,
             return -1;
         }
 
-        disk->nodename = disk->disk->src->nodeformat;
+        disk->nodename = qemuBlockStorageSourceGetEffectiveNodename(disk->disk->src);
     }
 
     return 0;

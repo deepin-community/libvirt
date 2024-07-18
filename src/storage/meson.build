@@ -111,8 +111,13 @@ if conf.has('WITH_STORAGE')
 
   virt_daemon_units += {
     'service': 'virtstoraged',
-    'service_in': files('virtstoraged.service.in'),
-    'name': 'Libvirt storage',
+    'name': 'storage',
+    'service_extra_in': [
+      files('virtstoraged.service.extra.in'),
+    ],
+    'socket_extra_in': [
+      files('virtstoraged.socket.extra.in'),
+    ],
   }
 
   openrc_init_files += {

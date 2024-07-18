@@ -91,6 +91,8 @@ typedef enum {
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_AP_MATRIX     = 1 << 20, /* s390 AP Matrix (Since: 7.0.0) */
     VIR_CONNECT_LIST_NODE_DEVICES_CAP_VPD           = 1 << 21, /* Device with VPD (Since: 7.9.0) */
 
+    VIR_CONNECT_LIST_NODE_DEVICES_PERSISTENT        = 1 << 28, /* Persisted devices (Since: 10.1.0) */
+    VIR_CONNECT_LIST_NODE_DEVICES_TRANSIENT         = 1 << 29, /* Transient devices (Since: 10.1.0) */
     VIR_CONNECT_LIST_NODE_DEVICES_INACTIVE          = 1 << 30, /* Inactive devices (Since: 7.3.0) */
     VIR_CONNECT_LIST_NODE_DEVICES_ACTIVE            = 1U << 31, /* Active devices (Since: 7.3.0) */
 } virConnectListAllNodeDeviceFlags;
@@ -116,6 +118,17 @@ int                     virNodeDeviceNumOfCaps   (virNodeDevicePtr dev);
 int                     virNodeDeviceListCaps    (virNodeDevicePtr dev,
                                                   char **const names,
                                                   int maxnames);
+
+/**
+ * virNodeDeviceXMLFlags:
+ *
+ * Flags used to provide the state of the returned node device configuration.
+ *
+ * Since: 10.1.0
+ */
+typedef enum {
+    VIR_NODE_DEVICE_XML_INACTIVE            = 1 << 0, /* dump inactive device configuration (Since: 10.1.0) */
+} virNodeDeviceXMLFlags;
 
 char *                  virNodeDeviceGetXMLDesc (virNodeDevicePtr dev,
                                                  unsigned int flags);
@@ -174,6 +187,24 @@ int virNodeDeviceGetAutostart(virNodeDevicePtr dev,
 int virNodeDeviceIsPersistent(virNodeDevicePtr dev);
 
 int virNodeDeviceIsActive(virNodeDevicePtr dev);
+
+/**
+ * virNodeDeviceUpdateFlags:
+ *
+ * Flags to control options for virNodeDeviceUpdate()
+ *
+ * Since: 10.1.0
+ */
+typedef enum {
+    VIR_NODE_DEVICE_UPDATE_AFFECT_CURRENT = 0,      /* affect live if node device is active,
+                                                       config if it's not active (Since: 10.1.0) */
+    VIR_NODE_DEVICE_UPDATE_AFFECT_LIVE    = 1 << 0, /* affect live state of node device only (Since: 10.1.0) */
+    VIR_NODE_DEVICE_UPDATE_AFFECT_CONFIG  = 1 << 1, /* affect persistent config only (Since: 10.1.0) */
+} virNodeDeviceUpdateFlags;
+
+int virNodeDeviceUpdate(virNodeDevicePtr dev,
+                        const char *xmlDesc,
+                        unsigned int flags);
 
 /**
  * VIR_NODE_DEVICE_EVENT_CALLBACK:

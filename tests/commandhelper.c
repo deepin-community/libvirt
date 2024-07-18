@@ -129,7 +129,9 @@ static void printArguments(FILE *log, int argc, char** argv)
     }
 }
 
-static int envsort(const void *a, const void *b)
+static int envsort(const void *a,
+                   const void *b,
+                   void *opaque G_GNUC_UNUSED)
 {
     const char *astr = *(const char**)a;
     const char *bstr = *(const char**)b;
@@ -165,13 +167,16 @@ static int printEnvironment(FILE *log)
         newenv[i] = environ[i];
     }
 
-    qsort(newenv, length, sizeof(newenv[0]), envsort);
+    g_qsort_with_data(newenv, length, sizeof(newenv[0]), envsort, NULL);
 
     for (i = 0; i < length; i++) {
         /* Ignore the variables used to instruct the loader into
-         * behaving differently, as they could throw the tests off. */
-        if (!STRPREFIX(newenv[i], "LD_"))
+         * behaving differently, as they could throw the tests off.
+         * Also ignore __CF_USER_TEXT_ENCODING, which is set by macOS. */
+        if (!STRPREFIX(newenv[i], "LD_") &&
+            !STRPREFIX(newenv[i], "__CF_USER_TEXT_ENCODING=")) {
             fprintf(log, "ENV:%s\n", newenv[i]);
+        }
     }
 
     return 0;

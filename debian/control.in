@@ -1,0 +1,565 @@
+Source: libvirt
+Section: libs
+Priority: optional
+Maintainer: Debian Libvirt Maintainers <pkg-libvirt-maintainers@lists.alioth.debian.org>
+Uploaders:
+ Guido Günther <agx@sigxcpu.org>,
+ Andrea Bolognani <eof@kiyuko.org>,
+Build-Depends:
+ augeas-tools [linux-any],
+ bash-completion,
+ debhelper-compat (= 13),
+ dh-apparmor [linux-any],
+ kmod [linux-any],
+ libacl1-dev [linux-any],
+ libapparmor-dev (>= 3.0.0) [linux-any],
+ libattr1-dev [linux-any],
+ libaudit-dev [linux-any],
+ libblkid-dev [linux-any],
+ libc-dev (>= 2.31-14~),
+ libcap-ng-dev [linux-any],
+ libcurl4-gnutls-dev [linux-any],
+ libdevmapper-dev [linux-any],
+ libfuse3-dev [linux-any],
+ libglib2.0-dev,
+ libglusterfs-dev [${ARCHES_GLUSTER}],
+ libgnutls28-dev,
+ libiscsi-dev [linux-any],
+ libnl-3-dev [linux-any],
+ libnl-route-3-dev [linux-any],
+ libnuma-dev [linux-any],
+ libparted-dev [linux-any],
+ libpcap0.8-dev [linux-any],
+ libpciaccess-dev [linux-any],
+ librados-dev [${ARCHES_CEPH}],
+ librbd-dev [${ARCHES_CEPH}],
+ libreadline-dev,
+ libsanlock-dev [linux-any],
+ libsasl2-dev,
+ libselinux1-dev [linux-any],
+ libssh-dev,
+ libssh2-1-dev,
+ libtasn1-6-dev,
+ libtirpc-dev,
+ libudev-dev [linux-any],
+ libwireshark-dev [linux-any],
+ libxen-dev [${ARCHES_XEN}],
+ libxml2-dev,
+ libxml2-utils,
+ libyajl-dev [linux-any],
+ lvm2 [linux-any],
+ meson,
+ mount [linux-any],
+ nfs-common:native [linux-any],
+ numad:native [linux-any],
+ open-iscsi [linux-any],
+ po-debconf,
+ python3-docutils,
+ python3:native,
+ qemu-utils [${ARCHES_QEMU}],
+ systemtap-sdt-dev [linux-any],
+ xsltproc,
+Vcs-Git: https://salsa.debian.org/libvirt-team/libvirt.git
+Vcs-Browser: https://salsa.debian.org/libvirt-team/libvirt
+Homepage: https://libvirt.org/
+Standards-Version: 4.6.2
+Rules-Requires-Root: no
+
+Package: libvirt-clients
+Section: admin
+Architecture: any
+Depends:
+ libvirt0 (= ${binary:Version}),
+ sensible-utils,
+ ${misc:Depends},
+ ${shlibs:Depends},
+Suggests:
+ libvirt-clients-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
+ libvirt-daemon (= ${binary:Version}),
+ libvirt-login-shell (= ${binary:Version}) [${ARCHES_LXC}],
+Breaks:
+ libvirt-daemon (<< 6.9.0-2~),
+ libvirt-daemon-driver-qemu (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon (<< 6.9.0-2~),
+Description: Programs for the libvirt library
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirt shell virsh and other client binaries.
+
+Package: libvirt-clients-qemu
+Section: admin
+Architecture: all
+Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ python3-cryptography,
+ python3-libvirt,
+ python3-lxml,
+ python3:any,
+ ${misc:Depends},
+Description: Programs for the libvirt library (QEMU specific)
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the QEMU-specific client binaries.
+
+Package: libvirt-login-shell
+Section: admin
+Architecture: ${ARCHES_LXC}
+Depends:
+ libvirt-clients (= ${binary:Version}),
+ libvirt-daemon-driver-lxc (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-clients (<< 6.9.0-2~),
+Replaces:
+ libvirt-clients (<< 6.9.0-2~),
+Description: Isolate user sessions using LXC containers
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the virt-login-shell tool, which can be set as a user's
+ login shell to isolate their sessions using LXC containers.
+
+Package: libvirt-daemon
+Section: admin
+Architecture: linux-any
+Depends:
+ libvirt-daemon-driver-qemu (= ${binary:Version}) [${ARCHES_QEMU}],
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Recommends:
+ libvirt-daemon-driver-lxc (= ${binary:Version}) [${ARCHES_LXC}],
+ libvirt-daemon-driver-vbox (= ${binary:Version}) [${ARCHES_VBOX}],
+ libvirt-daemon-driver-xen (= ${binary:Version}) [${ARCHES_XEN}],
+ libxml2-utils,
+ lvm2,
+ mount,
+ netcat-openbsd,
+ qemu-kvm | qemu-system,
+Suggests:
+ libvirt-daemon-driver-storage-gluster (= ${binary:Version}) [${ARCHES_GLUSTER}],
+ libvirt-daemon-driver-storage-iscsi-direct (= ${binary:Version}),
+ libvirt-daemon-driver-storage-rbd (= ${binary:Version}) [${ARCHES_CEPH}],
+ libvirt-daemon-driver-storage-zfs (= ${binary:Version}),
+ libvirt-daemon-system (= ${binary:Version}),
+ numad,
+Enhances:
+ qemu-kvm,
+ qemu-system,
+ xen,
+Breaks:
+ libvirt-clients (<< 6.9.0-2~),
+ libvirt-daemon-driver-lxc (<< 6.9.0-2~),
+ libvirt-daemon-system (<< 6.9.0-3~),
+ libvirt-sanlock (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon-system (<< 6.9.0-3~),
+Description: Virtualization daemon
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the daemon libvirtd to manage the hypervisors.
+
+Package: libvirt-daemon-driver-qemu
+Section: admin
+Architecture: ${ARCHES_QEMU}
+Multi-Arch: no
+Depends:
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-clients (<< 6.9.0-2~),
+Replaces:
+ libvirt-clients (<< 6.9.0-2~),
+Recommends:
+ passt,
+ swtpm,
+ swtpm-tools,
+Description: Virtualization daemon QEMU connection driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd connection driver for QEMU.
+
+Package: libvirt-daemon-driver-lxc
+Section: admin
+Architecture: ${ARCHES_LXC}
+Multi-Arch: no
+Depends:
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-daemon (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon (<< 6.9.0-2~),
+Description: Virtualization daemon LXC connection driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd connection driver for LXC.
+
+Package: libvirt-daemon-driver-vbox
+Section: admin
+Architecture: ${ARCHES_VBOX}
+Multi-Arch: no
+Depends:
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Virtualization daemon VirtualBox connection driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd connection driver for VirtualBox.
+
+Package: libvirt-daemon-driver-xen
+Section: admin
+Architecture: ${ARCHES_XEN}
+Multi-Arch: no
+Depends:
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Virtualization daemon Xen connection driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd connection driver for Xen.
+
+Package: libvirt-daemon-driver-storage-gluster
+Section: admin
+Architecture: ${ARCHES_GLUSTER}
+Multi-Arch: no
+Depends:
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Virtualization daemon glusterfs storage driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd storage driver for GlusterFS.
+
+Package: libvirt-daemon-driver-storage-iscsi-direct
+Section: admin
+Architecture: linux-any
+Multi-Arch: no
+Depends:
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Recommends:
+ qemu-block-extra,
+Description: Virtualization daemon iSCSI (libiscsi) storage driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains a libvirtd storage driver for iSCSI volumes implemented
+ using libiscsi.
+
+Package: libvirt-daemon-driver-storage-rbd
+Section: admin
+Architecture: ${ARCHES_CEPH}
+Multi-Arch: no
+Depends:
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Virtualization daemon RBD storage driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd storage driver for RBD/Rados/Ceph.
+
+Package: libvirt-daemon-driver-storage-zfs
+Section: admin
+Architecture: linux-any
+Multi-Arch: no
+Depends:
+ libvirt-daemon (= ${binary:Version}),
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Virtualization daemon ZFS storage driver
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the libvirtd storage driver for ZFS.
+
+Package: libvirt-daemon-system
+Section: admin
+Architecture: linux-any
+Depends:
+ adduser,
+ gettext-base,
+ iptables | firewalld,
+ libvirt-clients (= ${binary:Version}),
+ libvirt-daemon (= ${binary:Version}),
+ libvirt-daemon-config-network (= ${source:Version}),
+ libvirt-daemon-config-nwfilter (= ${source:Version}),
+ libvirt-daemon-system-systemd (= ${source:Version}) | libvirt-daemon-system-sysv (= ${source:Version}),
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ logrotate,
+ polkitd (>= 121+compat0.1-2),
+ ${misc:Depends},
+Recommends:
+ dmidecode,
+ dnsmasq-base,
+ iproute2,
+ mdevctl,
+ parted,
+Suggests:
+ apparmor,
+ auditd,
+ nfs-common,
+ open-iscsi,
+ pm-utils,
+ systemd,
+ systemtap,
+ zfsutils,
+Description: Libvirt daemon configuration files
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the configuration files to run the libvirt daemon as a
+ system service.
+
+Package: libvirt-daemon-system-systemd
+Section: admin
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ systemd-container,
+ systemd-sysv,
+ ${misc:Depends},
+Conflicts:
+ libvirt-daemon-system-sysv,
+Description: Libvirt daemon configuration files (systemd)
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the dependencies to make libvirt work with systemd.
+ (this is the default). This package is useless without the
+ libvirt-daemon-system package installed.
+
+Package: libvirt-daemon-system-sysv
+Section: admin
+Architecture: all
+Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ ${misc:Depends},
+Description: Libvirt daemon configuration files (sysv)
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains dependencies and init scripts to make libvirt work with
+ sysv based init systems. Using libvirt-daemon-systemd is preferred since the
+ init scripts are incomplete.
+ .
+ This package is useless without the libvirt-daemon-system package installed.
+
+Package: libvirt-daemon-config-network
+Section: admin
+Architecture: all
+Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ ${misc:Depends},
+Breaks:
+ libvirt-daemon-system (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon-system (<< 6.9.0-2~),
+Description: Libvirt daemon configuration files (default network)
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the configuration for the 'default' libvirt network.
+
+Package: libvirt-daemon-config-nwfilter
+Section: admin
+Architecture: all
+Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ ${misc:Depends},
+Breaks:
+ libvirt-daemon-system (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon-system (<< 6.9.0-2~),
+Description: Libvirt daemon configuration files (default network filters)
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the configuration for the default set of nwfilters.
+
+Package: libvirt0
+Architecture: any
+Multi-Arch: same
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Recommends:
+ libvirt-l10n (= ${binary:Version}),
+Description: library for interfacing with different virtualization systems
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+
+Package: libvirt-l10n
+Section: localization
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ libvirt0 (<< ${source:Version}.1~),
+ libvirt0 (>= ${source:Version}),
+ ${misc:Depends},
+Breaks:
+ libvirt0 (<< 8.10.0-2~),
+Replaces:
+ libvirt0 (<< 8.10.0-2~),
+Description: localization for the libvirt library
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the localization files.
+
+Package: libvirt-doc
+Section: doc
+Architecture: all
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+Description: documentation for the libvirt library
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the documentation.
+
+Package: libvirt-dev
+Section: libdevel
+Architecture: any
+Multi-Arch: same
+Depends:
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+Recommends:
+ pkgconf,
+Description: development files for the libvirt library
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the header files and static libraries which are
+ needed for developing the applications with libvirt.
+
+Package: libvirt-sanlock
+Section: admin
+Architecture: linux-any
+Depends:
+ augeas-tools,
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks:
+ libvirt-daemon (<< 6.9.0-2~),
+Replaces:
+ libvirt-daemon (<< 6.9.0-2~),
+Description: Sanlock plugin for virtlockd
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the sanlock plugin for libvirt's locking daemon.
+
+Package: libnss-libvirt
+Section: admin
+Architecture: linux-any
+Multi-Arch: same
+Depends:
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: nss plugins providing IP address resolution for virtual machines
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains two nss plugins for IP address resolution of libvirt
+ managed virtual machines: the 'libvirt_guest' plugin uses libvirt's domain
+ names while the 'libvirt' plugin looks at the guest's hostname.
+
+Package: libvirt-wireshark
+Section: admin
+Architecture: linux-any
+Multi-Arch: same
+Depends:
+ libvirt0 (= ${binary:Version}),
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: Wireshark dissector for the libvirt protocol
+ Libvirt is a C toolkit to interact with the virtualization capabilities
+ of recent versions of Linux (and other OSes). The library aims at providing
+ a long term stable C API for different virtualization mechanisms. It currently
+ supports QEMU, KVM, XEN, OpenVZ, LXC, and VirtualBox.
+ .
+ This package contains the wireshark dissector.

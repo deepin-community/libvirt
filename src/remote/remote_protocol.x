@@ -2237,6 +2237,12 @@ struct remote_node_device_is_active_ret {
     int active;
 };
 
+struct remote_node_device_update_args {
+    remote_nonnull_string name;
+    remote_nonnull_string xml_desc;
+    unsigned int flags;
+};
+
 
 /*
  * Events Register/Deregister:
@@ -3948,6 +3954,11 @@ struct remote_domain_start_dirty_rate_calc_args {
     unsigned int flags;
 };
 
+struct remote_domain_graphics_reload_args {
+    remote_nonnull_domain dom;
+    unsigned int type;
+    unsigned int flags;
+};
 
 struct remote_domain_event_memory_device_size_change_msg {
     int callbackID;
@@ -6897,6 +6908,7 @@ enum remote_procedure {
     /**
      * @generate: both
      * @acl: node_device:write
+     * @acl: node_device:save
      */
     REMOTE_PROC_NODE_DEVICE_DEFINE_XML = 428,
 
@@ -7021,5 +7033,20 @@ enum remote_procedure {
      * @generate: both
      * @acl: none
      */
-    REMOTE_PROC_NETWORK_EVENT_CALLBACK_METADATA_CHANGE = 446
+    REMOTE_PROC_NETWORK_EVENT_CALLBACK_METADATA_CHANGE = 446,
+
+    /**
+     * @generate: both
+     * @priority: high
+     * @acl: node_device:write
+     * @acl: node_device:save:!VIR_NODE_DEVICE_UPDATE_AFFECT_CONFIG|VIR_NODE_DEVICE_UPDATE_AFFECT_LIVE
+     * @acl: node_device:save:VIR_NODE_DEVICE_UPDATE_AFFECT_CONFIG
+     */
+    REMOTE_PROC_NODE_DEVICE_UPDATE = 447,
+
+    /**
+     * @generate: both
+     * @acl: domain:write
+     */
+    REMOTE_PROC_DOMAIN_GRAPHICS_RELOAD = 448
 };

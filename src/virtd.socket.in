@@ -1,0 +1,15 @@
+[Unit]
+Description=libvirt @name@ daemon socket
+Conflicts=libvirtd.socket
+After=libvirtd.socket
+
+[Socket]
+ListenStream=@runstatedir@/libvirt/@sockprefix@-sock
+Service=@service@.service
+SocketMode=@sockmode@
+RemoveOnStop=yes
+
+[Install]
+WantedBy=sockets.target
+Also=@service@-ro.socket
+Also=@service@-admin.socket

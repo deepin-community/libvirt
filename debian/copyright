@@ -4,14 +4,19 @@ Source: https://libvirt.org/git/?p=libvirt.git
 Comment: in addition see the upstream maintainer AUTHORS file
 
 Files: *
-Copyright: 2005-2023 Red Hat, Inc
+Copyright: 2005-2024 Red Hat, Inc
 License: LGPL-2.1+
 Comment: Among many source files this also includes many generated, test-data or binary files
 
 Files: build-aux/syntax-check.mk
 Copyright: 2008-2019 Red Hat, Inc.
-           2001-2022 Free Software Foundation, Inc.
+           2001-2024 Free Software Foundation, Inc.
 License: GPL-3.0+
+
+Files: src/ch/ch_capabilities.*
+       src/ch/ch_interface.*
+Copyright: 2023 Microsoft Corp.
+License: LGPL-2.1+
 
 Files: src/conf/*
 Copyright: 2005-2019 Red Hat, Inc
@@ -20,6 +25,10 @@ License: LGPL-2.1+
 
 Files: src/conf/domain_validate.*
 Copyright: 2020 IBM Corp.
+License: LGPL-2.1+
+
+Files: src/cpu/cpu_loongarch.*
+Copyright: 2024 Loongson Technology.
 License: LGPL-2.1+
 
 Files: src/cpu/cpu_riscv64.*
@@ -63,15 +72,6 @@ Copyright: 2020-2021 Microsoft Corp.
 License: LGPL-2.1+
 
 Files: tests/pkix_asn1_tab.c
-       tests/virsh-cpuset
-       tests/virsh-optparse
-       tests/virsh-read-bufsiz
-       tests/virsh-read-non-seekable
-       tests/virsh-schedinfo
-       tests/virsh-self-test
-       tests/virsh-start
-       tests/virsh-undefine
-       tests/virsh-vcpupin
 Copyright: 2008-2019 Red Hat, Inc.
 License: GPL-2.0+
 
