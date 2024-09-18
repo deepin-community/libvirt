@@ -798,7 +798,13 @@ qemuDomainDiskPrivateDispose(void *obj)
     virObjectUnref(priv->migrSource);
     g_free(priv->qomName);
     g_free(priv->nodeCopyOnRead);
-    virObjectUnref(priv->blockjob);
+    if (priv->blockjob) {
+        /* Prevent dangling 'disk' pointer, as the disk object will be freed
+         * right after this function returns if any of the blockjob instance
+         * outlives this for any reason. */
+        priv->blockjob->disk = NULL;
+        virObjectUnref(priv->blockjob);
+    }
 }
 
 static virClass *qemuDomainStorageSourcePrivateClass;
@@ -1867,6 +1873,8 @@ qemuDomainObjPrivateDataClear(qemuDomainObjPrivate *priv)
     virHashRemoveAll(priv->statsSchema);
 
     g_slist_free_full(g_steal_pointer(&priv->threadContextAliases), g_free);
+
+    priv->migrationRecoverSetup = false;
 }
 
 
@@ -1882,6 +1890,11 @@ qemuDomainObjPrivateFree(void *data)
     g_free(priv->origname);
 
     virChrdevFree(priv->devs);
+
+    if (priv->pidMonitored >= 0) {
+        virEventRemoveHandle(priv->pidMonitored);
+        priv->pidMonitored = -1;
+    }
 
     /* This should never be non-NULL if we get here, but just in case... */
     if (priv->mon) {
@@ -1927,6 +1940,8 @@ qemuDomainObjPrivateAlloc(void *opaque)
 
     priv->blockjobs = virHashNew(virObjectUnref);
     priv->fds = virHashNew(g_object_unref);
+
+    priv->pidMonitored = -1;
 
     /* agent commands block by default, user can choose different behavior */
     priv->agentTimeout = VIR_DOMAIN_AGENT_RESPONSE_TIMEOUT_BLOCK;
@@ -3910,9 +3925,11 @@ virXMLNamespace virQEMUDriverDomainXMLNamespace = {
 
 
 static int
-qemuDomainDefAddImplicitInputDevice(virDomainDef *def)
+qemuDomainDefAddImplicitInputDevice(virDomainDef *def,
+                                    virQEMUCaps *qemuCaps)
 {
-    if (ARCH_IS_X86(def->os.arch)) {
+    if (virQEMUCapsSupportsI8042(qemuCaps, def) &&
+        def->features[VIR_DOMAIN_FEATURE_PS2] != VIR_TRISTATE_SWITCH_OFF) {
         if (virDomainDefMaybeAddInput(def,
                                       VIR_DOMAIN_INPUT_TYPE_MOUSE,
                                       VIR_DOMAIN_INPUT_BUS_PS2) < 0)
@@ -4151,7 +4168,7 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
     bool addITCOWatchdog = false;
 
     /* add implicit input devices */
-    if (qemuDomainDefAddImplicitInputDevice(def) < 0)
+    if (qemuDomainDefAddImplicitInputDevice(def, qemuCaps) < 0)
         return -1;
 
     /* Add implicit PCI root controller if the machine has one */
@@ -5007,6 +5024,53 @@ qemuDomainDefPostParseBasic(virDomainDef *def,
 }
 
 
+/**
+ * qemuDomainDefACPIPostParse:
+ * @def: domain definition
+ * @qemuCaps: qemu capabilities object
+ *
+ * Fixup the use of ACPI flag on certain architectures that never supported it
+ * and users for some reason used it, which would break migration to newer
+ * libvirt versions which check whether given machine type supports ACPI.
+ *
+ * The fixup is done in post-parse as it's hard to update the ABI stability
+ * check on source of the migration.
+ */
+static void
+qemuDomainDefACPIPostParse(virDomainDef *def,
+                           virQEMUCaps *qemuCaps,
+                           unsigned int parseFlags)
+{
+    /* Only cases when ACPI is enabled need to be fixed up */
+    if (def->features[VIR_DOMAIN_FEATURE_ACPI] != VIR_TRISTATE_SWITCH_ON)
+        return;
+
+    /* Strip the <acpi/> feature only for non-fresh configs, in order to still
+     * produce an error if the feature is present in a newly defined one.
+     *
+     * The use of the VIR_DOMAIN_DEF_PARSE_ABI_UPDATE looks counter-intuitive,
+     * but it's used only in qemuDomainCreateXML/qemuDomainDefineXMLFlags APIs
+     * */
+    if (parseFlags & VIR_DOMAIN_DEF_PARSE_ABI_UPDATE)
+        return;
+
+    /* This fixup is applicable _only_ on architectures which were present as of
+     * libvirt-9.2 and *never* supported ACPI. The fixup is currently done only
+     * for existing users of s390(x) to fix migration for configs which had
+     * <acpi/> despite being ignored.
+     */
+    if (def->os.arch != VIR_ARCH_S390 &&
+        def->os.arch != VIR_ARCH_S390X)
+        return;
+
+    /* To be sure, we only strip ACPI if given machine type doesn't support it */
+    if (virQEMUCapsMachineSupportsACPI(qemuCaps, def->virtType, def->os.machine) != VIR_TRISTATE_BOOL_NO)
+        return;
+
+    def->features[VIR_DOMAIN_FEATURE_ACPI] = VIR_TRISTATE_SWITCH_ABSENT;
+}
+
+
 static int
 qemuDomainDefPostParse(virDomainDef *def,
                        unsigned int parseFlags,
@@ -5026,6 +5090,8 @@ qemuDomainDefPostParse(virDomainDef *def,
 
     if (qemuDomainDefMachinePostParse(def, qemuCaps) < 0)
         return -1;
+
+    qemuDomainDefACPIPostParse(def, qemuCaps, parseFlags);
 
     if (qemuDomainDefBootPostParse(def, driver, parseFlags) < 0)
         return -1;
@@ -5969,12 +6035,25 @@ qemuDomainDeviceNetDefPostParse(virDomainNetDef *net,
                                 virQEMUCaps *qemuCaps)
 {
     if (net->type == VIR_DOMAIN_NET_TYPE_VDPA &&
-        !virDomainNetGetModelString(net))
+        !virDomainNetGetModelString(net)) {
         net->model = VIR_DOMAIN_NET_MODEL_VIRTIO;
-    else if (net->type != VIR_DOMAIN_NET_TYPE_HOSTDEV &&
+    } else if (net->type != VIR_DOMAIN_NET_TYPE_HOSTDEV &&
         !virDomainNetGetModelString(net) &&
-        virDomainNetResolveActualType(net) != VIR_DOMAIN_NET_TYPE_HOSTDEV)
+        virDomainNetResolveActualType(net) != VIR_DOMAIN_NET_TYPE_HOSTDEV) {
         net->model = qemuDomainDefaultNetModel(def, qemuCaps);
+    }
+
+    if (net->type == VIR_DOMAIN_NET_TYPE_USER &&
+        net->backend.type == VIR_DOMAIN_NET_BACKEND_DEFAULT) {
+        virDomainCapsDeviceNet netCaps = { };
+
+        virQEMUCapsFillDomainDeviceNetCaps(qemuCaps, &netCaps);
+
+        if (!VIR_DOMAIN_CAPS_ENUM_IS_SET(netCaps.backendType, VIR_DOMAIN_NET_BACKEND_DEFAULT) &&
+            VIR_DOMAIN_CAPS_ENUM_IS_SET(netCaps.backendType, VIR_DOMAIN_NET_BACKEND_PASST)) {
+            net->backend.type = VIR_DOMAIN_NET_BACKEND_PASST;
+        }
+    }
 
     return 0;
 }
@@ -6180,12 +6259,15 @@ qemuDomainTPMDefPostParse(virDomainTPMDef *tpm,
     /* TPM 1.2 and 2 are not compatible, so we choose a specific version here */
     if (tpm->type == VIR_DOMAIN_TPM_TYPE_EMULATOR &&
         tpm->data.emulator.version == VIR_DOMAIN_TPM_VERSION_DEFAULT) {
-        if (tpm->model == VIR_DOMAIN_TPM_MODEL_SPAPR ||
-            tpm->model == VIR_DOMAIN_TPM_MODEL_CRB ||
-            qemuDomainIsARMVirt(def))
-            tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_2_0;
-        else
+        /* tpm-tis on x86 defaults to TPM 1.2 to preserve the
+         * historical behavior, but in all other scenarios we want
+         * TPM 2.0 instead */
+        if (tpm->model == VIR_DOMAIN_TPM_MODEL_TIS &&
+            ARCH_IS_X86(def->os.arch)) {
             tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_1_2;
+        } else {
+            tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_2_0;
+        }
     }
 
     return 0;
@@ -6261,6 +6343,28 @@ qemuDomainMemoryDefPostParse(virDomainMemoryDef *mem, virArch arch,
 
 
 static int
+qemuDomainPstoreDefPostParse(virDomainPstoreDef *pstore,
+                             const virDomainDef *def,
+                             virQEMUDriver *driver)
+{
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(driver);
+
+    switch (pstore->backend) {
+    case VIR_DOMAIN_PSTORE_BACKEND_ACPI_ERST:
+        if (!pstore->path)
+            pstore->path = g_strdup_printf("%s/%s_PSTORE.raw",
+                                           cfg->nvramDir, def->name);
+        break;
+
+    case VIR_DOMAIN_PSTORE_BACKEND_LAST:
+        break;
+    }
+
+    return 0;
+}
+
+
+static int
 qemuDomainDeviceDefPostParse(virDomainDeviceDef *dev,
                              const virDomainDef *def,
                              unsigned int parseFlags,
@@ -6319,6 +6423,10 @@ qemuDomainDeviceDefPostParse(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_MEMORY:
         ret = qemuDomainMemoryDefPostParse(dev->data.memory, def->os.arch,
                                            parseFlags);
+        break;
+
+    case VIR_DOMAIN_DEVICE_PSTORE:
+        ret = qemuDomainPstoreDefPostParse(dev->data.pstore, def, driver);
         break;
 
     case VIR_DOMAIN_DEVICE_LEASE:
@@ -8450,6 +8558,7 @@ qemuDomainDiskChangeSupported(virDomainDiskDef *disk,
     CHECK_EQ(ioeventfd, "ioeventfd", true);
     CHECK_EQ(event_idx, "event_idx", true);
     CHECK_EQ(copy_on_read, "copy_on_read", true);
+    CHECK_EQ(discard_no_unref, "discard_no_unref", true);
     /* "snapshot" is a libvirt internal field and thus can be changed */
     /* startupPolicy is allowed to be updated. Therefore not checked here. */
     CHECK_EQ(transient, "transient", true);
@@ -8936,8 +9045,9 @@ qemuFindAgentConfig(virDomainDef *def)
     return NULL;
 }
 
-
-static bool
+/* You should normally avoid this function and use
+ * qemuDomainIsQ35() instead. */
+bool
 qemuDomainMachineIsQ35(const char *machine,
                        const virArch arch)
 {
@@ -8953,7 +9063,9 @@ qemuDomainMachineIsQ35(const char *machine,
 }
 
 
-static bool
+/* You should normally avoid this function and use
+ * qemuDomainIsI440FX() instead. */
+bool
 qemuDomainMachineIsI440FX(const char *machine,
                           const virArch arch)
 {
@@ -9072,6 +9184,24 @@ qemuDomainMachineIsMipsMalta(const char *machine,
 
 
 /* You should normally avoid this function and use
+ * qemuDomainIsXenFV() instead. */
+bool
+qemuDomainMachineIsXenFV(const char *machine,
+                         const virArch arch)
+{
+    if (!ARCH_IS_X86(arch))
+        return false;
+
+    if (STREQ(machine, "xenfv") ||
+        STRPREFIX(machine, "xenfv-")) {
+        return true;
+    }
+
+    return false;
+}
+
+
+/* You should normally avoid this function and use
  * qemuDomainHasBuiltinIDE() instead. */
 bool
 qemuDomainMachineHasBuiltinIDE(const char *machine,
@@ -9154,6 +9284,12 @@ bool
 qemuDomainIsLoongArchVirt(const virDomainDef *def)
 {
     return qemuDomainMachineIsLoongArchVirt(def->os.machine, def->os.arch);
+}
+
+bool
+qemuDomainIsXenFV(const virDomainDef *def)
+{
+    return qemuDomainMachineIsXenFV(def->os.machine, def->os.arch);
 }
 
 
@@ -10337,6 +10473,7 @@ qemuDomainPrepareChardevSourceOne(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
         break;
     }
 
@@ -11657,6 +11794,7 @@ qemuProcessEventFree(struct qemuProcessEvent *event)
     case QEMU_PROCESS_EVENT_RESET:
     case QEMU_PROCESS_EVENT_NBDKIT_EXITED:
     case QEMU_PROCESS_EVENT_MONITOR_EOF:
+    case QEMU_PROCESS_EVENT_SHUTDOWN_COMPLETED:
     case QEMU_PROCESS_EVENT_LAST:
         break;
     }
@@ -12267,6 +12405,7 @@ qemuDomainDeviceBackendChardevForeachOne(virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
         /* no chardev backend */
         break;
     }
@@ -12293,7 +12432,7 @@ qemuDomainDeviceBackendChardevIter(virDomainDef *def G_GNUC_UNUSED,
 
 
 /**
- * qemuDomainDeviceBackendChardevForeach:a
+ * qemuDomainDeviceBackendChardevForeach:
  * @def: domain definition
  * @cb: callback
  * @opqaue: data for @cb
@@ -12359,6 +12498,18 @@ qemuDomainRemoveLogs(virQEMUDriver *driver,
 }
 
 
+/**
+ * qemuDomainObjWait:
+ * @vm: domain object
+ *
+ * Wait for a signal on the main domain condition. Take into account internal
+ * qemu state in addition to what virDomainObjWait checks. Code in the qemu
+ * driver must use this function exclusively instead of virDomainObjWait.
+ *
+ * Returns:
+ *  0 on successful wait AND VM is guaranteed to be running
+ *  -1 on failure to wait or VM was terminated while waiting
+ */
 int
 qemuDomainObjWait(virDomainObj *vm)
 {
@@ -12373,6 +12524,24 @@ qemuDomainObjWait(virDomainObj *vm)
     }
 
     return 0;
+}
+
+
+/**
+ * qemuDomainObjIsActive:
+ * @vm: domain object
+ *
+ * Return whether @vm is active. Take qemu-driver specifics into account.
+ */
+bool
+qemuDomainObjIsActive(virDomainObj *vm)
+{
+    qemuDomainObjPrivate *priv = vm->privateData;
+
+    if (priv->beingDestroyed)
+        return false;
+
+    return virDomainObjIsActive(vm);
 }
 
 

@@ -4613,6 +4613,15 @@ typedef enum {
 # define VIR_DOMAIN_JOB_DISK_TEMP_TOTAL "disk_temp_total"
 
 /**
+ * VIR_DOMAIN_JOB_VFIO_DATA_TRANSFERRED:
+ * virDomainGetJobStats field: number of bytes transferred by VFIO devices
+ * in that iteration, as VIR_TYPED_PARAM_ULLONG.
+ *
+ * Since: 10.6.0
+ */
+# define VIR_DOMAIN_JOB_VFIO_DATA_TRANSFERRED "vfio_data_transferred"
+
+/**
  * virConnectDomainEventGenericCallback:
  * @conn: the connection pointer
  * @dom: the domain pointer
@@ -6311,6 +6320,16 @@ int virDomainSetLifecycleAction(virDomainPtr domain,
  * Since: 8.0.0
  */
 # define VIR_DOMAIN_LAUNCH_SECURITY_SEV_POLICY "sev-policy"
+
+/**
+ * VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP_POLICY:
+ *
+ * Macro represents the policy of the SEV-SNP guest,
+ * as VIR_TYPED_PARAM_ULLONG.
+ *
+ * Since: 10.5.0
+ */
+# define VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP_POLICY "sev-snp-policy"
 
 /**
  * VIR_DOMAIN_LAUNCH_SECURITY_SEV_SECRET_HEADER:

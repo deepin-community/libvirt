@@ -1456,6 +1456,9 @@ qemuDomainAttachNetDevice(virQEMUDriver *driver,
         VIR_WARN("Failed to remove network backend for netdev %s",
                  netdev_name);
 
+    qemuFDPassTransferMonitorRollback(netpriv->vdpafd, priv->mon);
+    qemuFDPassDirectTransferMonitorRollback(netpriv->slirpfd, priv->mon);
+
     for (n = netpriv->tapfds; n; n = n->next)
         qemuFDPassDirectTransferMonitorRollback(n->data, priv->mon);
 
@@ -3452,6 +3455,7 @@ qemuDomainAttachDeviceLive(virDomainObj *vm,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("live attach of device '%1$s' is not supported"),
@@ -3681,6 +3685,7 @@ qemuDomainChangeNet(virQEMUDriver *driver,
     bool needVlanUpdate = false;
     bool needIsolatedPortChange = false;
     bool needQueryRxFilter = false;
+    bool isVirtio = false;
     int ret = -1;
     int changeidx = -1;
     g_autoptr(virConnect) conn = NULL;
@@ -3742,7 +3747,9 @@ qemuDomainChangeNet(virQEMUDriver *driver,
         goto cleanup;
     }
 
-    if (virDomainNetIsVirtioModel(olddev) &&
+    isVirtio = virDomainNetIsVirtioModel(olddev);
+
+    if (isVirtio &&
         (olddev->driver.virtio.name != newdev->driver.virtio.name ||
          olddev->driver.virtio.txmode != newdev->driver.virtio.txmode ||
          olddev->driver.virtio.ioeventfd != newdev->driver.virtio.ioeventfd ||
@@ -3769,12 +3776,18 @@ qemuDomainChangeNet(virQEMUDriver *driver,
         goto cleanup;
     }
 
-    if (!!olddev->virtio != !!newdev->virtio ||
-        (olddev->virtio && newdev->virtio &&
-         (olddev->virtio->iommu != newdev->virtio->iommu ||
-          olddev->virtio->ats != newdev->virtio->ats ||
-          olddev->virtio->packed != newdev->virtio->packed ||
-          olddev->virtio->page_per_vq != newdev->virtio->page_per_vq))) {
+    if ((isVirtio &&
+         (!!olddev->virtio != !!newdev->virtio ||
+          (olddev->virtio && newdev->virtio &&
+           (olddev->virtio->iommu != newdev->virtio->iommu ||
+            olddev->virtio->ats != newdev->virtio->ats ||
+            olddev->virtio->packed != newdev->virtio->packed ||
+            olddev->virtio->page_per_vq != newdev->virtio->page_per_vq)))) ||
+        (!isVirtio && newdev->virtio &&
+         (newdev->virtio->iommu != 0 ||
+          newdev->virtio->ats != 0 ||
+          newdev->virtio->packed != 0 ||
+          newdev->virtio->page_per_vq != 0))) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("cannot modify virtio network device driver options"));
            goto cleanup;
@@ -3829,16 +3842,12 @@ qemuDomainChangeNet(virQEMUDriver *driver,
 
     /* device alias is checked already in virDomainDefCompatibleDevice */
 
-    if (newdev->info.rombar == VIR_TRISTATE_SWITCH_ABSENT)
-        newdev->info.rombar = olddev->info.rombar;
     if (olddev->info.rombar != newdev->info.rombar) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("cannot modify network device rom bar setting"));
         goto cleanup;
     }
 
-    if (!newdev->info.romfile)
-        newdev->info.romfile = g_strdup(olddev->info.romfile);
     if (STRNEQ_NULLABLE(olddev->info.romfile, newdev->info.romfile)) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("cannot modify network rom file"));
@@ -3851,8 +3860,6 @@ qemuDomainChangeNet(virQEMUDriver *driver,
         goto cleanup;
     }
 
-    if (newdev->info.romenabled == VIR_TRISTATE_BOOL_ABSENT)
-        newdev->info.romenabled = olddev->info.romenabled;
     if (olddev->info.romenabled != newdev->info.romenabled) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("cannot modify network device rom enabled setting"));
@@ -3937,6 +3944,14 @@ qemuDomainChangeNet(virQEMUDriver *driver,
                 else
                     needBridgeChange = true;
             }
+
+            if (STRNEQ_NULLABLE(olddev->data.network.portgroup,
+                                newdev->data.network.portgroup)) {
+                virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
+                               _("cannot modify network device portgroup attribute"));
+                goto cleanup;
+            }
+
             /* other things handled in common code directly below this switch */
             break;
 
@@ -5265,6 +5280,7 @@ qemuDomainRemoveAuditDevice(virDomainObj *vm,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         /* libvirt doesn't yet support detaching these devices */
         break;
@@ -5369,6 +5385,7 @@ qemuDomainRemoveDevice(virQEMUDriver *driver,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("don't know how to remove a %1$s device"),
@@ -6253,6 +6270,7 @@ qemuDomainDetachDeviceLive(virDomainObj *vm,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("live detach of device '%1$s' is not supported"),
@@ -7242,6 +7260,7 @@ qemuDomainUpdateDeviceLive(virDomainObj *vm,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("live update of device '%1$s' is not supported"),

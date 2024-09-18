@@ -1,3 +1,20 @@
+libvirt (10.6.0-2) experimental; urgency=medium
+
+  The package has been reworked significantly.
+
+  All the various drivers and storage backends come in their own
+  separate binary packages now, which makes it possible to install
+  exactly as many or as few as desired.
+
+  The system-wide configuration for the libvirtd daemon is no longer
+  shipped separately from the daemon itself, as was the case until
+  now. The libvirt-daemon-system package still exists, but it's now
+  simply a convenient way to install the "typical" libvirt
+  deployment consisting of all the components needed to run a
+  QEMU-based hypervisor.
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 24 Aug 2024 11:01:43 +0200
+
 libvirt (9.6.0-1) unstable; urgency=medium
 
   Local overrides for AppArmor abstractions are now expected to

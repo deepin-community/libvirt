@@ -19,13 +19,13 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../libvirt-daemon-system.templates:1001
+#: ../libvirt-daemon-driver-qemu.templates:1001
 msgid "Continue with incorrect libvirt-qemu user/group ID(s)?"
 msgstr "Continuar com o ID(s) de libvirt-qemu user/group incorrecto(s)?"
 
 #. Type: boolean
 #. Description
-#: ../libvirt-daemon-system.templates:1001
+#: ../libvirt-daemon-driver-qemu.templates:1001
 msgid ""
 " The user/group ID (uid/gid) allocated for libvirt-qemu (64055)\n"
 " seems to be taken by another user/group, thus it is not possible\n"
@@ -38,7 +38,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../libvirt-daemon-system.templates:1001
+#: ../libvirt-daemon-driver-qemu.templates:1001
 msgid ""
 " The migration of guests with disk image files shared over NFS\n"
 " requires a static libvirt-qemu user and group ID (uid and gid)\n"
@@ -50,7 +50,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../libvirt-daemon-system.templates:1001
+#: ../libvirt-daemon-driver-qemu.templates:1001
 msgid ""
 " If guest migration over NFS is not required, you can continue\n"
 " the installation."
@@ -60,7 +60,7 @@ msgstr ""
 
 #. Type: boolean
 #. Description
-#: ../libvirt-daemon-system.templates:1001
+#: ../libvirt-daemon-driver-qemu.templates:1001
 msgid ""
 " In order to resolve this problem, do not continue the installation,\n"
 " release the 64055 uid/gid (which might involve permission changes),\n"

@@ -629,6 +629,31 @@ Crypto device capabilities are exposed under the ``crypto`` element. For instanc
 ``backendModel``
    Options for the ``backendModel`` attribute of the ``<crypto><backend/>`` element.
 
+Interface device
+^^^^^^^^^^^^^^^^
+
+Interface device corresponds to `network interface
+<formatdomain.html#network-interfaces>`__ (``<interface/>``) in domain XML.
+
+::
+
+  <domainCapabilities>
+    ...
+    <devices>
+      <interface supported='yes'>
+        <enum name='backendType'>
+          <value>default</value>
+          <value>passt</value>
+        </enum>
+      </interface>
+      ...
+    </devices>
+  </domainCapabilities>
+
+``backendType``
+   Options for the ``type`` attribute of the ``<backend/>`` element
+
+
 Features
 ~~~~~~~~
 
@@ -729,6 +754,12 @@ element in the domain XML <formatdomain.html#launch-security>`__. For more
 details on the Protected Virtualization feature please see `Protected
 Virtualization on s390 <kbase/s390_protected_virt.html>`__.
 
+ps2 capability
+^^^^^^^^^^^^^^
+
+Reports whether it is possible to disable the machine's built-in PS/2
+controller.
+
 SEV capabilities
 ^^^^^^^^^^^^^^^^
 
@@ -798,3 +829,13 @@ are supported. The ``features`` enum corresponds to the ``<hyperv/>`` element
 Please note that depending on the QEMU version some capabilities might be
 missing even though QEMU does support them. This is because prior to QEMU-6.1.0
 not all features were reported by QEMU.
+
+Launch security
+^^^^^^^^^^^^^^^
+
+The ``launchSecurity`` element exposes supported aspects of encrypted guests.
+The ``sectype`` enum corresponds to ``type`` attribute of ``<launchSecurity/>``
+element as documented in `Launch Security
+<formatdomain.html#launch-security>`__.  :since:`(Since 10.5.0)` For additional
+information on individual types, see sections above: `s390-pv capability`_ for
+S390 PV, `SEV capabilities`_ for AMD SEV and/or AMD SEV-SNP.

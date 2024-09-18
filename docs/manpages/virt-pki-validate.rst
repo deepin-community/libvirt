@@ -15,7 +15,7 @@ SYNOPSIS
 ========
 
 
-``virt-pki-validate`` [*OPTION*]
+``virt-pki-validate`` [*OPTION*] [trust|server|client]
 
 
 DESCRIPTION
@@ -26,6 +26,9 @@ a secure libvirt server or client using the TLS encryption protocol.
 It will report any missing certificate or key files on the host. It
 should be run as root to ensure it can read all the necessary files
 
+With no arguments it will check the trusted CA config, the server
+config and the client config. The optional positional argument can
+be used to restrict the checks to just one of these three sets.
 
 OPTIONS
 =======
@@ -48,7 +51,7 @@ failure a non-zero status will be set.
 AUTHOR
 ======
 
-Richard Jones
+Daniel Veillard, Daniel P. Berrangé
 
 
 BUGS
@@ -70,7 +73,7 @@ Alternatively, you may report bugs to your software distributor / vendor.
 COPYRIGHT
 =========
 
-Copyright (C) 2006-2012 by Red Hat, Inc.
+Copyright (C) 2006-2024 by Red Hat, Inc.
 
 
 LICENSE

@@ -142,6 +142,11 @@
         <value>builtin</value>
       </enum>
     </crypto>
+    <interface supported='yes'>
+      <enum name='backendType'>
+        <value>default</value>
+      </enum>
+    </interface>
   </devices>
   <features>
     <gic supported='no'/>
@@ -152,5 +157,6 @@
     <async-teardown supported='no'/>
     <sev supported='no'/>
     <sgx supported='no'/>
+    <launchSecurity supported='no'/>
   </features>
 </domainCapabilities>

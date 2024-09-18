@@ -16,13 +16,14 @@
 # Frederico Henrique Gonçalves Lima <fred@fredericolima.com.br>, 2016
 # Filipe Rosset <rosset.filipe@gmail.com>, 2017
 # Adolfo Jayme Barrientos <fitoschido@gmail.com>, 2020.
+# Gildasio Junior <gildasiojunior@riseup.net>, 2024.
 msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-05-28 08:41+0000\n"
-"PO-Revision-Date: 2020-10-14 16:08+0000\n"
-"Last-Translator: Adolfo Jayme Barrientos <fitoschido@gmail.com>\n"
+"POT-Creation-Date: 2024-08-27 08:20+0000\n"
+"PO-Revision-Date: 2024-07-15 13:19+0000\n"
+"Last-Translator: Gildasio Junior <gildasiojunior@riseup.net>\n"
 "Language-Team: Portuguese (Brazil) <https://translate.fedoraproject.org/"
 "projects/libvirt/libvirt/pt_BR/>\n"
 "Language: pt_BR\n"
@@ -30,7 +31,7 @@ msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=n > 1;\n"
-"X-Generator: Weblate 4.2.2\n"
+"X-Generator: Weblate 5.6.2\n"
 
 msgid ""
 "\n"
@@ -1105,6 +1106,10 @@ msgid "'%1$s' is not supported in this QEMU binary"
 msgstr "%1$s não é suportado neste binário QEMU"
 
 #, c-format
+msgid "'%1$s' launch security is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid "'%1$s' missing"
 msgstr ""
 
@@ -1344,6 +1349,9 @@ msgstr "limpando algorítimo %d não suportado"
 #, fuzzy
 msgid "'type' missing in reply of guest-get-fsinfo"
 msgstr "falta 'online' na resposta de guest-get-vcpus"
+
+msgid "'usb' disk must not be empty"
+msgstr ""
 
 #, fuzzy
 msgid "'user' missing in reply of guest-get-users"
@@ -1708,6 +1716,9 @@ msgstr ""
 #, fuzzy
 msgid "A storage driver is already registered"
 msgstr "Um fechar callback já está registrado"
+
+msgid "ACPI ERST device must reside on a PCI bus"
+msgstr ""
 
 msgid "ACPI index is not supported with this QEMU"
 msgstr ""
@@ -3577,8 +3588,32 @@ msgid ""
 "flush them, breaking networking."
 msgstr ""
 
+msgid "Checking CA cert access"
+msgstr ""
+
+msgid "Checking cert access"
+msgstr ""
+
+msgid "Checking cert hostname match"
+msgstr ""
+
+msgid "Checking cert properties"
+msgstr ""
+
+msgid "Checking custom PKI base dir access"
+msgstr ""
+
 #, c-format
 msgid "Checking for %1$s module"
+msgstr ""
+
+msgid ""
+"Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"
+msgstr ""
+
+msgid ""
+"Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-"
+"SNP)"
 msgstr ""
 
 #, c-format
@@ -3605,7 +3640,16 @@ msgstr ""
 msgid "Checking for secure guest support"
 msgstr ""
 
+msgid "Checking if CA cert exists"
+msgstr ""
+
 msgid "Checking if IOMMU is enabled by kernel"
+msgstr ""
+
+msgid "Checking if cert exists"
+msgstr ""
+
+msgid "Checking if custom PKI base dir exists"
 msgstr ""
 
 #, c-format
@@ -3614,6 +3658,42 @@ msgstr ""
 
 #, c-format
 msgid "Checking if device '%1$s' is accessible"
+msgstr ""
+
+msgid "Checking if key exists"
+msgstr ""
+
+msgid "Checking if system CA dir exists"
+msgstr ""
+
+msgid "Checking if system PKI dir exists"
+msgstr ""
+
+msgid "Checking if system cert dir exists"
+msgstr ""
+
+msgid "Checking if system key dir exists"
+msgstr ""
+
+msgid "Checking if user PKI base dir exists"
+msgstr ""
+
+msgid "Checking key access"
+msgstr ""
+
+msgid "Checking system CA dir access"
+msgstr ""
+
+msgid "Checking system PKI dir access"
+msgstr ""
+
+msgid "Checking system cert dir access"
+msgstr ""
+
+msgid "Checking system key dir access"
+msgstr ""
+
+msgid "Checking user PKI base dir access"
 msgstr ""
 
 #, fuzzy, c-format
@@ -5072,6 +5152,10 @@ msgstr "Cria um vol de um volume existente"
 msgid "Create a vol."
 msgstr "Cria um volume."
 
+#, c-format
+msgid "Create the dir %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "Created"
 msgstr "migrado"
@@ -5116,10 +5200,6 @@ msgstr ""
 msgid "DAC seclabel couldn't be determined"
 msgstr ""
 
-msgid "DNS HOST records cannot be modified, only added or deleted"
-msgstr ""
-"Histórico DNS HOST não pode ser modificado somente adicionado ou removido"
-
 #, c-format
 msgid ""
 "DNS SRV port attribute not permitted without target for service '%1$s' in "
@@ -5142,10 +5222,6 @@ msgid ""
 "DNS SRV weight attribute not permitted without target for service '%1$s' in "
 "network '%2$s'"
 msgstr ""
-
-msgid "DNS TXT records cannot be modified, only added or deleted"
-msgstr ""
-"histórico de DNS TXT não pode ser modificado, somente adicionado ou removido"
 
 msgid "Data processed:"
 msgstr "Dados processados:"
@@ -8381,6 +8457,9 @@ msgstr ""
 msgid "Failed to send request to init control %1$s"
 msgstr "Falha ao enviar requisição para controle do init %1$s"
 
+msgid "Failed to send restore request to CH"
+msgstr ""
+
 #, fuzzy
 msgid "Failed to serialize snapshot"
 msgstr "Falha ao remover snapshot: %s"
@@ -8923,6 +9002,13 @@ msgid "Finished after guest request"
 msgstr ""
 
 msgid "Finished after host request"
+msgstr ""
+
+#, c-format
+msgid "Firewall backend '%1$s' not available on this platform"
+msgstr ""
+
+msgid "Firewall backend is not implemented"
 msgstr ""
 
 msgid "Firmware entry is missing 'name' attribute"
@@ -11468,6 +11554,9 @@ msgstr "Falta dados do max_clients no documento  JSON"
 msgid "Missing backend %1$d"
 msgstr "Falta um backend %1$d"
 
+msgid "Missing bridge helper name"
+msgstr ""
+
 #, fuzzy
 msgid "Missing bridge name"
 msgstr "faltando o nome do timer"
@@ -12485,6 +12574,9 @@ msgstr ""
 #, fuzzy
 msgid "No filesystems are mounted in the domain"
 msgstr "erro ao suspender o domínio"
+
+msgid "No firewall backend is available"
+msgstr ""
 
 msgid "No free NBD devices"
 msgstr "Nenhum dispositivo NBD livre"
@@ -13957,7 +14049,7 @@ msgstr "Recusando-se a indefinir enquanto %1$d snapshots existirem"
 
 msgid "Refusing to undefine while domain managed save image exists"
 msgstr ""
-"Recusa-se a indefinir enaquanto a imagem de salvamento gerenciada do domínio "
+"Recusa-se a indefinir enquanto a imagem de salvamento gerenciada do domínio "
 "existir"
 
 #, fuzzy
@@ -14307,9 +14399,6 @@ msgstr "estado S3 é desabilitado para este domínio"
 msgid "S390 PV launch security is not supported by this host or kernel"
 msgstr ""
 
-msgid "S390 PV launch security is not supported with this QEMU binary"
-msgstr ""
-
 msgid "S4 state is disabled for this domain"
 msgstr "estado S4 é desabilitado para este domínio"
 
@@ -14402,9 +14491,6 @@ msgstr "Íncide de unidade de SCSI  %1$d fora de intervalo [0..6,8..15] "
 #, fuzzy
 msgid "SCSI_host host device must use 'pci' or 'ccw' address type"
 msgstr "Controladoras devem usar o tipo do endereço de 'ccid'"
-
-msgid "SEV launch security is not supported with this QEMU binary"
-msgstr ""
 
 msgid "SEV measured direct kernel boot is not supported with this QEMU binary"
 msgstr ""
@@ -15440,10 +15526,12 @@ msgstr "Uso de cepth especificado, mas nome está faltando"
 msgid "TLS:"
 msgstr ""
 
-msgid "TPM 1.2 is not supported on ARM"
+#, c-format
+msgid "TPM 1.2 is not supported for model '%1$s'"
 msgstr ""
 
-msgid "TPM 1.2 is not supported with the SPAPR device model"
+#, c-format
+msgid "TPM 1.2 is not supported on architecture '%1$s'"
 msgstr ""
 
 #, c-format
@@ -15823,6 +15911,12 @@ msgid "Target domain IOMMU device count does not match source"
 msgstr ""
 "Conta de dispositivo hub do domínio alvo %zu não coincide com a fonte %zu"
 
+#, c-format
+msgid ""
+"Target domain IOMMU device dma translation '%1$s' does not match source "
+"'%2$s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid ""
 "Target domain IOMMU device eim value '%1$s' does not match source '%2$s'"
@@ -15962,6 +16056,9 @@ msgstr ""
 msgid "Target domain parallel port count %1$zu does not match source %2$zu"
 msgstr ""
 "Conta de porta paralela do domínio alvo %1$zu não coincide com a fonte %2$zu"
+
+msgid "Target domain pstore device count does not match source"
+msgstr ""
 
 #, fuzzy, c-format
 msgid ""
@@ -16148,6 +16245,14 @@ msgstr "Modelo RNG alvo '%1$s' não coincide com a fonte '%2$s'"
 #, c-format
 msgid "Target parallel port %1$d does not match source %2$d"
 msgstr "Porta paralela do alvo %1$d não coincide com a fonte %2$d"
+
+#, c-format
+msgid "Target pstore device backend '%1$s' does not match source '%2$s'"
+msgstr ""
+
+#, c-format
+msgid "Target pstore size '%1$llu' does not match source '%2$llu'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Target redirected device bus %1$s does not match source %2$s"
@@ -16350,6 +16455,18 @@ msgid "The CA certificate %1$s is not yet active"
 msgstr "O certificado CA %1$s ainda não está ativo"
 
 #, c-format
+msgid ""
+"The CA certificate %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The CA certificate %1$s must not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The CCW devno '%1$s' is in use already"
 msgstr ""
 
@@ -16382,6 +16499,12 @@ msgstr "Nome de dispositivo de rede muito longo"
 msgid ""
 "The PF device for VF %1$s has no network device name, cannot get virtual "
 "function info"
+msgstr ""
+
+#, c-format
+msgid ""
+"The PKI base dir %1$s must not be accessible to other users. Run: chown %2$d."
+"%3$d %4$s; chmod 0700 %5$s"
 msgstr ""
 
 #, c-format
@@ -16438,12 +16561,36 @@ msgid "The certificate uses an insecure algorithm"
 msgstr "O certificado usa um algoritmo inseguro"
 
 #, c-format
+msgid ""
+"The client cert %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client cert %1$s must be restricted to this user. As this user, run: "
+"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The client certificate %1$s has expired"
 msgstr "O certificado do cliente %1$s expirou"
 
 #, c-format
 msgid "The client certificate %1$s is not yet active"
 msgstr "O certificado do cliente %1$s ainda não está ativo"
+
+#, c-format
+msgid ""
+"The client key %1$s must be accessible to all users. As root run: chown root."
+"root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client key %1$s must be not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "The device at %1$s has no network device name"
@@ -16502,6 +16649,24 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr "dispositivo nvram não é suportado por este binário de QEMU "
 
+#, c-format
+msgid ""
+"The machine cannot act as a client or server. See https://libvirt.org/kbase/"
+"tlscerts.html#setting-up-a-certificate-authority-ca on how to install %1$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The machine cannot act as a client. See https://libvirt.org/kbase/tlscerts."
+"html#issuing-client-certificates on how to regenerate %1$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The machine cannot act as a server. See https://libvirt.org/kbase/tlscerts."
+"html#issuing-server-certificates on how to regenerate %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "The machine has no snapshot and it should have it"
 msgstr "domínio %s não possui snapshots com o nome %s"
@@ -16532,6 +16697,18 @@ msgid ""
 msgstr ""
 
 #, c-format
+msgid ""
+"The server cert %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server cert %1$s must be restricted to this user. As this user, run: "
+"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The server certificate %1$s has expired"
 msgstr "O certificado do servdor %1$s expirou"
 
@@ -16540,12 +16717,70 @@ msgid "The server certificate %1$s is not yet active"
 msgstr "O certificado do servidor %1$s não está ativo ainda"
 
 #, c-format
+msgid ""
+"The server key %1$s must be not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server key %1$s must not be accessible to unprivileged users. As root "
+"run: chown root.root %2$s; chmod 0600 %3$s"
+msgstr ""
+
+#, c-format
 msgid "The server redirects from '%1$s' to '%2$s'"
 msgstr "O servidor redireciona a partir do '%1$s' para '%2$s'"
 
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "o pool de armazenamento não tem suporte para a criação de volume"
+
+#, c-format
+msgid ""
+"The system CA dir %1$s is usually installed as part of the base filesystem "
+"or openssl packages"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system CA dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system PKI dir %1$s is usually installed as part of the base filesystem "
+"or openssl packages"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system PKI dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system cert dir %1$s is usually installed as part of the libvirt package"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system cert dir %1$s must be accessible to all users. As root, run: "
+"chown root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system key dir %1$s is usually installed as part of the libvirt package"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system key dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "The vbox driver does not support %1$s SCSI controller model"
@@ -16581,6 +16816,9 @@ msgstr "Este QEMU não suporta '-device usb-storage'"
 msgid ""
 "This QEMU doesn't support OpenGL rendernode with egl-headless graphics type"
 msgstr "Este QEMU não suporta alvo maior do que 7"
+
+msgid "This QEMU doesn't support SCSI emulation with 'virtio-blk' device"
+msgstr ""
 
 msgid "This QEMU doesn't support scsi-block for lun passthrough"
 msgstr "Este QEMU não suporta scsi-block para passagem de lun"
@@ -18173,6 +18411,10 @@ msgstr "falha ao ouvir em soquete"
 msgid "Unable to listen to UNIX socket path '%1$s'"
 msgstr "falha ao ouvir em soquete"
 
+#, c-format
+msgid "Unable to load %1$s: %2$s"
+msgstr ""
+
 msgid "Unable to load certificate"
 msgstr "Falha em carregar certificado"
 
@@ -19311,6 +19553,10 @@ msgstr ""
 msgid "Unexpected hostdev mode %1$d"
 msgstr "modo de hostdev inesperado %1$d"
 
+#, c-format
+msgid "Unexpected length of '%1$s', expected %2$u got %3$zu"
+msgstr ""
+
 msgid "Unexpected lock parameters for disk resource"
 msgstr "Parâmetros de bloqueio inesperados para o recurso de disco"
 
@@ -19369,7 +19615,7 @@ msgid "Unexpected protocol %1$d"
 msgstr "tipo de pool não esperado"
 
 #, c-format
-msgid "Unexpected response from CH: %1$d"
+msgid "Unexpected response from CH: %1$s"
 msgstr ""
 
 msgid "Unexpected root filesystem without loop device"
@@ -20020,10 +20266,6 @@ msgstr "Modo de hostdev não é suportado %1$s"
 msgid "Unsupported hostdev type %1$s"
 msgstr "tipo de hostdeve não suportado %1$s"
 
-#, c-format
-msgid "Unsupported interface '%1$s' for TPM 1.2"
-msgstr ""
-
 #, fuzzy
 msgid "Unsupported listen type"
 msgstr "Tipo virt não é suportado"
@@ -20202,6 +20444,21 @@ msgid ""
 "  -v | --version  output version information and exit\n"
 msgstr ""
 
+#, c-format
+msgid ""
+"Usage:\n"
+"  %1$s { -v | -h } [TRUST|SERVER|CLIENT]\n"
+"\n"
+"Validate TLS certificate configuration\n"
+"\n"
+"options:\n"
+"  -s     | --system   validate system certificates (default)\n"
+"  -u     | --user     validate user certificates\n"
+"  -p DIR | --path DIR validate custom certificate path\n"
+"  -h     | --help     display this help and exit\n"
+"  -v     | --version  output version information and exit\n"
+msgstr ""
+
 #, sh-format
 msgid ""
 "Usage: $program_name {start|stop|status|restart|condrestart|try-restart|"
@@ -20329,10 +20586,6 @@ msgstr ""
 #, c-format
 msgid "VMX entry '%1$s' contains unsupported scheme '%2$s'"
 msgstr "Entrada VMX '%1$s' contém esquema '%2$s' não suportado"
-
-#, c-format
-msgid "VMX entry '%1$s' doesn't contain a port part"
-msgstr "Entrada do VMX '%1$s' não contém uma parte da porta"
 
 msgid "VMX entry 'annotation' contains invalid escape sequence"
 msgstr "Entrada de VMX 'annotation' contém sequência de escape inválida"
@@ -20699,6 +20952,9 @@ msgstr "acesso negado"
 #, c-format
 msgid "access denied: %1$s"
 msgstr "acesso negado: %1$s"
+
+msgid "acpi-erst backend of pstore device is not supported"
+msgstr ""
 
 msgid "active"
 msgstr "ativo"
@@ -21556,6 +21812,9 @@ msgstr "o nome de ponte \"%1$s\" já está sendo utilizado."
 #, c-format
 msgid "bridge name not allowed in %1$s mode (network '%2$s')"
 msgstr "nome de ponte não é permitido no modo %1$s (rede '%2$s')"
+
+msgid "bridge port creation is not supported on this platform"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "bridge zone not allowed in %1$s mode (network '%2$s')"
@@ -22598,6 +22857,9 @@ msgstr ""
 "não foi possível modificar o modelo de dispositivo de rede a partir de %1$s "
 "para %2$s"
 
+msgid "cannot modify network device portgroup attribute"
+msgstr ""
+
 msgid "cannot modify network device rom bar setting"
 msgstr ""
 "não foi possível modificar configuração de barra rom de dispositivo de rede"
@@ -22718,6 +22980,10 @@ msgstr "não foi possível analisar json %1$s: %2$s"
 #, fuzzy, c-format
 msgid "cannot parse json %1$s: unterminated string/map/array"
 msgstr "não foi possível analisar json %s: %s"
+
+#, c-format
+msgid "cannot parse openfiles '%1$s' for virtiofs"
+msgstr ""
 
 #, c-format
 msgid "cannot parse partition number from target '%1$s'"
@@ -22993,15 +23259,15 @@ msgstr "não foi possível listar a fixação para um domínio inativo"
 msgid "cannot revert snapshot of running domain"
 msgstr "não é possível reverter o snapshot do domínio em execução"
 
-msgid "cannot save domain with host devices"
-msgstr ""
-
-msgid "cannot save domain with network interfaces"
-msgstr ""
-
 #, c-format
 msgid "cannot save file '%1$s'"
 msgstr "não foi possível salvar o arquivo \"%1$s\""
+
+msgid "cannot save/restore domain with host devices"
+msgstr ""
+
+msgid "cannot save/restore domain with network devices"
+msgstr ""
 
 #, c-format
 msgid "cannot seek in '%1$s'"
@@ -25251,6 +25517,9 @@ msgstr "domínio já está sendo executado"
 msgid "domain already has a vsock device"
 msgstr "O domínio já está ativo"
 
+msgid "domain already has an iommu device"
+msgstr ""
+
 msgid "domain architecture (/domain/os/type/@arch)"
 msgstr ""
 
@@ -26507,9 +26776,6 @@ msgstr ""
 msgid "failed to create logfile %1$s"
 msgstr "falha na criação do arquivo de log %1$s"
 
-msgid "failed to create mdevctl thread"
-msgstr ""
-
 msgid "failed to create profile"
 msgstr "falha ao criar perfil"
 
@@ -26540,10 +26806,6 @@ msgid "failed to create the RBD IoCTX. Does the pool '%1$s' exist?"
 msgstr "falha ao criar o RBD IoCTX. A pool '%1$s' existe"
 
 msgid "failed to create udev context"
-msgstr "falha ao criar contexto de udev"
-
-#, fuzzy
-msgid "failed to create udev enumerate thread"
 msgstr "falha ao criar contexto de udev"
 
 #, fuzzy
@@ -26935,6 +27197,10 @@ msgstr "falha ao marcar o pool %1$s como auto-iniciado"
 
 #, c-format
 msgid "failed to monitor nbdkit process %1$i"
+msgstr ""
+
+#, c-format
+msgid "failed to monitor qemu in-shutdown process %1$i"
 msgstr ""
 
 #, c-format
@@ -28433,6 +28699,9 @@ msgstr ""
 msgid "i - turn off validation and try to redefine again"
 msgstr "f - force, tentar redefinir novamente"
 
+msgid "iSCSI protocol accepts only one host"
+msgstr ""
+
 msgid "iSCSI storage pool does not support volume creation"
 msgstr "O pool de armazenamento iSCSI não suporta a criação do volume"
 
@@ -29373,6 +29642,9 @@ msgstr "tipo de segredo inválido '%1$s'"
 msgid "invalid server address"
 msgstr "endereço MAC inválido"
 
+msgid "invalid size of ACPI ERST pstore device"
+msgstr ""
+
 #, c-format
 msgid "invalid size supplied for '%1$s'"
 msgstr "tamanho fornecido inválido para \"%1$s\""
@@ -29546,6 +29818,9 @@ msgstr "SATA não é suportado com este binário do QEMU"
 #, fuzzy
 msgid "iommu: interrupt remapping is not supported with this QEMU binary"
 msgstr "vhost-net não é suportada neste binário do QEMU"
+
+msgid "iommu: updating dma translation is not supported with this QEMU binary"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "iothread %1$d not found"
@@ -30205,6 +30480,9 @@ msgstr "conexão de gerenciador de bloqueio foi restringida"
 msgid "lock owner details have not been registered"
 msgstr "detalhes do proprietário do bloqueio não foram registrados"
 
+msgid "locking options are not supported by this virtiofsd"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "logical volume '%1$s' is sparse, volume wipe not supported"
 msgstr "Criação de volumes de %1$s não é suportado"
@@ -30508,6 +30786,9 @@ msgstr ""
 #, fuzzy
 msgid "matching input device not found"
 msgstr "dispositivo de usb não foi encontrado"
+
+msgid "matching iommu device not found"
+msgstr ""
 
 #, fuzzy
 msgid "matching memory device was not found"
@@ -30904,12 +31185,11 @@ msgstr ""
 "migração com armazenamento não compartilhado com cópia incremental (mesma "
 "imagem base compartilhada entre fonte e destino)"
 
-msgid "migration with transient disk is not supported"
+msgid "migration with this virtiofs device is not supported"
 msgstr ""
 
-#, fuzzy
-msgid "migration with virtiofs device is not supported"
-msgstr "anexo persistente do dispositivo não é suportado"
+msgid "migration with transient disk is not supported"
+msgstr ""
 
 #, c-format
 msgid "migration_address must not be the address of the local machine: %1$s"
@@ -31583,6 +31863,9 @@ msgstr ""
 msgid "missing path for <reservations/>"
 msgstr "falta informação do nome"
 
+msgid "missing path for ACPI ERST pstore device"
+msgstr ""
+
 msgid "missing path in nbdkit capabilities cache"
 msgstr ""
 
@@ -31833,6 +32116,10 @@ msgstr "nome ausente para o cipher"
 #, fuzzy, c-format
 msgid "missing value for migration parameter '%1$s'"
 msgstr "falta a informação sobre o nome em %1$s"
+
+#, c-format
+msgid "missing value of modifying DNS TXT record in network %1$s"
+msgstr ""
 
 #, fuzzy
 msgid "missing values for acceleration"
@@ -33372,6 +33659,9 @@ msgstr "somente um dispositivo de balão de memória é suportado"
 msgid "only a single nvram device is supported"
 msgstr "somente um único dispositivo de nyram é suportado"
 
+msgid "only a single pstore device is supported"
+msgstr ""
+
 #, fuzzy
 msgid "only a single vsock device is supported"
 msgstr "somente um único dispositivo de nyram é suportado"
@@ -34336,6 +34626,18 @@ msgstr "fornece XML adequado para migrações"
 msgid "ps2 bus does not support %1$s input device"
 msgstr "O barramento ps2 não dá suporte ao dispositivo de entrada %1$s"
 
+msgid "ps2 bus inputs require the ps2 feature not to be disabled"
+msgstr ""
+
+msgid "ps2 feature is not available with this QEMU binary"
+msgstr ""
+
+msgid "ps2 feature state cannot be controlled with this QEMU binary"
+msgstr ""
+
+msgid "pstore device is missing alias"
+msgstr ""
+
 #, c-format
 msgid "pull mode backup for disk '%1$s' requires qcow2 driver"
 msgstr ""
@@ -34552,6 +34854,9 @@ msgstr "entrada de dispositivo de blockstats não era do formato esperado"
 msgid "query-rx-filter return data missing array element"
 msgstr ""
 
+msgid "query-sev reply was missing some data"
+msgstr ""
+
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'cbitpos' field"
 msgstr "resposta de query-version estava faltando versão 'micro'"
@@ -34567,6 +34872,9 @@ msgstr "resposta de query-version estava faltando dados de 'qemu'"
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'reduced-phys-bits' field"
 msgstr "resposta de query-version estava faltando dados de 'qemu'"
+
+msgid "query-sev-launch-measure reply was missing 'data'"
+msgstr ""
 
 msgid "query-sgx-capabilities reply was missing 'flc' field"
 msgstr ""
@@ -36406,6 +36714,10 @@ msgid "testOpen: supply a path or use test:///default"
 msgstr "testOpen: forneça um caminho ou use test:///default"
 
 #, c-format
+msgid "the '%1$s' network backend is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid ""
 "the <forward> 'dev' attribute cannot be used when <address> or <pf> sub-"
 "elements are present in network %1$s"
@@ -36496,9 +36808,6 @@ msgid "the machine has no snapshot"
 msgstr "domínio não possui snapshots"
 
 msgid "the new password"
-msgstr ""
-
-msgid "the passt network backend is not supported with this QEMU binary"
 msgstr ""
 
 #, fuzzy
@@ -38219,6 +38528,10 @@ msgid "unknown SDL_AUDIODRIVER setting %1$s"
 msgstr ""
 
 #, c-format
+msgid "unknown SEV type '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "unknown address type '%1$s' in network %2$s"
 msgstr "tipo de endereço desconhecido '%1$s' em rede %2$s"
 
@@ -38495,6 +38808,10 @@ msgid "unknown smbios mode '%1$s'"
 msgstr "modo smbios desconhecido '%1$s'"
 
 #, c-format
+msgid "unknown state '%1$s' for '%2$s'"
+msgstr ""
+
+#, c-format
 msgid "unknown storage capability type '%1$s' for '%2$s'"
 msgstr ""
 "tipo de capacidade de armazenamento desconhecido \"%1$s\" para \"%2$s\""
@@ -38728,6 +39045,10 @@ msgstr ""
 #, c-format
 msgid "unsupported authentication type %1$d"
 msgstr "não há suporte para o tipo %1$d de autenticação "
+
+#, c-format
+msgid "unsupported backend for pstore device: %1$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "unsupported balloon device model '%1$s'"
@@ -39213,6 +39534,10 @@ msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
+msgid "value '%1$llu' is too big for '%2$s' parameter, maximum is '%3$llu'"
+msgstr ""
+
+#, c-format
 msgid "value '%1$llu' is too big for coalesce parameter, maximum is '%2$lu'"
 msgstr ""
 
@@ -39405,6 +39730,9 @@ msgstr "as versões não coincidem (real %1$x, esperada %2$x)"
 
 msgid "version parsing error"
 msgstr "erro de análise de versão"
+
+msgid "vfio migration was active, but 'transferred' data was missing"
+msgstr ""
 
 msgid "vgamem attribute only supported for video type qxl"
 msgstr ""
@@ -39760,6 +40088,9 @@ msgstr ""
 "vmplayer não suporta a operação de suspensão/retomada do libvirt (pausa de "
 "vmware/cancelamento de pausa) "
 
+msgid "vmport feature requires the ps2 feature not to be disabled"
+msgstr ""
+
 #, fuzzy
 msgid "vmport is not available with this QEMU binary"
 msgstr ""
@@ -40091,6 +40422,27 @@ msgstr ""
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
+
+#~ msgid "DNS HOST records cannot be modified, only added or deleted"
+#~ msgstr ""
+#~ "Histórico DNS HOST não pode ser modificado somente adicionado ou removido"
+
+#~ msgid "DNS TXT records cannot be modified, only added or deleted"
+#~ msgstr ""
+#~ "histórico de DNS TXT não pode ser modificado, somente adicionado ou "
+#~ "removido"
+
+#, c-format
+#~ msgid "VMX entry '%1$s' doesn't contain a port part"
+#~ msgstr "Entrada do VMX '%1$s' não contém uma parte da porta"
+
+#, fuzzy
+#~ msgid "migration with virtiofs device is not supported"
+#~ msgstr "anexo persistente do dispositivo não é suportado"
+
+#, fuzzy
+#~ msgid "failed to create udev enumerate thread"
+#~ msgstr "falha ao criar contexto de udev"
 
 #, c-format
 #~ msgid "%1$6s: Checking %2$-60s: "

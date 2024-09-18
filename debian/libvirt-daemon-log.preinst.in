@@ -1,0 +1,45 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <new-preinst> `install'
+#   * <new-preinst> `install' <old-version> <new-version>
+#   * <new-preinst> `upgrade' <old-version> <new-version>
+#   * <old-preinst> `abort-upgrade' <new-version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#CREATE_PROTECTIVE_DIVERSION#
+
+DAEMON_LOG_UNITS="
+    virtlogd-admin.socket
+    virtlogd.service
+    virtlogd.socket
+"
+
+case "$1" in
+    install|upgrade)
+        for unit in $DAEMON_LOG_UNITS; do
+            create_protective_diversion \
+                "/lib/systemd/system/$unit" \
+                "10.6.0-3~" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    abort-upgrade)
+    ;;
+
+    *)
+        echo "preinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

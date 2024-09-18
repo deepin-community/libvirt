@@ -1419,10 +1419,11 @@ nodeDeviceDestroy(virNodeDevicePtr device)
             goto cleanup;
 
         /* Because we're about to release the lock and thus run into a race
-         * possibility (however improbable) with a udevAddOneDevice change
-         * event which would essentially free the existing @def (obj->def) and
-         * replace it with something new, we need to grab the parent field
-         * and then find the parent obj in order to manage the vport */
+         * possibility (however improbable) with a
+         * processNodeDeviceAddAndChangeEvent change event which would
+         * essentially free the existing @def (obj->def) and replace it with
+         * something new, we need to grab the parent field and then find the
+         * parent obj in order to manage the vport */
         parent = g_strdup(def->parent);
 
         virNodeDeviceObjEndAPI(&obj);
@@ -1885,7 +1886,7 @@ removeMissingPersistentMdev(virNodeDeviceObj *obj,
 
 
 int
-nodeDeviceUpdateMediatedDevices(void)
+nodeDeviceUpdateMediatedDevices(virNodeDeviceDriverState *node_driver)
 {
     g_autofree virNodeDeviceDef **defs = NULL;
     g_autofree virNodeDeviceDef **act_defs = NULL;
@@ -1909,7 +1910,7 @@ nodeDeviceUpdateMediatedDevices(void)
     /* Any mdevs that were previously defined but were not returned in the
      * latest mdevctl query should be removed from the device list */
     data.defs = defs;
-    virNodeDeviceObjListForEachRemove(driver->devs,
+    virNodeDeviceObjListForEachRemove(node_driver->devs,
                                       removeMissingPersistentMdev, &data);
 
     for (i = 0; i < data.ndefs; i++)
@@ -2013,6 +2014,19 @@ nodeDeviceDefCopyFromMdevctl(virNodeDeviceDef *dst,
     }
 
     return ret;
+}
+
+
+/* A mediated device definition contains data from mdevctl about the active
+ * device. When the device is deactivated the active configuration data needs
+ * to be removed. */
+void
+nodeDeviceDefResetMdevActiveConfig(virNodeDeviceDef *def)
+{
+    if (def->caps->data.type != VIR_NODE_DEV_CAP_MDEV)
+        return;
+
+    virMediatedDeviceConfigClear(&def->caps->data.mdev.active_config);
 }
 
 
@@ -2359,7 +2373,7 @@ nodeDeviceUpdate(virNodeDevice *device,
  cleanup:
     virNodeDeviceObjEndAPI(&obj);
     if (updated)
-        nodeDeviceUpdateMediatedDevices();
+        nodeDeviceUpdateMediatedDevices(driver);
 
     return ret;
 }

@@ -257,6 +257,12 @@
         <value>builtin</value>
       </enum>
     </crypto>
+    <interface supported='yes'>
+      <enum name='backendType'>
+        <value>default</value>
+        <value>passt</value>
+      </enum>
+    </interface>
   </devices>
   <features>
     <gic supported='no'/>
@@ -266,7 +272,13 @@
     <backup supported='yes'/>
     <async-teardown supported='yes'/>
     <s390-pv supported='yes'/>
+    <ps2 supported='no'/>
     <sev supported='no'/>
     <sgx supported='no'/>
+    <launchSecurity supported='yes'>
+      <enum name='sectype'>
+        <value>s390-pv</value>
+      </enum>
+    </launchSecurity>
   </features>
 </domainCapabilities>

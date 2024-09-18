@@ -268,7 +268,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_DEVICE_PANIC, /* -device pvpanic */
 
     /* 160 */
-    QEMU_CAPS_ENABLE_FIPS, /* -enable-fips */
+    X_QEMU_CAPS_ENABLE_FIPS, /* -enable-fips */
     X_QEMU_CAPS_SPICE_FILE_XFER_DISABLE, /* -spice disable-agent-file-xfer */
     X_QEMU_CAPS_CHARDEV_SPICEPORT, /* -chardev spiceport */
     QEMU_CAPS_DEVICE_USB_KBD, /* -device usb-kbd */
@@ -419,7 +419,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     X_QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE, /* virtio-net-*.tx_queue_size */
     QEMU_CAPS_CHARDEV_RECONNECT, /* -chardev reconnect */
     X_QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS, /* -device virtio-(vga|gpu-*),max-outputs= */
-    QEMU_CAPS_VXHS, /* -drive file.driver=vxhs via query-qmp-schema */
+    X_QEMU_CAPS_VXHS, /* -drive file.driver=vxhs via query-qmp-schema */
     X_QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES, /* virtio-blk-*.num-queues */
 
     /* 270 */
@@ -535,7 +535,7 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_SMP_DIES, /*  -smp dies= */
 
     /* 350 */
-    QEMU_CAPS_DEVICE_I8042, /* PS/2 controller */
+    QEMU_CAPS_DEVICE_I8042, /* PS/2 controller, use virQEMUCapsSupportsI8042() to query this capability */
     QEMU_CAPS_OBJECT_RNG_BUILTIN, /* -object rng-builtin */
     X_QEMU_CAPS_VIRTIO_NET_FAILOVER, /* virtio-net-*.failover */
     QEMU_CAPS_DEVICE_TPM_SPAPR, /* -device tpm-spapr */
@@ -688,6 +688,13 @@ typedef enum { /* virQEMUCapsFlags grouping marker for syntax-check */
     QEMU_CAPS_MACHINE_VIRT_RAS, /* -machine virt,ras= */
     QEMU_CAPS_DEVICE_VIRTIO_SOUND, /* -device virtio-sound-* */
 
+    /* 460 */
+    QEMU_CAPS_SEV_SNP_GUEST, /* -object sev-snp-guest */
+    QEMU_CAPS_NETDEV_USER, /* -netdev user */
+    QEMU_CAPS_DEVICE_ACPI_ERST, /* -device acpi-erst */
+    QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION, /* intel-iommu.dma-translation */
+    QEMU_CAPS_MACHINE_I8042_OPT, /* -machine xxx,i8042=on/off; use virQEMUCapsSupportsI8042Toggle() to query this capability */
+
     QEMU_CAPS_LAST /* this must always be the last item */
 } virQEMUCapsFlags;
 
@@ -711,6 +718,13 @@ void virQEMUCapsInitProcessCapsInterlock(virQEMUCaps *qemuCaps);
 
 bool virQEMUCapsSupportsVmport(virQEMUCaps *qemuCaps,
                                const virDomainDef *def);
+
+bool virQEMUCapsSupportsI8042(virQEMUCaps *qemuCaps,
+                              const virDomainDef *def);
+
+bool virQEMUCapsSupportsI8042Toggle(virQEMUCaps *qemuCaps,
+                                    const char *machine,
+                                    const virArch arch);
 
 const char *virQEMUCapsGetBinary(virQEMUCaps *qemuCaps);
 virArch virQEMUCapsGetArch(virQEMUCaps *qemuCaps);
@@ -863,6 +877,12 @@ void virQEMUCapsFillDomainDeviceChannelCaps(virQEMUCaps *qemuCaps,
 
 void virQEMUCapsFillDomainDeviceCryptoCaps(virQEMUCaps *qemuCaps,
                                            virDomainCapsDeviceCrypto *crypto);
+
+void virQEMUCapsFillDomainLaunchSecurity(virQEMUCaps *qemuCaps,
+                                         virDomainCapsLaunchSecurity *launchSecurity);
+
+void virQEMUCapsFillDomainDeviceNetCaps(virQEMUCaps *qemuCaps,
+                                        virDomainCapsDeviceNet *net);
 
 bool virQEMUCapsGuestIsNative(virArch host,
                               virArch guest);

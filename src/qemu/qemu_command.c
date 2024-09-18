@@ -973,6 +973,7 @@ qemuBuildVirtioDevGetConfigDev(const virDomainDeviceDef *device,
         case VIR_DOMAIN_DEVICE_MEMORY:
         case VIR_DOMAIN_DEVICE_IOMMU:
         case VIR_DOMAIN_DEVICE_AUDIO:
+        case VIR_DOMAIN_DEVICE_PSTORE:
         case VIR_DOMAIN_DEVICE_LAST:
         default:
             break;
@@ -4760,12 +4761,14 @@ qemuBuildPCIHostdevDevProps(const virDomainDef *def,
     g_autofree char *host = virPCIDeviceAddressAsString(&pcisrc->addr);
     const char *failover_pair_id = NULL;
     const char *driver = NULL;
+    /* 'ramfb' property must be omitted unless it's to be enabled */
+    bool ramfb = pcisrc->ramfb == VIR_TRISTATE_SWITCH_ON;
 
     /* caller has to assign proper passthrough driver name */
     switch (pcisrc->driver.name) {
     case VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO:
         /* ramfb support requires the nohotplug variant */
-        if (pcisrc->ramfb == VIR_TRISTATE_SWITCH_ON)
+        if (ramfb)
             driver = "vfio-pci-nohotplug";
         else
             driver = "vfio-pci";
@@ -4798,7 +4801,7 @@ qemuBuildPCIHostdevDevProps(const virDomainDef *def,
                               "p:bootindex", dev->info->effectiveBootIndex,
                               "S:failover_pair_id", failover_pair_id,
                               "S:display", qemuOnOffAuto(pcisrc->display),
-                              "T:ramfb", pcisrc->ramfb,
+                              "B:ramfb", ramfb,
                               NULL) < 0)
         return NULL;
 
@@ -6206,6 +6209,7 @@ qemuBuildIOMMUCommandLine(virCommand *cmd,
                                   "S:eim", qemuOnOffAuto(iommu->eim),
                                   "T:device-iotlb", iommu->iotlb,
                                   "z:aw-bits", iommu->aw_bits,
+                                  "T:dma-translation", iommu->dma_translation,
                                   NULL) < 0)
             return -1;
 
@@ -6517,6 +6521,16 @@ qemuBuildCpuCommandLine(virCommand *cmd,
                 if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
                     virBufferAsprintf(&buf, ",hv-vendor-id=%s",
                                       def->hyperv_vendor_id);
+                break;
+
+            case VIR_DOMAIN_HYPERV_EMSR_BITMAP:
+                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
+                    virBufferAsprintf(&buf, ",%s=on", "hv-emsr-bitmap");
+                break;
+
+            case VIR_DOMAIN_HYPERV_XMM_INPUT:
+                if (def->hyperv_features[i] == VIR_TRISTATE_SWITCH_ON)
+                    virBufferAsprintf(&buf, ",%s=on", "hv-xmm-input");
                 break;
 
             case VIR_DOMAIN_HYPERV_LAST:
@@ -6884,6 +6898,11 @@ qemuAppendDomainFeaturesMachineParam(virBuffer *buf,
         virBufferAsprintf(buf, ",ras=%s", str);
     }
 
+    if (def->features[VIR_DOMAIN_FEATURE_PS2] != VIR_TRISTATE_SWITCH_ABSENT) {
+        const char *str = virTristateSwitchTypeToString(def->features[VIR_DOMAIN_FEATURE_PS2]);
+        virBufferAsprintf(buf, ",i8042=%s", str);
+    }
+
     return 0;
 }
 
@@ -7054,8 +7073,9 @@ qemuBuildMachineCommandLine(virCommand *cmd,
     qemuAppendLoadparmMachineParm(&buf, def);
 
     if (def->sec) {
-        switch ((virDomainLaunchSecurity) def->sec->sectype) {
+        switch (def->sec->sectype) {
         case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
             if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT)) {
                 virBufferAddLit(&buf, ",confidential-guest-support=lsec0");
             } else {
@@ -8622,6 +8642,7 @@ qemuBuildInterfaceConnect(virDomainObj *vm,
     bool vhostfd = false; /* also used to signal processing of tapfds */
     size_t tapfdSize = net->driver.virtio.queues;
     g_autofree int *tapfd = g_new0(int, tapfdSize + 1);
+    g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
 
     memset(tapfd, -1, (tapfdSize + 1) * sizeof(*tapfd));
 
@@ -8632,8 +8653,12 @@ qemuBuildInterfaceConnect(virDomainObj *vm,
     case VIR_DOMAIN_NET_TYPE_NETWORK:
     case VIR_DOMAIN_NET_TYPE_BRIDGE:
         vhostfd = true;
-        if (qemuInterfaceBridgeConnect(vm->def, priv->driver, net,
-                                       tapfd, &tapfdSize) < 0)
+        if (virDomainInterfaceBridgeConnect(vm->def, net,
+                                            tapfd, &tapfdSize,
+                                            priv->driver->privileged,
+                                            priv->driver->ebtables,
+                                            priv->driver->config->macFilter,
+                                            cfg->bridgeHelperName) < 0)
             return -1;
         break;
 
@@ -9728,7 +9753,7 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
     g_autofree char *sessionpath = NULL;
 
     VIR_DEBUG("policy=0x%x cbitpos=%d reduced_phys_bits=%d",
-              sev->policy, sev->cbitpos, sev->reduced_phys_bits);
+              sev->policy, sev->common.cbitpos, sev->common.reduced_phys_bits);
 
     if (sev->dh_cert)
         dhpath = g_strdup_printf("%s/dh_cert.base64", priv->libDir);
@@ -9737,12 +9762,52 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
         sessionpath = g_strdup_printf("%s/session.base64", priv->libDir);
 
     if (qemuMonitorCreateObjectProps(&props, "sev-guest", "lsec0",
-                                     "u:cbitpos", sev->cbitpos,
-                                     "u:reduced-phys-bits", sev->reduced_phys_bits,
+                                     "u:cbitpos", sev->common.cbitpos,
+                                     "u:reduced-phys-bits", sev->common.reduced_phys_bits,
                                      "u:policy", sev->policy,
                                      "S:dh-cert-file", dhpath,
                                      "S:session-file", sessionpath,
-                                     "T:kernel-hashes", sev->kernel_hashes,
+                                     "T:kernel-hashes", sev->common.kernel_hashes,
+                                     NULL) < 0)
+        return -1;
+
+    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
+qemuBuildSEVSNPCommandLine(virDomainObj *vm,
+                           virCommand *cmd,
+                           virDomainSEVSNPDef *def)
+{
+    g_autoptr(virJSONValue) props = NULL;
+    qemuDomainObjPrivate *priv = vm->privateData;
+    virTristateBool vcek_disabled = VIR_TRISTATE_BOOL_ABSENT;
+
+    VIR_DEBUG("policy=0x%llx cbitpos=%d reduced_phys_bits=%d",
+              def->policy, def->common.cbitpos, def->common.reduced_phys_bits);
+
+    /* On QEMU cmd line, there's vcek-disabled which is an inverted boolean. */
+    if (def->vcek == VIR_TRISTATE_BOOL_YES) {
+        vcek_disabled = VIR_TRISTATE_BOOL_NO;
+    } else if (def->vcek == VIR_TRISTATE_BOOL_NO) {
+        vcek_disabled = VIR_TRISTATE_BOOL_YES;
+    }
+
+    if (qemuMonitorCreateObjectProps(&props, "sev-snp-guest", "lsec0",
+                                     "u:cbitpos", def->common.cbitpos,
+                                     "u:reduced-phys-bits", def->common.reduced_phys_bits,
+                                     "T:kernel-hashes", def->common.kernel_hashes,
+                                     "U:policy", def->policy,
+                                     "S:guest-visible-workarounds", def->guest_visible_workarounds,
+                                     "S:id-block", def->id_block,
+                                     "S:id-auth", def->id_auth,
+                                     "S:host-data", def->host_data,
+                                     "T:author-key-enabled", def->author_key,
+                                     "T:vcek-disabled", vcek_disabled,
                                      NULL) < 0)
         return -1;
 
@@ -9777,9 +9842,12 @@ qemuBuildSecCommandLine(virDomainObj *vm, virCommand *cmd,
     if (!sec)
         return 0;
 
-    switch ((virDomainLaunchSecurity) sec->sectype) {
+    switch (sec->sectype) {
     case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
         return qemuBuildSEVCommandLine(vm, cmd, &sec->data.sev);
+        break;
+    case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+        return qemuBuildSEVSNPCommandLine(vm, cmd, &sec->data.sev_snp);
         break;
     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
         return qemuBuildPVCommandLine(vm, cmd);
@@ -10295,6 +10363,53 @@ qemuBuildCryptoCommandLine(virCommand *cmd,
 
 
 static int
+qemuBuildPstoreCommandLine(virCommand *cmd,
+                           const virDomainDef *def,
+                           virDomainPstoreDef *pstore,
+                           virQEMUCaps *qemuCaps)
+{
+    g_autoptr(virJSONValue) devProps = NULL;
+    g_autoptr(virJSONValue) memProps = NULL;
+    g_autofree char *memAlias = NULL;
+
+    if (!pstore->info.alias) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("pstore device is missing alias"));
+        return -1;
+    }
+
+    memAlias = g_strdup_printf("mem%s", pstore->info.alias);
+
+    if (qemuMonitorCreateObjectProps(&memProps,
+                                     "memory-backend-file",
+                                     memAlias,
+                                     "s:mem-path", pstore->path,
+                                     "U:size", pstore->size * 1024,
+                                     "b:share", true,
+                                     NULL) < 0) {
+        return -1;
+    }
+
+    if (virJSONValueObjectAdd(&devProps,
+                              "s:driver", "acpi-erst",
+                              "s:id", pstore->info.alias,
+                              "s:memdev", memAlias,
+                              NULL) < 0) {
+        return -1;
+    }
+
+    if (qemuBuildDeviceAddressProps(devProps, def, &pstore->info) < 0)
+        return -1;
+
+    if (qemuBuildObjectCommandlineFromJSON(cmd, memProps, qemuCaps) < 0 ||
+        qemuBuildDeviceCommandlineFromJSON(cmd, devProps, def, qemuCaps) < 0)
+        return -1;
+
+    return 0;
+}
+
+
+static int
 qemuBuildAsyncTeardownCommandLine(virCommand *cmd,
                                   const virDomainDef *def,
                                   virQEMUCaps *qemuCaps)
@@ -10465,21 +10580,6 @@ qemuBuildCommandLine(virDomainObj *vm,
 
     if (qemuBuildPflashBlockdevCommandLine(cmd, vm) < 0)
         return NULL;
-
-    /* QEMU 1.2 and later have a binary flag -enable-fips that must be
-     * used for VNC auth to obey FIPS settings; but the flag only
-     * exists on Linux, and with no way to probe for it via QMP.  Our
-     * solution: if FIPS mode is required, then unconditionally use the flag.
-     *
-     * In QEMU 5.2.0, use of -enable-fips was deprecated. In scenarios
-     * where FIPS is required, QEMU must be built against libgcrypt
-     * which automatically enforces FIPS compliance.
-     *
-     * Note this is the only use of driver->hostFips.
-     */
-    if (driver->hostFips &&
-        virQEMUCapsGet(priv->qemuCaps, QEMU_CAPS_ENABLE_FIPS))
-        virCommandAddArg(cmd, "-enable-fips");
 
     if (qemuBuildMachineCommandLine(cmd, cfg, def, qemuCaps, priv) < 0)
         return NULL;
@@ -10665,6 +10765,10 @@ qemuBuildCommandLine(virDomainObj *vm,
         return NULL;
 
     if (qemuBuildCryptoCommandLine(cmd, def, qemuCaps) < 0)
+        return NULL;
+
+    if (def->pstore &&
+        qemuBuildPstoreCommandLine(cmd, def, def->pstore, qemuCaps) < 0)
         return NULL;
 
     if (qemuBuildAsyncTeardownCommandLine(cmd, def, qemuCaps) < 0)

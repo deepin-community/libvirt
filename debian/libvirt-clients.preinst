@@ -14,15 +14,16 @@ set -e
 
 prepare_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "prepare_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
@@ -40,25 +41,57 @@ prepare_conffile_transfer() {
     # more importanly, $pkgto's postinst, where the transfer process is completed,
     # will be able to figure out the original state of the conffile and make sure
     # it is restored
+
     if [ -e "$conffile" ]; then
+        expected=$(dpkg-query --showformat='${Conffiles}\n' --show "$pkgfrom" | grep -E "^ $conffile " | sed -E 's/^.* ([0-9a-f]+)$/\1/g')
+        actual=$(md5sum "$conffile" 2>/dev/null | sed -E 's/^([0-9a-f]+) .*$/\1/g')
+
+        if [ -n "$actual" ] && [ "$actual" = "$expected" ]; then
+            rm -f "$conffile"
+            return 0
+        fi
+
         echo "Preparing transfer of config file $conffile (from $pkgfrom to $pkgto) ..."
         mv -f "$conffile" "$conffile.dpkg-transfer"
-    else
-        # If the conffile is no longer present on the disk, it means the admin
-        # has deleted it, and we should preserve this local modification
+        return 0
+    fi
+
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
+        # If we are performing an upgrade from a version that's newer than the
+        # one which originally introduced the conffile ($firstver), we expect
+        # it to be present on disk; if that's not the case, that means that
+        # the admin  must have explicitly deleted it and we should preserve
+        # this local modification
         touch "$conffile.dpkg-disappear"
+        return 0
     fi
 }
+
+CLIENTS_TO_COMMON="
+    /etc/libvirt/libvirt-admin.conf
+    /etc/libvirt/libvirt.conf
+"
 
 case "$1" in
     install|upgrade)
         prepare_conffile_transfer \
             "/etc/libvirt/virt-login-shell.conf" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-clients" \
             "libvirt-login-shell" \
             -- \
             "$@"
+        for conf in $CLIENTS_TO_COMMON; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-clients" \
+                "libvirt-common" \
+                -- \
+                "$@"
+        done
     ;;
 
     abort-upgrade)

@@ -205,6 +205,18 @@
     %define with_modular_daemons 1
 %endif
 
+# Prefer nftables for future OS releases but keep using iptables
+# for existing ones
+%if 0%{?rhel} >= 10 || 0%{?fedora} >= 41
+    %define prefer_nftables 1
+    %define firewall_backend_priority nftables,iptables
+%else
+    %define prefer_nftables 0
+    %define firewall_backend_priority iptables,nftables
+%endif
+
+
+
 # Force QEMU to run as non-root
 %define qemu_user  qemu
 %define qemu_group  qemu
@@ -592,7 +604,7 @@ Summary: Network driver plugin for the libvirtd daemon
 Requires: libvirt-daemon-common = %{version}-%{release}
 Requires: libvirt-libs = %{version}-%{release}
 Requires: dnsmasq >= 2.41
-    %if 0%{?rhel} >= 10 || 0%{?fedora} >= 41
+    %if %{prefer_nftables}
 Requires: nftables
     %else
 Requires: iptables
@@ -1020,8 +1032,6 @@ capabilities of VirtualBox
 %package client
 Summary: Client side utilities of the libvirt library
 Requires: libvirt-libs = %{version}-%{release}
-# Needed by virt-pki-validate script.
-Requires: gnutls-utils
 
 # Ensure smooth upgrades
 Obsoletes: libvirt-bash-completion < 7.3.0
@@ -1043,8 +1053,6 @@ with some QEMU specific features of libvirt.
 
 %package libs
 Summary: Client side libraries
-# So remote clients can access libvirt over SSH tunnel
-Requires: cyrus-sasl
 # Needed by default sasl.conf - no onerous extra deps, since
 # 100's of other things on a system already pull in krb5-libs
 Requires: cyrus-sasl-gssapi
@@ -1317,6 +1325,8 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
 %meson \
            -Drunstatedir=%{_rundir} \
            -Dinitconfdir=%{_sysconfdir}/sysconfig \
+           -Dunitdir=%{_unitdir} \
+           -Dsysusersdir=%{_sysusersdir} \
            %{?arg_qemu} \
            %{?arg_openvz} \
            %{?arg_lxc} \
@@ -1387,7 +1397,7 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
            %{?enable_werror} \
            -Dexpensive_tests=enabled \
            -Dinit_script=systemd \
-           -Dfirewall_backend_priority=nftables,iptables \
+           -Dfirewall_backend_priority=%{firewall_backend_priority} \
            -Ddocs=enabled \
            -Dtests=enabled \
            -Drpath=disabled \
@@ -1473,8 +1483,9 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
   -Dtests=disabled \
   -Dudev=disabled \
   -Dwireshark_dissector=disabled \
-  -Dyajl=disabled
-    %mingw_ninja
+  -Dyajl=disabled \
+  %{?enable_werror}
+%mingw_ninja
 %endif
 
 %install
@@ -1580,7 +1591,8 @@ rm -rf $RPM_BUILD_ROOT%{mingw64_libexecdir}/libvirt-guests.sh
 %if %{with_native}
 # Building on slow archs, like emulated s390x in Fedora copr, requires
 # raising the test timeout
-VIR_TEST_DEBUG=1 %meson_test --no-suite syntax-check --timeout-multiplier 10
+export VIR_TEST_DEBUG=1
+%meson_test --no-suite syntax-check --timeout-multiplier 10
 %endif
 
 %define libvirt_rpmstatedir %{_localstatedir}/lib/rpm-state/libvirt
@@ -2500,7 +2512,7 @@ exit 0
 %{mingw32_bindir}/virt-admin.exe
 %{mingw32_bindir}/virt-xml-validate
 %{mingw32_bindir}/virt-pki-query-dn.exe
-%{mingw32_bindir}/virt-pki-validate
+%{mingw32_bindir}/virt-pki-validate.exe
 %{mingw32_bindir}/libvirt-lxc-0.dll
 %{mingw32_bindir}/libvirt-qemu-0.dll
 %{mingw32_bindir}/libvirt-admin-0.dll
@@ -2559,7 +2571,7 @@ exit 0
 %{mingw64_bindir}/virt-admin.exe
 %{mingw64_bindir}/virt-xml-validate
 %{mingw64_bindir}/virt-pki-query-dn.exe
-%{mingw64_bindir}/virt-pki-validate
+%{mingw64_bindir}/virt-pki-validate.exe
 %{mingw64_bindir}/libvirt-lxc-0.dll
 %{mingw64_bindir}/libvirt-qemu-0.dll
 %{mingw64_bindir}/libvirt-admin-0.dll

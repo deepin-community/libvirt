@@ -137,6 +137,8 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Drunstatedir=/run \
     -Dinitconfdir=/etc/default \
     -Dsshconfdir=/etc/ssh/ssh_config.d \
+    -Dunitdir=/usr/lib/systemd/system \
+    -Dsysusersdir=/usr/lib/sysusers.d \
     -Dno_git=true \
     -Dpackager="$(DEB_VENDOR)" \
     -Dpackager_version="$(DEB_VERSION)" \
@@ -214,21 +216,6 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dpm_utils=disabled \
     $(NULL)
 
-# Those have to stay up through upgrades to avoid interruptions
-LIBVIRT_UNITS = \
-    virtlogd.service \
-    virtlockd.service \
-    libvirt-guests.service \
-    libvirtd.socket \
-    libvirtd-ro.socket \
-    libvirtd-admin.socket \
-    virtlogd.socket \
-    virtlogd-admin.socket \
-    virtlockd.socket \
-    virtlockd-admin.socket \
-    $(NULL)
-
-
 DEB_BUILDDIR := $(CURDIR)/debian/build
 DEB_DESTDIR := $(CURDIR)/debian/tmp
 
@@ -265,11 +252,6 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	# Disable network autostart
 	rm -rf $(DEB_DESTDIR)/etc/libvirt/qemu/networks/autostart/
 
-	# Move systemd units
-	mkdir -p $(DEB_DESTDIR)/lib/systemd/system/
-	mv $(DEB_DESTDIR)/usr/lib/systemd/system/* \
-	   $(DEB_DESTDIR)/lib/systemd/system/
-
 	# Move systcl files (we consider them examples)
 	mkdir -p $(DEB_DESTDIR)/usr/share/doc/libvirt/examples/sysctl/
 	mv $(DEB_DESTDIR)/usr/lib/sysctl.d/* \
@@ -284,11 +266,6 @@ ifeq ($(DEB_HOST_ARCH_OS), linux)
 	mkdir -p $(DEB_DESTDIR)/usr/share/libvirt/nwfilter/
 	mv $(DEB_DESTDIR)/etc/libvirt/nwfilter/* \
 	   $(DEB_DESTDIR)/usr/share/libvirt/nwfilter/
-
-	# Move NSS modules
-	mkdir -p $(DEB_DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
-	mv $(DEB_DESTDIR)/usr/lib/$(DEB_HOST_MULTIARCH)/libnss_* \
-	   $(DEB_DESTDIR)/lib/$(DEB_HOST_MULTIARCH)/
 
 	# Rename the upstream polkit rule so that it matches the name used
 	# historically in Debian
@@ -309,36 +286,31 @@ endif
 	# triggers the privacy-breach-generic Lintian tag
 	rm $(DEB_DESTDIR)/usr/share/doc/libvirt/html/ci-dashboard.html
 
+ifeq ($(DEB_HOST_ARCH_OS), linux)
 execute_after_dh_install:
-ifeq ($(DEB_HOST_ARCH_OS), linux)
-	dh_apparmor -p libvirt-daemon-system --profile-name=usr.lib.libvirt.virt-aa-helper
-	dh_apparmor -p libvirt-daemon-system --profile-name=usr.sbin.libvirtd
-endif
+	dh_apparmor -p libvirt-daemon --profile-name=usr.sbin.libvirtd
+	dh_apparmor -p libvirt-daemon-common --profile-name=usr.lib.libvirt.virt-aa-helper
 
-ifeq ($(DEB_HOST_ARCH_OS), linux)
 override_dh_installinit:
-	# Install SysV init scripts
-	dh_installinit -p libvirt-daemon-system-sysv --name=virtlogd --no-stop-on-upgrade
-	dh_installinit -p libvirt-daemon-system-sysv --name=virtlockd --no-stop-on-upgrade
-	dh_installinit -p libvirt-daemon-system-sysv --name=libvirtd --restart-after-upgrade
-	dh_installinit -p libvirt-daemon-system-sysv --name=libvirt-guests --no-start
-	# Install default files, which are used by both systemd and SysV init
-	dh_installinit -p libvirt-daemon-system --name=virtlogd --no-scripts
-	dh_installinit -p libvirt-daemon-system --name=virtlockd --no-scripts
-	dh_installinit -p libvirt-daemon-system --name=libvirtd --no-scripts
-	dh_installinit -p libvirt-daemon-system --name=libvirt-guests --no-scripts
+	dh_installinit -p libvirt-daemon --name=libvirtd --restart-after-upgrade
+	dh_installinit -p libvirt-daemon-log --name=virtlogd --no-stop-on-upgrade
+	dh_installinit -p libvirt-daemon-lock --name=virtlockd --no-stop-on-upgrade
+	dh_installinit -p libvirt-daemon-common --name=libvirt-guests --no-start
 
 override_dh_installsystemd:
-	dh_installsystemd -p libvirt-daemon-system --no-also libvirtd.service
-	dh_installsystemd -p libvirt-daemon-system --no-stop-on-upgrade $(LIBVIRT_UNITS)
+	dh_installsystemd -p libvirt-daemon --no-also libvirtd.service
+	dh_installsystemd -p libvirt-daemon --no-stop-on-upgrade libvirtd.socket libvirtd-ro.socket libvirtd-admin.socket
+	dh_installsystemd -p libvirt-daemon-log --no-stop-on-upgrade virtlogd.service virtlogd.socket virtlogd-admin.socket
+	dh_installsystemd -p libvirt-daemon-lock --no-stop-on-upgrade virtlockd.service virtlockd.socket virtlockd-admin.socket
+	dh_installsystemd -p libvirt-daemon-common --no-stop-on-upgrade libvirt-guests.service
 endif
 
 override_dh_installchangelogs:
-	dh_installchangelogs -plibvirt0
+	dh_installchangelogs -plibvirt-common
 	dh_installchangelogs -plibvirt-doc
 
 override_dh_installdocs:
-	dh_installdocs -plibvirt0
+	dh_installdocs -plibvirt-common
 	dh_installdocs -plibvirt-doc --doc-main-package libvirt-doc
 
 # dh_missing can't figure out that some files are skipped on purpose due

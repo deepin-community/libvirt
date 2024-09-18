@@ -18,15 +18,16 @@ set -e
 
 abort_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "abort_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
@@ -46,15 +47,31 @@ abort_conffile_transfer() {
     rm -f "$conffile.dpkg-disappear"
 }
 
+CLIENTS_TO_COMMON="
+    /etc/libvirt/libvirt-admin.conf
+    /etc/libvirt/libvirt.conf
+"
+
 case "$1" in
     abort-install|abort-upgrade)
         abort_conffile_transfer \
             "/etc/libvirt/virt-login-shell.conf" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-clients" \
             "libvirt-login-shell" \
             -- \
             "$@"
+        for conf in $CLIENTS_TO_COMMON; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-clients" \
+                "libvirt-common" \
+                -- \
+                "$@"
+        done
     ;;
 
     remove|purge|upgrade|disappear|failed-upgrade)

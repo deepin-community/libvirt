@@ -560,7 +560,6 @@ qemuStateInitialize(bool privileged,
     bool autostart = true;
     size_t i;
     const char *defsecmodel = NULL;
-    g_autofree virSecurityManager **sec_managers = NULL;
     g_autoptr(virIdentity) identity = virIdentityGetCurrent();
 
     qemu_driver = g_new0(virQEMUDriver, 1);
@@ -732,15 +731,6 @@ qemuStateInitialize(bool privileged,
     if (qemuMigrationDstErrorInit(qemu_driver) < 0)
         goto error;
 
-    /* qemu-5.1 and older requires use of '-enable-fips' flag when the host
-     * is in FIPS mode. We store whether FIPS is enabled */
-    if (virFileExists("/proc/sys/crypto/fips_enabled")) {
-        g_autofree char *buf = NULL;
-
-        if (virFileReadAll("/proc/sys/crypto/fips_enabled", 10, &buf) > 0)
-            qemu_driver->hostFips = STREQ(buf, "1\n");
-    }
-
     if (privileged) {
         g_autofree char *channeldir = NULL;
 
@@ -835,11 +825,8 @@ qemuStateInitialize(bool privileged,
     if (!qemu_driver->qemuCapsCache)
         goto error;
 
-    if (!(sec_managers = qemuSecurityGetNested(qemu_driver->securityManager)))
-        goto error;
-
-    if (sec_managers[0] != NULL)
-        defsecmodel = qemuSecurityGetModel(sec_managers[0]);
+    if (qemu_driver->securityManager != NULL)
+        defsecmodel = qemuSecurityGetModel(qemu_driver->securityManager);
 
     if (!(qemu_driver->xmlopt = virQEMUDriverCreateXMLConf(qemu_driver,
                                                            defsecmodel)))
@@ -2115,7 +2102,7 @@ qemuDomainDestroyFlags(virDomainPtr dom,
  endjob:
     if (ret == 0)
         qemuDomainRemoveInactive(driver, vm, 0, false);
-    virDomainObjEndJob(vm);
+    qemuProcessEndStopJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -3901,7 +3888,7 @@ processMonitorEOFEvent(virQEMUDriver *driver,
 
  endjob:
     qemuDomainRemoveInactive(driver, vm, 0, false);
-    virDomainObjEndJob(vm);
+    qemuProcessEndStopJob(vm);
 }
 
 
@@ -4054,6 +4041,22 @@ processNbdkitExitedEvent(virDomainObj *vm,
 }
 
 
+static void
+processShutdownCompletedEvent(virQEMUDriver *driver,
+                              virDomainObj *vm)
+{
+    if (qemuProcessBeginStopJob(vm, VIR_JOB_DESTROY, true) < 0)
+        return;
+
+    if (virDomainObjIsActive(vm)) {
+        qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_UNKNOWN,
+                        VIR_ASYNC_JOB_NONE, 0);
+    }
+
+    qemuProcessEndStopJob(vm);
+}
+
+
 static void qemuProcessEventHandler(void *data, void *opaque)
 {
     struct qemuProcessEvent *processEvent = data;
@@ -4113,6 +4116,9 @@ static void qemuProcessEventHandler(void *data, void *opaque)
         break;
     case QEMU_PROCESS_EVENT_NBDKIT_EXITED:
         processNbdkitExitedEvent(vm, processEvent->data);
+        break;
+    case QEMU_PROCESS_EVENT_SHUTDOWN_COMPLETED:
+        processShutdownCompletedEvent(driver, vm);
         break;
     case QEMU_PROCESS_EVENT_LAST:
         break;
@@ -5663,9 +5669,16 @@ static int qemuDomainGetSecurityLabelList(virDomainPtr dom,
         ret = 0;
     } else {
         int len = 0;
-        virSecurityManager ** mgrs = qemuSecurityGetNested(driver->securityManager);
-        if (!mgrs)
+        virSecurityManager ** mgrs = NULL;
+
+        /* Ensure top lock is acquired before nested locks */
+        qemuSecurityStackLock(driver->securityManager);
+
+        mgrs = qemuSecurityGetNested(driver->securityManager);
+        if (!mgrs) {
+            qemuSecurityStackUnlock(driver->securityManager);
             goto cleanup;
+        }
 
         /* Allocate seclabels array */
         for (i = 0; mgrs[i]; i++)
@@ -5678,11 +5691,13 @@ static int qemuDomainGetSecurityLabelList(virDomainPtr dom,
         for (i = 0; i < len; i++) {
             if (qemuSecurityGetProcessLabel(mgrs[i], vm->def, vm->pid,
                                             &(*seclabels)[i]) < 0) {
+                qemuSecurityStackUnlock(driver->securityManager);
                 VIR_FREE(mgrs);
                 VIR_FREE(*seclabels);
                 goto cleanup;
             }
         }
+        qemuSecurityStackUnlock(driver->securityManager);
         ret = len;
         VIR_FREE(mgrs);
     }
@@ -6847,6 +6862,15 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
         vmdef->vsock = g_steal_pointer(&dev->data.vsock);
         break;
 
+    case VIR_DOMAIN_DEVICE_IOMMU:
+        if (vmdef->iommu) {
+            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
+                           _("domain already has an iommu device"));
+            return -1;
+        }
+        vmdef->iommu = g_steal_pointer(&dev->data.iommu);
+        break;
+
     case VIR_DOMAIN_DEVICE_VIDEO:
     case VIR_DOMAIN_DEVICE_GRAPHICS:
     case VIR_DOMAIN_DEVICE_HUB:
@@ -6856,9 +6880,9 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_TPM:
     case VIR_DOMAIN_DEVICE_PANIC:
-    case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
          virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                         _("persistent attach of device '%1$s' is not supported"),
@@ -6867,6 +6891,9 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
     }
 
     if (virDomainDefPostParse(vmdef, parse_flags, xmlopt, qemuCaps) < 0)
+        return -1;
+
+    if (virDomainDefValidate(vmdef, parse_flags, xmlopt, qemuCaps) < 0)
         return -1;
 
     return 0;
@@ -7054,6 +7081,15 @@ qemuDomainDetachDeviceConfig(virDomainDef *vmdef,
         g_clear_pointer(&vmdef->vsock, virDomainVsockDefFree);
         break;
 
+    case VIR_DOMAIN_DEVICE_IOMMU:
+        if (!vmdef->iommu) {
+            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
+                           _("matching iommu device not found"));
+            return -1;
+        }
+        g_clear_pointer(&vmdef->iommu, virDomainIOMMUDefFree);
+        break;
+
     case VIR_DOMAIN_DEVICE_VIDEO:
     case VIR_DOMAIN_DEVICE_GRAPHICS:
     case VIR_DOMAIN_DEVICE_HUB:
@@ -7063,9 +7099,9 @@ qemuDomainDetachDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_TPM:
     case VIR_DOMAIN_DEVICE_PANIC:
-    case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("persistent detach of device '%1$s' is not supported"),
@@ -7191,6 +7227,7 @@ qemuDomainUpdateDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
+    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("persistent update of device '%1$s' is not supported"),
@@ -11926,6 +11963,7 @@ qemuDomainGetJobInfoMigrationStats(virDomainObj *vm,
     case VIR_DOMAIN_JOB_STATUS_POSTCOPY:
     case VIR_DOMAIN_JOB_STATUS_PAUSED:
     case VIR_DOMAIN_JOB_STATUS_POSTCOPY_PAUSED:
+    case VIR_DOMAIN_JOB_STATUS_POSTCOPY_RECOVER:
         if (qemuMigrationAnyFetchStats(vm, VIR_ASYNC_JOB_NONE,
                                        jobData, NULL) < 0)
             return -1;
@@ -19017,10 +19055,7 @@ qemuDomainGetSEVInfo(virDomainObj *vm,
     int ret = -1;
     int rv;
     g_autofree char *tmp = NULL;
-    unsigned int apiMajor = 0;
-    unsigned int apiMinor = 0;
-    unsigned int buildID = 0;
-    unsigned int policy = 0;
+    qemuMonitorSEVInfo info = { };
     int maxpar = 0;
 
     virCheckFlags(VIR_TYPED_PARAM_STRING_OKAY, -1);
@@ -19035,14 +19070,12 @@ qemuDomainGetSEVInfo(virDomainObj *vm,
     qemuDomainObjEnterMonitor(vm);
     tmp = qemuMonitorGetSEVMeasurement(QEMU_DOMAIN_PRIVATE(vm)->mon);
 
-
     if (!tmp) {
         qemuDomainObjExitMonitor(vm);
         goto endjob;
     }
 
-    rv = qemuMonitorGetSEVInfo(QEMU_DOMAIN_PRIVATE(vm)->mon,
-                               &apiMajor, &apiMinor, &buildID, &policy);
+    rv = qemuMonitorGetSEVInfo(QEMU_DOMAIN_PRIVATE(vm)->mon, &info);
     qemuDomainObjExitMonitor(vm);
 
     if (rv < 0)
@@ -19054,20 +19087,35 @@ qemuDomainGetSEVInfo(virDomainObj *vm,
         goto endjob;
     if (virTypedParamsAddUInt(params, nparams, &maxpar,
                               VIR_DOMAIN_LAUNCH_SECURITY_SEV_API_MAJOR,
-                              apiMajor) < 0)
+                              info.apiMajor) < 0)
         goto endjob;
     if (virTypedParamsAddUInt(params, nparams, &maxpar,
                               VIR_DOMAIN_LAUNCH_SECURITY_SEV_API_MINOR,
-                              apiMinor) < 0)
+                              info.apiMinor) < 0)
         goto endjob;
     if (virTypedParamsAddUInt(params, nparams, &maxpar,
                               VIR_DOMAIN_LAUNCH_SECURITY_SEV_BUILD_ID,
-                              buildID) < 0)
+                              info.buildID) < 0)
         goto endjob;
-    if (virTypedParamsAddUInt(params, nparams, &maxpar,
-                              VIR_DOMAIN_LAUNCH_SECURITY_SEV_POLICY,
-                              policy) < 0)
-        goto endjob;
+
+    switch (info.type) {
+    case QEMU_MONITOR_SEV_GUEST_TYPE_SEV:
+        if (virTypedParamsAddUInt(params, nparams, &maxpar,
+                                  VIR_DOMAIN_LAUNCH_SECURITY_SEV_POLICY,
+                                  info.data.sev.policy) < 0)
+            goto endjob;
+        break;
+
+    case QEMU_MONITOR_SEV_GUEST_TYPE_SEV_SNP:
+        if (virTypedParamsAddULLong(params, nparams, &maxpar,
+                                    VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP_POLICY,
+                                    info.data.sev_snp.snp_policy) < 0)
+            goto endjob;
+        break;
+
+    case QEMU_MONITOR_SEV_GUEST_TYPE_LAST:
+        break;
+    }
 
     ret = 0;
 
@@ -19092,10 +19140,23 @@ qemuDomainGetLaunchSecurityInfo(virDomainPtr domain,
     if (virDomainGetLaunchSecurityInfoEnsureACL(domain->conn, vm->def) < 0)
         goto cleanup;
 
-    if (vm->def->sec &&
-        vm->def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_SEV) {
+    if (!vm->def->sec) {
+        ret = 0;
+        goto cleanup;
+    }
+
+    switch (vm->def->sec->sectype) {
+    case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+    case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
         if (qemuDomainGetSEVInfo(vm, params, nparams, flags) < 0)
             goto cleanup;
+        break;
+    case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+        break;
+    case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+    case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+        virReportEnumRangeError(virDomainLaunchSecurity, vm->def->sec->sectype);
+        return -1;
     }
 
     ret = 0;

@@ -1,0 +1,77 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#FINISH_CONFFILE_TRANSFER#
+#DELETE_PROTECTIVE_DIVERSION#
+
+DAEMON_SYSTEM_TO_DAEMON_LOG="
+    /etc/default/virtlogd
+    /etc/libvirt/virtlogd.conf
+"
+DAEMON_SYSTEM_SYSV_TO_DAEMON_LOG="
+    /etc/init.d/virtlogd
+"
+
+DAEMON_LOG_UNITS="
+    virtlogd-admin.socket
+    virtlogd.service
+    virtlogd.socket
+"
+
+case "$1" in
+    configure)
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_LOG; do
+            finish_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-log" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_SYSV_TO_DAEMON_LOG; do
+            finish_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system-sysv" \
+                "libvirt-daemon-log" \
+                -- \
+                "$@"
+        done
+
+        for unit in $DAEMON_LOG_UNITS; do
+            delete_protective_diversion \
+                "/lib/systemd/system/$unit" \
+                "10.6.0-3~" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

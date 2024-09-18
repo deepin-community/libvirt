@@ -8,6 +8,157 @@ the changes introduced by each of them.
 For a more fine-grained view, use the `git log`_.
 
 
+v10.7.0 (2024-09-02)
+====================
+
+* **Security**
+
+  * CVE-2024-8235: Crash of ``virtinterfaced`` via ``virConnectListInterfaces()``
+
+    A refactor of the code fetching the list of interfaces for multiple APIs
+    introduced corner case on platforms where allocating 0 bytes of memory
+    results in a NULL pointer.
+
+    This corner case would lead to a NULL-pointer dereference and subsequent
+    crash of ``virtinterfaced`` if ``virConnectListInterfaces()`` is called
+    requesting 0 networks to be filled.
+
+    The bug was introduced in libvirt-10.4.0
+
+* **New features**
+
+  * qemu: Introduce the ability to disable the built-in PS/2 controller
+
+    It is now possible to control the state of the ``ps2`` feature in the
+    domain XML for descendants of the generic PC machine type (``i440fx``,
+    ``q35``, ``xenfv`` and ``isapc``).
+
+* **Improvements**
+
+  * ch: support restore with network devices
+
+    Cloud-Hypervisor starting from V40.0 supports restoring file descriptor
+    backed network devices. So, create new net fds and pass them via
+    SCM_RIGHTS to CH during restore operation.
+
+  * ch: support basic networking modes
+    Cloud-Hypervisor driver now supports Ethernet, Network (NAT) and Bridge
+    networking modes.
+
+v10.6.0 (2024-08-05)
+====================
+
+* **Removed features**
+
+  * qemu: Require QEMU-5.2.0 or newer
+
+    The minimal required version of QEMU was bumped to 5.2.0.
+
+* **New features**
+
+  * qemu: Add support for the 'pauth' Arm CPU feature
+
+  * Introduce pstore device
+
+    The aim of pstore device is to provide a bit of NVRAM storage for guest
+    kernel to record oops/panic logs just before it crashes. Typical usage
+    includes usage in combination with a watchdog so that the logs can be
+    inspected after the watchdog rebooted the machine.
+
+* **Improvements**
+
+  * qemu: Set 'passt' net backend if 'default' is unsupported
+
+    If QEMU is compiled without SLIRP support, and if domain XML allows it,
+    starting from this release libvirt will use passt as the default backend
+    instead. Also, supported backends are now reported in the domain
+    capabilities XML.
+
+  * qemu: add a monitor to /proc/$pid when killing times out
+
+    In cases when a QEMU process takes longer to be killed, libvirt might have
+    skipped cleaning up after it. But now a /proc/$pid watch is installed so
+    this does not happen ever again.
+
+* **Bug fixes**
+
+  * virt-aa-helper: Allow RO access to /usr/share/edk2-ovmf
+
+    When binary version of edk2 is distributed, the files reside under
+    /usr/share/edk2-ovmf. Allow virt-aa-helper to generate paths under that
+    directory.
+
+  * virt-host-validate: Allow longer list of CPU flags
+
+    During its run, virt-host-validate parses /proc/cpuinfo to learn about CPU
+    flags. But due to a bug it parsed only the first 1024 bytes worth of CPU
+    flags leading to unexpected results. The file is now parsed properly.
+
+  * capabilities: Be more forgiving when decoding OEM strings
+
+    On some systems, OEM strings are scattered in multiple sections. This
+    confused libvirt when generating capabilities XML. Not anymore.
+
+
+v10.5.0 (2024-07-01)
+====================
+
+* **New features**
+
+  * Introduce SEV-SNP support
+
+    SEV-SNP is introduced as another type of ``<launchSecurity/>``. Its support
+    is reported in both domain capabilities and ``virt-host-validate``.
+
+* **Improvements**
+
+  * tools: virt-pki-validate has been rewritten in C
+
+    The ``virt-pki-validate`` shell script has been rewritten as a C program,
+    providing an output format that matches ``virt-host-validate``, removing
+    the dependency on ``certtool`` and providing more comprehensive checks
+    of the certificate properties.
+
+  * qemu: implement iommu coldplug/unplug
+
+    The ``<iommu/>`` device can be now cold plugged and/or cold unplugged.
+
+  * Pass shutoff reason to release hook
+
+    Sometimes in release hook it is useful to know if the VM shutdown was
+    graceful or not. This is especially useful to do cleanup based on the VM
+    shutdown failure reason in release hook. Starting with this release the
+    last argument 'extra' is used to pass VM shutoff reason in the call to
+    release hook.
+
+  * nodedev: improve DASD detection
+
+    In newer DASD driver versions the ID_TYPE tag is supported. This tag is
+    missing after a system reboot but when the ccw device is set offline and
+    online the tag is included. To fix this version independently we need to
+    check if a device detected as type disk is actually a DASD to maintain the
+    node object consistency and not end up with multiple node objects for
+    DASDs.
+
+* **Bug fixes**
+
+  * remote_daemon_dispatch: Unref sasl session when closing client connection
+
+    A memory leak was identified when a client started SASL but then suddenly
+    closed connection. This is now fixed.
+
+  * qemu: Fix migration with disabled vmx-* CPU features
+
+    Migrating a domain with some vmx-* CPU features marked as disabled could
+    have failed as the destination would incorrectly expect those features to
+    be enabled after starting QEMU.
+
+  * qemu: Fix ``libvirtd``/``virtqemud`` crash when VM shuts down during migration
+
+    The libvirt daemon could crash when a VM was shut down while being migrated
+    to another host.
+
+
 v10.4.0 (2024-06-03)
 ====================
 

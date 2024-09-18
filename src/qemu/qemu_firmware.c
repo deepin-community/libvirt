@@ -148,6 +148,7 @@ typedef enum {
     QEMU_FIRMWARE_FEATURE_ACPI_S4,
     QEMU_FIRMWARE_FEATURE_AMD_SEV,
     QEMU_FIRMWARE_FEATURE_AMD_SEV_ES,
+    QEMU_FIRMWARE_FEATURE_AMD_SEV_SNP,
     QEMU_FIRMWARE_FEATURE_ENROLLED_KEYS,
     QEMU_FIRMWARE_FEATURE_REQUIRES_SMM,
     QEMU_FIRMWARE_FEATURE_SECURE_BOOT,
@@ -165,6 +166,7 @@ VIR_ENUM_IMPL(qemuFirmwareFeature,
               "acpi-s4",
               "amd-sev",
               "amd-sev-es",
+              "amd-sev-snp",
               "enrolled-keys",
               "requires-smm",
               "secure-boot",
@@ -1088,7 +1090,7 @@ qemuFirmwareEnsureNVRAM(virDomainDef *def,
 
     loader->nvram->path = g_strdup_printf("%s/%s_VARS%s",
                                           cfg->nvramDir, def->name,
-                                          ext ? ext : "");
+                                          NULLSTR_EMPTY(ext));
 }
 
 
@@ -1148,6 +1150,7 @@ qemuFirmwareMatchDomain(const virDomainDef *def,
     bool requiresSMM = false;
     bool supportsSEV = false;
     bool supportsSEVES = false;
+    bool supportsSEVSNP = false;
     bool supportsSecureBoot = false;
     bool hasEnrolledKeys = false;
     int reqSecureBoot;
@@ -1193,6 +1196,10 @@ qemuFirmwareMatchDomain(const virDomainDef *def,
 
         case QEMU_FIRMWARE_FEATURE_AMD_SEV_ES:
             supportsSEVES = true;
+            break;
+
+        case QEMU_FIRMWARE_FEATURE_AMD_SEV_SNP:
+            supportsSEVSNP = true;
             break;
 
         case QEMU_FIRMWARE_FEATURE_REQUIRES_SMM:
@@ -1273,6 +1280,12 @@ qemuFirmwareMatchDomain(const virDomainDef *def,
     if (fw->mapping.device == QEMU_FIRMWARE_DEVICE_FLASH) {
         const qemuFirmwareMappingFlash *flash = &fw->mapping.data.flash;
 
+        if (loader && loader->type &&
+            loader->type != VIR_DOMAIN_LOADER_TYPE_PFLASH) {
+            VIR_DEBUG("Discarding flash loader");
+            return false;
+        }
+
         if (loader && loader->stateless == VIR_TRISTATE_BOOL_YES) {
             if (flash->mode != QEMU_FIRMWARE_FLASH_MODE_STATELESS) {
                 VIR_DEBUG("Discarding loader without stateless flash");
@@ -1320,10 +1333,21 @@ qemuFirmwareMatchDomain(const virDomainDef *def,
                 return false;
             }
         }
+    } else if (fw->mapping.device == QEMU_FIRMWARE_DEVICE_MEMORY) {
+        if (loader && loader->type &&
+            loader->type != VIR_DOMAIN_LOADER_TYPE_ROM) {
+            VIR_DEBUG("Discarding rom loader");
+            return false;
+        }
+
+        if (loader && loader->readonly == VIR_TRISTATE_BOOL_NO) {
+            VIR_DEBUG("Discarding readonly loader");
+            return false;
+        }
     }
 
     if (def->sec) {
-        switch ((virDomainLaunchSecurity) def->sec->sectype) {
+        switch (def->sec->sectype) {
         case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
             if (!supportsSEV) {
                 VIR_DEBUG("Domain requires SEV, firmware '%s' doesn't support it",
@@ -1334,6 +1358,14 @@ qemuFirmwareMatchDomain(const virDomainDef *def,
             if (def->sec->data.sev.policy & VIR_QEMU_FIRMWARE_AMD_SEV_ES_POLICY &&
                 !supportsSEVES) {
                 VIR_DEBUG("Domain requires SEV-ES, firmware '%s' doesn't support it",
+                          path);
+                return false;
+            }
+            break;
+
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+            if (!supportsSEVSNP) {
+                VIR_DEBUG("Domain requires SEV-SNP firmware '%s' doesn't support it",
                           path);
                 return false;
             }
@@ -1448,6 +1480,7 @@ qemuFirmwareEnableFeaturesModern(virDomainDef *def,
         case QEMU_FIRMWARE_FEATURE_ACPI_S4:
         case QEMU_FIRMWARE_FEATURE_AMD_SEV:
         case QEMU_FIRMWARE_FEATURE_AMD_SEV_ES:
+        case QEMU_FIRMWARE_FEATURE_AMD_SEV_SNP:
         case QEMU_FIRMWARE_FEATURE_VERBOSE_DYNAMIC:
         case QEMU_FIRMWARE_FEATURE_VERBOSE_STATIC:
         case QEMU_FIRMWARE_FEATURE_NONE:
@@ -1498,6 +1531,7 @@ qemuFirmwareSanityCheck(const qemuFirmware *fw,
         case QEMU_FIRMWARE_FEATURE_ACPI_S4:
         case QEMU_FIRMWARE_FEATURE_AMD_SEV:
         case QEMU_FIRMWARE_FEATURE_AMD_SEV_ES:
+        case QEMU_FIRMWARE_FEATURE_AMD_SEV_SNP:
         case QEMU_FIRMWARE_FEATURE_VERBOSE_DYNAMIC:
         case QEMU_FIRMWARE_FEATURE_VERBOSE_STATIC:
         case QEMU_FIRMWARE_FEATURE_LAST:
@@ -1932,6 +1966,7 @@ qemuFirmwareGetSupported(const char *machine,
             case QEMU_FIRMWARE_FEATURE_ACPI_S4:
             case QEMU_FIRMWARE_FEATURE_AMD_SEV:
             case QEMU_FIRMWARE_FEATURE_AMD_SEV_ES:
+            case QEMU_FIRMWARE_FEATURE_AMD_SEV_SNP:
             case QEMU_FIRMWARE_FEATURE_ENROLLED_KEYS:
             case QEMU_FIRMWARE_FEATURE_SECURE_BOOT:
             case QEMU_FIRMWARE_FEATURE_VERBOSE_DYNAMIC:

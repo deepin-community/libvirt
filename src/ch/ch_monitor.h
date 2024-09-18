@@ -42,6 +42,8 @@
 
 #define VIRCH_THREAD_NAME_LEN   16
 
+#define CH_NET_ID_PREFIX "net"
+
 typedef enum {
     virCHThreadTypeEmulator,
     virCHThreadTypeVcpu,
@@ -112,8 +114,8 @@ int virCHMonitorShutdownVM(virCHMonitor *mon);
 int virCHMonitorRebootVM(virCHMonitor *mon);
 int virCHMonitorSuspendVM(virCHMonitor *mon);
 int virCHMonitorResumeVM(virCHMonitor *mon);
-int virCHMonitorSaveVM(virCHMonitor *mon, const char *to);
-int virCHMonitorRestoreVM(virCHMonitor *mon, const char *from);
+int virCHMonitorSaveVM(virCHMonitor *mon,
+                       const char *to);
 int virCHMonitorGetInfo(virCHMonitor *mon, virJSONValue **info);
 
 void virCHMonitorCPUInfoFree(virCHMonitorCPUInfo *cpus);
@@ -125,4 +127,9 @@ size_t virCHMonitorGetThreadInfo(virCHMonitor *mon, bool refresh,
 int virCHMonitorGetIOThreads(virCHMonitor *mon,
                              virDomainIOThreadInfo ***iothreads);
 int
-virCHMonitorBuildNetJson(virDomainNetDef *netdef, char **jsonstr);
+virCHMonitorBuildNetJson(virDomainNetDef *netdef,
+                         int netindex,
+                         char **jsonstr);
+int virCHMonitorBuildRestoreJson(virDomainDef *vmdef,
+                                 const char *from,
+                                 char **jsonstr);

@@ -29,6 +29,7 @@ case "$1" in
             "$@"
         finish_conffile_transfer \
             "/etc/libvirt/qemu/networks/default.xml" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-daemon-system" \
             "libvirt-daemon-config-network" \

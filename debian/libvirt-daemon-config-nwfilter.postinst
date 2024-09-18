@@ -17,7 +17,7 @@ set -e
 create_config_from_template() {
     local config="$1"
     local template="$2"
-    local lastver="$3"
+    local firstver="$3"
 
     if [ "$4" != "--" ]; then
         echo "create_config_from_template called with the wrong number of arguments" >&2
@@ -27,7 +27,7 @@ create_config_from_template() {
         shift
     done
 
-    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
         # The package is already configured, and the version that's been
         # configured is new enough to contain the config file
         if [ -e "$config.dpkg-backup" ]; then
@@ -50,21 +50,22 @@ create_config_from_template() {
 }
 finish_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "finish_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
-    # If we're upgrading rather than installing from scratch, we can assume
+    # If we're upgrading from a new enough version of the package, we can assume
     # the transfer must have happened at some point in the past and stop here
-    if [ -n "$2" ]; then
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
         return 0
     fi
 
@@ -148,6 +149,7 @@ case "$1" in
         for nwfilter in $NWFILTERS; do
             finish_conffile_transfer \
                 "/etc/libvirt/nwfilter/$nwfilter.xml" \
+                "6.0.0-0~" \
                 "6.9.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-config-nwfilter" \

@@ -1,0 +1,60 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#FINISH_CONFFILE_TRANSFER#
+
+add_statoverrides()
+{
+    SANLOCK_DIR="/var/lib/libvirt/sanlock"
+
+    if ! dpkg-statoverride --list "${SANLOCK_DIR}" >/dev/null 2>&1; then
+        [ ! -e "${SANLOCK_DIR}" ] || chown root:root "${SANLOCK_DIR}"
+        [ ! -e "${SANLOCK_DIR}" ] || chmod 0700 "${SANLOCK_DIR}"
+    fi
+}
+
+SANLOCK_TO_DAEMON_PLUGIN_SANLOCK="
+    /etc/cron.weekly/libvirt-sanlock
+"
+
+case "$1" in
+    configure)
+        add_statoverrides
+
+        for conf in $SANLOCK_TO_DAEMON_PLUGIN_SANLOCK; do
+            finish_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-sanlock" \
+                "libvirt-daemon-plugin-sanlock" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

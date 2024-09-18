@@ -14,15 +14,16 @@ set -e
 
 prepare_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "prepare_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
@@ -40,13 +41,29 @@ prepare_conffile_transfer() {
     # more importanly, $pkgto's postinst, where the transfer process is completed,
     # will be able to figure out the original state of the conffile and make sure
     # it is restored
+
     if [ -e "$conffile" ]; then
+        expected=$(dpkg-query --showformat='${Conffiles}\n' --show "$pkgfrom" | grep -E "^ $conffile " | sed -E 's/^.* ([0-9a-f]+)$/\1/g')
+        actual=$(md5sum "$conffile" 2>/dev/null | sed -E 's/^([0-9a-f]+) .*$/\1/g')
+
+        if [ -n "$actual" ] && [ "$actual" = "$expected" ]; then
+            rm -f "$conffile"
+            return 0
+        fi
+
         echo "Preparing transfer of config file $conffile (from $pkgfrom to $pkgto) ..."
         mv -f "$conffile" "$conffile.dpkg-transfer"
-    else
-        # If the conffile is no longer present on the disk, it means the admin
-        # has deleted it, and we should preserve this local modification
+        return 0
+    fi
+
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
+        # If we are performing an upgrade from a version that's newer than the
+        # one which originally introduced the conffile ($firstver), we expect
+        # it to be present on disk; if that's not the case, that means that
+        # the admin  must have explicitly deleted it and we should preserve
+        # this local modification
         touch "$conffile.dpkg-disappear"
+        return 0
     fi
 }
 
@@ -71,10 +88,54 @@ NWFILTERS="
     qemu-announce-self-rarp
 "
 
+DAEMON_SYSTEM_TO_DAEMON_COMMON="
+    /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
+    /etc/default/libvirt-guests
+    /etc/sasl2/libvirt.conf
+"
+DAEMON_SYSTEM_TO_DAEMON="
+    /etc/apparmor.d/usr.sbin.libvirtd
+    /etc/default/libvirtd
+    /etc/libvirt/libvirtd.conf
+    /etc/logrotate.d/libvirtd
+"
+DAEMON_SYSTEM_TO_DAEMON_LOG="
+    /etc/default/virtlogd
+    /etc/libvirt/virtlogd.conf
+"
+DAEMON_SYSTEM_TO_DAEMON_LOCK="
+    /etc/default/virtlockd
+    /etc/libvirt/virtlockd.conf
+"
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_XEN="
+    /etc/libvirt/libxl-lockd.conf
+    /etc/libvirt/libxl-sanlock.conf
+    /etc/libvirt/libxl.conf
+    /etc/logrotate.d/libvirtd.libxl
+"
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC="
+    /etc/apparmor.d/abstractions/libvirt-lxc
+    /etc/apparmor.d/libvirt/TEMPLATE.lxc
+    /etc/libvirt/lxc.conf
+    /etc/logrotate.d/libvirtd.lxc
+"
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU="
+    /etc/apparmor.d/abstractions/libvirt-qemu
+    /etc/apparmor.d/libvirt/TEMPLATE.qemu
+    /etc/libvirt/qemu-lockd.conf
+    /etc/libvirt/qemu-sanlock.conf
+    /etc/libvirt/qemu.conf
+    /etc/logrotate.d/libvirtd.qemu
+"
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK="
+    /etc/libvirt/network.conf
+"
+
 case "$1" in
     install|upgrade)
         prepare_conffile_transfer \
             "/etc/libvirt/qemu/networks/default.xml" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-daemon-system" \
             "libvirt-daemon-config-network" \
@@ -83,9 +144,90 @@ case "$1" in
         for nwfilter in $NWFILTERS; do
             prepare_conffile_transfer \
                 "/etc/libvirt/nwfilter/$nwfilter.xml" \
+                "6.0.0-0~" \
                 "6.9.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-config-nwfilter" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_COMMON; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-common" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_LOG; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-log" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_LOCK; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-lock" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_XEN; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-xen" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-lxc" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-qemu" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "10.4.0-1~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-network" \
                 -- \
                 "$@"
         done

@@ -1,0 +1,48 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#FINISH_CONFFILE_TRANSFER#
+
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK="
+    /etc/libvirt/network.conf
+"
+
+case "$1" in
+    configure)
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK; do
+            finish_conffile_transfer \
+                "$conf" \
+                "10.4.0-1~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-network" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

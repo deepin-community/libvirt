@@ -1,0 +1,46 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <new-preinst> `install'
+#   * <new-preinst> `install' <old-version> <new-version>
+#   * <new-preinst> `upgrade' <old-version> <new-version>
+#   * <old-preinst> `abort-upgrade' <new-version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#PREPARE_CONFFILE_TRANSFER#
+
+SANLOCK_TO_DAEMON_PLUGIN_SANLOCK="
+    /etc/cron.weekly/libvirt-sanlock
+"
+
+case "$1" in
+    install|upgrade)
+        for conf in $SANLOCK_TO_DAEMON_PLUGIN_SANLOCK; do
+            prepare_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-sanlock" \
+                "libvirt-daemon-plugin-sanlock" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    abort-upgrade)
+    ;;
+
+    *)
+        echo "preinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

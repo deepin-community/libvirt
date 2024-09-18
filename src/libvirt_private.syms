@@ -488,6 +488,7 @@ virDomainInputSourceGrabToggleTypeToString;
 virDomainInputSourceGrabTypeFromString;
 virDomainInputSourceGrabTypeToString;
 virDomainInputTypeToString;
+virDomainIOMMUDefFree;
 virDomainIOMMUModelTypeFromString;
 virDomainIOMMUModelTypeToString;
 virDomainIOThreadIDAdd;
@@ -496,6 +497,8 @@ virDomainIOThreadIDDel;
 virDomainIOThreadIDFind;
 virDomainKeyWrapCipherNameTypeFromString;
 virDomainKeyWrapCipherNameTypeToString;
+virDomainLaunchSecurityTypeFromString;
+virDomainLaunchSecurityTypeToString;
 virDomainLeaseDefFree;
 virDomainLeaseIndex;
 virDomainLeaseInsert;
@@ -530,6 +533,8 @@ virDomainNetAllocateActualDevice;
 virDomainNetAppendIPAddress;
 virDomainNetARPInterfaces;
 virDomainNetBackendIsEqual;
+virDomainNetBackendTypeFromString;
+virDomainNetBackendTypeToString;
 virDomainNetBandwidthUpdate;
 virDomainNetDefActualFromNetworkPort;
 virDomainNetDefActualToNetworkPort;
@@ -611,6 +616,8 @@ virDomainPausedReasonTypeToString;
 virDomainPMSuspendedReasonTypeFromString;
 virDomainPMSuspendedReasonTypeToString;
 virDomainProcessCapsFeatureTypeToString;
+virDomainPstoreBackendTypeFromString;
+virDomainPstoreBackendTypeToString;
 virDomainRedirdevBusTypeFromString;
 virDomainRedirdevBusTypeToString;
 virDomainRedirdevDefFind;
@@ -818,6 +825,7 @@ virNetDevBandwidthFormat;
 virNetDevBandwidthHasFloor;
 virNetDevBandwidthParse;
 virNetDevBandwidthSupportsFloor;
+virNetDevBandwidthValidate;
 virNetDevSupportsBandwidth;
 
 
@@ -1639,6 +1647,7 @@ virDomainDriverSetupPersistentDefBlkioParams;
 
 # hypervisor/domain_interface.h
 virDomainClearNetBandwidth;
+virDomainInterfaceBridgeConnect;
 virDomainInterfaceClearQoS;
 virDomainInterfaceDeleteDevice;
 virDomainInterfaceEthernetConnect;
@@ -1801,6 +1810,8 @@ virSecurityManagerSetSocketLabel;
 virSecurityManagerSetTapFDLabel;
 virSecurityManagerSetTPMLabels;
 virSecurityManagerStackAddNested;
+virSecurityManagerStackLock;
+virSecurityManagerStackUnlock;
 virSecurityManagerTransactionAbort;
 virSecurityManagerTransactionCommit;
 virSecurityManagerTransactionStart;
@@ -1855,6 +1866,7 @@ vir_g_fsync;
 vir_g_source_unref;
 vir_g_strdup_printf;
 vir_g_strdup_vprintf;
+vir_g_string_replace;
 
 
 # util/viracpi.c
@@ -2277,6 +2289,7 @@ virEventGLibRunOnce;
 # util/vireventthread.h
 virEventThreadGetContext;
 virEventThreadNew;
+virEventThreadStop;
 
 
 # util/virfcp.h
@@ -2764,6 +2777,8 @@ virMacMapWriteFile;
 # util/virmdev.h
 virMediatedDeviceAttrFree;
 virMediatedDeviceAttrNew;
+virMediatedDeviceConfigClear;
+virMediatedDeviceConfigFree;
 virMediatedDeviceFree;
 virMediatedDeviceGetIOMMUGroupDev;
 virMediatedDeviceGetIOMMUGroupNum;

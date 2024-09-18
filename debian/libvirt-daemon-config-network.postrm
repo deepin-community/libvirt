@@ -19,7 +19,7 @@ set -e
 remove_config_from_template() {
     local config="$1"
     local template="$2"
-    local lastver="$3"
+    local firstver="$3"
 
     if [ "$4" != "--" ]; then
         echo "remove_config_from_template called with the wrong number of arguments" >&2

@@ -1,0 +1,68 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <new-preinst> `install'
+#   * <new-preinst> `install' <old-version> <new-version>
+#   * <new-preinst> `upgrade' <old-version> <new-version>
+#   * <old-preinst> `abort-upgrade' <new-version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+create_protective_diversion() {
+    local usrfile="$1"
+    local firstver="$2"
+
+    if [ "$3" != "--" ]; then
+        echo "create_protective_diversion called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 3); do
+        shift
+    done
+
+    # If we're upgrading from a new enough version of the package, it means
+    # that usr-merge has already happened and we don't need to mess with
+    # diversions at all
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
+        return 0
+    fi
+
+    dpkg-divert \
+        --no-rename \
+        --divert "$usrfile.usr-is-merged" \
+        --add "$usrfile"
+}
+
+DAEMON_LOCK_UNITS="
+    virtlockd-admin.socket
+    virtlockd.service
+    virtlockd.socket
+"
+
+case "$1" in
+    install|upgrade)
+        for unit in $DAEMON_LOCK_UNITS; do
+            create_protective_diversion \
+                "/lib/systemd/system/$unit" \
+                "10.6.0-3~" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    abort-upgrade)
+    ;;
+
+    *)
+        echo "preinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

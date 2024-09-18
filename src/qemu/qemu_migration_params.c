@@ -105,6 +105,7 @@ VIR_ENUM_IMPL(qemuMigrationCapability,
               "return-path",
               "zero-copy-send",
               "postcopy-preempt",
+              "switchover-ack",
 );
 
 
@@ -138,7 +139,7 @@ struct _qemuMigrationParamsAlwaysOnItem {
 typedef struct _qemuMigrationParamsFlagMapItem qemuMigrationParamsFlagMapItem;
 struct _qemuMigrationParamsFlagMapItem {
     /* Describes what to do with the capability if @flag is found.
-     * When se to QEMU_MIGRATION_FLAG_REQUIRED, the capability will be
+     * When set to QEMU_MIGRATION_FLAG_REQUIRED, the capability will be
      * enabled iff the specified migration flag is enabled. On the other hand
      * QEMU_MIGRATION_FLAG_FORBIDDEN will enable the capability as long as
      * the specified migration flag is not enabled. */
@@ -209,6 +210,7 @@ static const qemuMigrationParamsFlagMapItem qemuMigrationParamsFlagMap[] = {
     {.match = QEMU_MIGRATION_FLAG_FORBIDDEN,
      .flag = VIR_MIGRATE_TUNNELLED,
      .cap = QEMU_MIGRATION_CAP_RETURN_PATH,
+     .optional = QEMU_MIGRATION_CAP_SWITCHOVER_ACK,
      .party = QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
 
     {.match = QEMU_MIGRATION_FLAG_REQUIRED,

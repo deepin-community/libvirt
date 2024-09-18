@@ -20,11 +20,6 @@
       <target dev='sda' bus='usb'/>
       <readonly/>
     </disk>
-    <disk type='file' device='cdrom'>
-      <driver name='qemu' type='raw'/>
-      <target dev='sdb' bus='usb'/>
-      <readonly/>
-    </disk>
     <controller type='usb' index='0'/>
     <controller type='ide' index='0'/>
     <controller type='pci' index='0' model='pci-root'/>

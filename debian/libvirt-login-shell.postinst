@@ -16,21 +16,22 @@ set -e
 
 finish_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "finish_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
-    # If we're upgrading rather than installing from scratch, we can assume
+    # If we're upgrading from a new enough version of the package, we can assume
     # the transfer must have happened at some point in the past and stop here
-    if [ -n "$2" ]; then
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
         return 0
     fi
 
@@ -54,6 +55,7 @@ case "$1" in
     configure)
         finish_conffile_transfer \
             "/etc/libvirt/virt-login-shell.conf" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-clients" \
             "libvirt-login-shell" \

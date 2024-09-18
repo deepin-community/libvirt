@@ -139,36 +139,80 @@ qemuVirtioFSBuildCommandLine(virQEMUDriverConfig *cfg,
     virCommandPassFD(cmd, *fd, VIR_COMMAND_PASS_FD_CLOSE_PARENT);
     *fd = -1;
 
-    virCommandAddArg(cmd, "-o");
-    virBufferAddLit(&opts, "source=");
-    virQEMUBuildBufferEscapeComma(&opts, fs->src->path);
-    if (fs->cache)
-        virBufferAsprintf(&opts, ",cache=%s", virDomainFSCacheModeTypeToString(fs->cache));
-    if (fs->sandbox)
-        virBufferAsprintf(&opts, ",sandbox=%s", virDomainFSSandboxModeTypeToString(fs->sandbox));
+    if (virBitmapIsBitSet(fs->caps, QEMU_VHOST_USER_FS_FEATURE_SEPARATE_OPTIONS)) {
+        /* Note that this option format is used by the Rust version of the daemon
+         * since v1.0.0, which is way longer than the capability existed.
+         * The -o style of options can be removed once we bump the minimal
+         * QEMU version to 8.0.0, which dropped the C virtiofsd daemon */
+        virCommandAddArg(cmd, "--shared-dir");
+        virCommandAddArg(cmd, fs->src->path);
 
-    if (fs->xattr == VIR_TRISTATE_SWITCH_ON)
-        virBufferAddLit(&opts, ",xattr");
-    else if (fs->xattr == VIR_TRISTATE_SWITCH_OFF)
-        virBufferAddLit(&opts, ",no_xattr");
+        switch (fs->cache) {
+        case VIR_DOMAIN_FS_CACHE_MODE_DEFAULT:
+        case VIR_DOMAIN_FS_CACHE_MODE_LAST:
+            break;
+        case VIR_DOMAIN_FS_CACHE_MODE_NONE:
+            virCommandAddArg(cmd, "--cache");
+            virCommandAddArg(cmd, "never");
+            break;
+        case VIR_DOMAIN_FS_CACHE_MODE_ALWAYS:
+            virCommandAddArg(cmd, "--cache");
+            virCommandAddArg(cmd, virDomainFSCacheModeTypeToString(fs->cache));
+            break;
+        }
 
-    if (fs->flock == VIR_TRISTATE_SWITCH_ON)
-        virBufferAddLit(&opts, ",flock");
-    else if (fs->flock == VIR_TRISTATE_SWITCH_OFF)
-        virBufferAddLit(&opts, ",no_flock");
+        if (fs->sandbox) {
+            virCommandAddArg(cmd, "--sandbox");
+            virCommandAddArg(cmd, virDomainFSSandboxModeTypeToString(fs->sandbox));
+        }
 
-    if (fs->posix_lock == VIR_TRISTATE_SWITCH_ON)
-        virBufferAddLit(&opts, ",posix_lock");
-    else if (fs->posix_lock == VIR_TRISTATE_SWITCH_OFF)
-        virBufferAddLit(&opts, ",no_posix_lock");
+        if (fs->xattr == VIR_TRISTATE_SWITCH_ON)
+            virCommandAddArg(cmd, "--xattr");
 
-    virCommandAddArgBuffer(cmd, &opts);
+        if (fs->posix_lock != VIR_TRISTATE_SWITCH_ABSENT ||
+            fs->flock != VIR_TRISTATE_SWITCH_ABSENT) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s", _("locking options are not supported by this virtiofsd"));
+            return NULL;
+        }
+    } else {
+        virCommandAddArg(cmd, "-o");
+        virBufferAddLit(&opts, "source=");
+        virQEMUBuildBufferEscapeComma(&opts, fs->src->path);
+        if (fs->cache)
+            virBufferAsprintf(&opts, ",cache=%s", virDomainFSCacheModeTypeToString(fs->cache));
+        if (fs->sandbox)
+            virBufferAsprintf(&opts, ",sandbox=%s", virDomainFSSandboxModeTypeToString(fs->sandbox));
+
+        if (fs->xattr == VIR_TRISTATE_SWITCH_ON)
+            virBufferAddLit(&opts, ",xattr");
+        else if (fs->xattr == VIR_TRISTATE_SWITCH_OFF)
+            virBufferAddLit(&opts, ",no_xattr");
+
+        if (fs->flock == VIR_TRISTATE_SWITCH_ON)
+            virBufferAddLit(&opts, ",flock");
+        else if (fs->flock == VIR_TRISTATE_SWITCH_OFF)
+            virBufferAddLit(&opts, ",no_flock");
+
+        if (fs->posix_lock == VIR_TRISTATE_SWITCH_ON)
+            virBufferAddLit(&opts, ",posix_lock");
+        else if (fs->posix_lock == VIR_TRISTATE_SWITCH_OFF)
+            virBufferAddLit(&opts, ",no_posix_lock");
+
+        virCommandAddArgBuffer(cmd, &opts);
+    }
 
     if (fs->thread_pool_size >= 0)
         virCommandAddArgFormat(cmd, "--thread-pool-size=%i", fs->thread_pool_size);
 
-    if (cfg->virtiofsdDebug)
-        virCommandAddArg(cmd, "-d");
+    if (fs->openfiles > 0)
+        virCommandAddArgFormat(cmd, "--rlimit-nofile=%llu", fs->openfiles);
+
+    if (cfg->virtiofsdDebug) {
+        if (virBitmapIsBitSet(fs->caps, QEMU_VHOST_USER_FS_FEATURE_SEPARATE_OPTIONS))
+            virCommandAddArgList(cmd, "--log-level", "debug", NULL);
+        else
+            virCommandAddArg(cmd, "-d");
+    }
 
     for (i = 0; i < fs->idmap.nuidmap; i++) {
         virCommandAddArgFormat(cmd, "--uid-map=:%u:%u:%u:",
@@ -446,8 +490,13 @@ qemuVirtioFSPrepareDomain(virQEMUDriver *driver,
     if (fs->sock)
         return 0;
 
-    if (!fs->binary && qemuVhostUserFillDomainFS(driver, fs) < 0)
-        return -1;
+    if (fs->binary) {
+        if (qemuVhostUserFillFSCapabilities(&fs->caps, fs->binary) < 0)
+            return -1;
+    } else {
+        if (qemuVhostUserFillDomainFS(driver, fs) < 0)
+            return -1;
+    }
 
     if (!driver->privileged && !fs->idmap.uidmap) {
         if (qemuVirtioFSPrepareIdMap(fs) < 0)

@@ -1,0 +1,76 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#FINISH_CONFFILE_TRANSFER#
+
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC="
+    /etc/apparmor.d/abstractions/libvirt-lxc
+    /etc/apparmor.d/libvirt/TEMPLATE.lxc
+    /etc/libvirt/lxc.conf
+    /etc/logrotate.d/libvirtd.lxc
+"
+
+case "$1" in
+    configure)
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC; do
+            finish_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-lxc" \
+                -- \
+                "$@"
+        done
+
+        # Obsolete AppArmor stuff included until 9.6.0-1
+        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
+        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
+        pkg="libvirt-daemon-driver-lxc"
+        name="libvirt-lxc"
+
+        abstraction="$ABSTRACTIONS_DIR/$name"
+        local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
+
+        expected=$(dpkg-query --showformat='${Conffiles}\n' --show "$pkg" | grep -E "^ $abstraction " | sed -E 's/^.* ([0-9a-f]+)$/\1/g')
+        actual=$(md5sum "$abstraction" 2>/dev/null | sed -E 's/^([0-9a-f]+) .*$/\1/g')
+
+        # Delete the local abstraction if it's empty and the abstraction
+        # itself contains no customizations
+        if [ ! -s "$local_abstraction" ] && [ -n "$actual" ] && [ "$actual" = "$expected" ]; then
+            rm -f "$local_abstraction"
+        fi
+        if [ -d "$LOCAL_ABSTRACTIONS_DIR" ]; then
+            rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR"
+        fi
+
+        # Make sure the log directory doesn't get removed on package removal
+        # since logrotate chokes otherwise
+        touch /var/log/libvirt/lxc/.placeholder
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

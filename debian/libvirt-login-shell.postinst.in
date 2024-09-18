@@ -20,6 +20,7 @@ case "$1" in
     configure)
         finish_conffile_transfer \
             "/etc/libvirt/virt-login-shell.conf" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-clients" \
             "libvirt-login-shell" \

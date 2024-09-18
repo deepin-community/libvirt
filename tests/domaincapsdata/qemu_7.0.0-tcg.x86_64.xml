@@ -262,6 +262,11 @@
         <value>builtin</value>
       </enum>
     </crypto>
+    <interface supported='yes'>
+      <enum name='backendType'>
+        <value>default</value>
+      </enum>
+    </interface>
   </devices>
   <features>
     <gic supported='no'/>
@@ -270,6 +275,7 @@
     <backingStoreInput supported='yes'/>
     <backup supported='yes'/>
     <async-teardown supported='no'/>
+    <ps2 supported='yes'/>
     <sev supported='no'/>
     <sgx supported='yes'>
       <flc>no</flc>
@@ -281,5 +287,6 @@
         <section node='1' size='262144' unit='KiB'/>
       </sections>
     </sgx>
+    <launchSecurity supported='no'/>
   </features>
 </domainCapabilities>

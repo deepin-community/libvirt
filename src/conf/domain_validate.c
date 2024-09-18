@@ -22,6 +22,7 @@
 
 #include "domain_validate.h"
 #include "domain_conf.h"
+#include "netdev_bandwidth_conf.h"
 #include "vircgroup.h"
 #include "virconftypes.h"
 #include "virlog.h"
@@ -1800,6 +1801,48 @@ virDomainDefValidateIOThreads(const virDomainDef *def)
 }
 
 
+#define CHECK_BASE64_LEN(val, elemName, exp_len) \
+{ \
+    size_t len; \
+    g_autofree unsigned char *tmp = NULL; \
+    if (val && (tmp = g_base64_decode(val, &len)) && len != exp_len) { \
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, \
+                       _("Unexpected length of '%1$s', expected %2$u got %3$zu"), \
+                        elemName, exp_len, len); \
+        return -1; \
+    } \
+}
+
+static int
+virDomainDefLaunchSecurityValidate(const virDomainDef *def)
+{
+    virDomainSEVSNPDef *sev_snp;
+
+    if (!def->sec)
+        return 0;
+
+    switch (def->sec->sectype) {
+    case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+        sev_snp = &def->sec->data.sev_snp;
+
+        CHECK_BASE64_LEN(sev_snp->guest_visible_workarounds, "guestVisibleWorkarounds", 16);
+        CHECK_BASE64_LEN(sev_snp->id_block, "idBlock", 96);
+        CHECK_BASE64_LEN(sev_snp->id_auth, "idAuth", 4096);
+        CHECK_BASE64_LEN(sev_snp->host_data, "hostData", 32);
+        break;
+
+    case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+    case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+    case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+    case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+        break;
+    }
+
+    return 0;
+}
+
+#undef CHECK_BASE64_LEN
+
 static int
 virDomainDefValidateInternal(const virDomainDef *def,
                              virDomainXMLOption *xmlopt)
@@ -1853,6 +1896,9 @@ virDomainDefValidateInternal(const virDomainDef *def,
         return -1;
 
     if (virDomainDefValidateIOThreads(def) < 0)
+        return -1;
+
+    if (virDomainDefLaunchSecurityValidate(def) < 0)
         return -1;
 
     return 0;
@@ -2023,6 +2069,10 @@ virDomainActualNetDefValidate(const virDomainNetDef *net)
         return -1;
     }
 
+    if (!virNetDevBandwidthValidate(bandwidth)) {
+        return -1;
+    }
+
     if (virDomainNetDefValidatePortOptions(macstr, actualType, vport,
                                            virDomainNetGetActualPortOptionsIsolated(net)) < 0) {
         return -1;
@@ -2095,6 +2145,10 @@ virDomainNetDefValidate(const virDomainNetDef *net)
           net->backend.type != VIR_DOMAIN_NET_BACKEND_PASST))) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("The <portForward> element can only be used with <interface type='user'> and its 'passt' backend"));
+        return -1;
+    }
+
+    if (!virNetDevBandwidthValidate(net->bandwidth)) {
         return -1;
     }
 
@@ -2699,6 +2753,29 @@ virDomainInputDefValidate(const virDomainInputDef *input,
         return -1;
     }
 
+    switch ((virDomainInputBus) input->bus) {
+    case VIR_DOMAIN_INPUT_BUS_PS2:
+        if (def->features[VIR_DOMAIN_FEATURE_PS2] == VIR_TRISTATE_SWITCH_OFF) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("ps2 bus inputs require the ps2 feature not to be disabled"));
+            return -1;
+        }
+        break;
+
+    case VIR_DOMAIN_INPUT_BUS_DEFAULT:
+    case VIR_DOMAIN_INPUT_BUS_USB:
+    case VIR_DOMAIN_INPUT_BUS_XEN:
+    case VIR_DOMAIN_INPUT_BUS_PARALLELS:
+    case VIR_DOMAIN_INPUT_BUS_VIRTIO:
+    case VIR_DOMAIN_INPUT_BUS_NONE:
+        break;
+
+    case VIR_DOMAIN_INPUT_BUS_LAST:
+    default:
+        virReportEnumRangeError(virDomainInputBus, input->bus);
+        return -1;
+    }
+
     return 0;
 }
 
@@ -2978,6 +3055,33 @@ virDomainTPMDevValidate(const virDomainTPMDef *tpm)
 
 
 static int
+virDomainPstoreDefValidate(const virDomainPstoreDef *pstore)
+{
+    if (pstore->backend != VIR_DOMAIN_PSTORE_BACKEND_ACPI_ERST) {
+        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                       _("unsupported backend for pstore device: %1$s"),
+                       virDomainPstoreBackendTypeToString(pstore->backend));
+        return -1;
+    }
+
+    if (pstore->path == NULL || pstore->path[0] == '\0') {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("missing path for ACPI ERST pstore device"));
+        return -1;
+    }
+
+    if (pstore->size < 4 ||
+        !VIR_IS_POW2(pstore->size)) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                       _("invalid size of ACPI ERST pstore device"));
+        return -1;
+    }
+
+    return 0;
+}
+
+
+static int
 virDomainDeviceInfoValidate(const virDomainDeviceDef *dev)
 {
     virDomainDeviceInfo *info;
@@ -3086,6 +3190,9 @@ virDomainDeviceDefValidateInternal(const virDomainDeviceDef *dev,
 
     case VIR_DOMAIN_DEVICE_TPM:
         return virDomainTPMDevValidate(dev->data.tpm);
+
+    case VIR_DOMAIN_DEVICE_PSTORE:
+        return virDomainPstoreDefValidate(dev->data.pstore);
 
     case VIR_DOMAIN_DEVICE_LEASE:
     case VIR_DOMAIN_DEVICE_WATCHDOG:
