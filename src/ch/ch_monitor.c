@@ -278,17 +278,24 @@ virCHMonitorBuildDisksJson(virJSONValue *content, virDomainDef *vmdef)
 /**
  * virCHMonitorBuildNetJson:
  * @net: pointer to a guest network definition
+ * @netindex: index of the guest network definition
  * @jsonstr: returned network json
  *
  * Build net json to send to CH
  * Returns 0 on success or -1 in case of error
  */
 int
-virCHMonitorBuildNetJson(virDomainNetDef *net, char **jsonstr)
+virCHMonitorBuildNetJson(virDomainNetDef *net,
+                         int netindex,
+                         char **jsonstr)
 {
     char macaddr[VIR_MAC_STRING_BUFLEN];
     g_autoptr(virJSONValue) net_json = virJSONValueNewObject();
     virDomainNetType actualType = virDomainNetGetActualType(net);
+
+    g_autofree char *id = g_strdup_printf("%s_%d", CH_NET_ID_PREFIX, netindex);
+    if (virJSONValueObjectAppendString(net_json, "id", id) < 0)
+        return -1;
 
     if (actualType == VIR_DOMAIN_NET_TYPE_ETHERNET &&
         net->guestIP.nips == 1) {
@@ -920,8 +927,9 @@ virCHMonitorResumeVM(virCHMonitor *mon)
     return virCHMonitorPutNoContent(mon, URL_VM_RESUME);
 }
 
-static int
-virCHMonitorSaveRestoreVM(virCHMonitor *mon, const char *path, bool save)
+int
+virCHMonitorSaveVM(virCHMonitor *mon,
+                   const char *to)
 {
     g_autofree char *url = NULL;
     int responseCode = 0;
@@ -931,22 +939,15 @@ virCHMonitorSaveRestoreVM(virCHMonitor *mon, const char *path, bool save)
     struct curl_slist *headers = NULL;
     struct curl_data data = {0};
 
-    if (save)
-        url = g_strdup_printf("%s/%s", URL_ROOT, URL_VM_SAVE);
-    else
-        url = g_strdup_printf("%s/%s", URL_ROOT, URL_VM_RESTORE);
+    url = g_strdup_printf("%s/%s", URL_ROOT, URL_VM_SAVE);
 
     headers = curl_slist_append(headers, "Accept: application/json");
     headers = curl_slist_append(headers, "Content-Type: application/json");
 
-    path_url = g_strdup_printf("file://%s", path);
-    if (save) {
-        if (virCHMonitorBuildKeyValueStringJson(&payload, "destination_url", path_url) != 0)
-            return -1;
-    } else {
-        if (virCHMonitorBuildKeyValueStringJson(&payload, "source_url", path_url) != 0)
-            return -1;
-    }
+    path_url = g_strdup_printf("file://%s", to);
+    if (virCHMonitorBuildKeyValueStringJson(&payload, "destination_url", path_url) != 0)
+        return -1;
+
 
     VIR_WITH_OBJECT_LOCK_GUARD(mon) {
         /* reset all options of a libcurl session handle at first */
@@ -980,15 +981,37 @@ virCHMonitorSaveRestoreVM(virCHMonitor *mon, const char *path, bool save)
 }
 
 int
-virCHMonitorSaveVM(virCHMonitor *mon, const char *to)
+virCHMonitorBuildRestoreJson(virDomainDef *vmdef,
+                             const char *from,
+                             char **jsonstr)
 {
-    return virCHMonitorSaveRestoreVM(mon, to, true);
-}
+    size_t i;
+    g_autoptr(virJSONValue) restore_json = virJSONValueNewObject();
+    g_autofree char *path_url = g_strdup_printf("file://%s", from);
 
-int
-virCHMonitorRestoreVM(virCHMonitor *mon, const char *from)
-{
-    return virCHMonitorSaveRestoreVM(mon, from, false);
+    if (virJSONValueObjectAppendString(restore_json, "source_url", path_url))
+        return -1;
+
+    /* Pass the netconfig needed to restore with new netfds */
+    if (vmdef->nnets) {
+        g_autoptr(virJSONValue) nets = virJSONValueNewArray();
+        for (i = 0; i < vmdef->nnets; i++) {
+            g_autoptr(virJSONValue) net_json = virJSONValueNewObject();
+            g_autofree char *id = g_strdup_printf("%s_%ld", CH_NET_ID_PREFIX, i);
+            if (virJSONValueObjectAppendString(net_json, "id", id) < 0)
+                return -1;
+            if (virJSONValueObjectAppendNumberInt(net_json, "num_fds", vmdef->nets[i]->driver.virtio.queues))
+                return -1;
+            virJSONValueArrayAppend(nets, &net_json);
+        }
+        if (virJSONValueObjectAppend(restore_json, "net_fds", &nets))
+            return -1;
+    }
+
+    if (!(*jsonstr = virJSONValueToString(restore_json, false)))
+        return -1;
+
+    return 0;
 }
 
 /**

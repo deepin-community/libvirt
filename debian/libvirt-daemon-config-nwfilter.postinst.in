@@ -69,6 +69,7 @@ case "$1" in
         for nwfilter in $NWFILTERS; do
             finish_conffile_transfer \
                 "/etc/libvirt/nwfilter/$nwfilter.xml" \
+                "6.0.0-0~" \
                 "6.9.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-config-nwfilter" \

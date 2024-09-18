@@ -4,6 +4,8 @@ option('packager_version', type: 'string', value: '', description: 'Extra packag
 option('system', type: 'boolean', value: false, description: 'Set install paths to system ones')
 option('runstatedir', type: 'string', value: '', description: 'State directory for temporary sockets, pid files, etc')
 option('initconfdir', type: 'string', value: '', description: 'directory for init script configuration files')
+option('unitdir', type: 'string', value: '', description: 'directory for systemd unit files')
+option('sysusersdir', type: 'string', value: '', description: 'directory for sysusers files')
 # dep:tests
 option('expensive_tests', type: 'feature', value: 'auto', description: 'set the default for enabling expensive tests (long timeouts)')
 option('test_coverage', type: 'boolean', value: false, description: 'turn on code coverage instrumentation')
@@ -115,7 +117,7 @@ option('dtrace', type: 'feature', value: 'auto', description: 'use dtrace for st
 option('firewalld', type: 'feature', value: 'auto', description: 'firewalld support')
 # dep:firewalld
 option('firewalld_zone', type: 'feature', value: 'auto', description: 'whether to install firewalld libvirt zone')
-option('firewall_backend_priority', type: 'array', choices: ['nftables', 'iptables'], description: 'order in which to try firewall backends')
+option('firewall_backend_priority', type: 'array', choices: ['nftables', 'iptables'], value: [], description: 'order in which to try firewall backends')
 option('host_validate', type: 'feature', value: 'auto', description: 'build virt-host-validate')
 option('init_script', type: 'combo', choices: ['systemd', 'openrc', 'check', 'none'], value: 'check', description: 'Style of init script to install')
 option('loader_nvram', type: 'string', value: '', description: 'Pass list of pairs of <loader>:<nvram> paths. Both pairs and list items are separated by a colon.')

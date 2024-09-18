@@ -200,6 +200,10 @@
   <flag name='smp-clusters'/>
   <flag name='display-reload'/>
   <flag name='usb-mtp'/>
+  <flag name='netdev.user'/>
+  <flag name='acpi-erst'/>
+  <flag name='intel-iommu.dma-translation'/>
+  <flag name='machine-i8042-opt'/>
   <version>8001000</version>
   <microcodeVersion>43100245</microcodeVersion>
   <package>v8.1.0</package>
@@ -3781,5 +3785,7 @@
     <cap name='tlbflush'/>
     <cap name='ipi'/>
     <cap name='avic'/>
+    <cap name='emsr_bitmap'/>
+    <cap name='xmm_input'/>
   </hypervCapabilities>
 </qemuCaps>

@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-05-28 08:41+0000\n"
+"POT-Creation-Date: 2024-08-27 08:20+0000\n"
 "PO-Revision-Date: 2015-03-03 07:52+0000\n"
 "Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
 "Language-Team: Serbian (http://www.transifex.com/projects/p/fedora/language/"
@@ -1013,6 +1013,10 @@ msgid "'%1$s' is not supported in this QEMU binary"
 msgstr ""
 
 #, c-format
+msgid "'%1$s' launch security is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid "'%1$s' missing"
 msgstr ""
 
@@ -1235,6 +1239,9 @@ msgid "'trim' algorithm not supported"
 msgstr ""
 
 msgid "'type' missing in reply of guest-get-fsinfo"
+msgstr ""
+
+msgid "'usb' disk must not be empty"
 msgstr ""
 
 msgid "'user' missing in reply of guest-get-users"
@@ -1574,6 +1581,9 @@ msgstr ""
 #, fuzzy
 msgid "A storage driver is already registered"
 msgstr "диск складиштења већ постоји"
+
+msgid "ACPI ERST device must reside on a PCI bus"
+msgstr ""
 
 msgid "ACPI index is not supported with this QEMU"
 msgstr ""
@@ -3349,8 +3359,32 @@ msgid ""
 "flush them, breaking networking."
 msgstr ""
 
+msgid "Checking CA cert access"
+msgstr ""
+
+msgid "Checking cert access"
+msgstr ""
+
+msgid "Checking cert hostname match"
+msgstr ""
+
+msgid "Checking cert properties"
+msgstr ""
+
+msgid "Checking custom PKI base dir access"
+msgstr ""
+
 #, c-format
 msgid "Checking for %1$s module"
+msgstr ""
+
+msgid ""
+"Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"
+msgstr ""
+
+msgid ""
+"Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-"
+"SNP)"
 msgstr ""
 
 #, c-format
@@ -3377,7 +3411,16 @@ msgstr ""
 msgid "Checking for secure guest support"
 msgstr ""
 
+msgid "Checking if CA cert exists"
+msgstr ""
+
 msgid "Checking if IOMMU is enabled by kernel"
+msgstr ""
+
+msgid "Checking if cert exists"
+msgstr ""
+
+msgid "Checking if custom PKI base dir exists"
 msgstr ""
 
 #, c-format
@@ -3386,6 +3429,42 @@ msgstr ""
 
 #, c-format
 msgid "Checking if device '%1$s' is accessible"
+msgstr ""
+
+msgid "Checking if key exists"
+msgstr ""
+
+msgid "Checking if system CA dir exists"
+msgstr ""
+
+msgid "Checking if system PKI dir exists"
+msgstr ""
+
+msgid "Checking if system cert dir exists"
+msgstr ""
+
+msgid "Checking if system key dir exists"
+msgstr ""
+
+msgid "Checking if user PKI base dir exists"
+msgstr ""
+
+msgid "Checking key access"
+msgstr ""
+
+msgid "Checking system CA dir access"
+msgstr ""
+
+msgid "Checking system PKI dir access"
+msgstr ""
+
+msgid "Checking system cert dir access"
+msgstr ""
+
+msgid "Checking system key dir access"
+msgstr ""
+
+msgid "Checking user PKI base dir access"
 msgstr ""
 
 #, c-format
@@ -4783,6 +4862,10 @@ msgstr "направи диск из XML датотеке"
 msgid "Create a vol."
 msgstr "Прављење диска."
 
+#, c-format
+msgid "Create the dir %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "Created"
 msgstr "Прављење домена."
@@ -4827,9 +4910,6 @@ msgstr ""
 msgid "DAC seclabel couldn't be determined"
 msgstr ""
 
-msgid "DNS HOST records cannot be modified, only added or deleted"
-msgstr ""
-
 #, c-format
 msgid ""
 "DNS SRV port attribute not permitted without target for service '%1$s' in "
@@ -4849,9 +4929,6 @@ msgstr ""
 msgid ""
 "DNS SRV weight attribute not permitted without target for service '%1$s' in "
 "network '%2$s'"
-msgstr ""
-
-msgid "DNS TXT records cannot be modified, only added or deleted"
 msgstr ""
 
 msgid "Data processed:"
@@ -8062,6 +8139,9 @@ msgstr ""
 msgid "Failed to send request to init control %1$s"
 msgstr "Неуспело уништавање складишта %1$s"
 
+msgid "Failed to send restore request to CH"
+msgstr ""
+
 #, fuzzy
 msgid "Failed to serialize snapshot"
 msgstr "не могу да серијализујем С-израз"
@@ -8601,6 +8681,13 @@ msgid "Finished after guest request"
 msgstr ""
 
 msgid "Finished after host request"
+msgstr ""
+
+#, c-format
+msgid "Firewall backend '%1$s' not available on this platform"
+msgstr ""
+
+msgid "Firewall backend is not implemented"
 msgstr ""
 
 msgid "Firmware entry is missing 'name' attribute"
@@ -11064,6 +11151,9 @@ msgstr ""
 msgid "Missing backend %1$d"
 msgstr "недостаје зачеље за врсту складишта %1$d"
 
+msgid "Missing bridge helper name"
+msgstr ""
+
 msgid "Missing bridge name"
 msgstr ""
 
@@ -12040,6 +12130,9 @@ msgid "No event expected with procedure 0x%1$x"
 msgstr ""
 
 msgid "No filesystems are mounted in the domain"
+msgstr ""
+
+msgid "No firewall backend is available"
 msgstr ""
 
 msgid "No free NBD devices"
@@ -13744,9 +13837,6 @@ msgstr ""
 msgid "S390 PV launch security is not supported by this host or kernel"
 msgstr ""
 
-msgid "S390 PV launch security is not supported with this QEMU binary"
-msgstr ""
-
 msgid "S4 state is disabled for this domain"
 msgstr ""
 
@@ -13836,9 +13926,6 @@ msgid "SCSI unit index %1$d out of [0..6,8..15] range"
 msgstr ""
 
 msgid "SCSI_host host device must use 'pci' or 'ccw' address type"
-msgstr ""
-
-msgid "SEV launch security is not supported with this QEMU binary"
 msgstr ""
 
 msgid "SEV measured direct kernel boot is not supported with this QEMU binary"
@@ -14789,10 +14876,12 @@ msgstr ""
 msgid "TLS:"
 msgstr ""
 
-msgid "TPM 1.2 is not supported on ARM"
+#, c-format
+msgid "TPM 1.2 is not supported for model '%1$s'"
 msgstr ""
 
-msgid "TPM 1.2 is not supported with the SPAPR device model"
+#, c-format
+msgid "TPM 1.2 is not supported on architecture '%1$s'"
 msgstr ""
 
 #, c-format
@@ -15175,6 +15264,12 @@ msgstr ""
 msgid "Target domain IOMMU device count does not match source"
 msgstr ""
 
+#, c-format
+msgid ""
+"Target domain IOMMU device dma translation '%1$s' does not match source "
+"'%2$s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid ""
 "Target domain IOMMU device eim value '%1$s' does not match source '%2$s'"
@@ -15306,6 +15401,9 @@ msgstr ""
 
 #, c-format
 msgid "Target domain parallel port count %1$zu does not match source %2$zu"
+msgstr ""
+
+msgid "Target domain pstore device count does not match source"
 msgstr ""
 
 #, c-format
@@ -15487,6 +15585,14 @@ msgstr ""
 
 #, c-format
 msgid "Target parallel port %1$d does not match source %2$d"
+msgstr ""
+
+#, c-format
+msgid "Target pstore device backend '%1$s' does not match source '%2$s'"
+msgstr ""
+
+#, c-format
+msgid "Target pstore size '%1$llu' does not match source '%2$llu'"
 msgstr ""
 
 #, c-format
@@ -15688,6 +15794,18 @@ msgid "The CA certificate %1$s is not yet active"
 msgstr ""
 
 #, c-format
+msgid ""
+"The CA certificate %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The CA certificate %1$s must not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The CCW devno '%1$s' is in use already"
 msgstr ""
 
@@ -15720,6 +15838,12 @@ msgstr ""
 msgid ""
 "The PF device for VF %1$s has no network device name, cannot get virtual "
 "function info"
+msgstr ""
+
+#, c-format
+msgid ""
+"The PKI base dir %1$s must not be accessible to other users. Run: chown %2$d."
+"%3$d %4$s; chmod 0700 %5$s"
 msgstr ""
 
 #, c-format
@@ -15772,11 +15896,35 @@ msgid "The certificate uses an insecure algorithm"
 msgstr ""
 
 #, c-format
+msgid ""
+"The client cert %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client cert %1$s must be restricted to this user. As this user, run: "
+"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The client certificate %1$s has expired"
 msgstr ""
 
 #, c-format
 msgid "The client certificate %1$s is not yet active"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client key %1$s must be accessible to all users. As root run: chown root."
+"root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client key %1$s must be not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
 msgstr ""
 
 #, c-format
@@ -15834,6 +15982,24 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr ""
 
+#, c-format
+msgid ""
+"The machine cannot act as a client or server. See https://libvirt.org/kbase/"
+"tlscerts.html#setting-up-a-certificate-authority-ca on how to install %1$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The machine cannot act as a client. See https://libvirt.org/kbase/tlscerts."
+"html#issuing-client-certificates on how to regenerate %1$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The machine cannot act as a server. See https://libvirt.org/kbase/tlscerts."
+"html#issuing-server-certificates on how to regenerate %1$s"
+msgstr ""
+
 msgid "The machine has no snapshot and it should have it"
 msgstr ""
 
@@ -15862,11 +16028,35 @@ msgid ""
 msgstr ""
 
 #, c-format
+msgid ""
+"The server cert %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server cert %1$s must be restricted to this user. As this user, run: "
+"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The server certificate %1$s has expired"
 msgstr ""
 
 #, c-format
 msgid "The server certificate %1$s is not yet active"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server key %1$s must be not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server key %1$s must not be accessible to unprivileged users. As root "
+"run: chown root.root %2$s; chmod 0600 %3$s"
 msgstr ""
 
 #, c-format
@@ -15876,6 +16066,52 @@ msgstr ""
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "складиште не подржава прављење диска"
+
+#, c-format
+msgid ""
+"The system CA dir %1$s is usually installed as part of the base filesystem "
+"or openssl packages"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system CA dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system PKI dir %1$s is usually installed as part of the base filesystem "
+"or openssl packages"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system PKI dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system cert dir %1$s is usually installed as part of the libvirt package"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system cert dir %1$s must be accessible to all users. As root, run: "
+"chown root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system key dir %1$s is usually installed as part of the libvirt package"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system key dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
 
 #, c-format
 msgid "The vbox driver does not support %1$s SCSI controller model"
@@ -15908,6 +16144,9 @@ msgstr ""
 
 msgid ""
 "This QEMU doesn't support OpenGL rendernode with egl-headless graphics type"
+msgstr ""
+
+msgid "This QEMU doesn't support SCSI emulation with 'virtio-blk' device"
 msgstr ""
 
 msgid "This QEMU doesn't support scsi-block for lun passthrough"
@@ -17480,6 +17719,10 @@ msgstr ""
 msgid "Unable to listen to UNIX socket path '%1$s'"
 msgstr ""
 
+#, c-format
+msgid "Unable to load %1$s: %2$s"
+msgstr ""
+
 msgid "Unable to load certificate"
 msgstr ""
 
@@ -18598,6 +18841,10 @@ msgstr ""
 msgid "Unexpected hostdev mode %1$d"
 msgstr "неочекивана врста домена %1$d"
 
+#, c-format
+msgid "Unexpected length of '%1$s', expected %2$u got %3$zu"
+msgstr ""
+
 msgid "Unexpected lock parameters for disk resource"
 msgstr ""
 
@@ -18656,7 +18903,7 @@ msgid "Unexpected protocol %1$d"
 msgstr "неочекивана врста складишта"
 
 #, c-format
-msgid "Unexpected response from CH: %1$d"
+msgid "Unexpected response from CH: %1$s"
 msgstr ""
 
 msgid "Unexpected root filesystem without loop device"
@@ -19302,10 +19549,6 @@ msgstr "магистрала за унос %1$s није подржана"
 msgid "Unsupported hostdev type %1$s"
 msgstr "неподржана врста аутентификације %d"
 
-#, c-format
-msgid "Unsupported interface '%1$s' for TPM 1.2"
-msgstr ""
-
 #, fuzzy
 msgid "Unsupported listen type"
 msgstr "неподржана врста аутентификације %d"
@@ -19484,6 +19727,21 @@ msgid ""
 "  -v | --version  output version information and exit\n"
 msgstr ""
 
+#, c-format
+msgid ""
+"Usage:\n"
+"  %1$s { -v | -h } [TRUST|SERVER|CLIENT]\n"
+"\n"
+"Validate TLS certificate configuration\n"
+"\n"
+"options:\n"
+"  -s     | --system   validate system certificates (default)\n"
+"  -u     | --user     validate user certificates\n"
+"  -p DIR | --path DIR validate custom certificate path\n"
+"  -h     | --help     display this help and exit\n"
+"  -v     | --version  output version information and exit\n"
+msgstr ""
+
 #, sh-format
 msgid ""
 "Usage: $program_name {start|stop|status|restart|condrestart|try-restart|"
@@ -19599,10 +19857,6 @@ msgstr ""
 
 #, c-format
 msgid "VMX entry '%1$s' contains unsupported scheme '%2$s'"
-msgstr ""
-
-#, c-format
-msgid "VMX entry '%1$s' doesn't contain a port part"
 msgstr ""
 
 msgid "VMX entry 'annotation' contains invalid escape sequence"
@@ -19958,6 +20212,9 @@ msgstr ""
 
 #, c-format
 msgid "access denied: %1$s"
+msgstr ""
+
+msgid "acpi-erst backend of pstore device is not supported"
 msgstr ""
 
 msgid "active"
@@ -20780,6 +21037,9 @@ msgstr ""
 
 #, c-format
 msgid "bridge name not allowed in %1$s mode (network '%2$s')"
+msgstr ""
+
+msgid "bridge port creation is not supported on this platform"
 msgstr ""
 
 #, c-format
@@ -21754,6 +22014,9 @@ msgstr ""
 msgid "cannot modify network device model from %1$s to %2$s"
 msgstr ""
 
+msgid "cannot modify network device portgroup attribute"
+msgstr ""
+
 msgid "cannot modify network device rom bar setting"
 msgstr ""
 
@@ -21869,6 +22132,10 @@ msgstr "не могу да уклоним подешавање за %s"
 
 #, c-format
 msgid "cannot parse json %1$s: unterminated string/map/array"
+msgstr ""
+
+#, c-format
+msgid "cannot parse openfiles '%1$s' for virtiofs"
 msgstr ""
 
 #, c-format
@@ -22138,15 +22405,15 @@ msgstr "Враћа основне податке о домену."
 msgid "cannot revert snapshot of running domain"
 msgstr ""
 
-msgid "cannot save domain with host devices"
-msgstr ""
-
-msgid "cannot save domain with network interfaces"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "cannot save file '%1$s'"
 msgstr "не могу да уклоним подешавање за %1$s"
+
+msgid "cannot save/restore domain with host devices"
+msgstr ""
+
+msgid "cannot save/restore domain with network devices"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "cannot seek in '%1$s'"
@@ -24315,6 +24582,9 @@ msgstr ""
 msgid "domain already has a vsock device"
 msgstr "Домен је већ активан"
 
+msgid "domain already has an iommu device"
+msgstr ""
+
 msgid "domain architecture (/domain/os/type/@arch)"
 msgstr ""
 
@@ -25576,9 +25846,6 @@ msgstr ""
 msgid "failed to create logfile %1$s"
 msgstr "Неуспело прављење диска %1$s"
 
-msgid "failed to create mdevctl thread"
-msgstr ""
-
 #, fuzzy
 msgid "failed to create profile"
 msgstr "Неуспело прављење складишта %s"
@@ -25614,10 +25881,6 @@ msgstr ""
 #, fuzzy
 msgid "failed to create udev context"
 msgstr "неуспело чување садржаја"
-
-#, fuzzy
-msgid "failed to create udev enumerate thread"
-msgstr "неуспело читање qemu заглавља"
 
 #, fuzzy
 msgid "failed to create udev handler thread"
@@ -26014,6 +26277,10 @@ msgstr "Неуспешно означавање складишта %1$s као �
 
 #, c-format
 msgid "failed to monitor nbdkit process %1$i"
+msgstr ""
+
+#, c-format
+msgid "failed to monitor qemu in-shutdown process %1$i"
 msgstr ""
 
 #, fuzzy, c-format
@@ -27491,6 +27758,9 @@ msgstr ""
 msgid "i - turn off validation and try to redefine again"
 msgstr ""
 
+msgid "iSCSI protocol accepts only one host"
+msgstr ""
+
 #, fuzzy
 msgid "iSCSI storage pool does not support volume creation"
 msgstr "складиште не подржава прављење диска"
@@ -28421,6 +28691,9 @@ msgstr "неисправан показивач везе у %1$s"
 msgid "invalid server address"
 msgstr "неисправна MAC адреса"
 
+msgid "invalid size of ACPI ERST pstore device"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "invalid size supplied for '%1$s'"
 msgstr "неисправна величина шифре за TLS сесију"
@@ -28585,6 +28858,9 @@ msgid "iommu: eim is not supported with this QEMU binary"
 msgstr ""
 
 msgid "iommu: interrupt remapping is not supported with this QEMU binary"
+msgstr ""
+
+msgid "iommu: updating dma translation is not supported with this QEMU binary"
 msgstr ""
 
 #, fuzzy, c-format
@@ -29245,6 +29521,9 @@ msgstr ""
 msgid "lock owner details have not been registered"
 msgstr ""
 
+msgid "locking options are not supported by this virtiofsd"
+msgstr ""
+
 #, c-format
 msgid "logical volume '%1$s' is sparse, volume wipe not supported"
 msgstr ""
@@ -29558,6 +29837,9 @@ msgstr ""
 #, fuzzy
 msgid "matching input device not found"
 msgstr "недостаје врста уређаја за унос"
+
+msgid "matching iommu device not found"
+msgstr ""
 
 msgid "matching memory device was not found"
 msgstr ""
@@ -29943,10 +30225,10 @@ msgid ""
 "shared between source and destination)"
 msgstr ""
 
-msgid "migration with transient disk is not supported"
+msgid "migration with this virtiofs device is not supported"
 msgstr ""
 
-msgid "migration with virtiofs device is not supported"
+msgid "migration with transient disk is not supported"
 msgstr ""
 
 #, c-format
@@ -30609,6 +30891,9 @@ msgstr ""
 msgid "missing path for <reservations/>"
 msgstr ""
 
+msgid "missing path for ACPI ERST pstore device"
+msgstr ""
+
 msgid "missing path in nbdkit capabilities cache"
 msgstr ""
 
@@ -30867,6 +31152,10 @@ msgstr "недостаје зачеље за врсту складишта %d"
 #, fuzzy, c-format
 msgid "missing value for migration parameter '%1$s'"
 msgstr "недостају изворни подаци за уређај %1$s"
+
+#, c-format
+msgid "missing value of modifying DNS TXT record in network %1$s"
+msgstr ""
 
 #, fuzzy
 msgid "missing values for acceleration"
@@ -32347,6 +32636,9 @@ msgstr ""
 msgid "only a single nvram device is supported"
 msgstr ""
 
+msgid "only a single pstore device is supported"
+msgstr ""
+
 msgid "only a single vsock device is supported"
 msgstr ""
 
@@ -33264,6 +33556,18 @@ msgstr ""
 msgid "ps2 bus does not support %1$s input device"
 msgstr "ps2 магистрала не подржава %1$s уређај за унос"
 
+msgid "ps2 bus inputs require the ps2 feature not to be disabled"
+msgstr ""
+
+msgid "ps2 feature is not available with this QEMU binary"
+msgstr ""
+
+msgid "ps2 feature state cannot be controlled with this QEMU binary"
+msgstr ""
+
+msgid "pstore device is missing alias"
+msgstr ""
+
 #, c-format
 msgid "pull mode backup for disk '%1$s' requires qcow2 driver"
 msgstr ""
@@ -33474,6 +33778,9 @@ msgstr ""
 msgid "query-rx-filter return data missing array element"
 msgstr ""
 
+msgid "query-sev reply was missing some data"
+msgstr ""
+
 msgid "query-sev-capabilities reply was missing 'cbitpos' field"
 msgstr ""
 
@@ -33484,6 +33791,9 @@ msgid "query-sev-capabilities reply was missing 'pdh' field"
 msgstr ""
 
 msgid "query-sev-capabilities reply was missing 'reduced-phys-bits' field"
+msgstr ""
+
+msgid "query-sev-launch-measure reply was missing 'data'"
 msgstr ""
 
 msgid "query-sgx-capabilities reply was missing 'flc' field"
@@ -35274,6 +35584,10 @@ msgid "testOpen: supply a path or use test:///default"
 msgstr "testOpen: наведите путању или користите test:///default"
 
 #, c-format
+msgid "the '%1$s' network backend is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid ""
 "the <forward> 'dev' attribute cannot be used when <address> or <pf> sub-"
 "elements are present in network %1$s"
@@ -35358,9 +35672,6 @@ msgid "the machine has no snapshot"
 msgstr ""
 
 msgid "the new password"
-msgstr ""
-
-msgid "the passt network backend is not supported with this QEMU binary"
 msgstr ""
 
 #, fuzzy
@@ -37050,6 +37361,10 @@ msgstr ""
 msgid "unknown SDL_AUDIODRIVER setting %1$s"
 msgstr ""
 
+#, c-format
+msgid "unknown SEV type '%1$s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "unknown address type '%1$s' in network %2$s"
 msgstr "непозната врста ауторизације %s"
@@ -37330,6 +37645,10 @@ msgstr "непозната врста „%1$s“"
 msgid "unknown smbios mode '%1$s'"
 msgstr "непознат „%1$s“ уређај за покретање"
 
+#, c-format
+msgid "unknown state '%1$s' for '%2$s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "unknown storage capability type '%1$s' for '%2$s'"
 msgstr "непозната врста %d диска за складиштење"
@@ -37561,6 +37880,10 @@ msgstr ""
 #, c-format
 msgid "unsupported authentication type %1$d"
 msgstr "неподржана врста аутентификације %1$d"
+
+#, c-format
+msgid "unsupported backend for pstore device: %1$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "unsupported balloon device model '%1$s'"
@@ -38048,6 +38371,10 @@ msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
+msgid "value '%1$llu' is too big for '%2$s' parameter, maximum is '%3$llu'"
+msgstr ""
+
+#, c-format
 msgid "value '%1$llu' is too big for coalesce parameter, maximum is '%2$lu'"
 msgstr ""
 
@@ -38239,6 +38566,9 @@ msgstr "неусаглашеност верзије (добијено %1$x, оч
 #, fuzzy
 msgid "version parsing error"
 msgstr "грешка у рашчлањивању"
+
+msgid "vfio migration was active, but 'transferred' data was missing"
+msgstr ""
 
 msgid "vgamem attribute only supported for video type qxl"
 msgstr ""
@@ -38573,6 +38903,9 @@ msgid ""
 "operation "
 msgstr ""
 
+msgid "vmport feature requires the ps2 feature not to be disabled"
+msgstr ""
+
 msgid "vmport is not available with this QEMU binary"
 msgstr ""
 
@@ -38899,6 +39232,10 @@ msgstr ""
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
+
+#, fuzzy
+#~ msgid "failed to create udev enumerate thread"
+#~ msgstr "неуспело читање qemu заглавља"
 
 #, fuzzy, c-format
 #~ msgid "Failed to apply firewall rules %1$s: %2$s"

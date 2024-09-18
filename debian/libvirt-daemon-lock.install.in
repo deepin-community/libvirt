@@ -1,0 +1,10 @@
+etc/libvirt/virtlockd.conf
+usr/lib/systemd/system/virtlockd-admin.socket
+usr/lib/systemd/system/virtlockd.service
+usr/lib/systemd/system/virtlockd.socket
+usr/sbin/virtlockd
+usr/share/augeas/lenses/libvirt_lockd.aug
+[${ARCHES_QEMU}] usr/share/augeas/lenses/tests/test_libvirt_lockd.aug
+usr/share/augeas/lenses/tests/test_virtlockd.aug
+usr/share/augeas/lenses/virtlockd.aug
+usr/share/man/man8/virtlockd.8

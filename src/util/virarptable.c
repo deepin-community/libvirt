@@ -81,10 +81,12 @@ virArpTableGet(void)
     for (; NLMSG_OK(nh, msglen); nh = NLMSG_NEXT(nh, msglen)) {
         VIR_WARNINGS_RESET
         struct ndmsg *r = NLMSG_DATA(nh);
-        int len = nh->nlmsg_len;
         void *addr;
 
-        if ((len -= NLMSG_LENGTH(sizeof(*nh))) < 0) {
+        if (nh->nlmsg_type == NLMSG_DONE)
+            break;
+
+        if (nh->nlmsg_len < NLMSG_SPACE(sizeof(*r))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("wrong nlmsg len"));
             goto cleanup;
@@ -98,12 +100,8 @@ virArpTableGet(void)
             (!(r->ndm_state == NUD_STALE || r->ndm_state == NUD_REACHABLE)))
             continue;
 
-        if (nh->nlmsg_type == NLMSG_DONE)
-            return table;
-
         VIR_WARNINGS_NO_CAST_ALIGN
-        parse_rtattr(tb, NDA_MAX, NDA_RTA(r),
-                     nh->nlmsg_len - NLMSG_LENGTH(sizeof(*r)));
+        parse_rtattr(tb, NDA_MAX, NDA_RTA(r), NLMSG_PAYLOAD(nh, sizeof(*r)));
         VIR_WARNINGS_RESET
 
         if (tb[NDA_DST] == NULL || tb[NDA_LLADDR] == NULL)

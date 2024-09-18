@@ -2896,7 +2896,7 @@ virVMXParseEthernet(virConf *conf, int controller, virDomainNetDef **def)
         if (virVMXGetConfigString(conf,
                                   portgroupId_name,
                                   &(*def)->data.vds.portgroup_id,
-                                  false) < 0 ||
+                                  true) < 0 ||
             virVMXGetConfigLong(conf,
                                 portId_name,
                                 &(*def)->data.vds.port_id,
@@ -2906,7 +2906,7 @@ virVMXParseEthernet(virConf *conf, int controller, virDomainNetDef **def)
                                 connectionId_name,
                                 &(*def)->data.vds.connection_id,
                                 0,
-                                false) < 0)
+                                true) < 0)
             goto cleanup;
     } else if (connectionType == NULL && networkName == NULL) {
         (*def)->type = VIR_DOMAIN_NET_TYPE_NULL;
@@ -2975,9 +2975,6 @@ virVMXParseSerial(virVMXContext *ctx, virConf *conf, int port,
     char fileName_name[48] = "";
     g_autofree char *fileName = NULL;
 
-    char vspc_name[48] = "";
-    g_autofree char *vspc = NULL;
-
     char network_endPoint_name[48] = "";
     g_autofree char *network_endPoint = NULL;
 
@@ -3000,7 +2997,6 @@ virVMXParseSerial(virVMXContext *ctx, virConf *conf, int port,
     VMX_BUILD_NAME(startConnected);
     VMX_BUILD_NAME(fileType);
     VMX_BUILD_NAME(fileName);
-    VMX_BUILD_NAME(vspc);
     VMX_BUILD_NAME_EXTRA(network_endPoint, "network.endPoint");
 
     /* vmx:present */
@@ -3028,10 +3024,6 @@ virVMXParseSerial(virVMXContext *ctx, virConf *conf, int port,
 
     /* vmx:fileName -> def:data.file.path */
     if (virVMXGetConfigString(conf, fileName_name, &fileName, true) < 0)
-        goto cleanup;
-
-    /* vmx:fileName -> def:data.file.path */
-    if (virVMXGetConfigString(conf, vspc_name, &vspc, true) < 0)
         goto cleanup;
 
     /* vmx:network.endPoint -> def:data.tcp.listen */
@@ -3065,21 +3057,25 @@ virVMXParseSerial(virVMXContext *ctx, virConf *conf, int port,
         (*def)->target.port = port;
         (*def)->source->type = VIR_DOMAIN_CHR_TYPE_PIPE;
         (*def)->source->data.file.path = g_steal_pointer(&fileName);
-    } else if (STRCASEEQ(fileType, "network") && vspc) {
-        (*def)->target.port = port;
-        (*def)->source->type = VIR_DOMAIN_CHR_TYPE_NULL;
     } else if (STRCASEEQ(fileType, "network")) {
         (*def)->target.port = port;
         (*def)->source->type = VIR_DOMAIN_CHR_TYPE_TCP;
 
-        if (!(parsedUri = virURIParse(fileName)))
-            goto cleanup;
+        if (!(parsedUri = virURIParse(fileName))) {
+            /*
+             * Ignore anything we cannot parse since there are many variations
+             * that could lead to unusable or non-representable serial ports
+             * which are very commonly seen and the main consumer of this driver
+             * (virt-v2v) ignores them anyway, so let's at least not error out.
+             */
+            virResetLastError();
+            (*def)->source->type = VIR_DOMAIN_CHR_TYPE_NULL;
+            return 0;
+        }
 
         if (parsedUri->port == 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("VMX entry '%1$s' doesn't contain a port part"),
-                           fileName_name);
-            goto cleanup;
+            (*def)->source->type = VIR_DOMAIN_CHR_TYPE_NULL;
+            return 0;
         }
 
         (*def)->source->data.tcp.host = g_strdup(parsedUri->server);
@@ -4038,14 +4034,22 @@ virVMXFormatEthernet(virDomainNetDef *def, int controller,
                           uuid[5], uuid[6], uuid[7], uuid[8], uuid[9], uuid[10],
                           uuid[11], uuid[12], uuid[13], uuid[14], uuid[15]);
 
-        virBufferAsprintf(buffer, "ethernet%d.dvs.portId = \"%lld\"\n",
-                          controller, def->data.vds.port_id);
+        if (def->data.vds.port_id) {
+            virBufferAsprintf(buffer, "ethernet%d.dvs.portId = \"%lld\"\n",
+                              controller, def->data.vds.port_id);
+        }
 
-        virBufferAsprintf(buffer, "ethernet%d.dvs.", controller);
-        virBufferEscapeString(buffer, "portgroupId = \"%s\"\n", def->data.vds.portgroup_id);
+        if (def->data.vds.portgroup_id) {
+            virBufferAsprintf(buffer, "ethernet%d.dvs.", controller);
+            virBufferEscapeString(buffer, "portgroupId = \"%s\"\n",
+                                  def->data.vds.portgroup_id);
+        }
 
-        virBufferAsprintf(buffer, "ethernet%d.dvs.connectionId = \"%lld\"\n",
-                          controller, def->data.vds.connection_id);
+        if (def->data.vds.connection_id) {
+            virBufferAsprintf(buffer, "ethernet%d.dvs.connectionId = \"%lld\"\n",
+                              controller, def->data.vds.connection_id);
+        }
+
         break;
     }
 

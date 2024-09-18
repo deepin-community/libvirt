@@ -1,0 +1,79 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postrm> `remove'
+#   * <postrm> `purge'
+#   * <old-postrm> `upgrade' <new-version>
+#   * <disappearer's-postrm> `disappear' <overwriter> <overwriter-version>
+#   * <new-postrm> `failed-upgrade' <old-version> <new-version>
+#   * <new-postrm> `abort-install'
+#   * <new-postrm> `abort-install' <old-version> <new-version>
+#   * <new-postrm> `abort-upgrade' <old-version> <new-version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+abort_conffile_transfer() {
+    local conffile="$1"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
+
+    if [ "$6" != "--" ]; then
+        echo "abort_conffile_transfer called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 6); do
+        shift
+    done
+
+    # If we were installing from scratch or upgrading from a new enough version
+    # when the error occurred, then no transfer was in progress and we don't
+    # need to rollback any changes
+    if [ -z "$2" ] || dpkg --compare-versions -- "$2" gt "$lastver"; then
+        return 0
+    fi
+
+    # If the conffile was being transferred, return it to its original location
+    if [ -e "$conffile.dpkg-transfer" ]; then
+        mv -f "$conffile.dpkg-transfer" "$conffile"
+    fi
+
+    # Clean up additional state
+    rm -f "$conffile.dpkg-disappear"
+}
+
+SANLOCK_TO_DAEMON_PLUGIN_SANLOCK="
+    /etc/cron.weekly/libvirt-sanlock
+"
+
+case "$1" in
+    abort-install|abort-upgrade)
+        for conf in $SANLOCK_TO_DAEMON_PLUGIN_SANLOCK; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-sanlock" \
+                "libvirt-daemon-plugin-sanlock" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    remove|purge|upgrade|disappear|failed-upgrade)
+    ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

@@ -1,0 +1,8 @@
+etc/libvirt/virtlogd.conf
+usr/lib/systemd/system/virtlogd-admin.socket
+usr/lib/systemd/system/virtlogd.service
+usr/lib/systemd/system/virtlogd.socket
+usr/sbin/virtlogd
+usr/share/augeas/lenses/tests/test_virtlogd.aug
+usr/share/augeas/lenses/virtlogd.aug
+usr/share/man/man8/virtlogd.8

@@ -36,6 +36,7 @@ struct testSchemaEntry {
     const char **exceptions; /* optional NULL terminated list of filenames inside
                                 directory where the expected validation result is
                                 inverted */
+    const char **skip; /* optional NULL terminated list of files to skip altogether */
     const char *dirRegex;
     const char *file;
 };
@@ -118,17 +119,19 @@ testSchemaDir(const char *schema,
     while ((rc = virDirRead(dir, &ent, dir_path)) > 0) {
         g_autofree char *xml_path = NULL;
         bool exception = false;
-        GStatBuf sb;
 
         if (!virStringHasSuffix(ent->d_name, ".xml"))
             continue;
         if (ent->d_name[0] == '.')
             continue;
-        if (g_lstat(ent->d_name, &sb) >= 0 &&
-            S_ISLNK(sb.st_mode))
+        if (virFileIsLink(ent->d_name))
             continue;
         if (filter &&
             !g_regex_match(filter, ent->d_name, 0, NULL))
+            continue;
+
+        if (entry->skip &&
+            g_strv_contains(entry->skip, ent->d_name))
             continue;
 
         if (entry->exceptions)
@@ -237,10 +240,17 @@ static const char *exceptions_qemuxmlconfdata[] = {
     NULL
 };
 
+/* skip tests with completely broken XML */
+static const char *skip_qemuxmlconfdata[] = {
+    "broken-xml-invalid.xml",
+    NULL
+};
+
 static const struct testSchemaEntry schemaDomain[] = {
     { .dir = "tests/domainschemadata" },
     { .dir = "tests/qemuxmlconfdata",
       .exceptions = exceptions_qemuxmlconfdata,
+      .skip = skip_qemuxmlconfdata,
     },
     { .dir = "tests/xmconfigdata" },
     { .dir = "tests/lxcxml2xmldata" },

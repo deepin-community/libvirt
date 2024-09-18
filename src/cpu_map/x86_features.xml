@@ -434,11 +434,23 @@
   <feature name='fsrc'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x00001000'/>
   </feature>
+  <feature name='fred'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x00020000'/>
+  </feature>
+  <feature name='lkgs'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x00040000'/>
+  </feature>
+  <feature name='wrmsrns'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x00080000'/>
+  </feature>
   <feature name='amx-fp16'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x00200000'/>
   </feature>
   <feature name='avx-ifma'>
     <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x00800000'/>
+  </feature>
+  <feature name='lam'>
+    <cpuid eax_in='0x00000007' ecx_in='0x00000001' eax='0x04000000'/>
   </feature>
 
   <!-- cpuid level 0x00000007, 0x0001 (edx) -->
@@ -635,6 +647,14 @@
     <cpuid eax_in='0x80000001' edx='0x80000000'/>
   </feature>
 
+  <!-- cpuid level 0x80000007 (ebx) -->
+  <feature name='overflow-recov'>
+    <cpuid eax_in='0x80000007' ebx='0x00000001'/>
+  </feature>
+  <feature name='succor'>
+    <cpuid eax_in='0x80000007' ebx='0x00000002'/>
+  </feature>
+
   <!-- cpuid level 0x80000007 (edx) -->
   <feature name='invtsc' migratable='no'>
     <cpuid eax_in='0x80000007' edx='0x00000100'/>
@@ -792,6 +812,12 @@
   <feature name='gds-no'>
     <msr index='0x0000010a' edx='0x00000000' eax='0x04000000'/>
   </feature>
+  <feature name='rfds-no'>
+    <msr index='0x0000010a' edx='0x00000000' eax='0x08000000'/>
+  </feature>
+  <feature name='rfds-clear'>
+    <msr index='0x0000010a' edx='0x00000000' eax='0x10000000'/>
+  </feature>
 
   <!-- msr 0x00000480 -->
   <feature name='vmx-ins-outs'>
@@ -802,6 +828,9 @@
   </feature>
   <feature name='vmx-any-errcode'>
     <msr index='0x00000480' edx='0x01000000' eax='0x00000000'/>
+  </feature>
+  <feature name='vmx-nested-exception'>
+    <msr index='0x00000480' edx='0x04000000' eax='0x00000000'/>
   </feature>
 
   <!-- msr 0x00000485 -->

@@ -27,10 +27,10 @@ index ffe4d8f..2973b00 100644
 +  include if exists <local/abstractions/libvirt-lxc>
  @END_APPARMOR_3@
 diff --git a/src/security/apparmor/libvirt-qemu.in b/src/security/apparmor/libvirt-qemu.in
-index 8b92915..3a6b964 100644
+index 8f17256..5eb649b 100644
 --- a/src/security/apparmor/libvirt-qemu.in
 +++ b/src/security/apparmor/libvirt-qemu.in
-@@ -278,4 +278,11 @@
+@@ -279,4 +279,11 @@
  
  @BEGIN_APPARMOR_3@
    include if exists <abstractions/libvirt-qemu.d>

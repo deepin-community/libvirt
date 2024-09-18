@@ -1,0 +1,4 @@
+usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_storage.so
+usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-backend/libvirt_storage_backend_fs.so
+usr/lib/${DEB_HOST_MULTIARCH}/libvirt/storage-file/libvirt_storage_file_fs.so
+usr/lib/libvirt/libvirt_parthelper

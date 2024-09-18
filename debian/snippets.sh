@@ -1,15 +1,16 @@
 #BEGIN PREPARE_CONFFILE_TRANSFER
 prepare_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "prepare_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
@@ -27,13 +28,29 @@ prepare_conffile_transfer() {
     # more importanly, $pkgto's postinst, where the transfer process is completed,
     # will be able to figure out the original state of the conffile and make sure
     # it is restored
+
     if [ -e "$conffile" ]; then
+        expected=$(dpkg-query --showformat='${Conffiles}\n' --show "$pkgfrom" | grep -E "^ $conffile " | sed -E 's/^.* ([0-9a-f]+)$/\1/g')
+        actual=$(md5sum "$conffile" 2>/dev/null | sed -E 's/^([0-9a-f]+) .*$/\1/g')
+
+        if [ -n "$actual" ] && [ "$actual" = "$expected" ]; then
+            rm -f "$conffile"
+            return 0
+        fi
+
         echo "Preparing transfer of config file $conffile (from $pkgfrom to $pkgto) ..."
         mv -f "$conffile" "$conffile.dpkg-transfer"
-    else
-        # If the conffile is no longer present on the disk, it means the admin
-        # has deleted it, and we should preserve this local modification
+        return 0
+    fi
+
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
+        # If we are performing an upgrade from a version that's newer than the
+        # one which originally introduced the conffile ($firstver), we expect
+        # it to be present on disk; if that's not the case, that means that
+        # the admin  must have explicitly deleted it and we should preserve
+        # this local modification
         touch "$conffile.dpkg-disappear"
+        return 0
     fi
 }
 #END PREPARE_CONFFILE_TRANSFER
@@ -41,21 +58,22 @@ prepare_conffile_transfer() {
 #BEGIN FINISH_CONFFILE_TRANSFER
 finish_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "finish_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
-    # If we're upgrading rather than installing from scratch, we can assume
+    # If we're upgrading from a new enough version of the package, we can assume
     # the transfer must have happened at some point in the past and stop here
-    if [ -n "$2" ]; then
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
         return 0
     fi
 
@@ -79,15 +97,16 @@ finish_conffile_transfer() {
 #BEGIN ABORT_CONFFILE_TRANSFER
 abort_conffile_transfer() {
     local conffile="$1"
-    local lastver="$2"
-    local pkgfrom="$3"
-    local pkgto="$4"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
 
-    if [ "$5" != "--" ]; then
+    if [ "$6" != "--" ]; then
         echo "abort_conffile_transfer called with the wrong number of arguments" >&2
         return 1
     fi
-    for _ in $(seq 1 5); do
+    for _ in $(seq 1 6); do
         shift
     done
 
@@ -112,7 +131,7 @@ abort_conffile_transfer() {
 create_config_from_template() {
     local config="$1"
     local template="$2"
-    local lastver="$3"
+    local firstver="$3"
 
     if [ "$4" != "--" ]; then
         echo "create_config_from_template called with the wrong number of arguments" >&2
@@ -122,7 +141,7 @@ create_config_from_template() {
         shift
     done
 
-    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
         # The package is already configured, and the version that's been
         # configured is new enough to contain the config file
         if [ -e "$config.dpkg-backup" ]; then
@@ -149,7 +168,7 @@ create_config_from_template() {
 remove_config_from_template() {
     local config="$1"
     local template="$2"
-    local lastver="$3"
+    local firstver="$3"
 
     if [ "$4" != "--" ]; then
         echo "remove_config_from_template called with the wrong number of arguments" >&2
@@ -174,6 +193,58 @@ remove_config_from_template() {
     fi
 }
 #END REMOVE_CONFIG_FROM_TEMPLATE
+
+#BEGIN CREATE_PROTECTIVE_DIVERSION
+create_protective_diversion() {
+    local usrfile="$1"
+    local firstver="$2"
+
+    if [ "$3" != "--" ]; then
+        echo "create_protective_diversion called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 3); do
+        shift
+    done
+
+    # If we're upgrading from a new enough version of the package, it means
+    # that usr-merge has already happened and we don't need to mess with
+    # diversions at all
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$firstver"; then
+        return 0
+    fi
+
+    dpkg-divert \
+        --no-rename \
+        --divert "$usrfile.usr-is-merged" \
+        --add "$usrfile"
+}
+#END CREATE_PROTECTIVE_DIVERSION
+
+#BEGIN DELETE_PROTECTIVE_DIVERSION
+delete_protective_diversion() {
+    local usrfile="$1"
+    local firstver="$2"
+
+    if [ "$3" != "--" ]; then
+        echo "delete_protective_diversion called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 3); do
+        shift
+    done
+
+    # If the diversion doesn't exist there's nothing to clean up
+    if [ -z "$(dpkg-divert --list "$usrfile")" ]; then
+        return 0
+    fi
+
+    dpkg-divert \
+        --no-rename \
+        --divert "$usrfile.usr-is-merged" \
+        --remove "$usrfile"
+}
+#END DELETE_PROTECTIVE_DIVERSION
 
 #BEGIN SYSTEMD_DAEMON_RELOAD
 systemd_daemon_reload() {

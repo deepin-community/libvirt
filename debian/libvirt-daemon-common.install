@@ -1,0 +1,17 @@
+etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
+etc/sasl2/libvirt.conf
+usr/bin/virt-admin
+usr/bin/virt-host-validate
+usr/bin/virt-ssh-helper
+usr/lib/libvirt/libvirt-guests.sh
+usr/lib/libvirt/libvirt_iohelper
+usr/lib/systemd/system/libvirt-guests.service
+usr/lib/systemd/system/virt-guest-shutdown.target
+usr/share/bash-completion/completions/virt-admin
+usr/share/man/man1/virt-admin.1
+usr/share/man/man1/virt-host-validate.1
+usr/share/man/man8/libvirt-guests.8
+usr/share/man/man8/virt-ssh-helper.8
+usr/share/polkit-1/actions/org.libvirt.api.policy
+usr/share/polkit-1/actions/org.libvirt.unix.policy
+usr/share/polkit-1/rules.d/60-libvirt.rules

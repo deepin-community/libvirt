@@ -52,6 +52,8 @@
       <feature policy='require' name='arch-capabilities'/>
       <feature policy='require' name='ssbd'/>
       <feature policy='require' name='cmp_legacy'/>
+      <feature policy='require' name='overflow-recov'/>
+      <feature policy='require' name='succor'/>
       <feature policy='require' name='invtsc'/>
       <feature policy='require' name='amd-ssbd'/>
       <feature policy='require' name='virt-ssbd'/>
@@ -71,6 +73,7 @@
       <feature policy='require' name='mds-no'/>
       <feature policy='require' name='pschange-mc-no'/>
       <feature policy='require' name='gds-no'/>
+      <feature policy='require' name='rfds-no'/>
       <feature policy='disable' name='xsaves'/>
     </mode>
     <mode name='custom' supported='yes'>
@@ -114,6 +117,7 @@
       <model usable='no' vendor='Intel'>Haswell-noTSX</model>
       <model usable='no' vendor='Intel'>Haswell-IBRS</model>
       <model usable='no' vendor='Intel'>Haswell</model>
+      <model usable='no' vendor='Intel'>GraniteRapids</model>
       <model usable='no' vendor='AMD'>EPYC-Rome</model>
       <model usable='no' vendor='AMD'>EPYC-Milan</model>
       <model usable='yes' vendor='AMD'>EPYC-IBPB</model>
@@ -258,6 +262,12 @@
         <value>lkcf</value>
       </enum>
     </crypto>
+    <interface supported='yes'>
+      <enum name='backendType'>
+        <value>default</value>
+        <value>passt</value>
+      </enum>
+    </interface>
   </devices>
   <features>
     <gic supported='no'/>
@@ -266,6 +276,7 @@
     <backingStoreInput supported='yes'/>
     <backup supported='yes'/>
     <async-teardown supported='yes'/>
+    <ps2 supported='yes'/>
     <sev supported='no'/>
     <sgx supported='no'/>
     <hyperv supported='yes'>
@@ -284,7 +295,10 @@
         <value>tlbflush</value>
         <value>ipi</value>
         <value>avic</value>
+        <value>emsr_bitmap</value>
+        <value>xmm_input</value>
       </enum>
     </hyperv>
+    <launchSecurity supported='no'/>
   </features>
 </domainCapabilities>

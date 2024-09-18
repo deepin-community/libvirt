@@ -86,6 +86,12 @@ VIR_ENUM_IMPL(virNodeDevDRM,
               "render",
 );
 
+VIR_ENUM_IMPL(virNodeDevCCWState,
+              VIR_NODE_DEV_CCW_STATE_LAST,
+              "offline",
+              "online",
+);
+
 static int
 virNodeDevCapsDefParseString(const char *xpath,
                              xmlXPathContextPtr ctxt,
@@ -176,20 +182,16 @@ virNodeDeviceCapSystemDefFormat(virBuffer *buf,
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
 
-    if (data->system.product_name)
-        virBufferEscapeString(buf, "<product>%s</product>\n",
-                              data->system.product_name);
+    virBufferEscapeString(buf, "<product>%s</product>\n",
+                          data->system.product_name);
     virBufferAddLit(buf, "<hardware>\n");
     virBufferAdjustIndent(buf, 2);
-    if (data->system.hardware.vendor_name)
-        virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
-                              data->system.hardware.vendor_name);
-    if (data->system.hardware.version)
-        virBufferEscapeString(buf, "<version>%s</version>\n",
-                              data->system.hardware.version);
-    if (data->system.hardware.serial)
-        virBufferEscapeString(buf, "<serial>%s</serial>\n",
-                              data->system.hardware.serial);
+    virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
+                          data->system.hardware.vendor_name);
+    virBufferEscapeString(buf, "<version>%s</version>\n",
+                          data->system.hardware.version);
+    virBufferEscapeString(buf, "<serial>%s</serial>\n",
+                          data->system.hardware.serial);
     virUUIDFormat(data->system.hardware.uuid, uuidstr);
     virBufferAsprintf(buf, "<uuid>%s</uuid>\n", uuidstr);
     virBufferAdjustIndent(buf, -2);
@@ -197,15 +199,12 @@ virNodeDeviceCapSystemDefFormat(virBuffer *buf,
 
     virBufferAddLit(buf, "<firmware>\n");
     virBufferAdjustIndent(buf, 2);
-    if (data->system.firmware.vendor_name)
-        virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
-                              data->system.firmware.vendor_name);
-    if (data->system.firmware.version)
-        virBufferEscapeString(buf, "<version>%s</version>\n",
-                              data->system.firmware.version);
-    if (data->system.firmware.release_date)
-        virBufferEscapeString(buf, "<release_date>%s</release_date>\n",
-                              data->system.firmware.release_date);
+    virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
+                          data->system.firmware.vendor_name);
+    virBufferEscapeString(buf, "<version>%s</version>\n",
+                          data->system.firmware.version);
+    virBufferEscapeString(buf, "<release_date>%s</release_date>\n",
+                          data->system.firmware.release_date);
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</firmware>\n");
 }
@@ -225,9 +224,8 @@ virNodeDeviceCapMdevTypesFormat(virBuffer *buf,
             virMediatedDeviceType *type = mdev_types[i];
             virBufferEscapeString(buf, "<type id='%s'>\n", type->id);
             virBufferAdjustIndent(buf, 2);
-            if (type->name)
-                virBufferEscapeString(buf, "<name>%s</name>\n",
-                                      type->name);
+            virBufferEscapeString(buf, "<name>%s</name>\n",
+                                  type->name);
             virBufferEscapeString(buf, "<deviceAPI>%s</deviceAPI>\n",
                                   type->device_api);
             virBufferAsprintf(buf,
@@ -454,10 +452,9 @@ virNodeDeviceCapUSBInterfaceDefFormat(virBuffer *buf,
                       data->usb_if.subclass);
     virBufferAsprintf(buf, "<protocol>%d</protocol>\n",
                       data->usb_if.protocol);
-    if (data->usb_if.description)
-        virBufferEscapeString(buf,
-                              "<description>%s</description>\n",
-                              data->usb_if.description);
+    virBufferEscapeString(buf,
+                          "<description>%s</description>\n",
+                          data->usb_if.description);
 }
 
 
@@ -469,9 +466,8 @@ virNodeDeviceCapNetDefFormat(virBuffer *buf,
 
     virBufferEscapeString(buf, "<interface>%s</interface>\n",
                           data->net.ifname);
-    if (data->net.address)
-        virBufferEscapeString(buf, "<address>%s</address>\n",
-                              data->net.address);
+    virBufferEscapeString(buf, "<address>%s</address>\n",
+                          data->net.address);
     virInterfaceLinkFormat(buf, &data->net.lnk);
     if (data->net.features) {
         for (i = 0; i < VIR_NET_DEV_FEAT_LAST; i++) {
@@ -533,9 +529,8 @@ virNodeDeviceCapSCSIDefFormat(virBuffer *buf,
     virBufferAsprintf(buf, "<target>%d</target>\n",
                       data->scsi.target);
     virBufferAsprintf(buf, "<lun>%d</lun>\n", data->scsi.lun);
-    if (data->scsi.type)
-        virBufferEscapeString(buf, "<type>%s</type>\n",
-                              data->scsi.type);
+    virBufferEscapeString(buf, "<type>%s</type>\n",
+                          data->scsi.type);
 }
 
 
@@ -754,6 +749,10 @@ virNodeDeviceDefFormat(const virNodeDeviceDef *def, unsigned int flags)
             virNodeDeviceCapMdevDefFormat(&buf, data, inactive_state);
             break;
         case VIR_NODE_DEV_CAP_CCW_DEV:
+            if (data->ccw_dev.state != VIR_NODE_DEV_CCW_STATE_LAST) {
+                const char *state = virNodeDevCCWStateTypeToString(data->ccw_dev.state);
+                virBufferEscapeString(&buf, "<state>%s</state>\n", state);
+            }
             virNodeDeviceCapCCWDefFormat(&buf, data);
             break;
         case VIR_NODE_DEV_CAP_CSS_DEV:
@@ -1200,8 +1199,22 @@ virNodeDevCapCCWParseXML(xmlXPathContextPtr ctxt,
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autofree virCCWDeviceAddress *ccw_addr = NULL;
+    g_autofree char *state = NULL;
+    int val;
 
     ctxt->node = node;
+
+    /* state is optional */
+    ccw_dev->state = VIR_NODE_DEV_CCW_STATE_LAST;
+
+    if ((state = virXPathString("string(./state[1])", ctxt))) {
+        if ((val = virNodeDevCCWStateTypeFromString(state)) < 0) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+                           _("unknown state '%1$s' for '%2$s'"), state, def->name);
+            return -1;
+        }
+        ccw_dev->state = val;
+    }
 
     ccw_addr = g_new0(virCCWDeviceAddress, 1);
 
@@ -2592,15 +2605,9 @@ virNodeDevCapsDefFree(virNodeDevCapsDef *caps)
         g_free(data->sg.path);
         break;
     case VIR_NODE_DEV_CAP_MDEV:
-        g_free(data->mdev.defined_config.type);
-        g_free(data->mdev.active_config.type);
         g_free(data->mdev.uuid);
-        for (i = 0; i < data->mdev.defined_config.nattributes; i++)
-            virMediatedDeviceAttrFree(data->mdev.defined_config.attributes[i]);
-        g_free(data->mdev.defined_config.attributes);
-        for (i = 0; i < data->mdev.active_config.nattributes; i++)
-            virMediatedDeviceAttrFree(data->mdev.active_config.attributes[i]);
-        g_free(data->mdev.active_config.attributes);
+        virMediatedDeviceConfigClear(&data->mdev.defined_config);
+        virMediatedDeviceConfigClear(&data->mdev.active_config);
         g_free(data->mdev.parent_addr);
         break;
     case VIR_NODE_DEV_CAP_CSS_DEV:

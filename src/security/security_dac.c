@@ -1951,10 +1951,20 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
             rc = -1;
     }
 
-    if (def->sec &&
-        def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_SEV) {
-        if (virSecurityDACRestoreSEVLabel(mgr, def) < 0)
-            rc = -1;
+    if (def->sec) {
+        switch (def->sec->sectype) {
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+            if (virSecurityDACRestoreSEVLabel(mgr, def) < 0)
+                rc = -1;
+            break;
+        case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+            break;
+        case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+        case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+            virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
+            return -1;
+        }
     }
 
     for (i = 0; i < def->nsysinfo; i++) {
@@ -1983,6 +1993,10 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
 
     if (def->os.slic_table &&
         virSecurityDACRestoreFileLabel(mgr, def->os.slic_table) < 0)
+        rc = -1;
+
+    if (def->pstore &&
+        virSecurityDACRestoreFileLabel(mgr, def->pstore->path) < 0)
         rc = -1;
 
     return rc;
@@ -2175,10 +2189,20 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
             return -1;
     }
 
-    if (def->sec &&
-        def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_SEV) {
-        if (virSecurityDACSetSEVLabel(mgr, def) < 0)
+    if (def->sec) {
+        switch (def->sec->sectype) {
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+        case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+            if (virSecurityDACSetSEVLabel(mgr, def) < 0)
+                return -1;
+            break;
+        case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+            break;
+        case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+        case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+            virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
             return -1;
+        }
     }
 
     if (virSecurityDACGetImageIds(secdef, priv, &user, &group))
@@ -2217,6 +2241,12 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
     if (def->os.slic_table &&
         virSecurityDACSetOwnership(mgr, NULL,
                                    def->os.slic_table,
+                                   user, group, true) < 0)
+        return -1;
+
+    if (def->pstore &&
+        virSecurityDACSetOwnership(mgr, NULL,
+                                   def->pstore->path,
                                    user, group, true) < 0)
         return -1;
 

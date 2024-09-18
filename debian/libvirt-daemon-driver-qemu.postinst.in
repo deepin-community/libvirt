@@ -1,0 +1,171 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+. /usr/share/debconf/confmodule
+
+#FINISH_CONFFILE_TRANSFER#
+
+# Allocated UID and GID for libvirt-qemu
+LIBVIRT_QEMU_UID=64055
+LIBVIRT_QEMU_GID=64055
+
+add_users_groups()
+{
+    if ! getent group kvm >/dev/null; then
+        addgroup --quiet --system kvm
+    fi
+    # user and group libvirt runs qemu/kvm instances with
+    if ! getent passwd libvirt-qemu >/dev/null; then
+
+        # set uid if available (expected); don't fail otherwise.
+        PARAMETER_UID=''
+        if ! getent passwd $LIBVIRT_QEMU_UID >/dev/null; then
+            PARAMETER_UID="--uid $LIBVIRT_QEMU_UID"
+        fi
+
+        adduser --quiet \
+                --system \
+                --ingroup kvm \
+                --quiet \
+                --disabled-login \
+                --disabled-password \
+                --home /var/lib/libvirt \
+                --no-create-home \
+                --gecos "Libvirt Qemu" \
+                $PARAMETER_UID \
+                libvirt-qemu
+    fi
+    if ! getent group libvirt-qemu >/dev/null; then
+
+        # set gid if available (expected); don't fail otherwise.
+        PARAMETER_GID=''
+        if ! getent group $LIBVIRT_QEMU_GID >/dev/null; then
+            PARAMETER_GID="--gid $LIBVIRT_QEMU_GID"
+        fi
+
+        addgroup --quiet --system $PARAMETER_GID libvirt-qemu
+        adduser --quiet libvirt-qemu libvirt-qemu
+    fi
+}
+
+add_statoverrides()
+{
+    ROOT_DIRS="
+        /var/cache/libvirt/qemu/
+    "
+
+    QEMU_DIRS="
+        /var/lib/libvirt/qemu/
+    "
+
+    QEMU_CONF="/etc/libvirt/qemu.conf"
+
+    for dir in ${ROOT_DIRS}; do
+        if ! dpkg-statoverride --list "${dir}" >/dev/null 2>&1; then
+            [ ! -e "${dir}" ] || chown root:root "${dir}"
+            [ ! -e "${dir}" ] || chmod 0711 "${dir}"
+        fi
+    done
+
+    for dir in ${QEMU_DIRS}; do
+        if ! dpkg-statoverride --list "${dir}" >/dev/null 2>&1; then
+            [ ! -e "${dir}" ] || chown libvirt-qemu:libvirt-qemu "${dir}"
+            [ ! -e "${dir}" ] || chmod 0750 "${dir}"
+        fi
+    done
+
+    if ! dpkg-statoverride --list "${QEMU_CONF}" >/dev/null 2>&1; then
+        [ ! -e "${QEMU_CONF}" ] || chown root:root "${QEMU_CONF}"
+        [ ! -e "${QEMU_CONF}" ] || chmod 0600 "${QEMU_CONF}"
+    fi
+}
+
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU="
+    /etc/apparmor.d/abstractions/libvirt-qemu
+    /etc/apparmor.d/libvirt/TEMPLATE.qemu
+    /etc/libvirt/qemu-lockd.conf
+    /etc/libvirt/qemu-sanlock.conf
+    /etc/libvirt/qemu.conf
+    /etc/logrotate.d/libvirtd.qemu
+"
+
+case "$1" in
+    configure)
+        add_users_groups
+        add_statoverrides
+
+        # Make sure the log directory doesn't get removed on package removal
+        # since logrotate chokes otherwise
+        touch /var/log/libvirt/qemu/.placeholder
+
+        # Directories used for channels until 9.7.0-1
+        if [ -d /var/lib/libvirt/qemu/channel/target ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel/target
+        fi
+        if [ -d /var/lib/libvirt/qemu/channel ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel
+        fi
+
+        # Force refresh of capabilities (#731815)
+        rm -f /var/cache/libvirt/qemu/capabilities/*.xml
+
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU; do
+            finish_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-qemu" \
+                -- \
+                "$@"
+        done
+
+        # Obsolete AppArmor stuff included until 9.6.0-1
+        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
+        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
+        pkg="libvirt-daemon-driver-qemu"
+        name="libvirt-qemu"
+
+        abstraction="$ABSTRACTIONS_DIR/$name"
+        local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
+
+        expected=$(dpkg-query --showformat='${Conffiles}\n' --show "$pkg" | grep -E "^ $abstraction " | sed -E 's/^.* ([0-9a-f]+)$/\1/g')
+        actual=$(md5sum "$abstraction" 2>/dev/null | sed -E 's/^([0-9a-f]+) .*$/\1/g')
+
+        # Delete the local abstraction if it's empty and the abstraction
+        # itself contains no customizations
+        if [ ! -s "$local_abstraction" ] && [ -n "$actual" ] && [ "$actual" = "$expected" ]; then
+            rm -f "$local_abstraction"
+        fi
+        if [ -d "$LOCAL_ABSTRACTIONS_DIR" ]; then
+            rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR"
+        fi
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+db_stop
+
+#DEBHELPER#
+
+exit 0

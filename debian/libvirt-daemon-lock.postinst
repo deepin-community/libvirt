@@ -1,0 +1,120 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+finish_conffile_transfer() {
+    local conffile="$1"
+    local firstver="$2"
+    local lastver="$3"
+    local pkgfrom="$4"
+    local pkgto="$5"
+
+    if [ "$6" != "--" ]; then
+        echo "finish_conffile_transfer called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 6); do
+        shift
+    done
+
+    # If we're upgrading from a new enough version of the package, we can assume
+    # the transfer must have happened at some point in the past and stop here
+    if [ -n "$2" ] && dpkg --compare-versions -- "$2" gt "$lastver"; then
+        return 0
+    fi
+
+    if [ -e "$conffile.dpkg-transfer" ]; then
+        # Complete the process started in $pkgfrom's preinst by restoring the
+        # version of the conffile containing local modifications
+        echo "Finishing transfer of config file $conffile (from $pkgfrom to $pkgto) ..."
+        mv -f "$conffile.dpkg-transfer" "$conffile"
+        return 0
+    fi
+
+    if [ -e "$conffile.dpkg-disappear" ]; then
+        # The conffile had been deleted by the admin, so let's return to
+        # that state
+        rm -f "$conffile" "$conffile.dpkg-disappear"
+        return 0
+    fi
+}
+delete_protective_diversion() {
+    local usrfile="$1"
+    local firstver="$2"
+
+    if [ "$3" != "--" ]; then
+        echo "delete_protective_diversion called with the wrong number of arguments" >&2
+        return 1
+    fi
+    for _ in $(seq 1 3); do
+        shift
+    done
+
+    # If the diversion doesn't exist there's nothing to clean up
+    if [ -z "$(dpkg-divert --list "$usrfile")" ]; then
+        return 0
+    fi
+
+    dpkg-divert \
+        --no-rename \
+        --divert "$usrfile.usr-is-merged" \
+        --remove "$usrfile"
+}
+
+DAEMON_SYSTEM_TO_DAEMON_LOCK="
+    /etc/default/virtlockd
+    /etc/libvirt/virtlockd.conf
+"
+
+DAEMON_LOCK_UNITS="
+    virtlockd-admin.socket
+    virtlockd.service
+    virtlockd.socket
+"
+
+case "$1" in
+    configure)
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_LOCK; do
+            finish_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-lock" \
+                -- \
+                "$@"
+        done
+
+        for unit in $DAEMON_LOCK_UNITS; do
+            delete_protective_diversion \
+                "/lib/systemd/system/$unit" \
+                "10.6.0-3~" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

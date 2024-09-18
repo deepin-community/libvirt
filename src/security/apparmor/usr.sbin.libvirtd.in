@@ -42,6 +42,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
   mount options=(rw, move) /dev/** -> /{,var/}run/libvirt/qemu/*{,/},
   mount options=(rw, move) /{,var/}run/libvirt/qemu/*.dev/ -> /dev/,
   mount options=(rw, move) /{,var/}run/libvirt/qemu/*{,/} -> /dev/**,
+  umount /{,var/}run/libvirt/qemu/*{,/},
 
   network inet stream,
   network inet dgram,
@@ -116,7 +117,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
   # allow changing to our UUID-based named profiles
   change_profile -> @{LIBVIRT}-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*-[0-9a-f]*,
 
-  /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper Cx -> qemu_bridge_helper,
+  /usr/{lib,lib64,lib/qemu,libexec,libexec/qemu}/qemu-bridge-helper Cx -> qemu_bridge_helper,
   # child profile for bridge helper process
   profile qemu_bridge_helper {
    #include <abstractions/base>
@@ -137,7 +138,7 @@ profile libvirtd @sbindir@/libvirtd flags=(attach_disconnected) {
    /etc/qemu/** r,
    owner @{PROC}/*/status r,
 
-   /usr/{lib,lib64,lib/qemu,libexec}/qemu-bridge-helper rmix,
+   /usr/{lib,lib64,lib/qemu,libexec,libexec/qemu}/qemu-bridge-helper rmix,
   }
 
 @BEGIN_APPARMOR_3@

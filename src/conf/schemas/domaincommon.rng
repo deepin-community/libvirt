@@ -516,12 +516,28 @@
           <ref name="launchSecuritySEV"/>
         </group>
         <group>
+          <ref name="launchSecuritySEVSNP"/>
+        </group>
+        <group>
           <attribute name="type">
             <value>s390-pv</value>
           </attribute>
         </group>
       </choice>
     </element>
+  </define>
+
+  <define name="launchSecuritySEVCommon">
+    <optional>
+      <element name="cbitpos">
+        <data type="unsignedInt"/>
+      </element>
+    </optional>
+    <optional>
+      <element name="reducedPhysBits">
+        <data type="unsignedInt"/>
+      </element>
+    </optional>
   </define>
 
   <define name="launchSecuritySEV">
@@ -534,16 +550,7 @@
       </attribute>
     </optional>
     <interleave>
-      <optional>
-        <element name="cbitpos">
-          <data type="unsignedInt"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="reducedPhysBits">
-          <data type="unsignedInt"/>
-        </element>
-      </optional>
+      <ref name="launchSecuritySEVCommon"/>
       <element name="policy">
         <ref name="hexuint"/>
       </element>
@@ -565,6 +572,52 @@
     </interleave>
   </define>
 
+  <define name="launchSecuritySEVSNP">
+    <attribute name="type">
+      <value>sev-snp</value>
+    </attribute>
+    <optional>
+      <attribute name="kernelHashes">
+        <ref name="virYesNo"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="authorKey">
+        <ref name="virYesNo"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="vcek">
+        <ref name="virYesNo"/>
+      </attribute>
+    </optional>
+    <interleave>
+      <ref name="launchSecuritySEVCommon"/>
+      <element name="policy">
+        <ref name="hexuint"/>
+      </element>
+      <optional>
+        <element name="guestVisibleWorkarounds">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="idBlock">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="idAuth">
+          <data type="string"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="hostData">
+          <data type="string"/>
+        </element>
+      </optional>
+    </interleave>
+  </define>
   <!--
       Enable or disable perf events for the domain. For each
       of the events the following rules apply:
@@ -3327,6 +3380,15 @@
             </optional>
           </element>
         </optional>
+        <optional>
+          <element name="openfiles">
+            <optional>
+              <attribute name="max">
+                <data type="positiveInteger"/>
+              </attribute>
+            </optional>
+          </element>
+        </optional>
       </interleave>
     </element>
   </define>
@@ -3631,15 +3693,21 @@
               <attribute name="switchid">
                 <ref name="UUID"/>
               </attribute>
-              <attribute name="portid">
-                <data type="long"/>
-              </attribute>
-              <attribute name="portgroupid">
-                <data type="string"/>
-              </attribute>
-              <attribute name="connectionid">
-                <data type="long"/>
-              </attribute>
+              <optional>
+                <attribute name="portid">
+                  <data type="long"/>
+                </attribute>
+              </optional>
+              <optional>
+                <attribute name="portgroupid">
+                  <data type="string"/>
+                </attribute>
+              </optional>
+              <optional>
+                <attribute name="connectionid">
+                  <data type="long"/>
+                </attribute>
+              </optional>
             </element>
             <ref name="interface-options"/>
           </interleave>
@@ -3773,6 +3841,7 @@
           <optional>
             <attribute name="type">
               <choice>
+                <value>default</value>
                 <value>passt</value>
               </choice>
             </attribute>
@@ -5860,6 +5929,11 @@
               <ref name="virYesNo"/>
             </attribute>
           </optional>
+          <optional>
+            <attribute name="debug">
+              <ref name="uint8"/>
+            </attribute>
+          </optional>
         </group>
         <group>
           <attribute name="type">
@@ -6026,6 +6100,11 @@
                 <ref name="uint8"/>
               </attribute>
             </optional>
+            <optional>
+              <attribute name="dma_translation">
+                <ref name="virOnOff"/>
+              </attribute>
+            </optional>
           </element>
         </optional>
         <optional>
@@ -6178,6 +6257,30 @@
       <zeroOrMore>
         <ref name="usbdevfilter"/>
       </zeroOrMore>
+    </element>
+  </define>
+
+  <define name="pstore">
+    <element name="pstore">
+      <attribute name="backend">
+        <value>acpi-erst</value>
+      </attribute>
+      <interleave>
+        <optional>
+          <element name="path">
+            <ref name="absFilePath"/>
+          </element>
+        </optional>
+        <element name="size">
+          <ref name="scaledInteger"/>
+        </element>
+        <optional>
+          <ref name="address"/>
+        </optional>
+        <optional>
+          <ref name="alias"/>
+        </optional>
+      </interleave>
     </element>
   </define>
 
@@ -6650,6 +6753,9 @@
         <optional>
           <ref name="vsock"/>
         </optional>
+        <optional>
+          <ref name="pstore"/>
+        </optional>
       </interleave>
     </element>
   </define>
@@ -6808,6 +6914,11 @@
           </optional>
           <optional>
             <element name="ras">
+              <ref name="featurestate"/>
+            </element>
+          </optional>
+          <optional>
+            <element name="ps2">
               <ref name="featurestate"/>
             </element>
           </optional>
@@ -7853,6 +7964,16 @@
             </optional>
             <optional>
               <element name="avic">
+                <ref name="featurestate"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="emsr_bitmap">
+                <ref name="featurestate"/>
+              </element>
+            </optional>
+            <optional>
+              <element name="xmm_input">
                 <ref name="featurestate"/>
               </element>
             </optional>

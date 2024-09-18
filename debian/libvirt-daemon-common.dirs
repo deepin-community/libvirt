@@ -1,0 +1,5 @@
+etc/libvirt/hooks
+var/cache/libvirt
+var/lib/libvirt/boot
+var/lib/libvirt/images
+var/log/libvirt

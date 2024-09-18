@@ -1,0 +1,76 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postrm> `remove'
+#   * <postrm> `purge'
+#   * <old-postrm> `upgrade' <new-version>
+#   * <disappearer's-postrm> `disappear' <overwriter> <overwriter-version>
+#   * <new-postrm> `failed-upgrade' <old-version> <new-version>
+#   * <new-postrm> `abort-install'
+#   * <new-postrm> `abort-install' <old-version> <new-version>
+#   * <new-postrm> `abort-upgrade' <old-version> <new-version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+#ABORT_CONFFILE_TRANSFER#
+
+DAEMON_SYSTEM_SYSV_TO_DAEMON_COMMON="
+    /etc/init.d/libvirt-guests
+"
+DAEMON_SYSTEM_SYSV_TO_DAEMON="
+    /etc/init.d/libvirtd
+"
+DAEMON_SYSTEM_SYSV_TO_DAEMON_LOG="
+    /etc/init.d/virtlogd
+"
+
+case "$1" in
+    abort-install|abort-upgrade)
+        for conf in $DAEMON_SYSTEM_SYSV_TO_DAEMON_COMMON; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system-sysv" \
+                "libvirt-daemon-common" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_SYSV_TO_DAEMON; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system-sysv" \
+                "libvirt-daemon" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_SYSV_TO_DAEMON_LOG; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system-sysv" \
+                "libvirt-daemon-log" \
+                -- \
+                "$@"
+        done
+    ;;
+
+    remove|purge|upgrade|disappear|failed-upgrade)
+    ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+#DEBHELPER#
+
+exit 0

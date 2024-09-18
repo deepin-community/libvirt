@@ -1989,6 +1989,8 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
        <tlbflush state='on'/>
        <ipi state='on'/>
        <evmcs state='on'/>
+       <emsr_bitmap state='on'/>
+       <xmm_input state='on'/>
      </hyperv>
      <kvm>
        <hidden state='on'/>
@@ -2022,6 +2024,7 @@ Hypervisors may allow certain CPU / machine features to be toggled on/off.
      </tcg>
      <async-teardown enabled='yes'/>
      <ras state='on'/>
+     <ps2 state='on'/>
    </features>
    ...
 
@@ -2076,6 +2079,8 @@ are:
    ipi             Enable PV IPI support                                                  on, off                                      :since:`4.10.0 (QEMU 3.1)`
    evmcs           Enable Enlightened VMCS                                                on, off                                      :since:`4.10.0 (QEMU 3.1)`
    avic            Enable use Hyper-V SynIC with hardware APICv/AVIC                      on, off                                      :since:`8.10.0 (QEMU 6.2)`
+   emsr_bitmap     Avoid unnecessary updates to L2 MSR Bitmap upon vmexits.               on, off                                      :since:`10.7.0 (QEMU 7.1)`
+   xmm_input       Enable XMM Fast Hypercall Input                                        on, off                                      :since:`10.7.0 (QEMU 7.1)`
    =============== ====================================================================== ============================================ =======================================================
 
    :since:`Since 8.0.0`, the hypervisor can be configured further by setting
@@ -2262,6 +2267,11 @@ are:
    exceptions when enabled (``on``). If the attribute is not defined, the
    hypervisor default will be used.
    :since:`Since 10.4.0` (QEMU/KVM and ARM virt guests only)
+``ps2``
+   Depending on the ``state`` attribute (values ``on``, ``off``) enable or
+   disable the emulation of a PS/2 controller used by ``ps2`` bus input devices.
+   If the attribute is not defined, the hypervisor default will be used.
+   :since:`Since 10.7.0` (QEMU only)
 
 Time keeping
 ------------
@@ -3734,6 +3744,10 @@ A directory on the host that can be accessed directly from the guest.
    The thread pool helps increase the number of requests in flight when used with
    storage that has a higher latency.  However, it has an overhead, and so for
    fast, low latency filesystems, it may be best to turn it off. ( :since:`Since 8.5.0` )
+   Element ``openfiles`` accepts one attribute ``max`` which defines the
+   maximum number of file descriptors. Non-positive values are forbidden.
+   The upper bound on the number of open files is implementation defined.
+   ( :since:`Since 10.6.0` )
 ``source``
    The resource on the host that is being accessed in the guest. The ``name``
    attribute must be used with ``type='template'``, and the ``dir`` attribute
@@ -8097,7 +8111,7 @@ Example: usage of the TPM Emulator
      ...
      <devices>
        <tpm model='tpm-tis'>
-         <backend type='emulator' version='2.0'>
+         <backend type='emulator' version='2.0' debug='5'>
            <encryption secret='6dd3e4a5-1d76-44ce-961f-f119f5aad935'/>
            <active_pcr_banks>
                <sha256/>
@@ -8141,7 +8155,9 @@ Example: usage of the TPM Emulator
    ``emulator``
       For this backend type the 'swtpm' TPM Emulator must be installed on the
       host. Libvirt will automatically start an independent TPM emulator for
-      each QEMU guest requesting access to it.
+      each QEMU guest requesting access to it. :since:`10.6.0`, the ``debug``
+      parameter can be used to enable logging in the emulator backend, and
+      accepts non-zero integer values.
 
 ``version``
    The ``version`` attribute indicates the version of the TPM. This attribute
@@ -8605,6 +8621,13 @@ Example:
       mapping larger iova addresses in the guest. :since:`Since 6.5.0` (QEMU/KVM
       only)
 
+   ``dma_translation``
+      The ``dma_translation`` attribute with possible values ``on`` and ``off`` can
+      be used to turn off the dma translation for IOMMU. It is useful when only
+      interrupt remapping is required but dma translation overhead is unwanted, for
+      example to efficiently enable more than 255 vCPUs.
+      :since:`Since 10.7.0` (QEMU/KVM only)
+
 The ``virtio`` IOMMU devices can further have ``address`` element as described
 in `Device addresses`_ (address has to by type of ``pci``).
 
@@ -8651,6 +8674,37 @@ The optional attribute ``backend`` is required if the ``type`` is ``qemu``, the
      </crypto>
    </devices>
    ...
+
+
+Pstore
+~~~~~~~~~
+
+Pstore is an oops/panic logger that writes its logs to a block device and
+non-block device before the system crashes. Currently only ACPI Error Record
+Serialization Table, ERST, is supported. This feature is designed for storing
+error records in persistent storage for future reference and/or debugging.
+:since:`Since v10.6.0`
+
+::
+
+  ...
+  <pstore backend='acpi-erst'>
+    <path>/tmp/guest_acpi_esrt</path>
+    <size unit='KiB'>8</size>
+    <address type='pci' domain='0x0000' bus='0x02' slot='0x01' function='0x0'/>
+  </pstore>
+  ...
+
+The ``pstore`` element has one mandatory attribute ``backend`` which selects
+desired backend (only ``acpi-erst`` is accepted for now). Then it has the
+following child elements:
+
+``path``
+  Represents a path in the host that backs the pstore device in the guest.
+
+``size``
+  Configures the size of the persistent storage available to the guest. It is
+  mandatory.
 
 
 Security label
@@ -8866,6 +8920,114 @@ spec <https://support.amd.com/TechDocs/55766_SEV-KM_API_Specification.pdf>`__
    The optional ``session`` element provides the guest owners base64 encoded
    session blob defined in the SEV API spec. See SEV spec LAUNCH_START section
    for the session blob format.
+
+
+Some modern AMD processors support Secure Encrypted Virtualization with Secure
+Nested Paging enhancement, also known as SEV-SNP. :since:`Since 10.5.0` To
+enable it ``<launchSecurity type='sev-snp'>`` should be used. It shares some
+attributes and elements with ``type='sev'`` but differs in others. Example configuration:
+
+::
+
+  <domain>
+    ...
+    <launchSecurity type='sev-snp' authorKey='yes' vcek='no'>
+      <cbitpos>47</cbitpos>
+      <reducedPhysBits>1</reducedPhysBits>
+      <policy>0x00030000</policy>
+      <guestVisibleWorkarounds>...</guestVisibleWorkarounds>
+      <idBlock>...</idBlock>
+      <idAuth>...</idAuth>
+      <hostData>.../hostData>
+    </launchSecurity>
+    ...
+  </domain>
+
+The ``<launchSecurity/>`` element accepts the following attributes:
+
+``kernelHashes``
+   The optional ``kernelHashes`` attribute indicates whether the
+   hashes of the kernel, ramdisk and command line should be included
+   in the measurement done by the firmware. This is only valid if
+   using direct kernel boot.
+
+``authorKey``
+   The optional ``authorKey`` attribute indicates whether ``<idAuth/>`` element
+   contains the 'AUTHOR_KEY' field defined SEV-SNP firmware ABI.
+
+``vcek``
+   The optional ``vcek`` attribute indicates whether the guest is allowed to
+   chose between VLEK (Versioned Loaded Endorsement Key) or VCEK (Versioned
+   Chip Endorsement Key)  when requesting attestation reports from firmware.
+   Set this to ``no`` to disable the use of VCEK.
+
+Aforementioned SEV-SNP firmware ABI can be found here:
+`<https://www.amd.com/system/files/TechDocs/56860.pdf>`__
+
+The ``<launchSecurity/>`` element then accepts the following child elements:
+
+``cbitpos``
+   The required ``cbitpos`` element provides the C-bit (aka encryption bit)
+   location in guest page table entry. The value of ``cbitpos`` is hypervisor
+   dependent and can be obtained through the ``sev`` element from the domain
+   capabilities.
+``reducedPhysBits``
+   The required ``reducedPhysBits`` element provides the physical address bit
+   reduction. Similar to ``cbitpos`` the value of ``reduced-phys-bit`` is
+   hypervisor dependent and can be obtained through the ``sev`` element from the
+   domain capabilities.
+``policy``
+   The required ``policy`` element provides the guest policy which must be
+   maintained by the SEV-SNP firmware. This policy is enforced by the firmware
+   and restricts what configuration and operational commands can be performed
+   on this guest by the hypervisor. The guest policy provided during guest
+   launch is bound to the guest and cannot be changed throughout the lifetime
+   of the guest. The policy is also transmitted during snapshot and migration
+   flows and enforced on the destination platform. The guest policy is a 64bit
+   unsigned number with the fields shown in table (See section `4.3 Guest
+   Policy` in aforementioned firmware ABI specification):
+
+   ====== =========================================================================================
+   Bit(s) Description
+   ====== =========================================================================================
+   63:25  Reserved. Must be zero.
+   24     Ciphertext hiding must be enabled when set, otherwise may be enabled or disabled.
+   23     Running Average Power Limit (RAPL) must be disabled when set.
+   22     Require AES 256 XTS for memory encryption when set, otherwise AES 128 XEX may be allowed.
+   21     CXL can be populated with devices or memory when set.
+   20     Guest can be activated only on one socket when set.
+   19     Debugging is allowed when set.
+   18     Association with a migration agent is allowed when set.
+   17     Reserved. Must be set.
+   16     SMT is allowed.
+   15:8   The minimum ABI major version required for this guest to run.
+   7:0    The minimum ABI minor version required for this guest to run.
+   ====== =========================================================================================
+
+   The default value is hypervisor dependant and QEMU defaults to value 0x30000
+   meaning no minimum ABI major/minor version is required and SMT is allowed.
+
+``guestVisibleWorkarounds``
+   The optional ``guestVisibleWorkarounds`` element is a 16-byte,
+   base64-encoded blob to report hypervisor-defined workarounds, corresponding
+   to the 'GOSVW' parameter of the SNP_LAUNCH_START command defined in the
+   SEV-SNP firmware ABI.
+
+``idBlock``
+   The optional ``idBlock`` element is a 96-byte, base64-encoded blob to
+   provide the 'ID Block' structure for the SNP_LAUNCH_FINISH command defined
+   in the SEV-SNP firmware ABI.
+
+``idAuth``
+   The optional ``idAuth`` element is a 4096-byte, base64-encoded blob to
+   provide the 'ID Authentication Information Structure' for the
+   SNP_LAUNCH_FINISH command defined in the SEV-SNP firmware ABI.
+
+``hostData``
+   The optional ``hostData`` element is a 32-byte, base64-encoded, user-defined
+   blob to provide to the guest, as documented for the 'HOST_DATA' parameter of
+   the SNP_LAUNCH_FINISH command in the SEV-SNP firmware ABI.
+
 
 Example configs
 ===============

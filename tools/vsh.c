@@ -2418,7 +2418,7 @@ vshCloseLogFile(vshControl *ctl)
 }
 
 #ifndef WIN32
-static void
+static void G_GNUC_NULL_TERMINATED
 vshPrintRaw(vshControl *ctl, ...)
 {
     va_list ap;
@@ -3040,6 +3040,9 @@ vshReadlineDeinit(vshControl *ctl)
 
     g_clear_pointer(&ctl->historydir, g_free);
     g_clear_pointer(&ctl->historyfile, g_free);
+
+    /* Allow vshReadlineInit() to be called again. */
+    autoCompleteOpaque = NULL;
 }
 
 char *

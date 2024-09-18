@@ -712,11 +712,11 @@ cmdDomiflist(vshControl *ctl, const vshCmd *cmd)
         mac = virXPathString("string(./mac/@address)", ctxt);
 
         if (vshTableRowAppend(table,
-                              target ? target : "-",
+                              NULLSTR_MINUS(target),
                               type,
-                              source ? source : "-",
-                              model ? model : "-",
-                              mac ? mac : "-",
+                              NULLSTR_MINUS(source),
+                              NULLSTR_MINUS(model),
+                              NULLSTR_MINUS(mac),
                               NULL) < 0)
             return false;
     }
@@ -1855,10 +1855,9 @@ cmdList(vshControl *ctl, const vshCmd *cmd)
     FILTER("state-other",   VIR_CONNECT_LIST_DOMAINS_OTHER);
 
     VSH_EXCLUSIVE_OPTIONS("table", "name");
-    VSH_EXCLUSIVE_OPTIONS("table", "uuid");
     VSH_EXCLUSIVE_OPTIONS("table", "id");
 
-    if (!optUUID && !optName && !optID)
+    if (!optName && !optID)
         optTable = true;
 
     if (!(list = virshDomainListCollect(ctl, flags)))
@@ -1866,8 +1865,12 @@ cmdList(vshControl *ctl, const vshCmd *cmd)
 
     /* print table header in legacy mode */
     if (optTable) {
-        if (optTitle)
+        if (optTitle && !optUUID)
             table = vshTableNew(_("Id"), _("Name"), _("State"), _("Title"), NULL);
+        else if (optUUID && !optTitle)
+            table = vshTableNew(_("Id"), _("Name"), _("State"), _("UUID"), NULL);
+        else if (optUUID && optTitle)
+            table = vshTableNew(_("Id"), _("Name"), _("State"), _("Title"), _("UUID"), NULL);
         else
             table = vshTableNew(_("Id"), _("Name"), _("State"), NULL);
 
@@ -1886,6 +1889,11 @@ cmdList(vshControl *ctl, const vshCmd *cmd)
             ignore_value(virStrcpyStatic(id_buf, "-"));
 
         if (optTable) {
+            const char *domName = virDomainGetName(dom);
+            const char *stateStr = NULL;
+            g_autofree char *title = NULL;
+            const char *arg[2] = {};
+
             state = virshDomainState(ctl, dom, NULL);
 
             /* Domain could've been removed in the meantime */
@@ -1893,29 +1901,40 @@ cmdList(vshControl *ctl, const vshCmd *cmd)
                 continue;
 
             if (managed && state == VIR_DOMAIN_SHUTOFF &&
-                virDomainHasManagedSaveImage(dom, 0) > 0)
-                state = -2;
-
-            if (optTitle) {
-                g_autofree char *title = NULL;
-
-                if (!(title = virshGetDomainDescription(ctl, dom, true, 0)))
-                    goto cleanup;
-                if (vshTableRowAppend(table, id_buf,
-                                      virDomainGetName(dom),
-                                      state == -2 ? _("saved")
-                                      : virshDomainStateToString(state),
-                                      title, NULL) < 0)
-                    goto cleanup;
+                virDomainHasManagedSaveImage(dom, 0) > 0) {
+                stateStr = _("saved");
             } else {
-                if (vshTableRowAppend(table, id_buf,
-                                      virDomainGetName(dom),
-                                      state == -2 ? _("saved")
-                                      : virshDomainStateToString(state),
-                                      NULL) < 0)
-                    goto cleanup;
+                stateStr = virshDomainStateToString(state);
             }
 
+            if (optTitle && !optUUID) {
+                if (!(title = virshGetDomainDescription(ctl, dom, true, 0)))
+                    goto cleanup;
+
+                arg[0] = title;
+            } else if (optUUID && !optTitle) {
+                if (virDomainGetUUIDString(dom, uuid) < 0) {
+                    vshError(ctl, "%s", _("Failed to get domain's UUID"));
+                    goto cleanup;
+                }
+
+                arg[0] = uuid;
+            } else if (optUUID && optTitle) {
+                if (!(title = virshGetDomainDescription(ctl, dom, true, 0)))
+                    goto cleanup;
+                if (virDomainGetUUIDString(dom, uuid) < 0) {
+                    vshError(ctl, "%s", _("Failed to get domain's UUID"));
+                    goto cleanup;
+                }
+
+                arg[0] = title;
+                arg[1] = uuid;
+            }
+
+            if (vshTableRowAppend(table, id_buf,
+                                  domName, stateStr,
+                                  arg[0], arg[1], NULL) < 0)
+                goto cleanup;
         } else {
             if (optUUID) {
                 if (virDomainGetUUIDString(dom, uuid) < 0) {

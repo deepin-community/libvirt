@@ -1,3 +1,3 @@
 etc/apt/apt.conf.d/90libnss-libvirt
-lib/${DEB_HOST_MULTIARCH}/libnss_libvirt.so.2
-lib/${DEB_HOST_MULTIARCH}/libnss_libvirt_guest.so.2
+usr/lib/${DEB_HOST_MULTIARCH}/libnss_libvirt.so.2
+usr/lib/${DEB_HOST_MULTIARCH}/libnss_libvirt_guest.so.2

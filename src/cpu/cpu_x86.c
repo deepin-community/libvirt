@@ -82,6 +82,8 @@ KVM_FEATURE_DEF(VIR_CPU_x86_HV_SYNIC,
                 0x40000003, 0x00000004, 0x0);
 KVM_FEATURE_DEF(VIR_CPU_x86_HV_STIMER,
                 0x40000003, 0x00000008, 0x0);
+KVM_FEATURE_DEF(VIR_CPU_x86_HV_XMM_INPUT,
+                0x40000003, 0x00000010, 0x0);
 KVM_FEATURE_DEF(VIR_CPU_x86_HV_RELAXED,
                 0x40000003, 0x00000020, 0x0);
 KVM_FEATURE_DEF(VIR_CPU_x86_HV_VAPIC,
@@ -107,12 +109,15 @@ KVM_FEATURE_DEF(VIR_CPU_x86_HV_IPI,
 KVM_FEATURE_DEF(VIR_CPU_x86_HV_EVMCS,
                 0x40000004, 0x00004000, 0x0);
 
+KVM_FEATURE_DEF(VIR_CPU_x86_HV_EMSR_BITMAP,
+                0x4000000A, 0x00080000, 0x0);
 static virCPUx86Feature x86_kvm_features[] =
 {
     KVM_FEATURE(VIR_CPU_x86_KVM_PV_UNHALT),
     KVM_FEATURE(VIR_CPU_x86_HV_RUNTIME),
     KVM_FEATURE(VIR_CPU_x86_HV_SYNIC),
     KVM_FEATURE(VIR_CPU_x86_HV_STIMER),
+    KVM_FEATURE(VIR_CPU_x86_HV_XMM_INPUT),
     KVM_FEATURE(VIR_CPU_x86_HV_RELAXED),
     KVM_FEATURE(VIR_CPU_x86_HV_VAPIC),
     KVM_FEATURE(VIR_CPU_x86_HV_VPINDEX),
@@ -124,6 +129,7 @@ static virCPUx86Feature x86_kvm_features[] =
     KVM_FEATURE(VIR_CPU_x86_HV_IPI),
     KVM_FEATURE(VIR_CPU_x86_HV_EVMCS),
     KVM_FEATURE(VIR_CPU_x86_HV_STIMER_DIRECT),
+    KVM_FEATURE(VIR_CPU_x86_HV_EMSR_BITMAP),
 };
 
 typedef struct _virCPUx86Signature virCPUx86Signature;
@@ -3021,10 +3027,7 @@ virCPUx86UpdateLive(virCPUDef *cpu,
     if (!(map = virCPUx86GetMap()))
         return -1;
 
-    if (!(model = x86ModelFromCPU(cpu, map, -1)))
-        return -1;
-
-    if (hostPassthrough &&
+    if (!(model = x86ModelFromCPU(cpu, map, -1)) ||
         !(modelDisabled = x86ModelFromCPU(cpu, map, VIR_CPU_FEATURE_DISABLE)))
         return -1;
 
@@ -3037,12 +3040,19 @@ virCPUx86UpdateLive(virCPUDef *cpu,
     for (i = 0; i < map->nfeatures; i++) {
         virCPUx86Feature *feature = map->features[i];
         virCPUFeaturePolicy expected = VIR_CPU_FEATURE_LAST;
+        bool explicit = false;
+        bool ignore = false;
 
-        if (x86DataIsSubset(&model->data, &feature->data))
+        if (x86DataIsSubset(&model->data, &feature->data)) {
+            explicit = true;
             expected = VIR_CPU_FEATURE_REQUIRE;
-        else if (!hostPassthrough ||
-                 x86DataIsSubset(&modelDisabled->data, &feature->data))
+        } else if (x86DataIsSubset(&modelDisabled->data, &feature->data)) {
+            explicit = true;
             expected = VIR_CPU_FEATURE_DISABLE;
+        } else if (!hostPassthrough) {
+            /* implicitly disabled */
+            expected = VIR_CPU_FEATURE_DISABLE;
+        }
 
         if (x86DataIsSubset(&enabled, &feature->data) &&
             x86DataIsSubset(&disabled, &feature->data)) {
@@ -3052,30 +3062,36 @@ virCPUx86UpdateLive(virCPUDef *cpu,
             return -1;
         }
 
+        /* Features enabled or disabled by the hypervisor are ignored by
+         * check='full' in case they were added to the model later and not
+         * explicitly mentioned in the CPU definition. This matches how libvirt
+         * behaved before the features were added.
+         */
+        if (!explicit &&
+            g_strv_contains((const char **) model->addedFeatures, feature->name))
+            ignore = true;
+
         if (expected == VIR_CPU_FEATURE_DISABLE &&
             x86DataIsSubset(&enabled, &feature->data)) {
             VIR_DEBUG("Feature '%s' enabled by the hypervisor", feature->name);
 
-            /* Extra features enabled by the hypervisor are ignored by
-             * check='full' in case they were added to the model later for
-             * backward compatibility with the older definition of the model.
-             */
-            if (cpu->check == VIR_CPU_CHECK_FULL &&
-                !g_strv_contains((const char **) model->addedFeatures, feature->name)) {
+            if (cpu->check == VIR_CPU_CHECK_FULL && !ignore)
                 virBufferAsprintf(&bufAdded, "%s,", feature->name);
-            } else {
+            else
                 virCPUDefUpdateFeature(cpu, feature->name, VIR_CPU_FEATURE_REQUIRE);
-            }
         }
 
         if (x86DataIsSubset(&disabled, &feature->data) ||
             (expected == VIR_CPU_FEATURE_REQUIRE &&
              !x86DataIsSubset(&enabled, &feature->data))) {
             VIR_DEBUG("Feature '%s' disabled by the hypervisor", feature->name);
-            if (cpu->check == VIR_CPU_CHECK_FULL)
+
+            if (cpu->check == VIR_CPU_CHECK_FULL && !ignore) {
                 virBufferAsprintf(&bufRemoved, "%s,", feature->name);
-            else
+            } else {
                 virCPUDefUpdateFeature(cpu, feature->name, VIR_CPU_FEATURE_DISABLE);
+                x86DataSubtract(&disabled, &feature->data);
+            }
         }
     }
 

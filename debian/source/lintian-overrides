@@ -1,0 +1,3 @@
+# These are all dummy transitional packages
+libvirt source: duplicate-long-description libvirt-daemon-system-systemd libvirt-daemon-system-sysv libvirt-sanlock [debian/control]
+libvirt source: duplicate-short-description libvirt-daemon-system-systemd libvirt-daemon-system-sysv libvirt-sanlock [debian/control]

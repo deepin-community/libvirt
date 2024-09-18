@@ -29,6 +29,7 @@
 #include "ch_process.h"
 #include "domain_cgroup.h"
 #include "domain_interface.h"
+#include "viralloc.h"
 #include "virerror.h"
 #include "virfile.h"
 #include "virjson.h"
@@ -490,14 +491,57 @@ virCHProcessSetup(virDomainObj *vm)
 }
 
 
+/**
+ * chMonitorSocketConnect:
+ * @mon: pointer to monitor object
+ *
+ * Connects to the monitor socket. Caller is responsible for closing the socketfd
+ *
+ * Returns socket fd on success, -1 on error
+ */
+static int
+chMonitorSocketConnect(virCHMonitor *mon)
+{
+    struct sockaddr_un server_addr = { };
+    int sock;
+
+    sock = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (sock < 0) {
+        virReportSystemError(errno, "%s", _("Failed to open a UNIX socket"));
+        return -1;
+    }
+
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sun_family = AF_UNIX;
+    if (virStrcpyStatic(server_addr.sun_path, mon->socketpath) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                       _("UNIX socket path '%1$s' too long"),
+                       mon->socketpath);
+        goto error;
+    }
+
+    if (connect(sock, (struct sockaddr *)&server_addr,
+                sizeof(server_addr)) == -1) {
+        virReportSystemError(errno, "%s", _("Failed to connect to mon socket"));
+        goto error;
+    }
+
+    return sock;
+ error:
+    VIR_FORCE_CLOSE(sock);
+    return -1;
+}
+
+
 #define PKT_TIMEOUT_MS 500 /* ms */
 
 static char *
-chSocketRecv(int sock)
+chSocketRecv(int sock, bool use_timeout)
 {
     struct pollfd pfds[1];
     char *buf = NULL;
     size_t buf_len = 1024;
+    int timeout = PKT_TIMEOUT_MS;
     int ret;
 
     buf = g_new0(char, buf_len);
@@ -505,8 +549,11 @@ chSocketRecv(int sock)
     pfds[0].fd = sock;
     pfds[0].events = POLLIN;
 
+    if (!use_timeout)
+        timeout = -1;
+
     do {
-        ret = poll(pfds, G_N_ELEMENTS(pfds), PKT_TIMEOUT_MS);
+        ret = poll(pfds, G_N_ELEMENTS(pfds), timeout);
     } while (ret < 0 && errno == EINTR);
 
     if (ret <= 0) {
@@ -532,6 +579,42 @@ chSocketRecv(int sock)
 
 #undef PKT_TIMEOUT_MS
 
+static int
+chSocketProcessHttpResponse(int sock, bool use_poll_timeout)
+{
+    g_autofree char *response = NULL;
+    int http_res;
+
+    response = chSocketRecv(sock, use_poll_timeout);
+    if (response == NULL) {
+        return -1;
+    }
+
+    /* Parse the HTTP response code */
+    if (sscanf(response, "HTTP/1.%*d %d", &http_res) != 1) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                        _("Failed to parse HTTP response code"));
+        return -1;
+    }
+    if (http_res != 204 && http_res != 200) {
+        virReportError(VIR_ERR_INTERNAL_ERROR,
+                        _("Unexpected response from CH: %1$s"), response);
+        return -1;
+    }
+
+    return 0;
+}
+
+static int
+chCloseFDs(int *fds, size_t nfds)
+{
+    size_t i;
+    for (i = 0; i < nfds; i++) {
+        VIR_FORCE_CLOSE(fds[i]);
+    }
+    return 0;
+}
+
 /**
  * chProcessAddNetworkDevices:
  * @driver: pointer to ch driver object
@@ -554,7 +637,6 @@ chProcessAddNetworkDevices(virCHDriver *driver,
 {
     size_t i;
     VIR_AUTOCLOSE mon_sockfd = -1;
-    struct sockaddr_un server_addr;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     g_auto(virBuffer) http_headers = VIR_BUFFER_INITIALIZER;
 
@@ -564,25 +646,8 @@ chProcessAddNetworkDevices(virCHDriver *driver,
         return -1;
     }
 
-    mon_sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (mon_sockfd < 0) {
-        virReportSystemError(errno, "%s", _("Failed to open a UNIX socket"));
+    if ((mon_sockfd = chMonitorSocketConnect(mon)) < 0)
         return -1;
-    }
-
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sun_family = AF_UNIX;
-    if (virStrcpyStatic(server_addr.sun_path, mon->socketpath) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("UNIX socket path '%1$s' too long"), mon->socketpath);
-        return -1;
-    }
-
-    if (connect(mon_sockfd, (struct sockaddr *)&server_addr,
-                sizeof(server_addr)) == -1) {
-        virReportSystemError(errno, "%s", _("Failed to connect to mon socket"));
-        return -1;
-    }
 
     virBufferAddLit(&http_headers, "PUT /api/v1/vm.add-net HTTP/1.1\r\n");
     virBufferAddLit(&http_headers, "Host: localhost\r\n");
@@ -592,11 +657,9 @@ chProcessAddNetworkDevices(virCHDriver *driver,
         g_autofree int *tapfds = NULL;
         g_autofree char *payload = NULL;
         g_autofree char *response = NULL;
-        size_t j;
         size_t tapfd_len;
         size_t payload_len;
         int saved_errno;
-        int http_res;
         int rc;
 
         if (vmdef->nets[i]->driver.virtio.queues == 0) {
@@ -621,7 +684,7 @@ chProcessAddNetworkDevices(virCHDriver *driver,
                                          nicindexes, nnicindexes) < 0)
             return -1;
 
-        if (virCHMonitorBuildNetJson(vmdef->nets[i], &payload) < 0) {
+        if (virCHMonitorBuildNetJson(vmdef->nets[i], i, &payload) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("Failed to build net json"));
             return -1;
@@ -640,9 +703,7 @@ chProcessAddNetworkDevices(virCHDriver *driver,
         saved_errno = errno;
 
         /* Close sent tap fds in Libvirt, as they have been dup()ed in CH */
-        for (j = 0; j < tapfd_len; j++) {
-            VIR_FORCE_CLOSE(tapfds[j]);
-        }
+        chCloseFDs(tapfds, tapfd_len);
 
         if (rc < 0) {
             virReportSystemError(saved_errno, "%s",
@@ -650,26 +711,60 @@ chProcessAddNetworkDevices(virCHDriver *driver,
             return -1;
         }
 
-        /* Process the response from CH */
-        response = chSocketRecv(mon_sockfd);
-        if (response == NULL) {
+        if (chSocketProcessHttpResponse(mon_sockfd, true) < 0)
             return -1;
-        }
-
-        /* Parse the HTTP response code */
-        rc = sscanf(response, "HTTP/1.%*d %d", &http_res);
-        if (rc != 1) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Failed to parse HTTP response code"));
-            return -1;
-        }
-        if (http_res != 204 && http_res != 200) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("Unexpected response from CH: %1$d"), http_res);
-            return -1;
-        }
     }
 
+    return 0;
+}
+
+/**
+ * virCHRestoreCreateNetworkDevices:
+ * @driver: pointer to driver structure
+ * @vmdef: pointer to domain definition
+ * @vmtapfds: returned array of FDs of guest interfaces
+ * @nvmtapfds: returned number of network indexes
+ * @nicindexes: returned array of network indexes
+ * @nnicindexes: returned number of network indexes
+ *
+ * Create network devices for the domain. This function is called during
+ * domain restore.
+ *
+ * Returns 0 on success or -1 in case of error
+*/
+static int
+virCHRestoreCreateNetworkDevices(virCHDriver *driver,
+                                 virDomainDef *vmdef,
+                                 int **vmtapfds,
+                                 size_t *nvmtapfds,
+                                 int **nicindexes,
+                                 size_t *nnicindexes)
+{
+    size_t i, j;
+    size_t tapfd_len;
+    size_t index_vmtapfds;
+    for (i = 0; i < vmdef->nnets; i++) {
+        g_autofree int *tapfds = NULL;
+        tapfd_len = vmdef->nets[i]->driver.virtio.queues;
+        if (virCHDomainValidateActualNetDef(vmdef->nets[i]) < 0) {
+            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                           _("net definition failed validation"));
+            return -1;
+        }
+        tapfds = g_new0(int, tapfd_len);
+        memset(tapfds, -1, (tapfd_len) * sizeof(int));
+
+        /* Connect Guest interfaces */
+        if (virCHConnetNetworkInterfaces(driver, vmdef, vmdef->nets[i], tapfds,
+                                          nicindexes, nnicindexes) < 0)
+            return -1;
+
+        index_vmtapfds = *nvmtapfds;
+        VIR_EXPAND_N(*vmtapfds, *nvmtapfds, tapfd_len);
+        for (j = 0; j < tapfd_len; j++) {
+            VIR_APPEND_ELEMENT_INPLACE(*vmtapfds, index_vmtapfds, tapfds[j]);
+        }
+    }
     return 0;
 }
 
@@ -869,13 +964,24 @@ virCHProcessStartRestore(virCHDriver *driver, virDomainObj *vm, const char *from
 {
     virCHDomainObjPrivate *priv = vm->privateData;
     g_autoptr(virCHDriverConfig) cfg = virCHDriverGetConfig(priv->driver);
+    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
+    g_auto(virBuffer) http_headers = VIR_BUFFER_INITIALIZER;
+    g_autofree char *payload = NULL;
+    g_autofree char *response = NULL;
+    VIR_AUTOCLOSE mon_sockfd = -1;
+    g_autofree int *tapfds = NULL;
+    g_autofree int *nicindexes = NULL;
+    size_t payload_len;
+    size_t ntapfds = 0;
+    size_t nnicindexes = 0;
+    int ret = -1;
 
     if (!priv->monitor) {
         /* Get the first monitor connection if not already */
         if (!(priv->monitor = virCHProcessConnectMonitor(driver, vm))) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("failed to create connection to CH socket"));
-            return -1;
+            goto cleanup;
         }
     }
 
@@ -883,26 +989,60 @@ virCHProcessStartRestore(virCHDriver *driver, virDomainObj *vm, const char *from
     vm->def->id = vm->pid;
     priv->machineName = virCHDomainGetMachineName(vm);
 
-    if (virCHMonitorRestoreVM(priv->monitor, from) < 0) {
+    if (virCHMonitorBuildRestoreJson(vm->def, from, &payload) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("failed to restore domain"));
-        return -1;
+        goto cleanup;
     }
 
-    /* Pass 0, NULL as restore only works without networking support */
+    virBufferAddLit(&http_headers, "PUT /api/v1/vm.restore HTTP/1.1\r\n");
+    virBufferAddLit(&http_headers, "Host: localhost\r\n");
+    virBufferAddLit(&http_headers, "Content-Type: application/json\r\n");
+    virBufferAsprintf(&buf, "%s", virBufferCurrentContent(&http_headers));
+    virBufferAsprintf(&buf, "Content-Length: %ld\r\n\r\n", strlen(payload));
+    virBufferAsprintf(&buf, "%s", payload);
+    payload_len = virBufferUse(&buf);
+    payload = virBufferContentAndReset(&buf);
+
+    if ((mon_sockfd = chMonitorSocketConnect(priv->monitor)) < 0)
+        goto cleanup;
+
+    if (virCHRestoreCreateNetworkDevices(driver, vm->def, &tapfds, &ntapfds, &nicindexes, &nnicindexes) < 0)
+        goto cleanup;
+
     if (virDomainCgroupSetupCgroup("ch", vm,
-                                   0, NULL, /* nnicindexes, nicindexes */
+                                   nnicindexes, nicindexes,
                                    &priv->cgroup,
                                    cfg->cgroupControllers,
                                    0, /*maxThreadsPerProc*/
                                    priv->driver->privileged,
                                    priv->machineName) < 0)
-        return -1;
+        goto cleanup;
+
+    /* Bring up netdevs before restoring vm */
+    if (virDomainInterfaceStartDevices(vm->def) < 0)
+        goto cleanup;
+
+    if (virSocketSendMsgWithFDs(mon_sockfd, payload, payload_len, tapfds, ntapfds) < 0) {
+        virReportSystemError(errno, "%s",
+                             _("Failed to send restore request to CH"));
+        goto cleanup;
+    }
+
+    /* Restore is a synchronous operation in CH. so, pass false to wait until there's a response */
+    if (chSocketProcessHttpResponse(mon_sockfd, false) < 0)
+        goto cleanup;
 
     if (virCHProcessSetup(vm) < 0)
-        return -1;
+        goto cleanup;
 
     virDomainObjSetState(vm, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PAUSED_FROM_SNAPSHOT);
+    ret = 0;
 
-    return 0;
+ cleanup:
+    if (tapfds)
+        chCloseFDs(tapfds, ntapfds);
+    if (ret)
+        virCHProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED);
+    return ret;
 }

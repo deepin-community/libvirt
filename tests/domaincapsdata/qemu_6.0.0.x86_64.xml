@@ -245,6 +245,11 @@
         <value>builtin</value>
       </enum>
     </crypto>
+    <interface supported='yes'>
+      <enum name='backendType'>
+        <value>default</value>
+      </enum>
+    </interface>
   </devices>
   <features>
     <gic supported='no'/>
@@ -253,6 +258,7 @@
     <backingStoreInput supported='yes'/>
     <backup supported='no'/>
     <async-teardown supported='no'/>
+    <ps2 supported='no'/>
     <sev supported='yes'>
       <cbitpos>47</cbitpos>
       <reducedPhysBits>1</reducedPhysBits>
@@ -260,5 +266,10 @@
       <maxESGuests>450</maxESGuests>
     </sev>
     <sgx supported='no'/>
+    <launchSecurity supported='yes'>
+      <enum name='sectype'>
+        <value>sev</value>
+      </enum>
+    </launchSecurity>
   </features>
 </domainCapabilities>

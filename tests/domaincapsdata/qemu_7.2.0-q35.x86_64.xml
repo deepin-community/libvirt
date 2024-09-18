@@ -252,6 +252,12 @@
         <value>lkcf</value>
       </enum>
     </crypto>
+    <interface supported='yes'>
+      <enum name='backendType'>
+        <value>default</value>
+        <value>passt</value>
+      </enum>
+    </interface>
   </devices>
   <features>
     <gic supported='no'/>
@@ -260,7 +266,9 @@
     <backingStoreInput supported='yes'/>
     <backup supported='yes'/>
     <async-teardown supported='no'/>
+    <ps2 supported='yes'/>
     <sev supported='no'/>
     <sgx supported='no'/>
+    <launchSecurity supported='no'/>
   </features>
 </domainCapabilities>

@@ -37,6 +37,7 @@ VIR_LOG_INIT("util.firewall");
 
 VIR_ENUM_IMPL(virFirewallBackend,
               VIR_FIREWALL_BACKEND_LAST,
+              "none",
               "iptables",
               "nftables");
 
@@ -815,6 +816,11 @@ virFirewallApplyCmd(virFirewall *firewall,
     }
 
     switch (virFirewallGetBackend(firewall)) {
+    case VIR_FIREWALL_BACKEND_NONE:
+        virReportError(VIR_ERR_NO_SUPPORT, "%s",
+                       _("Firewall backend is not implemented"));
+        return -1;
+
     case VIR_FIREWALL_BACKEND_IPTABLES:
         if (virFirewallCmdIptablesApply(firewall, fwCmd, &output) < 0)
             return -1;
@@ -1131,7 +1137,7 @@ virFirewallParseXML(virFirewall **firewall,
                                            NULL, NULL, NULL);
             for (i = 0; i < nargs; i++) {
 
-                char *arg = virXMLNodeContentString(argsNodes[i]);
+                g_autofree char *arg = virXMLNodeContentString(argsNodes[i]);
                 if (!arg)
                     return -1;
 

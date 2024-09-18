@@ -290,7 +290,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "pvpanic", /* QEMU_CAPS_DEVICE_PANIC */
 
               /* 160 */
-              "enable-fips", /* QEMU_CAPS_ENABLE_FIPS */
+              "enable-fips", /* X_QEMU_CAPS_ENABLE_FIPS */
               "spice-file-xfer-disable", /* X_QEMU_CAPS_SPICE_FILE_XFER_DISABLE */
               "spiceport", /* X_QEMU_CAPS_CHARDEV_SPICEPORT */
               "usb-kbd", /* QEMU_CAPS_DEVICE_USB_KBD */
@@ -440,7 +440,7 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "virtio-net.tx_queue_size", /* X_QEMU_CAPS_VIRTIO_NET_TX_QUEUE_SIZE */
               "chardev-reconnect", /* QEMU_CAPS_CHARDEV_RECONNECT */
               "virtio-gpu.max_outputs", /* X_QEMU_CAPS_VIRTIO_GPU_MAX_OUTPUTS */
-              "vxhs", /* QEMU_CAPS_VXHS */
+              "vxhs", /* X_QEMU_CAPS_VXHS */
               "virtio-blk.num-queues", /* X_QEMU_CAPS_VIRTIO_BLK_NUM_QUEUES */
 
               /* 270 */
@@ -708,6 +708,13 @@ VIR_ENUM_IMPL(virQEMUCaps,
               "usb-mtp", /* QEMU_CAPS_DEVICE_USB_MTP */
               "machine.virt.ras", /* QEMU_CAPS_MACHINE_VIRT_RAS */
               "virtio-sound", /* QEMU_CAPS_DEVICE_VIRTIO_SOUND */
+
+              /* 460 */
+              "sev-snp-guest", /* QEMU_CAPS_SEV_SNP_GUEST */
+              "netdev.user", /* QEMU_CAPS_NETDEV_USER */
+              "acpi-erst", /* QEMU_CAPS_DEVICE_ACPI_ERST */
+              "intel-iommu.dma-translation", /* QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION */
+              "machine-i8042-opt", /* QEMU_CAPS_MACHINE_I8042_OPT */
     );
 
 
@@ -1393,6 +1400,8 @@ struct virQEMUCapsStringFlags virQEMUCapsObjectTypes[] = {
     { "usb-mtp", QEMU_CAPS_DEVICE_USB_MTP },
     { "virtio-sound-pci", QEMU_CAPS_DEVICE_VIRTIO_SOUND },
     { "virtio-sound-device", QEMU_CAPS_DEVICE_VIRTIO_SOUND },
+    { "sev-snp-guest", QEMU_CAPS_SEV_SNP_GUEST },
+    { "acpi-erst", QEMU_CAPS_DEVICE_ACPI_ERST },
 };
 
 
@@ -1509,6 +1518,7 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsIntelIOMMU[] = {
     { "eim", QEMU_CAPS_INTEL_IOMMU_EIM, NULL },
     { "device-iotlb", QEMU_CAPS_INTEL_IOMMU_DEVICE_IOTLB, NULL },
     { "aw-bits", QEMU_CAPS_INTEL_IOMMU_AW_BITS, NULL },
+    { "dma-translation", QEMU_CAPS_INTEL_IOMMU_DMA_TRANSLATION, NULL },
 };
 
 static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsMCH[] = {
@@ -1534,7 +1544,6 @@ static struct virQEMUCapsDevicePropsFlags virQEMUCapsDevicePropsVirtioIOMMU[] = 
 
 /* see documentation for virQEMUQAPISchemaPathGet for the query format */
 static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
-    { "blockdev-add/arg-type/+vxhs", QEMU_CAPS_VXHS},
     { "blockdev-add/arg-type/+file/drop-cache", QEMU_CAPS_MIGRATION_FILE_DROP_CACHE },
     { "blockdev-add/arg-type/+nvme", QEMU_CAPS_DRIVE_NVME },
     { "blockdev-add/arg-type/+file/aio/^io_uring", QEMU_CAPS_AIO_IO_URING },
@@ -1571,6 +1580,7 @@ static struct virQEMUCapsStringFlags virQEMUCapsQMPSchemaQueries[] = {
     { "object-add/arg-type/+iothread/thread-pool-max", QEMU_CAPS_IOTHREAD_THREAD_POOL_MAX },
     { "query-migrate/ret-type/blocked-reasons", QEMU_CAPS_MIGRATION_BLOCKED_REASONS },
     { "screendump/arg-type/format/^png", QEMU_CAPS_SCREENSHOT_FORMAT_PNG },
+    { "netdev_add/arg-type/+user", QEMU_CAPS_NETDEV_USER },
 };
 
 typedef struct _virQEMUCapsObjectTypeProps virQEMUCapsObjectTypeProps;
@@ -1738,6 +1748,10 @@ static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsGeneric[] = {
     { "confidential-guest-support", QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT },
 };
 
+static struct virQEMUCapsStringFlags virQEMUCapsMachinePropsGenericPC[] = {
+    { "i8042", QEMU_CAPS_MACHINE_I8042_OPT },
+};
+
 static virQEMUCapsObjectTypeProps virQEMUCapsMachineProps[] = {
     { "pseries", virQEMUCapsMachinePropsPSeries,
       G_N_ELEMENTS(virQEMUCapsMachinePropsPSeries),
@@ -1747,6 +1761,9 @@ static virQEMUCapsObjectTypeProps virQEMUCapsMachineProps[] = {
       -1 },
     { "none", virQEMUCapsMachinePropsGeneric,
       G_N_ELEMENTS(virQEMUCapsMachinePropsGeneric),
+      -1 },
+    { "generic-pc", virQEMUCapsMachinePropsGenericPC,
+      G_N_ELEMENTS(virQEMUCapsMachinePropsGenericPC),
       -1 },
 };
 
@@ -2884,6 +2901,7 @@ virQEMUCapsProbeQMPMachineProps(virQEMUCaps *qemuCaps,
         g_auto(GStrv) values = NULL;
 
         if (STRNEQ(canon, "none") &&
+            (!ARCH_IS_X86(qemuCaps->arch) || STRNEQ(canon, "generic-pc")) &&
             !virQEMUCapsIsMachineSupported(qemuCaps, virtType, canon)) {
             continue;
         }
@@ -3461,7 +3479,8 @@ virQEMUCapsProbeQMPSEVCapabilities(virQEMUCaps *qemuCaps,
     int rc = -1;
     virSEVCapability *caps = NULL;
 
-    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST))
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST) &&
+        !virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_SNP_GUEST))
         return 0;
 
     if ((rc = qemuMonitorGetSEVCapabilities(mon, &caps)) < 0)
@@ -3470,6 +3489,7 @@ virQEMUCapsProbeQMPSEVCapabilities(virQEMUCaps *qemuCaps,
     /* SEV isn't actually supported */
     if (rc == 0) {
         virQEMUCapsClear(qemuCaps, QEMU_CAPS_SEV_GUEST);
+        virQEMUCapsClear(qemuCaps, QEMU_CAPS_SEV_SNP_GUEST);
         return 0;
     }
 
@@ -5390,14 +5410,8 @@ virQEMUCapsInitQMPArch(virQEMUCaps *qemuCaps,
  * Add all QEMU capabilities based on version of QEMU.
  */
 static void
-virQEMUCapsInitQMPVersionCaps(virQEMUCaps *qemuCaps)
+virQEMUCapsInitQMPVersionCaps(virQEMUCaps *qemuCaps G_GNUC_UNUSED)
 {
-    /* -enable-fips is deprecated in QEMU 5.2.0, and QEMU
-     * should be built with gcrypt to achieve FIPS compliance
-     * automatically / implicitly
-     */
-    if (qemuCaps->version < 5002000)
-        virQEMUCapsSet(qemuCaps, QEMU_CAPS_ENABLE_FIPS);
 }
 
 
@@ -5486,7 +5500,7 @@ virQEMUCapsProbeQMPSchemaCapabilities(virQEMUCaps *qemuCaps,
     return 0;
 }
 
-#define QEMU_MIN_MAJOR 4
+#define QEMU_MIN_MAJOR 5
 #define QEMU_MIN_MINOR 2
 #define QEMU_MIN_MICRO 0
 
@@ -6003,6 +6017,33 @@ virQEMUCapsSupportsVmport(virQEMUCaps *qemuCaps,
         STREQ(def->os.machine, "isapc");
 }
 
+bool
+virQEMUCapsSupportsI8042(virQEMUCaps *qemuCaps,
+                         const virDomainDef *def)
+{
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_I8042))
+        return false;
+
+    return qemuDomainIsI440FX(def) ||
+        qemuDomainIsQ35(def) ||
+        qemuDomainIsXenFV(def) ||
+        STREQ(def->os.machine, "isapc");
+}
+
+bool
+virQEMUCapsSupportsI8042Toggle(virQEMUCaps *qemuCaps,
+                               const char *machine,
+                               const virArch arch)
+{
+    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_I8042_OPT))
+        return false;
+
+    return qemuDomainMachineIsI440FX(machine, arch) ||
+           qemuDomainMachineIsQ35(machine, arch) ||
+           qemuDomainMachineIsXenFV(machine, arch) ||
+           STREQ(machine, "isapc");
+}
+
 
 /*
  * The preferred machine to use if none is listed explicitly
@@ -6508,6 +6549,41 @@ virQEMUCapsFillDomainDeviceCryptoCaps(virQEMUCaps *qemuCaps,
 }
 
 
+void
+virQEMUCapsFillDomainLaunchSecurity(virQEMUCaps *qemuCaps,
+                                    virDomainCapsLaunchSecurity *launchSecurity)
+{
+    launchSecurity->supported = VIR_TRISTATE_BOOL_YES;
+    launchSecurity->sectype.report = true;
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_GUEST))
+        VIR_DOMAIN_CAPS_ENUM_SET(launchSecurity->sectype, VIR_DOMAIN_LAUNCH_SECURITY_SEV);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SEV_SNP_GUEST))
+        VIR_DOMAIN_CAPS_ENUM_SET(launchSecurity->sectype, VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_S390_PV_GUEST) &&
+        virQEMUCapsGet(qemuCaps, QEMU_CAPS_MACHINE_CONFIDENTAL_GUEST_SUPPORT))
+        VIR_DOMAIN_CAPS_ENUM_SET(launchSecurity->sectype, VIR_DOMAIN_LAUNCH_SECURITY_PV);
+
+    if (launchSecurity->sectype.values == 0) {
+        launchSecurity->supported = VIR_TRISTATE_BOOL_NO;
+    }
+}
+
+
+void
+virQEMUCapsFillDomainDeviceNetCaps(virQEMUCaps *qemuCaps,
+                                   virDomainCapsDeviceNet *net)
+{
+    net->supported = VIR_TRISTATE_BOOL_YES;
+    net->backendType.report = true;
+
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_USER))
+        VIR_DOMAIN_CAPS_ENUM_SET(net->backendType, VIR_DOMAIN_NET_BACKEND_DEFAULT);
+    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_NETDEV_STREAM))
+        VIR_DOMAIN_CAPS_ENUM_SET(net->backendType, VIR_DOMAIN_NET_BACKEND_PASST);
+}
+
+
 /**
  * virQEMUCapsSupportsGICVersion:
  * @qemuCaps: QEMU capabilities
@@ -6626,6 +6702,18 @@ virQEMUCapsFillDomainFeatureS390PVCaps(virQEMUCaps *qemuCaps,
     }
 }
 
+
+static void
+virQEMUCapsFillDomainFeaturePS2Caps(virQEMUCaps *qemuCaps,
+                                    virDomainCaps *domCaps)
+{
+    if (virQEMUCapsSupportsI8042Toggle(qemuCaps, domCaps->machine, domCaps->arch))
+        domCaps->features[VIR_DOMAIN_CAPS_FEATURE_PS2] = VIR_TRISTATE_BOOL_YES;
+    else
+        domCaps->features[VIR_DOMAIN_CAPS_FEATURE_PS2] = VIR_TRISTATE_BOOL_NO;
+}
+
+
 /**
  * virQEMUCapsFillDomainFeatureSGXCaps:
  * @qemuCaps: QEMU capabilities
@@ -6672,6 +6760,8 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virDomainCapsDeviceChannel *channel = &domCaps->channel;
     virDomainCapsMemoryBacking *memoryBacking = &domCaps->memoryBacking;
     virDomainCapsDeviceCrypto *crypto = &domCaps->crypto;
+    virDomainCapsLaunchSecurity *launchSecurity = &domCaps->launchSecurity;
+    virDomainCapsDeviceNet *net = &domCaps->net;
 
     virQEMUCapsFillDomainFeaturesFromQEMUCaps(qemuCaps, domCaps);
 
@@ -6708,9 +6798,12 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *qemuCaps,
     virQEMUCapsFillDomainFeatureGICCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureSEVCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureS390PVCaps(qemuCaps, domCaps);
+    virQEMUCapsFillDomainFeaturePS2Caps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureSGXCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainFeatureHypervCaps(qemuCaps, domCaps);
     virQEMUCapsFillDomainDeviceCryptoCaps(qemuCaps, crypto);
+    virQEMUCapsFillDomainLaunchSecurity(qemuCaps, launchSecurity);
+    virQEMUCapsFillDomainDeviceNetCaps(qemuCaps, net);
 
     return 0;
 }

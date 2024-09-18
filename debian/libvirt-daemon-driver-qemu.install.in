@@ -1,3 +1,9 @@
+etc/apparmor.d/abstractions/libvirt-qemu
+etc/apparmor.d/libvirt/TEMPLATE.qemu
+etc/libvirt/qemu-lockd.conf
+etc/libvirt/qemu-sanlock.conf
+etc/libvirt/qemu.conf
+etc/logrotate.d/libvirtd.qemu
 usr/bin/virt-qemu-run
 usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_qemu.so
 usr/share/augeas/lenses/libvirtd_qemu.aug

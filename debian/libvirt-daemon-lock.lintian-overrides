@@ -1,0 +1,2 @@
+# Versioned conflicts are needed for DEP17 M7
+libvirt-daemon-lock: conflicts-with-version libvirt-daemon-system *

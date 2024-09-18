@@ -17,7 +17,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-05-28 08:41+0000\n"
+"POT-Creation-Date: 2024-08-27 08:20+0000\n"
 "PO-Revision-Date: 2015-02-27 10:04+0000\n"
 "Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
 "Language-Team: Malayalam (http://www.transifex.com/projects/p/libvirt/"
@@ -1089,6 +1089,10 @@ msgid "'%1$s' is not supported in this QEMU binary"
 msgstr "ഈ QEMU ബൈനറിയില്‍ %1$s പിന്തുണയ്ക്കുന്നില്ല"
 
 #, c-format
+msgid "'%1$s' launch security is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid "'%1$s' missing"
 msgstr ""
 
@@ -1324,6 +1328,9 @@ msgstr "വൈപ്പിങ് ആല്‍ഗോരിഥം %d പിന്�
 #, fuzzy
 msgid "'type' missing in reply of guest-get-fsinfo"
 msgstr "'online', guest-get-vcpus-ന്റെ മറുപടിയില്‍ ലഭ്യമല്ല"
+
+msgid "'usb' disk must not be empty"
+msgstr ""
 
 #, fuzzy
 msgid "'user' missing in reply of guest-get-users"
@@ -1685,6 +1692,9 @@ msgstr ""
 #, fuzzy
 msgid "A storage driver is already registered"
 msgstr "അടയ്ക്കുവാനുള്ള ഒരു പിന്‍വിളി മുന്‍പേ തന്നെ രേഖപ്പെടുത്തിയിട്ടുണ്ട്"
+
+msgid "ACPI ERST device must reside on a PCI bus"
+msgstr ""
 
 msgid "ACPI index is not supported with this QEMU"
 msgstr ""
@@ -3508,8 +3518,32 @@ msgid ""
 "flush them, breaking networking."
 msgstr ""
 
+msgid "Checking CA cert access"
+msgstr ""
+
+msgid "Checking cert access"
+msgstr ""
+
+msgid "Checking cert hostname match"
+msgstr ""
+
+msgid "Checking cert properties"
+msgstr ""
+
+msgid "Checking custom PKI base dir access"
+msgstr ""
+
 #, c-format
 msgid "Checking for %1$s module"
+msgstr ""
+
+msgid ""
+"Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"
+msgstr ""
+
+msgid ""
+"Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-"
+"SNP)"
 msgstr ""
 
 #, c-format
@@ -3536,7 +3570,16 @@ msgstr ""
 msgid "Checking for secure guest support"
 msgstr ""
 
+msgid "Checking if CA cert exists"
+msgstr ""
+
 msgid "Checking if IOMMU is enabled by kernel"
+msgstr ""
+
+msgid "Checking if cert exists"
+msgstr ""
+
+msgid "Checking if custom PKI base dir exists"
 msgstr ""
 
 #, c-format
@@ -3545,6 +3588,42 @@ msgstr ""
 
 #, c-format
 msgid "Checking if device '%1$s' is accessible"
+msgstr ""
+
+msgid "Checking if key exists"
+msgstr ""
+
+msgid "Checking if system CA dir exists"
+msgstr ""
+
+msgid "Checking if system PKI dir exists"
+msgstr ""
+
+msgid "Checking if system cert dir exists"
+msgstr ""
+
+msgid "Checking if system key dir exists"
+msgstr ""
+
+msgid "Checking if user PKI base dir exists"
+msgstr ""
+
+msgid "Checking key access"
+msgstr ""
+
+msgid "Checking system CA dir access"
+msgstr ""
+
+msgid "Checking system PKI dir access"
+msgstr ""
+
+msgid "Checking system cert dir access"
+msgstr ""
+
+msgid "Checking system key dir access"
+msgstr ""
+
+msgid "Checking user PKI base dir access"
 msgstr ""
 
 #, fuzzy, c-format
@@ -4980,6 +5059,10 @@ msgstr "നിലവിലുള്ള വോള്യമില്‍ നിന�
 msgid "Create a vol."
 msgstr "ഒരു വോള്യം ഉണ്ടാക്കുക."
 
+#, c-format
+msgid "Create the dir %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "Created"
 msgstr "നീക്കുന്നു"
@@ -5024,10 +5107,6 @@ msgstr ""
 msgid "DAC seclabel couldn't be determined"
 msgstr ""
 
-msgid "DNS HOST records cannot be modified, only added or deleted"
-msgstr ""
-"DNS HOST റിക്കോര്‍ഡുകളില്‍ മാറ്റങ്ങള്‍ വരുത്തുവാന്‍ സാധ്യമല്ല, ചേര്‍ക്കാം അല്ലെങ്കില്‍ വെട്ടിനീക്കാം"
-
 #, c-format
 msgid ""
 "DNS SRV port attribute not permitted without target for service '%1$s' in "
@@ -5049,10 +5128,6 @@ msgid ""
 "DNS SRV weight attribute not permitted without target for service '%1$s' in "
 "network '%2$s'"
 msgstr ""
-
-msgid "DNS TXT records cannot be modified, only added or deleted"
-msgstr ""
-"DNS TXT റിക്കോര്‍ഡുകളില്‍ മാറ്റം വരുത്തുവാന്‍ സാധ്യമല്ല, ചേര്‍ക്കാം അല്ലെങ്കില്‍ വെട്ടി നീക്കാം"
 
 msgid "Data processed:"
 msgstr "ചെയ്ത ഡാറ്റ:"
@@ -8255,6 +8330,9 @@ msgstr ""
 msgid "Failed to send request to init control %1$s"
 msgstr "init കണ്ട്രോള്‍ %1$s-ലേക്കു് ആവശ്യം അയയ്ക്കുന്നതില്‍ പരാജയപ്പെട്ടു"
 
+msgid "Failed to send restore request to CH"
+msgstr ""
+
 #, fuzzy
 msgid "Failed to serialize snapshot"
 msgstr "സ്നാപ്പ്ഷോട്ട് %s നശിപ്പിക്കുന്നതിന്‍ പരാജയം"
@@ -8796,6 +8874,13 @@ msgid "Finished after guest request"
 msgstr ""
 
 msgid "Finished after host request"
+msgstr ""
+
+#, c-format
+msgid "Firewall backend '%1$s' not available on this platform"
+msgstr ""
+
+msgid "Firewall backend is not implemented"
 msgstr ""
 
 msgid "Firmware entry is missing 'name' attribute"
@@ -11309,6 +11394,9 @@ msgstr "ജെഎസ്ഒഎന്‍ രേഖയില്‍  max_clients ഡ
 msgid "Missing backend %1$d"
 msgstr "ബാക്കെന്‍ഡ് %1$d ലഭ്യമല്ല"
 
+msgid "Missing bridge helper name"
+msgstr ""
+
 #, fuzzy
 msgid "Missing bridge name"
 msgstr "ടൈമര്‍ നാമം ലഭ്യമല്ല"
@@ -12310,6 +12398,9 @@ msgstr ""
 #, fuzzy
 msgid "No filesystems are mounted in the domain"
 msgstr "ഡൊമെയിന്‍ സസ്പെന്‍ഡ് ചെയ്യുമ്പോള്‍ പിശക്"
+
+msgid "No firewall backend is available"
+msgstr ""
 
 msgid "No free NBD devices"
 msgstr "ഉപയോഗിയ്ക്കാത്ത എന്‍ബിഡി ഡിവൈസുകള്‍ ലഭ്യമല്ല"
@@ -14106,9 +14197,6 @@ msgstr "ഈ ഡൊമെയിനു് S3 അവസ്ഥ പ്രവര്‍
 msgid "S390 PV launch security is not supported by this host or kernel"
 msgstr ""
 
-msgid "S390 PV launch security is not supported with this QEMU binary"
-msgstr ""
-
 msgid "S4 state is disabled for this domain"
 msgstr "ഈ ഡൊമെയിനു് S4 അവസ്ഥ പ്രവര്‍ത്തന രഹിതമാക്കിയിരിയ്ക്കുന്നു"
 
@@ -14201,9 +14289,6 @@ msgstr "എസ്‌സിഎസ്ഐ യൂണിറ്റ് സൂചിക 
 #, fuzzy
 msgid "SCSI_host host device must use 'pci' or 'ccw' address type"
 msgstr "കണ്ട്രോളറുകള്‍ 'ccid' വിലാസ തരം ഉപയോഗിയ്ക്കണം"
-
-msgid "SEV launch security is not supported with this QEMU binary"
-msgstr ""
 
 msgid "SEV measured direct kernel boot is not supported with this QEMU binary"
 msgstr ""
@@ -15200,10 +15285,12 @@ msgstr "Ceph ഉപയോഗം വ്യക്തമാക്കിയിരി
 msgid "TLS:"
 msgstr ""
 
-msgid "TPM 1.2 is not supported on ARM"
+#, c-format
+msgid "TPM 1.2 is not supported for model '%1$s'"
 msgstr ""
 
-msgid "TPM 1.2 is not supported with the SPAPR device model"
+#, c-format
+msgid "TPM 1.2 is not supported on architecture '%1$s'"
 msgstr ""
 
 #, c-format
@@ -15577,6 +15664,12 @@ msgid "Target domain IOMMU device count does not match source"
 msgstr ""
 "ടാര്‍ഗറ്റ് ഡൊമെയിന്‍ ഹബ് ഡിവൈസിന്റെ എണ്ണം %zu-നു്,  %zu ശ്രോതസ്സൂമായി പൊരുത്തപ്പെടുന്നില്ല."
 
+#, c-format
+msgid ""
+"Target domain IOMMU device dma translation '%1$s' does not match source "
+"'%2$s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid ""
 "Target domain IOMMU device eim value '%1$s' does not match source '%2$s'"
@@ -15714,6 +15807,9 @@ msgid "Target domain parallel port count %1$zu does not match source %2$zu"
 msgstr ""
 "ടാര്‍ഗറ്റ് ഡൊമെയിന്‍ പാരലല്‍ പോര്‍ട്ടിന്റെ എണ്ണം %1$zu-നു്,  %2$zu ശ്രോതസ്സൂമായി "
 "പൊരുത്തപ്പെടുന്നില്ല."
+
+msgid "Target domain pstore device count does not match source"
+msgstr ""
 
 #, fuzzy, c-format
 msgid ""
@@ -15894,6 +15990,14 @@ msgstr "ലക്ഷ്യസ്ഥാനത്തുള്ള RNG മോഡല�
 #, c-format
 msgid "Target parallel port %1$d does not match source %2$d"
 msgstr "ലക്ഷ്യം പാരലല്‍ പോര്‍ട്ട് %1$d, ശ്രോതസ്സ് %2$d-മായി ചേരുന്നില്ല"
+
+#, c-format
+msgid "Target pstore device backend '%1$s' does not match source '%2$s'"
+msgstr ""
+
+#, c-format
+msgid "Target pstore size '%1$llu' does not match source '%2$llu'"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "Target redirected device bus %1$s does not match source %2$s"
@@ -16093,6 +16197,18 @@ msgid "The CA certificate %1$s is not yet active"
 msgstr "സിഎ സമ്മപത്രം %1$s സജീമല്ല"
 
 #, c-format
+msgid ""
+"The CA certificate %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The CA certificate %1$s must not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The CCW devno '%1$s' is in use already"
 msgstr ""
 
@@ -16125,6 +16241,12 @@ msgstr "നെറ്റ്‌വര്‍ക്ക് ഡിവൈസ് നാ�
 msgid ""
 "The PF device for VF %1$s has no network device name, cannot get virtual "
 "function info"
+msgstr ""
+
+#, c-format
+msgid ""
+"The PKI base dir %1$s must not be accessible to other users. Run: chown %2$d."
+"%3$d %4$s; chmod 0700 %5$s"
 msgstr ""
 
 #, c-format
@@ -16177,12 +16299,36 @@ msgid "The certificate uses an insecure algorithm"
 msgstr "സര്‍ട്ടിഫീക്കേറ്റ് സുരക്ഷിതമല്ലാത്ത ആല്‍ഗോരിഥം ഉപയോഗിക്കുന്നു"
 
 #, c-format
+msgid ""
+"The client cert %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client cert %1$s must be restricted to this user. As this user, run: "
+"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The client certificate %1$s has expired"
 msgstr "ക്ലയന്റ് സമ്മപത്രം %1$s-ന്റെ കാലാവധി കഴിഞ്ഞിരിയ്ക്കുന്നു"
 
 #, c-format
 msgid "The client certificate %1$s is not yet active"
 msgstr "ക്ലയന്റ് സമ്മപത്രം %1$s സജീമല്ല"
+
+#, c-format
+msgid ""
+"The client key %1$s must be accessible to all users. As root run: chown root."
+"root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client key %1$s must be not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "The device at %1$s has no network device name"
@@ -16241,6 +16387,24 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr "ഈ ക്യൂഇഎംയു ബൈനറി nvram ഡിവൈസ് പിന്തുണയ്ക്കുന്നില്ല"
 
+#, c-format
+msgid ""
+"The machine cannot act as a client or server. See https://libvirt.org/kbase/"
+"tlscerts.html#setting-up-a-certificate-authority-ca on how to install %1$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The machine cannot act as a client. See https://libvirt.org/kbase/tlscerts."
+"html#issuing-client-certificates on how to regenerate %1$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The machine cannot act as a server. See https://libvirt.org/kbase/tlscerts."
+"html#issuing-server-certificates on how to regenerate %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "The machine has no snapshot and it should have it"
 msgstr "ഡൊമെയിന്‍ %s നു %s എന്ന പേരില്‍ ഒരു സ്നാപ്ഷോട്ട് ലഭ്യമല്ല"
@@ -16271,6 +16435,18 @@ msgid ""
 msgstr ""
 
 #, c-format
+msgid ""
+"The server cert %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server cert %1$s must be restricted to this user. As this user, run: "
+"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The server certificate %1$s has expired"
 msgstr "സര്‍വര്‍ സമ്മപത്രം %1$s-ന്റെ കാലാവധി കഴിഞ്ഞിരിയ്ക്കുന്നു"
 
@@ -16279,12 +16455,70 @@ msgid "The server certificate %1$s is not yet active"
 msgstr "സര്‍വര്‍ സമ്മപത്രം %1$s സജീമല്ല"
 
 #, c-format
+msgid ""
+"The server key %1$s must be not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server key %1$s must not be accessible to unprivileged users. As root "
+"run: chown root.root %2$s; chmod 0600 %3$s"
+msgstr ""
+
+#, c-format
 msgid "The server redirects from '%1$s' to '%2$s'"
 msgstr "'%1$s'-ല്‍ നിന്നും '%2$s'-ലേക്കു് സര്‍വര്‍ തിരിച്ചുവിടുന്നു"
 
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "സ്റ്റോറേജ് പൂള്‍ വോള്യം ഉണ്ടാക്കുന്നതു് പിന്തുണയ്ക്കുന്നില്ല"
+
+#, c-format
+msgid ""
+"The system CA dir %1$s is usually installed as part of the base filesystem "
+"or openssl packages"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system CA dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system PKI dir %1$s is usually installed as part of the base filesystem "
+"or openssl packages"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system PKI dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system cert dir %1$s is usually installed as part of the libvirt package"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system cert dir %1$s must be accessible to all users. As root, run: "
+"chown root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system key dir %1$s is usually installed as part of the libvirt package"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system key dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "The vbox driver does not support %1$s SCSI controller model"
@@ -16321,6 +16555,9 @@ msgstr "ഈ QEMU virtio scsi കണ്ട്രോളര്‍ പിന്ത�
 msgid ""
 "This QEMU doesn't support OpenGL rendernode with egl-headless graphics type"
 msgstr "ഈ QEMU 7-ല്‍ കൂടുതലുള്ള ലക്ഷ്യം പിന്തുണയ്ക്കുന്നില്ല"
+
+msgid "This QEMU doesn't support SCSI emulation with 'virtio-blk' device"
+msgstr ""
 
 msgid "This QEMU doesn't support scsi-block for lun passthrough"
 msgstr "lun പാസ്ത്രൂവിനു് ഈ QEMU സ്കസി-ബ്ലോക്കിനെ പിന്തുണയ്ക്കുന്നില്ല"
@@ -17908,6 +18145,10 @@ msgstr "സോക്കറ്റില്‍ ശ്രദ്ധിയ്ക്�
 msgid "Unable to listen to UNIX socket path '%1$s'"
 msgstr "സോക്കറ്റില്‍ ശ്രദ്ധിയ്ക്കുവാന്‍ സാധ്യമല്ല"
 
+#, c-format
+msgid "Unable to load %1$s: %2$s"
+msgstr ""
+
 msgid "Unable to load certificate"
 msgstr "സമ്മപത്രം ലഭ്യമാക്കുവാന്‍ സാധ്യമല്ല"
 
@@ -19042,6 +19283,10 @@ msgstr ""
 msgid "Unexpected hostdev mode %1$d"
 msgstr "അപ്രതീക്ഷിതമായ hostdev മോഡ് %1$d"
 
+#, c-format
+msgid "Unexpected length of '%1$s', expected %2$u got %3$zu"
+msgstr ""
+
 msgid "Unexpected lock parameters for disk resource"
 msgstr "ഡിസ്ക് ഉറവിടത്തിന് പ്രതീക്ഷിക്കാത്ത പൂട്ട് പരാമീറ്റര്‍"
 
@@ -19100,7 +19345,7 @@ msgid "Unexpected protocol %1$d"
 msgstr "അപ്രതീക്ഷിതമായ പൂള്‍ രീതി"
 
 #, c-format
-msgid "Unexpected response from CH: %1$d"
+msgid "Unexpected response from CH: %1$s"
 msgstr ""
 
 msgid "Unexpected root filesystem without loop device"
@@ -19744,10 +19989,6 @@ msgstr "പിന്തുണയ്ക്കാത്ത hostdev മോഡ് %1
 msgid "Unsupported hostdev type %1$s"
 msgstr "പിന്തുണയ്ക്കാത്ത hostdev തരം %1$s"
 
-#, c-format
-msgid "Unsupported interface '%1$s' for TPM 1.2"
-msgstr ""
-
 #, fuzzy
 msgid "Unsupported listen type"
 msgstr "പിന്തുണയില്ലാത്ത വിര്‍ട്ട് തരം"
@@ -19925,6 +20166,21 @@ msgid ""
 "  -v | --version  output version information and exit\n"
 msgstr ""
 
+#, c-format
+msgid ""
+"Usage:\n"
+"  %1$s { -v | -h } [TRUST|SERVER|CLIENT]\n"
+"\n"
+"Validate TLS certificate configuration\n"
+"\n"
+"options:\n"
+"  -s     | --system   validate system certificates (default)\n"
+"  -u     | --user     validate user certificates\n"
+"  -p DIR | --path DIR validate custom certificate path\n"
+"  -h     | --help     display this help and exit\n"
+"  -v     | --version  output version information and exit\n"
+msgstr ""
+
 #, sh-format
 msgid ""
 "Usage: $program_name {start|stop|status|restart|condrestart|try-restart|"
@@ -20047,10 +20303,6 @@ msgstr ""
 #, c-format
 msgid "VMX entry '%1$s' contains unsupported scheme '%2$s'"
 msgstr "VMX എന്‍ട്രി '%1$s' പിന്തുണ്യില്ലാത്ത '%2$s' സമ്പ്രദായങ്ങള്‍ അടങ്ങിയിരിക്കുന്നു"
-
-#, c-format
-msgid "VMX entry '%1$s' doesn't contain a port part"
-msgstr "VMX എന്‍ട്രി '%1$s' യില്‍ ഒരു പോര്‍ട്ട് ഭാഗം അടങ്ങിയിട്ടില്ല"
 
 msgid "VMX entry 'annotation' contains invalid escape sequence"
 msgstr "VMX എന്‍ട്രി 'annotation' നില്‍ അസാധുവായ എസ്കേപ്പ് സീക്വന്‍സുകള്‍ അടങ്ങിയിരിക്കുന്നു"
@@ -20412,6 +20664,9 @@ msgstr "പ്രവേശനം നിഷേധിച്ചിരിയ്ക�
 #, c-format
 msgid "access denied: %1$s"
 msgstr "പ്രവേശനം നിഷേധിച്ചിരിയ്ക്കുന്നു: %1$s"
+
+msgid "acpi-erst backend of pstore device is not supported"
+msgstr ""
 
 msgid "active"
 msgstr "സജീവം"
@@ -21257,6 +21512,9 @@ msgstr "ബ്രിഡ്ജ് നാമം '%1$s' നിലവില്‍ �
 #, c-format
 msgid "bridge name not allowed in %1$s mode (network '%2$s')"
 msgstr "ബ്രിഡ്ജ് നാമം %1$s രീതിയില്‍ അനുവദിച്ചിട്ടില്ല (നെറ്റ്‌‌വര്‍ക്ക് '%2$s')"
+
+msgid "bridge port creation is not supported on this platform"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "bridge zone not allowed in %1$s mode (network '%2$s')"
@@ -22260,6 +22518,9 @@ msgstr "നെറ്റ്‌വര്‍ക്ക് ഡിവൈസ് ഗസ�
 msgid "cannot modify network device model from %1$s to %2$s"
 msgstr "%1$s-ല്‍ നിന്നും %2$s-ലേക്കുള്ള നെറ്റ്‌വര്‍ക്ക് ഡിവൈസ് മോഡലില്‍ മാറ്റം വരുത്തുവാന്‍ സാധ്യമല്ല"
 
+msgid "cannot modify network device portgroup attribute"
+msgstr ""
+
 msgid "cannot modify network device rom bar setting"
 msgstr "നെറ്റ്‌വര്‍ക്ക് ഡിവൈസ് rom ബാര്‍ സജ്ജീകരണത്തില്‍ മാറ്റം വരുത്തുവാന്‍ സാധ്യമല്ല"
 
@@ -22377,6 +22638,10 @@ msgstr " %1$s എന്ന ജേസണ്‍ മനസ്സിലാവുന�
 #, fuzzy, c-format
 msgid "cannot parse json %1$s: unterminated string/map/array"
 msgstr " %s എന്ന ജേസണ്‍ മനസ്സിലാവുന്നില്ല: %s"
+
+#, c-format
+msgid "cannot parse openfiles '%1$s' for virtiofs"
+msgstr ""
 
 #, c-format
 msgid "cannot parse partition number from target '%1$s'"
@@ -22646,15 +22911,15 @@ msgstr "നിര്‍ജ്ജീവമായൊരു ഡൊമെയിന�
 msgid "cannot revert snapshot of running domain"
 msgstr "പ്രവര്‍ത്തനത്തിലുള്ള ഡൊമെയിനുള്ള സ്നാപ്പ്ഷോട്ട് തിരികെ ലഭിയ്ക്കുവാന്‍ സാധ്യമല്ല"
 
-msgid "cannot save domain with host devices"
-msgstr ""
-
-msgid "cannot save domain with network interfaces"
-msgstr ""
-
 #, c-format
 msgid "cannot save file '%1$s'"
 msgstr "'%1$s' എന്ന ഫയല്‍ സൂക്ഷിയ്ക്കുവാന്‍ സാധ്യമാകുന്നില്ല"
+
+msgid "cannot save/restore domain with host devices"
+msgstr ""
+
+msgid "cannot save/restore domain with network devices"
+msgstr ""
 
 #, c-format
 msgid "cannot seek in '%1$s'"
@@ -24863,6 +25128,9 @@ msgstr "ഡൊമെയിന്‍ നിലവില്‍ പ്രവര്�
 msgid "domain already has a vsock device"
 msgstr "ഡൊമെയിന്‍ നിലിവില്‍ പ്രവര്‍ത്തനത്തിലാണ്"
 
+msgid "domain already has an iommu device"
+msgstr ""
+
 msgid "domain architecture (/domain/os/type/@arch)"
 msgstr ""
 
@@ -26114,9 +26382,6 @@ msgstr ""
 msgid "failed to create logfile %1$s"
 msgstr "ലോഗ്ഫയല്‍ %1$s ഉണ്ടാക്കുന്നതില്‍ പരാജയം"
 
-msgid "failed to create mdevctl thread"
-msgstr ""
-
 msgid "failed to create profile"
 msgstr "പ്രൊഫൈല്‍ തയ്യാറാക്കുന്നതില്‍ പരാജയപ്പെട്ടു"
 
@@ -26147,10 +26412,6 @@ msgid "failed to create the RBD IoCTX. Does the pool '%1$s' exist?"
 msgstr "RBD IoCTX തയ്യാറാക്കുന്നതില്‍ പരാജയം. പൂള്‍ '%1$s' നിലവിലുണ്ടോ?"
 
 msgid "failed to create udev context"
-msgstr "udev കോണ്ടെക്സ്റ്റ് തയ്യാറാക്കുന്നതില്‍ പരാജയപ്പെട്ടു"
-
-#, fuzzy
-msgid "failed to create udev enumerate thread"
 msgstr "udev കോണ്ടെക്സ്റ്റ് തയ്യാറാക്കുന്നതില്‍ പരാജയപ്പെട്ടു"
 
 #, fuzzy
@@ -26542,6 +26803,10 @@ msgstr "പൂള്‍ %1$s സ്വയം ആരംഭിക്കുന്�
 
 #, c-format
 msgid "failed to monitor nbdkit process %1$i"
+msgstr ""
+
+#, c-format
+msgid "failed to monitor qemu in-shutdown process %1$i"
 msgstr ""
 
 #, c-format
@@ -28033,6 +28298,9 @@ msgstr ""
 msgid "i - turn off validation and try to redefine again"
 msgstr "f - നിര്‍ബന്ധിയ്ക്കുക, വീണ്ടും നിഷ്കര്‍ഷിയ്ക്കുവാന്‍ സാധ്യമല്ല"
 
+msgid "iSCSI protocol accepts only one host"
+msgstr ""
+
 msgid "iSCSI storage pool does not support volume creation"
 msgstr "iSCSI സംഭരണ പൂളില്‍ വോള്യം തയ്യാറാക്കല്‍ പിന്തുണയ്ക്കുന്നില്ല"
 
@@ -28970,6 +29238,9 @@ msgstr "തെറ്റായ രഹസ്യ രീതി '%1$s'"
 msgid "invalid server address"
 msgstr "തെറ്റായ മാക് വിലാസം"
 
+msgid "invalid size of ACPI ERST pstore device"
+msgstr ""
+
 #, c-format
 msgid "invalid size supplied for '%1$s'"
 msgstr "'%1$s'-നു് തെറ്റായ വ്യാപ്തി നല്‍കിയിരിക്കുന്നു"
@@ -29141,6 +29412,9 @@ msgstr "ഈ QEMU ബൈനറി സാറ്റയെ പിന്തുണക�
 #, fuzzy
 msgid "iommu: interrupt remapping is not supported with this QEMU binary"
 msgstr "ഈ QEMU ബൈനറിയില്‍ vhost-net പിന്തുണയ്ക്കുന്നില്ല"
+
+msgid "iommu: updating dma translation is not supported with this QEMU binary"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "iothread %1$d not found"
@@ -29797,6 +30071,9 @@ msgstr "ലോക്ക് മാനേജര്‍ കണക്ഷന്‍ ന
 msgid "lock owner details have not been registered"
 msgstr "ലോക്ക് ഉടമസ്ഥന്‍ വിവരങ്ങള്‍ രജിസ്ടര്‍ ചെയ്തിട്ടില്ല"
 
+msgid "locking options are not supported by this virtiofsd"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "logical volume '%1$s' is sparse, volume wipe not supported"
 msgstr "%1$s വോള്യങ്ങള്‍ തയ്യാറാക്കുന്നതു് പിന്തുണയ്ക്കുന്നില്ല"
@@ -30098,6 +30375,9 @@ msgstr ""
 #, fuzzy
 msgid "matching input device not found"
 msgstr "യുഎസ്ബി ഡിവൈസ് ലഭ്യമല്ല"
+
+msgid "matching iommu device not found"
+msgstr ""
 
 #, fuzzy
 msgid "matching memory device was not found"
@@ -30478,12 +30758,11 @@ msgid ""
 "shared between source and destination)"
 msgstr "ഇന്‍ക്രീമെന്റെല്‍ ഡിസ്ക്ക് കോപ്പി ഉപയോഗിച്ചുള്ള മൈഗ്രേഷന്‍"
 
-msgid "migration with transient disk is not supported"
+msgid "migration with this virtiofs device is not supported"
 msgstr ""
 
-#, fuzzy
-msgid "migration with virtiofs device is not supported"
-msgstr "ഉപകരണത്തിന്റെ സ്ഥിരമായ ചേര്‍ത്തുവയ്ക്കലിനുള്ള പിന്തുണ ലഭ്യമല്ല"
+msgid "migration with transient disk is not supported"
+msgstr ""
 
 #, c-format
 msgid "migration_address must not be the address of the local machine: %1$s"
@@ -31158,6 +31437,9 @@ msgstr ""
 msgid "missing path for <reservations/>"
 msgstr "പേരു് വിവരം ലഭ്യമല്ല"
 
+msgid "missing path for ACPI ERST pstore device"
+msgstr ""
+
 msgid "missing path in nbdkit capabilities cache"
 msgstr ""
 
@@ -31403,6 +31685,10 @@ msgstr "ഹോസ്റ്റിനുള്ള നാമം ലഭ്യമല�
 #, fuzzy, c-format
 msgid "missing value for migration parameter '%1$s'"
 msgstr "%1$s ല്‍ പേരു് വിവരം ലഭ്യമല്ല"
+
+#, c-format
+msgid "missing value of modifying DNS TXT record in network %1$s"
+msgstr ""
 
 #, fuzzy
 msgid "missing values for acceleration"
@@ -32917,6 +33203,9 @@ msgstr "ഒരു മെമ്മറി ബലൂണ്‍ ഡിവൈസ് �
 msgid "only a single nvram device is supported"
 msgstr "ഒറ്റ nvram ഡിവൈസ് മാത്രമേ പിന്തുണയ്ക്കുന്നുള്ളൂ"
 
+msgid "only a single pstore device is supported"
+msgstr ""
+
 #, fuzzy
 msgid "only a single vsock device is supported"
 msgstr "ഒറ്റ nvram ഡിവൈസ് മാത്രമേ പിന്തുണയ്ക്കുന്നുള്ളൂ"
@@ -33868,6 +34157,18 @@ msgstr "നീക്കം ചെയ്യുന്നതിനു് ഉചി�
 msgid "ps2 bus does not support %1$s input device"
 msgstr "ps2 ബസ്  %1$s ഇന്‍പുട്ട് ഡിവൈസ് പിന്തുണയ്ക്കുന്നില്ല"
 
+msgid "ps2 bus inputs require the ps2 feature not to be disabled"
+msgstr ""
+
+msgid "ps2 feature is not available with this QEMU binary"
+msgstr ""
+
+msgid "ps2 feature state cannot be controlled with this QEMU binary"
+msgstr ""
+
+msgid "pstore device is missing alias"
+msgstr ""
+
 #, c-format
 msgid "pull mode backup for disk '%1$s' requires qcow2 driver"
 msgstr ""
@@ -34084,6 +34385,9 @@ msgstr "blockstats ഡിവൈസ് എന്‍ട്രി പ്രതീ�
 msgid "query-rx-filter return data missing array element"
 msgstr ""
 
+msgid "query-sev reply was missing some data"
+msgstr ""
+
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'cbitpos' field"
 msgstr "query-version മറുപടിയില്‍ 'മൈക്രോ' പതിപ്പു് ലഭ്യമല്ല"
@@ -34099,6 +34403,9 @@ msgstr "query-version മറുപടിയില്‍ 'qemu' ഡേറ്റ�
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'reduced-phys-bits' field"
 msgstr "query-version മറുപടിയില്‍ 'qemu' ഡേറ്റാ ലഭ്യമല്ല"
+
+msgid "query-sev-launch-measure reply was missing 'data'"
+msgstr ""
 
 msgid "query-sgx-capabilities reply was missing 'flc' field"
 msgstr ""
@@ -35914,6 +36221,10 @@ msgid "testOpen: supply a path or use test:///default"
 msgstr "testOpen: ഒരു പാഥ് നല്‍കുക അല്ലെങ്കില്‍ test:///default ഉപയോഗിക്കുക"
 
 #, c-format
+msgid "the '%1$s' network backend is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid ""
 "the <forward> 'dev' attribute cannot be used when <address> or <pf> sub-"
 "elements are present in network %1$s"
@@ -36002,9 +36313,6 @@ msgid "the machine has no snapshot"
 msgstr "ഡൊമെയിനിന് സ്നാപ്ഷോട്ടുകളൊന്നും ലഭ്യമല്ല"
 
 msgid "the new password"
-msgstr ""
-
-msgid "the passt network backend is not supported with this QEMU binary"
 msgstr ""
 
 #, fuzzy
@@ -37710,6 +38018,10 @@ msgid "unknown SDL_AUDIODRIVER setting %1$s"
 msgstr ""
 
 #, c-format
+msgid "unknown SEV type '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "unknown address type '%1$s' in network %2$s"
 msgstr "'%1$s' എന്ന അപരിചിത വിലാസ രീതി,  %2$s നെറ്റ്‌വര്‍ക്കില്‍"
 
@@ -37986,6 +38298,10 @@ msgid "unknown smbios mode '%1$s'"
 msgstr "അപരിചിതമായ smbios മോഡ് '%1$s'"
 
 #, c-format
+msgid "unknown state '%1$s' for '%2$s'"
+msgstr ""
+
+#, c-format
 msgid "unknown storage capability type '%1$s' for '%2$s'"
 msgstr "അപരിചിതമായ സ്റ്റോറേജ് വോള്യം രീതി '%1$s'('%2$s'-നുള്ളതു്)"
 
@@ -38213,6 +38529,10 @@ msgstr ""
 #, c-format
 msgid "unsupported authentication type %1$d"
 msgstr "പിന്തുണയില്ലാത്ത ഓഥന്റിക്കേഷന്‍ തരം %1$d"
+
+#, c-format
+msgid "unsupported backend for pstore device: %1$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "unsupported balloon device model '%1$s'"
@@ -38699,6 +39019,10 @@ msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
+msgid "value '%1$llu' is too big for '%2$s' parameter, maximum is '%3$llu'"
+msgstr ""
+
+#, c-format
 msgid "value '%1$llu' is too big for coalesce parameter, maximum is '%2$lu'"
 msgstr ""
 
@@ -38891,6 +39215,9 @@ msgstr "പതിപ്പു് ചേരുന്നില്ല (യഥാര
 
 msgid "version parsing error"
 msgstr "പതിപ്പു് പാഴ്സ് ചെയ്യുന്നതില്‍ പിശക്"
+
+msgid "vfio migration was active, but 'transferred' data was missing"
+msgstr ""
 
 msgid "vgamem attribute only supported for video type qxl"
 msgstr ""
@@ -39240,6 +39567,9 @@ msgid ""
 "operation "
 msgstr "വി.എം പ്ലെയര്‍ libvirt സസ്പെന്‍ഡ്/റെസ്യൂമെ (vmware pause/unpause) പിന്തുണക്കുന്നില്ല"
 
+msgid "vmport feature requires the ps2 feature not to be disabled"
+msgstr ""
+
 #, fuzzy
 msgid "vmport is not available with this QEMU binary"
 msgstr "ഈ QEMU ലൈബ്രറിയില്‍ പങ്കിടുന്ന മെമ്മറി പ്രവര്‍ത്തന രഹിതമാക്കുന്നതു് ലഭ്യമല്ല"
@@ -39569,6 +39899,26 @@ msgstr ""
 #, c-format
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
+
+#~ msgid "DNS HOST records cannot be modified, only added or deleted"
+#~ msgstr ""
+#~ "DNS HOST റിക്കോര്‍ഡുകളില്‍ മാറ്റങ്ങള്‍ വരുത്തുവാന്‍ സാധ്യമല്ല, ചേര്‍ക്കാം അല്ലെങ്കില്‍ വെട്ടിനീക്കാം"
+
+#~ msgid "DNS TXT records cannot be modified, only added or deleted"
+#~ msgstr ""
+#~ "DNS TXT റിക്കോര്‍ഡുകളില്‍ മാറ്റം വരുത്തുവാന്‍ സാധ്യമല്ല, ചേര്‍ക്കാം അല്ലെങ്കില്‍ വെട്ടി നീക്കാം"
+
+#, c-format
+#~ msgid "VMX entry '%1$s' doesn't contain a port part"
+#~ msgstr "VMX എന്‍ട്രി '%1$s' യില്‍ ഒരു പോര്‍ട്ട് ഭാഗം അടങ്ങിയിട്ടില്ല"
+
+#, fuzzy
+#~ msgid "migration with virtiofs device is not supported"
+#~ msgstr "ഉപകരണത്തിന്റെ സ്ഥിരമായ ചേര്‍ത്തുവയ്ക്കലിനുള്ള പിന്തുണ ലഭ്യമല്ല"
+
+#, fuzzy
+#~ msgid "failed to create udev enumerate thread"
+#~ msgstr "udev കോണ്ടെക്സ്റ്റ് തയ്യാറാക്കുന്നതില്‍ പരാജയപ്പെട്ടു"
 
 #, c-format
 #~ msgid "%1$6s: Checking %2$-60s: "

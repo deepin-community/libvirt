@@ -10,7 +10,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-05-28 08:41+0000\n"
+"POT-Creation-Date: 2024-08-27 08:20+0000\n"
 "PO-Revision-Date: 2015-02-27 01:03+0000\n"
 "Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
 "Language-Team: Marathi (http://www.transifex.com/projects/p/libvirt/language/"
@@ -1150,6 +1150,10 @@ msgid "'%1$s' is not supported in this QEMU binary"
 msgstr "QEMU बाइनरिमध्ये %1$s समर्थीत नाही"
 
 #, c-format
+msgid "'%1$s' launch security is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid "'%1$s' missing"
 msgstr ""
 
@@ -1385,6 +1389,9 @@ msgstr "वायपिंग अल्गोरिदम %d समर्थी�
 #, fuzzy
 msgid "'type' missing in reply of guest-get-fsinfo"
 msgstr "guest-get-vcpusच्या प्रतिसादात 'online' आढळले नाही"
+
+msgid "'usb' disk must not be empty"
+msgstr ""
 
 #, fuzzy
 msgid "'user' missing in reply of guest-get-users"
@@ -1745,6 +1752,9 @@ msgstr ""
 #, fuzzy
 msgid "A storage driver is already registered"
 msgstr "बंद कॉलबॅक आधिपासूनच नोंदणी झाली"
+
+msgid "ACPI ERST device must reside on a PCI bus"
+msgstr ""
 
 msgid "ACPI index is not supported with this QEMU"
 msgstr ""
@@ -3536,8 +3546,32 @@ msgid ""
 "flush them, breaking networking."
 msgstr ""
 
+msgid "Checking CA cert access"
+msgstr ""
+
+msgid "Checking cert access"
+msgstr ""
+
+msgid "Checking cert hostname match"
+msgstr ""
+
+msgid "Checking cert properties"
+msgstr ""
+
+msgid "Checking custom PKI base dir access"
+msgstr ""
+
 #, c-format
 msgid "Checking for %1$s module"
+msgstr ""
+
+msgid ""
+"Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"
+msgstr ""
+
+msgid ""
+"Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-"
+"SNP)"
 msgstr ""
 
 #, c-format
@@ -3564,7 +3598,16 @@ msgstr ""
 msgid "Checking for secure guest support"
 msgstr ""
 
+msgid "Checking if CA cert exists"
+msgstr ""
+
 msgid "Checking if IOMMU is enabled by kernel"
+msgstr ""
+
+msgid "Checking if cert exists"
+msgstr ""
+
+msgid "Checking if custom PKI base dir exists"
 msgstr ""
 
 #, c-format
@@ -3573,6 +3616,42 @@ msgstr ""
 
 #, c-format
 msgid "Checking if device '%1$s' is accessible"
+msgstr ""
+
+msgid "Checking if key exists"
+msgstr ""
+
+msgid "Checking if system CA dir exists"
+msgstr ""
+
+msgid "Checking if system PKI dir exists"
+msgstr ""
+
+msgid "Checking if system cert dir exists"
+msgstr ""
+
+msgid "Checking if system key dir exists"
+msgstr ""
+
+msgid "Checking if user PKI base dir exists"
+msgstr ""
+
+msgid "Checking key access"
+msgstr ""
+
+msgid "Checking system CA dir access"
+msgstr ""
+
+msgid "Checking system PKI dir access"
+msgstr ""
+
+msgid "Checking system cert dir access"
+msgstr ""
+
+msgid "Checking system key dir access"
+msgstr ""
+
+msgid "Checking user PKI base dir access"
 msgstr ""
 
 #, fuzzy, c-format
@@ -4997,6 +5076,10 @@ msgstr "अस्तित्वातील खंड पासून खंड
 msgid "Create a vol."
 msgstr "खंड निर्माण करा."
 
+#, c-format
+msgid "Create the dir %1$s"
+msgstr ""
+
 #, fuzzy
 msgid "Created"
 msgstr "माइग्रेट केले"
@@ -5041,9 +5124,6 @@ msgstr "DAC imagelabel ओळखणे अशक्य"
 msgid "DAC seclabel couldn't be determined"
 msgstr "DAC seclabel ओळखणे अशक्य"
 
-msgid "DNS HOST records cannot be modified, only added or deleted"
-msgstr "DNS HOST रेकॉर्ड्सला संपादित करणे अशक्य, फक्त समावेश किंवा नष्ट करणे शक्य आहे"
-
 #, c-format
 msgid ""
 "DNS SRV port attribute not permitted without target for service '%1$s' in "
@@ -5070,9 +5150,6 @@ msgid ""
 msgstr ""
 "नेटवर्क '%2$s' अंतर्गत सर्व्हिस '%1$s' करिता लक्ष्यविना DNS SRV weight गुणधर्मकरिता "
 "परवानगी दिली जात नाही"
-
-msgid "DNS TXT records cannot be modified, only added or deleted"
-msgstr "DNS TXT रेकॉर्ड्स संपादित करणे अश्कय, फक्त समाविष्ट किंवा नष्ट करणे शक्य आहे"
 
 msgid "Data processed:"
 msgstr "डाटा विश्लेषीत:"
@@ -8233,6 +8310,9 @@ msgstr ""
 msgid "Failed to send request to init control %1$s"
 msgstr "init कंट्रोल %1$s करिता विनंती पाठवण्यास अपयशी"
 
+msgid "Failed to send restore request to CH"
+msgstr ""
+
 msgid "Failed to serialize snapshot"
 msgstr "स्नॅपशॉट सिरिअलाइज करण्यास अपयशी"
 
@@ -8760,6 +8840,13 @@ msgid "Finished after guest request"
 msgstr ""
 
 msgid "Finished after host request"
+msgstr ""
+
+#, c-format
+msgid "Firewall backend '%1$s' not available on this platform"
+msgstr ""
+
+msgid "Firewall backend is not implemented"
 msgstr ""
 
 msgid "Firmware entry is missing 'name' attribute"
@@ -11252,6 +11339,9 @@ msgstr "JSON दस्तऐवजात max_clients डाटा आढळल�
 msgid "Missing backend %1$d"
 msgstr "बॅकएंड %1$d आढळले नाही"
 
+msgid "Missing bridge helper name"
+msgstr ""
+
 #, fuzzy
 msgid "Missing bridge name"
 msgstr "टाइमरचे नाव आढळले नाही"
@@ -12247,6 +12337,9 @@ msgstr ""
 #, fuzzy
 msgid "No filesystems are mounted in the domain"
 msgstr "डोमेन सस्पेंड करतेवेळी त्रुटी"
+
+msgid "No firewall backend is available"
+msgstr ""
 
 msgid "No free NBD devices"
 msgstr "मोकळी NBD साधने अशक्य"
@@ -14000,9 +14093,6 @@ msgstr "S3 स्तर ह्या डोमेनकरिता बंद �
 msgid "S390 PV launch security is not supported by this host or kernel"
 msgstr ""
 
-msgid "S390 PV launch security is not supported with this QEMU binary"
-msgstr ""
-
 msgid "S4 state is disabled for this domain"
 msgstr "S4 स्तर ह्या डोमेनकरिता बंद केले आहे"
 
@@ -14095,9 +14185,6 @@ msgstr "SCSI बस इंडेक्स् %1$d [0..6,8..15] व्याप�
 #, fuzzy
 msgid "SCSI_host host device must use 'pci' or 'ccw' address type"
 msgstr "कंट्रोलर्स्ने 'ccid' पत्ता प्रकार वापरायला हवे"
-
-msgid "SEV launch security is not supported with this QEMU binary"
-msgstr ""
 
 msgid "SEV measured direct kernel boot is not supported with this QEMU binary"
 msgstr ""
@@ -15083,10 +15170,12 @@ msgstr "Ceph वापर निर्देशीत, परंतु नाव
 msgid "TLS:"
 msgstr ""
 
-msgid "TPM 1.2 is not supported on ARM"
+#, c-format
+msgid "TPM 1.2 is not supported for model '%1$s'"
 msgstr ""
 
-msgid "TPM 1.2 is not supported with the SPAPR device model"
+#, c-format
+msgid "TPM 1.2 is not supported on architecture '%1$s'"
 msgstr ""
 
 #, c-format
@@ -15453,6 +15542,12 @@ msgstr "लक्ष्य डोमेन नाव '%1$s' स्रोत '%2$
 msgid "Target domain IOMMU device count does not match source"
 msgstr "लक्ष्य डोमेन RNG साधन प्रमाण %zu स्रोत %zu सह जुळत नाही"
 
+#, c-format
+msgid ""
+"Target domain IOMMU device dma translation '%1$s' does not match source "
+"'%2$s'"
+msgstr ""
+
 #, fuzzy, c-format
 msgid ""
 "Target domain IOMMU device eim value '%1$s' does not match source '%2$s'"
@@ -15575,6 +15670,9 @@ msgstr "लक्ष्य डोमेन इंपुट साधन प्�
 #, c-format
 msgid "Target domain parallel port count %1$zu does not match source %2$zu"
 msgstr "लक्ष्य डोमेन पॅरेलल पोर्ट प्रमाण %1$zu स्रोत %2$zu सह जुळत नाही"
+
+msgid "Target domain pstore device count does not match source"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -15746,6 +15844,14 @@ msgstr "लक्ष्य RNG प्रतिकृती '%1$s' सोअर�
 #, c-format
 msgid "Target parallel port %1$d does not match source %2$d"
 msgstr "लक्ष्य पॅरलल पोर्ट %1$d सोअर्स %2$dसह जुळत नाही"
+
+#, c-format
+msgid "Target pstore device backend '%1$s' does not match source '%2$s'"
+msgstr ""
+
+#, c-format
+msgid "Target pstore size '%1$llu' does not match source '%2$llu'"
+msgstr ""
 
 #, c-format
 msgid "Target redirected device bus %1$s does not match source %2$s"
@@ -15943,6 +16049,18 @@ msgid "The CA certificate %1$s is not yet active"
 msgstr "CA सर्टिफिकेट %1$s अजूनही सक्रिय नाही"
 
 #, c-format
+msgid ""
+"The CA certificate %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The CA certificate %1$s must not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The CCW devno '%1$s' is in use already"
 msgstr ""
 
@@ -15975,6 +16093,12 @@ msgstr "खूप लांब नेटवर्क साधनचे ना�
 msgid ""
 "The PF device for VF %1$s has no network device name, cannot get virtual "
 "function info"
+msgstr ""
+
+#, c-format
+msgid ""
+"The PKI base dir %1$s must not be accessible to other users. Run: chown %2$d."
+"%3$d %4$s; chmod 0700 %5$s"
 msgstr ""
 
 #, c-format
@@ -16027,12 +16151,36 @@ msgid "The certificate uses an insecure algorithm"
 msgstr "remoteCheckCertificate: क्लाएंट प्रामाणपत्र असुरक्षित अल्गोरिदमचा वापर करतो"
 
 #, c-format
+msgid ""
+"The client cert %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client cert %1$s must be restricted to this user. As this user, run: "
+"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The client certificate %1$s has expired"
 msgstr "क्लाएंट सर्टिफिकेट %1$s ची वेळसमाप्ति आढळली"
 
 #, c-format
 msgid "The client certificate %1$s is not yet active"
 msgstr "क्लाएंट सर्टिफिकेट %1$s अजूनही सक्रिय नाही"
+
+#, c-format
+msgid ""
+"The client key %1$s must be accessible to all users. As root run: chown root."
+"root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The client key %1$s must be not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "The device at %1$s has no network device name"
@@ -16088,6 +16236,24 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr "या QEMU बाइनरितर्फे ich9-intel-hda ऑडिओ कंट्रोलर समर्थीत नाही"
 
+#, c-format
+msgid ""
+"The machine cannot act as a client or server. See https://libvirt.org/kbase/"
+"tlscerts.html#setting-up-a-certificate-authority-ca on how to install %1$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The machine cannot act as a client. See https://libvirt.org/kbase/tlscerts."
+"html#issuing-client-certificates on how to regenerate %1$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The machine cannot act as a server. See https://libvirt.org/kbase/tlscerts."
+"html#issuing-server-certificates on how to regenerate %1$s"
+msgstr ""
+
 msgid "The machine has no snapshot and it should have it"
 msgstr "मशीनकडे स्नॅपशॉट आढळले नाही आणि उपलब्ध पाहिजे"
 
@@ -16116,6 +16282,18 @@ msgid ""
 msgstr "फक्त वाचनीय डिस्क क्रमांक रिड राइट डिस्क क्रमांकपेक्षा जास्त किंवा समांतर पाहिजे"
 
 #, c-format
+msgid ""
+"The server cert %1$s must be accessible to all users. As root run: chown "
+"root.root %2$s; chmod 0644 %3$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server cert %1$s must be restricted to this user. As this user, run: "
+"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
 msgid "The server certificate %1$s has expired"
 msgstr "सर्व्हर सर्टिफिकेट %1$s ची वेळसमाप्ति आढळली"
 
@@ -16124,12 +16302,70 @@ msgid "The server certificate %1$s is not yet active"
 msgstr "सर्व्हर सर्टिफिकेट %1$s अजूनही सक्रिय नाही"
 
 #, c-format
+msgid ""
+"The server key %1$s must be not be accessible to other users. As this user, "
+"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The server key %1$s must not be accessible to unprivileged users. As root "
+"run: chown root.root %2$s; chmod 0600 %3$s"
+msgstr ""
+
+#, c-format
 msgid "The server redirects from '%1$s' to '%2$s'"
 msgstr "सर्व्हर '%1$s' पासून '%2$s' करिता पुनःनिर्देशीत होते"
 
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "संचयन संग्रह खंड निर्माण करिता समर्थन पुरवित नाही"
+
+#, c-format
+msgid ""
+"The system CA dir %1$s is usually installed as part of the base filesystem "
+"or openssl packages"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system CA dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system PKI dir %1$s is usually installed as part of the base filesystem "
+"or openssl packages"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system PKI dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system cert dir %1$s is usually installed as part of the libvirt package"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system cert dir %1$s must be accessible to all users. As root, run: "
+"chown root.root; chmod 0755 %2$s"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system key dir %1$s is usually installed as part of the libvirt package"
+msgstr ""
+
+#, c-format
+msgid ""
+"The system key dir %1$s must be accessible to all users. As root, run: chown "
+"root.root; chmod 0755 %2$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "The vbox driver does not support %1$s SCSI controller model"
@@ -16165,6 +16401,9 @@ msgstr "हे QEMU '-device usb-storage' करिता समर्थन प
 msgid ""
 "This QEMU doesn't support OpenGL rendernode with egl-headless graphics type"
 msgstr "लक्ष्यकरिता 7 पेक्षा जास्त हे QEMU लक्ष्य समर्थन पुरवत नाही"
+
+msgid "This QEMU doesn't support SCSI emulation with 'virtio-blk' device"
+msgstr ""
 
 msgid "This QEMU doesn't support scsi-block for lun passthrough"
 msgstr "हे QEMU lun पासथ्रुकरिता scsi-block समर्थन पुरवत नाही"
@@ -17711,6 +17950,10 @@ msgstr "सॉकेटवर ऐकणे अशक्य"
 msgid "Unable to listen to UNIX socket path '%1$s'"
 msgstr "सॉकेटवर ऐकणे अशक्य"
 
+#, c-format
+msgid "Unable to load %1$s: %2$s"
+msgstr ""
+
 msgid "Unable to load certificate"
 msgstr "सर्टिफिकेट लोड करण्यास अशक्य"
 
@@ -18826,6 +19069,10 @@ msgstr ""
 msgid "Unexpected hostdev mode %1$d"
 msgstr "अनपेक्षीत hostdev मोड %1$d"
 
+#, c-format
+msgid "Unexpected length of '%1$s', expected %2$u got %3$zu"
+msgstr ""
+
 msgid "Unexpected lock parameters for disk resource"
 msgstr "डिस्क स्रोतकरिता अनपेक्षित लॉग घटके"
 
@@ -18884,7 +19131,7 @@ msgid "Unexpected protocol %1$d"
 msgstr "अनपेक्षित प्रोटोकॉल %1$d"
 
 #, c-format
-msgid "Unexpected response from CH: %1$d"
+msgid "Unexpected response from CH: %1$s"
 msgstr ""
 
 msgid "Unexpected root filesystem without loop device"
@@ -19531,10 +19778,6 @@ msgstr "hostdev मोड %1$s असमर्थीत"
 msgid "Unsupported hostdev type %1$s"
 msgstr "hostdev प्रकार %1$s असमर्थीत"
 
-#, c-format
-msgid "Unsupported interface '%1$s' for TPM 1.2"
-msgstr ""
-
 #, fuzzy
 msgid "Unsupported listen type"
 msgstr "असमर्थीत virt प्रकार"
@@ -19712,6 +19955,21 @@ msgid ""
 "  -v | --version  output version information and exit\n"
 msgstr ""
 
+#, c-format
+msgid ""
+"Usage:\n"
+"  %1$s { -v | -h } [TRUST|SERVER|CLIENT]\n"
+"\n"
+"Validate TLS certificate configuration\n"
+"\n"
+"options:\n"
+"  -s     | --system   validate system certificates (default)\n"
+"  -u     | --user     validate user certificates\n"
+"  -p DIR | --path DIR validate custom certificate path\n"
+"  -h     | --help     display this help and exit\n"
+"  -v     | --version  output version information and exit\n"
+msgstr ""
+
 #, sh-format
 msgid ""
 "Usage: $program_name {start|stop|status|restart|condrestart|try-restart|"
@@ -19838,10 +20096,6 @@ msgstr ""
 #, c-format
 msgid "VMX entry '%1$s' contains unsupported scheme '%2$s'"
 msgstr "VMX नोंदणी '%1$s' मध्ये असमर्थीत योजना '%2$s' समाविष्टीत आहे"
-
-#, c-format
-msgid "VMX entry '%1$s' doesn't contain a port part"
-msgstr "VMX नोंदणी '%1$s' मध्ये पोर्ट भाग समाविष्टीत नाही"
 
 msgid "VMX entry 'annotation' contains invalid escape sequence"
 msgstr "VMX नोंदणी 'annotation' मध्ये अवैध एस्केप अनुक्रम आढळले"
@@ -20203,6 +20457,9 @@ msgstr "धोरण मार्फत प्रवेश नकारले"
 #, c-format
 msgid "access denied: %1$s"
 msgstr "प्रवेश नकारले: %1$s"
+
+msgid "acpi-erst backend of pstore device is not supported"
+msgstr ""
 
 msgid "active"
 msgstr "सक्रीय"
@@ -21037,6 +21294,9 @@ msgstr "ब्रीज नाव '%1$s' आधिपासूनच वाप�
 #, c-format
 msgid "bridge name not allowed in %1$s mode (network '%2$s')"
 msgstr "%1$s मोडमध्ये (नेटवर्क '%2$s') ब्रिज्चे नाव स्वीकार्य नाही"
+
+msgid "bridge port creation is not supported on this platform"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "bridge zone not allowed in %1$s mode (network '%2$s')"
@@ -22022,6 +22282,9 @@ msgstr "नेटवर्क साधन अतिथी PCI पत्ता �
 msgid "cannot modify network device model from %1$s to %2$s"
 msgstr "%1$s पासून %2$s करिता नेटवर्क साधन मॉडल संपादित करणे अशक्य"
 
+msgid "cannot modify network device portgroup attribute"
+msgstr ""
+
 msgid "cannot modify network device rom bar setting"
 msgstr "नेटवर्क साधन rombar संपादित करणे अशक्य"
 
@@ -22138,6 +22401,10 @@ msgstr "json %1$s वाचण्यास अशक्य: %2$s"
 #, c-format
 msgid "cannot parse json %1$s: unterminated string/map/array"
 msgstr "json %1$s वाचणे अशक्य: समाप्त नसलेले स्ट्रिंग/मॅप/अरे"
+
+#, c-format
+msgid "cannot parse openfiles '%1$s' for virtiofs"
+msgstr ""
 
 #, c-format
 msgid "cannot parse partition number from target '%1$s'"
@@ -22403,15 +22670,15 @@ msgstr "असक्रीय क्षेत्रकरिता vcpu पि�
 msgid "cannot revert snapshot of running domain"
 msgstr "सुरू असलेल्या डोमेनकरिता स्नॅपशॉटला मूळस्थितीत नेणे अशक्य"
 
-msgid "cannot save domain with host devices"
-msgstr ""
-
-msgid "cannot save domain with network interfaces"
-msgstr ""
-
 #, c-format
 msgid "cannot save file '%1$s'"
 msgstr "फाइल '%1$s' ला साठवणे अशक्य"
+
+msgid "cannot save/restore domain with host devices"
+msgstr ""
+
+msgid "cannot save/restore domain with network devices"
+msgstr ""
 
 #, c-format
 msgid "cannot seek in '%1$s'"
@@ -24597,6 +24864,9 @@ msgstr "क्षेत्र आधिपासूनच चालू आहे
 msgid "domain already has a vsock device"
 msgstr "डोमेनने यजमान साधनांचे वाटप केले"
 
+msgid "domain already has an iommu device"
+msgstr ""
+
 msgid "domain architecture (/domain/os/type/@arch)"
 msgstr "डोमेन आर्किटेक्चर (/domain/os/type/@arch)"
 
@@ -25846,9 +26116,6 @@ msgstr ""
 msgid "failed to create logfile %1$s"
 msgstr "लॉगफाइल %1$s बनवण्यास अपयशी"
 
-msgid "failed to create mdevctl thread"
-msgstr ""
-
 msgid "failed to create profile"
 msgstr "प्रोफाइल निर्माण करण्यास अपयशी"
 
@@ -25879,10 +26146,6 @@ msgid "failed to create the RBD IoCTX. Does the pool '%1$s' exist?"
 msgstr "RBD IoCTX निर्माण करण्यास अपयशी. पूल '%1$s' अस्तित्वात आहे?"
 
 msgid "failed to create udev context"
-msgstr "udev संदर्भ निर्माण करण्यास अपयशी"
-
-#, fuzzy
-msgid "failed to create udev enumerate thread"
 msgstr "udev संदर्भ निर्माण करण्यास अपयशी"
 
 #, fuzzy
@@ -26270,6 +26533,10 @@ msgstr "संग्रह %1$s स्वयंप्रारंभ नुर�
 
 #, c-format
 msgid "failed to monitor nbdkit process %1$i"
+msgstr ""
+
+#, c-format
+msgid "failed to monitor qemu in-shutdown process %1$i"
 msgstr ""
 
 #, c-format
@@ -27739,6 +28006,9 @@ msgstr ""
 msgid "i - turn off validation and try to redefine again"
 msgstr "f - आग्रह, पुनःवर्णन करायचा प्रयत्न करा"
 
+msgid "iSCSI protocol accepts only one host"
+msgstr ""
+
 msgid "iSCSI storage pool does not support volume creation"
 msgstr "iSCSI स्टोरेज संग्रह वॉल्युम निर्माणकरिता समर्थन पुरवत नाही"
 
@@ -28664,6 +28934,9 @@ msgstr "अवैध गोपणीय प्रकार '%1$s'"
 msgid "invalid server address"
 msgstr "अवैध MAC पत्ता"
 
+msgid "invalid size of ACPI ERST pstore device"
+msgstr ""
+
 #, c-format
 msgid "invalid size supplied for '%1$s'"
 msgstr "'%1$s' करिता अवैध आकार पुरविले"
@@ -28833,6 +29106,9 @@ msgstr "QEMU बाइनरीसह SATA समर्थीत नाही"
 #, fuzzy
 msgid "iommu: interrupt remapping is not supported with this QEMU binary"
 msgstr "या QEMU बाइनरिसह येणारे RDMA माइग्रेशन समर्थीत नाही"
+
+msgid "iommu: updating dma translation is not supported with this QEMU binary"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "iothread %1$d not found"
@@ -29473,6 +29749,9 @@ msgstr "लॉक मॅनेजर जोडणीला प्रतिबं
 msgid "lock owner details have not been registered"
 msgstr "लॉक मालकी तपशीलची नोंदणी केली नाही"
 
+msgid "locking options are not supported by this virtiofsd"
+msgstr ""
+
 #, fuzzy, c-format
 msgid "logical volume '%1$s' is sparse, volume wipe not supported"
 msgstr "%1$s खंडाचे निर्माण समर्थीत नाही"
@@ -29777,6 +30056,9 @@ msgstr ""
 #, fuzzy
 msgid "matching input device not found"
 msgstr "जुळण्याजोगी फाइलप्रणाली साधन आढळले नाही"
+
+msgid "matching iommu device not found"
+msgstr ""
 
 #, fuzzy
 msgid "matching memory device was not found"
@@ -30159,12 +30441,11 @@ msgstr ""
 "इंक्रिमेंटल कॉपिसह (स्रोत व लक्ष्य अंतर्गत समान बेस प्रतिमा शेअर केले जाते) नॉन-शेअर्ड "
 "स्टोरेजसह माइग्रेशन"
 
-msgid "migration with transient disk is not supported"
+msgid "migration with this virtiofs device is not supported"
 msgstr ""
 
-#, fuzzy
-msgid "migration with virtiofs device is not supported"
-msgstr "साधनाची सतत जोडणी समर्थीत नाही"
+msgid "migration with transient disk is not supported"
+msgstr ""
 
 #, c-format
 msgid "migration_address must not be the address of the local machine: %1$s"
@@ -30831,6 +31112,9 @@ msgstr ""
 msgid "missing path for <reservations/>"
 msgstr "emulatorpin करिता cpuset आढळले नाही"
 
+msgid "missing path for ACPI ERST pstore device"
+msgstr ""
+
 msgid "missing path in nbdkit capabilities cache"
 msgstr ""
 
@@ -31072,6 +31356,10 @@ msgstr "यजमानकरिता नाव आढळले नाही"
 #, fuzzy, c-format
 msgid "missing value for migration parameter '%1$s'"
 msgstr "%1$s मध्ये नाव माहिती आढळली नाही"
+
+#, c-format
+msgid "missing value of modifying DNS TXT record in network %1$s"
+msgstr ""
 
 #, fuzzy
 msgid "missing values for acceleration"
@@ -32574,6 +32862,9 @@ msgstr "फक्त सिंगल मेमरि बलून साधन �
 msgid "only a single nvram device is supported"
 msgstr "फक्त एक nvram साधन समर्थीत आहे"
 
+msgid "only a single pstore device is supported"
+msgstr ""
+
 #, fuzzy
 msgid "only a single vsock device is supported"
 msgstr "फक्त एक nvram साधन समर्थीत आहे"
@@ -33514,6 +33805,18 @@ msgstr "माइग्रेशन्सकरिता योग्य XML द
 msgid "ps2 bus does not support %1$s input device"
 msgstr "ps2 बस %1$s इंपुट साधन करिता समर्थन पुरवित नाही"
 
+msgid "ps2 bus inputs require the ps2 feature not to be disabled"
+msgstr ""
+
+msgid "ps2 feature is not available with this QEMU binary"
+msgstr ""
+
+msgid "ps2 feature state cannot be controlled with this QEMU binary"
+msgstr ""
+
+msgid "pstore device is missing alias"
+msgstr ""
+
 #, c-format
 msgid "pull mode backup for disk '%1$s' requires qcow2 driver"
 msgstr ""
@@ -33732,6 +34035,9 @@ msgstr "blockstats उपकरण नोंदणी अपेक्षीत �
 msgid "query-rx-filter return data missing array element"
 msgstr ""
 
+msgid "query-sev reply was missing some data"
+msgstr ""
+
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'cbitpos' field"
 msgstr "query-version प्रतिसादमध्ये 'micro' आवृत्ती आढळली नाही"
@@ -33747,6 +34053,9 @@ msgstr "query-version प्रतिसादमध्ये 'qemu' डाट�
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'reduced-phys-bits' field"
 msgstr "query-version प्रतिसादमध्ये 'qemu' डाटा आढळले नाही"
+
+msgid "query-sev-launch-measure reply was missing 'data'"
+msgstr ""
 
 msgid "query-sgx-capabilities reply was missing 'flc' field"
 msgstr ""
@@ -35538,6 +35847,10 @@ msgid "testOpen: supply a path or use test:///default"
 msgstr "testOpen: मार्ग पुरवा किंवा :///default"
 
 #, c-format
+msgid "the '%1$s' network backend is not supported with this QEMU binary"
+msgstr ""
+
+#, c-format
 msgid ""
 "the <forward> 'dev' attribute cannot be used when <address> or <pf> sub-"
 "elements are present in network %1$s"
@@ -35626,9 +35939,6 @@ msgid "the machine has no snapshot"
 msgstr "मशीनकडे स्नॅपशॉट आढळले नाही"
 
 msgid "the new password"
-msgstr ""
-
-msgid "the passt network backend is not supported with this QEMU binary"
 msgstr ""
 
 #, fuzzy
@@ -37325,6 +37635,10 @@ msgid "unknown SDL_AUDIODRIVER setting %1$s"
 msgstr ""
 
 #, c-format
+msgid "unknown SEV type '%1$s'"
+msgstr ""
+
+#, c-format
 msgid "unknown address type '%1$s' in network %2$s"
 msgstr "नेटवर्क %2$s मधील अपरिचीत पत्ता प्रकार '%1$s'"
 
@@ -37601,6 +37915,10 @@ msgid "unknown smbios mode '%1$s'"
 msgstr "अपरिचीत smbios मोड '%1$s'"
 
 #, c-format
+msgid "unknown state '%1$s' for '%2$s'"
+msgstr ""
+
+#, c-format
 msgid "unknown storage capability type '%1$s' for '%2$s'"
 msgstr "'%2$s' करिता अपरिचीत साठा क्षमता प्रकार '%1$s'"
 
@@ -37828,6 +38146,10 @@ msgstr ""
 #, c-format
 msgid "unsupported authentication type %1$d"
 msgstr "असमर्थीत अधिप्रमाणन प्रकार %1$d"
+
+#, c-format
+msgid "unsupported backend for pstore device: %1$s"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "unsupported balloon device model '%1$s'"
@@ -38311,6 +38633,10 @@ msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
+msgid "value '%1$llu' is too big for '%2$s' parameter, maximum is '%3$llu'"
+msgstr ""
+
+#, c-format
 msgid "value '%1$llu' is too big for coalesce parameter, maximum is '%2$lu'"
 msgstr ""
 
@@ -38503,6 +38829,9 @@ msgstr "आवृत्ती समजुळवणी नाही (प्र�
 
 msgid "version parsing error"
 msgstr "आवृत्ती वाचतेवेळी त्रुटी"
+
+msgid "vfio migration was active, but 'transferred' data was missing"
+msgstr ""
 
 msgid "vgamem attribute only supported for video type qxl"
 msgstr ""
@@ -38849,6 +39178,9 @@ msgid ""
 msgstr ""
 "vmplayer, libvirt सस्पेंड/रेज्युम (vmware पॉज/अनपॉज) कार्यकरिता समर्थन पुरवत नाही"
 
+msgid "vmport feature requires the ps2 feature not to be disabled"
+msgstr ""
+
 #, fuzzy
 msgid "vmport is not available with this QEMU binary"
 msgstr "ह्या QEMU बाइनरितर्फे असमर्थीत शेअर्ड मेमरि अनुपलब्ध आहे"
@@ -39179,6 +39511,24 @@ msgstr ""
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
 "डिस्क %1$s करिता blockdev फ्लॅगसाठी विनंती केली, परंतु फाइल '%2$s' ब्लॉक साधन नाही"
+
+#~ msgid "DNS HOST records cannot be modified, only added or deleted"
+#~ msgstr "DNS HOST रेकॉर्ड्सला संपादित करणे अशक्य, फक्त समावेश किंवा नष्ट करणे शक्य आहे"
+
+#~ msgid "DNS TXT records cannot be modified, only added or deleted"
+#~ msgstr "DNS TXT रेकॉर्ड्स संपादित करणे अश्कय, फक्त समाविष्ट किंवा नष्ट करणे शक्य आहे"
+
+#, c-format
+#~ msgid "VMX entry '%1$s' doesn't contain a port part"
+#~ msgstr "VMX नोंदणी '%1$s' मध्ये पोर्ट भाग समाविष्टीत नाही"
+
+#, fuzzy
+#~ msgid "migration with virtiofs device is not supported"
+#~ msgstr "साधनाची सतत जोडणी समर्थीत नाही"
+
+#, fuzzy
+#~ msgid "failed to create udev enumerate thread"
+#~ msgstr "udev संदर्भ निर्माण करण्यास अपयशी"
 
 #, c-format
 #~ msgid "%1$6s: Checking %2$-60s: "

@@ -143,6 +143,7 @@ src/lxc/lxc_process.c
 src/network/bridge_driver.c
 src/network/bridge_driver_conf.c
 src/network/bridge_driver_linux.c
+src/network/bridge_driver_nop.c
 src/network/leaseshelper.c
 src/network/network_iptables.c
 src/network/network_nftables.c
@@ -219,6 +220,7 @@ src/rpc/virnetserverprogram.c
 src/rpc/virnetserverservice.c
 src/rpc/virnetsocket.c
 src/rpc/virnetsshsession.c
+src/rpc/virnettlscert.c
 src/rpc/virnettlscontext.c
 src/secret/secret_driver.c
 src/security/security_apparmor.c
@@ -390,6 +392,8 @@ tools/virt-host-validate-qemu.c
 tools/virt-host-validate.c
 tools/virt-login-shell-helper.c
 tools/virt-pki-query-dn.c
+tools/virt-pki-validate.c
+tools/virt-validate-common.c
 tools/vsh-table.c
 tools/vsh.c
 tools/vsh.h

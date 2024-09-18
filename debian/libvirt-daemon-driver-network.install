@@ -1,0 +1,10 @@
+etc/libvirt/network.conf
+usr/lib/${DEB_HOST_MULTIARCH}/libvirt/connection-driver/libvirt_driver_network.so
+usr/lib/firewalld/policies/libvirt-routed-in.xml
+usr/lib/firewalld/policies/libvirt-routed-out.xml
+usr/lib/firewalld/policies/libvirt-to-host.xml
+usr/lib/firewalld/zones/libvirt-routed.xml
+usr/lib/firewalld/zones/libvirt.xml
+usr/lib/libvirt/libvirt_leaseshelper
+usr/share/augeas/lenses/libvirtd_network.aug
+usr/share/augeas/lenses/tests/test_libvirtd_network.aug

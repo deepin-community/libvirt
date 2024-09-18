@@ -42,6 +42,7 @@ VIR_ENUM_IMPL(virDomainCapsFeature,
               "backup",
               "async-teardown",
               "s390-pv",
+              "ps2",
 );
 
 static virClass *virDomainCapsClass;
@@ -607,6 +608,18 @@ virDomainCapsDeviceCryptoFormat(virBuffer *buf,
 }
 
 
+static void
+virDomainCapsDeviceNetFormat(virBuffer *buf,
+                             const virDomainCapsDeviceNet *interface)
+{
+    FORMAT_PROLOGUE(interface);
+
+    ENUM_PROCESS(interface, backendType, virDomainNetBackendTypeToString);
+
+    FORMAT_EPILOGUE(interface);
+}
+
+
 /**
  * virDomainCapsFeatureGICFormat:
  * @buf: target buffer
@@ -707,6 +720,19 @@ virDomainCapsFeatureHypervFormat(virBuffer *buf,
     FORMAT_EPILOGUE(hyperv);
 }
 
+
+static void
+virDomainCapsLaunchSecurityFormat(virBuffer *buf,
+                                  const virDomainCapsLaunchSecurity *launchSecurity)
+{
+    FORMAT_PROLOGUE(launchSecurity);
+
+    ENUM_PROCESS(launchSecurity, sectype, virDomainLaunchSecurityTypeToString);
+
+    FORMAT_EPILOGUE(launchSecurity);
+}
+
+
 static void
 virDomainCapsFormatFeatures(const virDomainCaps *caps,
                             virBuffer *buf)
@@ -728,6 +754,7 @@ virDomainCapsFormatFeatures(const virDomainCaps *caps,
     virDomainCapsFeatureSEVFormat(&childBuf, caps->sev);
     virDomainCapsFeatureSGXFormat(&childBuf, caps->sgx);
     virDomainCapsFeatureHypervFormat(&childBuf, caps->hyperv);
+    virDomainCapsLaunchSecurityFormat(&childBuf, &caps->launchSecurity);
 
     virXMLFormatElement(buf, "features", NULL, &childBuf);
 }
@@ -773,6 +800,7 @@ virDomainCapsFormat(const virDomainCaps *caps)
     virDomainCapsDeviceRedirdevFormat(&buf, &caps->redirdev);
     virDomainCapsDeviceChannelFormat(&buf, &caps->channel);
     virDomainCapsDeviceCryptoFormat(&buf, &caps->crypto);
+    virDomainCapsDeviceNetFormat(&buf, &caps->net);
 
     virBufferAdjustIndent(&buf, -2);
     virBufferAddLit(&buf, "</devices>\n");

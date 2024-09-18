@@ -18,15 +18,31 @@ set -e
 
 #ABORT_CONFFILE_TRANSFER#
 
+CLIENTS_TO_COMMON="
+    /etc/libvirt/libvirt-admin.conf
+    /etc/libvirt/libvirt.conf
+"
+
 case "$1" in
     abort-install|abort-upgrade)
         abort_conffile_transfer \
             "/etc/libvirt/virt-login-shell.conf" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-clients" \
             "libvirt-login-shell" \
             -- \
             "$@"
+        for conf in $CLIENTS_TO_COMMON; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-clients" \
+                "libvirt-common" \
+                -- \
+                "$@"
+        done
     ;;
 
     remove|purge|upgrade|disappear|failed-upgrade)

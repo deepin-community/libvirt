@@ -212,6 +212,9 @@
       <optional>
         <ref name="crypto"/>
       </optional>
+      <optional>
+        <ref name="interface"/>
+      </optional>
     </element>
   </define>
 
@@ -285,6 +288,20 @@
     </element>
   </define>
 
+  <define name="interface">
+    <element name="interface">
+      <ref name="supported"/>
+      <ref name="enum"/>
+    </element>
+  </define>
+
+  <define name="launchSecurity">
+    <element name="launchSecurity">
+      <ref name="supported"/>
+      <ref name="enum"/>
+    </element>
+  </define>
+
   <define name="features">
     <element name="features">
       <optional>
@@ -309,6 +326,9 @@
         <ref name="s390-pv"/>
       </optional>
       <optional>
+        <ref name="ps2"/>
+      </optional>
+      <optional>
         <ref name="sev"/>
       </optional>
       <optional>
@@ -316,6 +336,9 @@
       </optional>
       <optional>
         <ref name="hyperv"/>
+      </optional>
+      <optional>
+        <ref name='launchSecurity'/>
       </optional>
     </element>
   </define>
@@ -359,6 +382,12 @@
 
   <define name="s390-pv">
     <element name="s390-pv">
+      <ref name="supported"/>
+    </element>
+  </define>
+
+  <define name="ps2">
+    <element name="ps2">
       <ref name="supported"/>
     </element>
   </define>

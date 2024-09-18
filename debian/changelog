@@ -1,3 +1,79 @@
+libvirt (10.7.0-3) unstable; urgency=medium
+
+  * [70a5d8d] patches: Add backport/apparmor-Don-t-check-for[...]
+    - Ensures that AppArmor doesn't get disabled for QEMU domains
+      just because the LXC driver is not installed (Closes: #1081396)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Mon, 16 Sep 2024 21:41:15 +0200
+
+libvirt (10.7.0-2) unstable; urgency=medium
+
+  * [6fb4103] control: Turn dmidecode back into a Recommends
+    - It was accidentally made it into a Depends in 10.6.0-2,
+      which has resulted in libvirt-daemon being uninstallable on
+      architectures that don't have dmidecode (e.g. ppc64el)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 08 Sep 2024 15:15:11 +0200
+
+libvirt (10.7.0-1) unstable; urgency=medium
+
+  * [a84ccbd] New upstream version 10.7.0
+    - Update for qemu-bridge-helper's new location (Closes: #1077915)
+    - Fixes CVE-2024-8235 (Closes: #1080218)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 05 Sep 2024 20:59:27 +0200
+
+libvirt (10.6.0-3) experimental; urgency=medium
+
+  * [01e7456] control: Bump Standards-Version to 4.7.0
+    - No changes needed.
+  * [b172fde] control: Change some Breaks+Replaces to Conflicts
+    - Prevents file loss scenarios during upgrade (DEP17 M7)
+    - Thanks to Helmut Grohne
+  * [4f20e64] snippets: Create protective diversions
+    - Prevents file loss scenarios during upgrade (DEP17 M8)
+    - Thanks to Helmut Grohne
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sun, 01 Sep 2024 16:31:02 +0200
+
+libvirt (10.6.0-2) experimental; urgency=medium
+
+  * [9333950] control: Introduce daemon-common package
+    + As well as a bunch more. In general, every single driver and
+      storage backend comes with its own binary package now, which
+      makes it possible to decide exactly what gets installed
+  * [d776368] control: Mark daemon-system-* packages as dummy
+    + Configuration for the daemon is now shipped in libvirt-daemon
+  * [0ac1f2c] control: Mark sanlock package as dummy
+    + Replaced by libvirt-daemon-plugin-sanlock
+  * [cf64ba3] install: Perform usr-merge transition
+    - Thanks to Michael Biebl, Helmut Grohne (Closes: #1064126)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Sat, 24 Aug 2024 13:37:16 +0200
+
+libvirt (10.6.0-1) unstable; urgency=medium
+
+  * [65e5d2b] New upstream version 10.6.0
+  * [cca0f9c] control: Drop Build-Depends on pm-utils
+    - Support is explicitly disabled
+  * [963bd56] control: Drop Build-Depends on systemd
+    - It's not used
+  * [7c418f9] control: Suggest daemon on Linux only
+    - It doesn't get built elsewhere
+  * [664a6db] control: Enable more features on loong64.
+    - Start building the QEMU and LXC hypervisor drivers as
+      well as the glusterfs and ceph storage drivers
+    - Thanks to Dandan Zhang (Closes: #1075758)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Wed, 07 Aug 2024 02:50:03 +0200
+
+libvirt (10.5.0-1) unstable; urgency=medium
+
+  * [a8c62f5] New upstream version 10.5.0
+    - Fixes qemu:///session (Closes: #1072723, #1072769)
+
+ -- Andrea Bolognani <eof@kiyuko.org>  Thu, 04 Jul 2024 00:44:29 +0200
+
 libvirt (10.4.0-1) unstable; urgency=medium
 
   * [7ed6608] New upstream version 10.4.0

@@ -147,7 +147,7 @@ nodeDeviceParseMdevctlJSON(const char *jsonstring,
                            bool defined);
 
 int
-nodeDeviceUpdateMediatedDevices(void);
+nodeDeviceUpdateMediatedDevices(virNodeDeviceDriverState *driver);
 
 void
 nodeDeviceGenerateName(virNodeDeviceDef *def,
@@ -197,3 +197,6 @@ int
 nodeDeviceUpdate(virNodeDevice *dev,
                  const char *xmlDesc,
                  unsigned int flags);
+
+void
+nodeDeviceDefResetMdevActiveConfig(virNodeDeviceDef *def);

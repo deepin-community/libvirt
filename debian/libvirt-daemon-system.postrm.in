@@ -39,51 +39,54 @@ NWFILTERS="
     qemu-announce-self-rarp
 "
 
+DAEMON_SYSTEM_TO_DAEMON_COMMON="
+    /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper
+    /etc/default/libvirt-guests
+    /etc/sasl2/libvirt.conf
+"
+DAEMON_SYSTEM_TO_DAEMON="
+    /etc/apparmor.d/usr.sbin.libvirtd
+    /etc/default/libvirtd
+    /etc/libvirt/libvirtd.conf
+    /etc/logrotate.d/libvirtd
+"
+DAEMON_SYSTEM_TO_DAEMON_LOG="
+    /etc/default/virtlogd
+    /etc/libvirt/virtlogd.conf
+"
+DAEMON_SYSTEM_TO_DAEMON_LOCK="
+    /etc/default/virtlockd
+    /etc/libvirt/virtlockd.conf
+"
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_XEN="
+    /etc/libvirt/libxl-lockd.conf
+    /etc/libvirt/libxl-sanlock.conf
+    /etc/libvirt/libxl.conf
+    /etc/logrotate.d/libvirtd.libxl
+"
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC="
+    /etc/apparmor.d/abstractions/libvirt-lxc
+    /etc/apparmor.d/libvirt/TEMPLATE.lxc
+    /etc/libvirt/lxc.conf
+    /etc/logrotate.d/libvirtd.lxc
+"
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU="
+    /etc/apparmor.d/abstractions/libvirt-qemu
+    /etc/apparmor.d/libvirt/TEMPLATE.qemu
+    /etc/libvirt/qemu-lockd.conf
+    /etc/libvirt/qemu-sanlock.conf
+    /etc/libvirt/qemu.conf
+    /etc/logrotate.d/libvirtd.qemu
+"
+DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK="
+    /etc/libvirt/network.conf
+"
+
 case "$1" in
-    purge)
-        if getent group libvirt >/dev/null; then
-            delgroup libvirt >/dev/null || true
-        fi
-
-        if getent passwd libvirt-qemu >/dev/null; then
-            deluser libvirt-qemu >/dev/null || true
-        fi
-
-        if getent group libvirt-qemu >/dev/null; then
-            delgroup libvirt-qemu >/dev/null || true
-        fi
-
-        # Clean up logs and cached capabilities
-        rm -rf /var/log/libvirt \
-               /var/cache/libvirt/qemu/capabilities
-
-        # Clean up obsolete runtime data
-        rm -rf /var/lib/libvirt/qemu/channel/target/domain-*
-        if [ -d /var/lib/libvirt/qemu/channel/target ]; then
-            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel/target
-        fi
-        if [ -d /var/lib/libvirt/qemu/channel ]; then
-            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel
-        fi
-
-        # Clean up created dirs if existent and empty, they contain precious
-        # data otherwise
-        for dir in /var/lib/libvirt/qemu/save \
-                   /var/lib/libvirt/qemu/snapshot \
-                   /var/lib/libvirt/qemu/dump \
-                   /var/lib/libvirt/qemu/nvram \
-                   /var/lib/libvirt/qemu/ram/libvirt/qemu \
-                   /var/lib/libvirt/qemu/ram/libvirt \
-                   /var/lib/libvirt/qemu/ram \
-                   /var/lib/libvirt/qemu \
-                   /var/cache/libvirt/qemu; do
-            [ ! -d $dir ] || rmdir --ignore-fail-on-non-empty $dir
-        done
-    ;;
-
     abort-install|abort-upgrade)
         abort_conffile_transfer \
             "/etc/libvirt/qemu/networks/default.xml" \
+            "6.0.0-0~" \
             "6.9.0-2~" \
             "libvirt-daemon-system" \
             "libvirt-daemon-config-network" \
@@ -92,29 +95,96 @@ case "$1" in
         for nwfilter in $NWFILTERS; do
             abort_conffile_transfer \
                 "/etc/libvirt/nwfilter/$nwfilter.xml" \
+                "6.0.0-0~" \
                 "6.9.0-2~" \
                 "libvirt-daemon-system" \
                 "libvirt-daemon-config-nwfilter" \
                 -- \
                 "$@"
         done
-
-        # dh_apparmor can't work with dir/file profile filenames yet (#979500)
-        ABSTRACTIONS_DIR="/etc/apparmor.d/abstractions"
-        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
-        LIBVIRT_ABSTRACTIONS="libvirt-lxc libvirt-qemu"
-        for name in $LIBVIRT_ABSTRACTIONS; do
-            abstraction="$ABSTRACTIONS_DIR/$name"
-            local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
-
-            if [ ! -e "$abstraction" ] ; then
-                rm -f "$local_abstraction"
-                rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR" 2>/dev/null
-            fi
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_COMMON; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-common" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_LOG; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-log" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_LOCK; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-lock" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_XEN; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-xen" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_LXC; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-lxc" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_QEMU; do
+            abort_conffile_transfer \
+                "$conf" \
+                "6.0.0-0~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-qemu" \
+                -- \
+                "$@"
+        done
+        for conf in $DAEMON_SYSTEM_TO_DAEMON_DRIVER_NETWORK; do
+            abort_conffile_transfer \
+                "$conf" \
+                "10.4.0-1~" \
+                "10.6.0-2~" \
+                "libvirt-daemon-system" \
+                "libvirt-daemon-driver-network" \
+                -- \
+                "$@"
         done
     ;;
 
-    remove|upgrade|disappear|failed-upgrade)
+    remove|purge|upgrade|disappear|failed-upgrade)
     ;;
 
     *)

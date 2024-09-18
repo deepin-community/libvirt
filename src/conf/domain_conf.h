@@ -87,6 +87,7 @@ typedef enum {
     VIR_DOMAIN_DEVICE_VSOCK,
     VIR_DOMAIN_DEVICE_AUDIO,
     VIR_DOMAIN_DEVICE_CRYPTO,
+    VIR_DOMAIN_DEVICE_PSTORE,
 
     VIR_DOMAIN_DEVICE_LAST
 } virDomainDeviceType;
@@ -120,6 +121,7 @@ struct _virDomainDeviceDef {
         virDomainVsockDef *vsock;
         virDomainAudioDef *audio;
         virDomainCryptoDef *crypto;
+        virDomainPstoreDef *pstore;
     } data;
 };
 
@@ -890,6 +892,7 @@ struct _virDomainFSDef {
     bool symlinksResolved;
     char *binary;
     unsigned long long queue_size;
+    unsigned long long openfiles;
     virTristateSwitch xattr;
     virDomainFSCacheMode cache;
     virTristateSwitch posix_lock;
@@ -899,6 +902,7 @@ struct _virDomainFSDef {
     virDomainIdMapDef idmap;
     virDomainVirtioOptions *virtio;
     virObject *privateData;
+    virBitmap *caps;
 };
 
 
@@ -1476,6 +1480,7 @@ struct _virDomainTPMDef {
             virDomainChrSourceDef *source;
             char *storagepath;
             char *logfile;
+            unsigned int debug;
             unsigned char secretuuid[VIR_UUID_BUFLEN];
             bool hassecretuuid;
             bool persistent_state;
@@ -2176,6 +2181,7 @@ typedef enum {
     VIR_DOMAIN_FEATURE_TCG,
     VIR_DOMAIN_FEATURE_ASYNC_TEARDOWN,
     VIR_DOMAIN_FEATURE_RAS,
+    VIR_DOMAIN_FEATURE_PS2,
 
     VIR_DOMAIN_FEATURE_LAST
 } virDomainFeature;
@@ -2198,6 +2204,8 @@ typedef enum {
     VIR_DOMAIN_HYPERV_IPI,
     VIR_DOMAIN_HYPERV_EVMCS,
     VIR_DOMAIN_HYPERV_AVIC,
+    VIR_DOMAIN_HYPERV_EMSR_BITMAP,
+    VIR_DOMAIN_HYPERV_XMM_INPUT,
 
     VIR_DOMAIN_HYPERV_LAST
 } virDomainHyperv;
@@ -2860,16 +2868,14 @@ struct _virDomainKeyWrapDef {
 typedef enum {
     VIR_DOMAIN_LAUNCH_SECURITY_NONE,
     VIR_DOMAIN_LAUNCH_SECURITY_SEV,
+    VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP,
     VIR_DOMAIN_LAUNCH_SECURITY_PV,
 
     VIR_DOMAIN_LAUNCH_SECURITY_LAST,
 } virDomainLaunchSecurity;
 
 
-struct _virDomainSEVDef {
-    char *dh_cert;
-    char *session;
-    unsigned int policy;
+struct _virDomainSEVCommonDef {
     bool haveCbitpos;
     unsigned int cbitpos;
     bool haveReducedPhysBits;
@@ -2877,10 +2883,32 @@ struct _virDomainSEVDef {
     virTristateBool kernel_hashes;
 };
 
+
+struct _virDomainSEVDef {
+    virDomainSEVCommonDef common;
+    char *dh_cert;
+    char *session;
+    unsigned int policy;
+};
+
+
+struct _virDomainSEVSNPDef {
+    virDomainSEVCommonDef common;
+    unsigned long long policy;
+    char *guest_visible_workarounds;
+    char *id_block;
+    char *id_auth;
+    char *host_data;
+    virTristateBool author_key;
+    virTristateBool vcek;
+};
+
+
 struct _virDomainSecDef {
     virDomainLaunchSecurity sectype;
     union {
         virDomainSEVDef sev;
+        virDomainSEVSNPDef sev_snp;
     } data;
 };
 
@@ -2903,6 +2931,7 @@ struct _virDomainIOMMUDef {
     virTristateSwitch iotlb;
     unsigned int aw_bits;
     virDomainDeviceInfo info;
+    virTristateSwitch dma_translation;
 };
 
 typedef enum {
@@ -2958,6 +2987,19 @@ struct _virDomainVirtioOptions {
     virTristateSwitch ats;
     virTristateSwitch packed;
     virTristateSwitch page_per_vq;
+};
+
+typedef enum {
+    VIR_DOMAIN_PSTORE_BACKEND_ACPI_ERST,
+
+    VIR_DOMAIN_PSTORE_BACKEND_LAST
+} virDomainPstoreBackend;
+
+struct _virDomainPstoreDef {
+    virDomainPstoreBackend backend;
+    unsigned long long size;
+    char *path;
+    virDomainDeviceInfo info;
 };
 
 
@@ -3136,6 +3178,7 @@ struct _virDomainDef {
     virDomainRedirFilterDef *redirfilter;
     virDomainIOMMUDef *iommu;
     virDomainVsockDef *vsock;
+    virDomainPstoreDef *pstore;
 
     void *namespaceData;
     virXMLNamespace ns;
@@ -3558,10 +3601,6 @@ void virDomainDiskSetFormat(virDomainDiskDef *def, int format);
 virDomainControllerDef *
 virDomainDeviceFindSCSIController(const virDomainDef *def,
                                   const virDomainDeviceDriveAddress *addr);
-virDomainDiskDef *virDomainDiskFindByBusAndDst(virDomainDef *def,
-                                               int bus,
-                                               char *dst);
-
 virDomainControllerDef *virDomainControllerDefNew(virDomainControllerType type);
 void virDomainControllerDefFree(virDomainControllerDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainControllerDef, virDomainControllerDefFree);
@@ -3579,6 +3618,8 @@ void virDomainVsockDefFree(virDomainVsockDef *vsock);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainVsockDef, virDomainVsockDefFree);
 void virDomainCryptoDefFree(virDomainCryptoDef *def);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainCryptoDef, virDomainCryptoDefFree);
+void virDomainPstoreDefFree(virDomainPstoreDef *def);
+G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainPstoreDef, virDomainPstoreDefFree);
 void virDomainNetTeamingInfoFree(virDomainNetTeamingInfo *teaming);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainNetTeamingInfo, virDomainNetTeamingInfoFree);
 void virDomainNetPortForwardFree(virDomainNetPortForward *pf);
@@ -4249,6 +4290,7 @@ VIR_ENUM_DECL(virDomainCryptoBackend);
 VIR_ENUM_DECL(virDomainShmemModel);
 VIR_ENUM_DECL(virDomainShmemRole);
 VIR_ENUM_DECL(virDomainLaunchSecurity);
+VIR_ENUM_DECL(virDomainPstoreBackend);
 /* from libvirt.h */
 VIR_ENUM_DECL(virDomainState);
 VIR_ENUM_DECL(virDomainNostateReason);
