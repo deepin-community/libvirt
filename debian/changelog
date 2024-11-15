@@ -1,3 +1,9 @@
+libvirt (10.7.0-3deepin1) unstable; urgency=medium
+
+  * Support reuse asid and secret injection for Hygon CSV
+
+ -- hanliyang <hanliyang@hygon.cn>  Fri, 15 Nov 2024 11:49:11 +0800
+
 libvirt (10.7.0-3) unstable; urgency=medium
 
   * [70a5d8d] patches: Add backport/apparmor-Don-t-check-for[...]
