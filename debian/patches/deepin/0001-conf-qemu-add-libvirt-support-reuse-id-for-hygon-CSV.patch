@@ -1,0 +1,89 @@
+From cf8e84ea441c402eb8ed07baaa54aae2ccd9f80e Mon Sep 17 00:00:00 2001
+From: panpingsheng <panpingsheng@hygon.cn>
+Date: Fri, 8 Sep 2023 15:04:44 +0800
+Subject: [PATCH 1/2] conf: qemu: add libvirt support reuse id for hygon CSV
+
+csv xml format:
+<launchSecurity type='sev'>
+	<policy>0x0081</policy>
+	<cbitpos>47</cbitpos>
+	<reducedPhysBits>5</reducedPhysBits>
+	<userid>usertest</userid>
+</launchSecurity>
+
+Signed-off-by: panpingsheng <panpingsheng@hygon.cn>
+Signed-off-by: Xin Jiang <jiangxin@hygon.cn>
+Signed-off-by: hanliyang <hanliyang@hygon.cn>
+---
+ src/conf/domain_conf.c  | 5 +++++
+ src/conf/domain_conf.h  | 1 +
+ src/qemu/qemu_command.c | 4 ++++
+ 3 files changed, 10 insertions(+)
+
+diff --git a/src/conf/domain_conf.c b/src/conf/domain_conf.c
+index 5f0b35be..e32b16d5 100644
+--- a/src/conf/domain_conf.c
++++ b/src/conf/domain_conf.c
+@@ -3858,6 +3858,7 @@ virDomainSecDefFree(virDomainSecDef *def)
+     case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+         g_free(def->data.sev.dh_cert);
+         g_free(def->data.sev.session);
++        g_free(def->data.sev.user_id);
+         break;
+     case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+         g_free(def->data.sev_snp.guest_visible_workarounds);
+@@ -13745,6 +13746,7 @@ virDomainSEVDefParseXML(virDomainSEVDef *def,
+ 
+     def->dh_cert = virXPathString("string(./dhCert)", ctxt);
+     def->session = virXPathString("string(./session)", ctxt);
++    def->user_id = virXPathString("string(./userid)", ctxt);
+ 
+     return 0;
+ }
+@@ -26906,6 +26908,9 @@ virDomainSEVDefFormat(virBuffer *attrBuf,
+     virBufferAsprintf(childBuf, "<policy>0x%04x</policy>\n", def->policy);
+     virBufferEscapeString(childBuf, "<dhCert>%s</dhCert>\n", def->dh_cert);
+     virBufferEscapeString(childBuf, "<session>%s</session>\n", def->session);
++
++    if (def->user_id)
++        virBufferEscapeString(childBuf, "<userid>%s</userid>\n", def->user_id);
+ }
+ 
+ 
+diff --git a/src/conf/domain_conf.h b/src/conf/domain_conf.h
+index 659299bd..6de7a754 100644
+--- a/src/conf/domain_conf.h
++++ b/src/conf/domain_conf.h
+@@ -2889,6 +2889,7 @@ struct _virDomainSEVDef {
+     char *dh_cert;
+     char *session;
+     unsigned int policy;
++    char *user_id;
+ };
+ 
+ 
+diff --git a/src/qemu/qemu_command.c b/src/qemu/qemu_command.c
+index 1b992d8e..cc550a49 100644
+--- a/src/qemu/qemu_command.c
++++ b/src/qemu/qemu_command.c
+@@ -9755,6 +9755,9 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
+     VIR_DEBUG("policy=0x%x cbitpos=%d reduced_phys_bits=%d",
+               sev->policy, sev->common.cbitpos, sev->common.reduced_phys_bits);
+ 
++    if (sev->user_id)
++        VIR_DEBUG("user_id=%s", sev->user_id);
++
+     if (sev->dh_cert)
+         dhpath = g_strdup_printf("%s/dh_cert.base64", priv->libDir);
+ 
+@@ -9768,6 +9771,7 @@ qemuBuildSEVCommandLine(virDomainObj *vm, virCommand *cmd,
+                                      "S:dh-cert-file", dhpath,
+                                      "S:session-file", sessionpath,
+                                      "T:kernel-hashes", sev->common.kernel_hashes,
++                                     "S:user-id", sev->user_id,
+                                      NULL) < 0)
+         return -1;
+ 
+-- 
+2.25.1
+
