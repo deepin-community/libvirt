@@ -1,3 +1,4 @@
+add-custom-policy-for-deepin.patch
 backport/apparmor-Don-t-check-for-existence-of-templates-upfront.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 debian/Debianize-libvirt-guests.patch
