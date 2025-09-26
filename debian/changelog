@@ -1,3 +1,9 @@
+libvirt (10.7.0-3deepin2) unstable; urgency=medium
+
+  * Add Chinese translation.
+
+ -- jiahe.liu <liujiahe@uniontech.com>  Fri, 26 Sep 2025 14:06:05 +0800
+
 libvirt (10.7.0-3deepin1) unstable; urgency=medium
 
   * Support reuse asid and secret injection for Hygon CSV
