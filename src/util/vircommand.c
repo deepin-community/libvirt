@@ -735,7 +735,8 @@ virExec(virCommand *cmd)
         childerr = null;
     }
 
-    ngroups = virGetGroupList(cmd->uid, cmd->gid, &groups);
+    if ((ngroups = virGetGroupList(cmd->uid, cmd->gid, &groups)) < 0)
+        goto cleanup;
 
     pid = virFork();
 
@@ -2630,7 +2631,7 @@ virCommandRunAsync(virCommand *cmd, pid_t *pid)
 
     if (dryRunBuffer || dryRunCallback) {
         g_autofree char *cmdstr = NULL;
-        dryRunStatus = EXIT_SUCCESS;
+        dryRunStatus = 0;
 
         if (!(cmdstr = virCommandToStringFull(cmd, dryRunBufferArgLinebreaks,
                                               dryRunBufferCommandStripPath)))

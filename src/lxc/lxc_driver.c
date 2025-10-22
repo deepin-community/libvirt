@@ -70,7 +70,6 @@
 #include "virhostdev.h"
 #include "netdev_bandwidth_conf.h"
 #include "virutil.h"
-#include "domain_interface.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -1429,12 +1428,11 @@ lxcSecurityInit(virLXCDriverConfig *cfg)
 }
 
 
-static virDrvStateInitResult
-lxcStateInitialize(bool privileged,
-                   const char *root,
-                   bool monolithic G_GNUC_UNUSED,
-                   virStateInhibitCallback callback G_GNUC_UNUSED,
-                   void *opaque G_GNUC_UNUSED)
+static int lxcStateInitialize(bool privileged,
+                              const char *root,
+                              bool monolithic G_GNUC_UNUSED,
+                              virStateInhibitCallback callback G_GNUC_UNUSED,
+                              void *opaque G_GNUC_UNUSED)
 {
     virLXCDriverConfig *cfg = NULL;
     bool autostart = true;
@@ -3056,7 +3054,6 @@ lxcDomainAttachDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
          virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                         _("persistent attach of device is not supported"));
          break;
@@ -3087,7 +3084,8 @@ lxcDomainUpdateDeviceConfig(virDomainDef *vmdef,
                                          false) < 0)
             return -1;
 
-        virDomainNetUpdate(vmdef, idx, net);
+        if (virDomainNetUpdate(vmdef, idx, net) < 0)
+            return -1;
 
         virDomainNetDefFree(oldDev.data.net);
         dev->data.net = NULL;
@@ -3122,7 +3120,6 @@ lxcDomainUpdateDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("persistent update of device is not supported"));
         break;
@@ -3204,7 +3201,6 @@ lxcDomainDetachDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_CRYPTO:
     case VIR_DOMAIN_DEVICE_AUDIO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                        _("persistent detach of device is not supported"));
         break;
@@ -3306,7 +3302,6 @@ lxcDomainAttachDeviceMknodHelper(pid_t pid G_GNUC_UNUSED,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Unexpected device type %1$d"),
                        data->def->type);
@@ -3978,7 +3973,6 @@ lxcDomainAttachDeviceLive(virLXCDriver *driver,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("device type '%1$s' cannot be attached"),
                        virDomainDeviceTypeToString(dev->type));
@@ -4049,6 +4043,7 @@ lxcDomainDetachDeviceNetLive(virDomainObj *vm,
     int detachidx, ret = -1;
     virDomainNetType actualType;
     virDomainNetDef *detach = NULL;
+    const virNetDevVPortProfile *vport = NULL;
     virErrorPtr save_err = NULL;
 
     if ((detachidx = virDomainNetFindIdx(vm->def, dev->data.net)) < 0)
@@ -4058,7 +4053,10 @@ lxcDomainDetachDeviceNetLive(virDomainObj *vm,
     actualType = virDomainNetGetActualType(detach);
 
     /* clear network bandwidth */
-    virDomainInterfaceClearQoS(vm->def, detach);
+    if (virDomainNetGetActualBandwidth(detach) &&
+        virNetDevSupportsBandwidth(actualType) &&
+        virNetDevBandwidthClear(detach->ifname))
+        goto cleanup;
 
     switch (actualType) {
     case VIR_DOMAIN_NET_TYPE_BRIDGE:
@@ -4101,8 +4099,11 @@ lxcDomainDetachDeviceNetLive(virDomainObj *vm,
 
     virDomainConfNWFilterTeardown(detach);
 
-    virDomainInterfaceVportRemove(detach);
-
+    vport = virDomainNetGetActualVirtPortProfile(detach);
+    if (vport && vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH)
+        ignore_value(virNetDevOpenvswitchRemovePort(
+                        virDomainNetGetActualBridgeName(detach),
+                        detach->ifname));
     ret = 0;
  cleanup:
     if (!ret) {
@@ -4110,7 +4111,7 @@ lxcDomainDetachDeviceNetLive(virDomainObj *vm,
         if (detach->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             g_autoptr(virConnect) conn = virGetConnectNetwork();
             if (conn)
-                virDomainNetReleaseActualDevice(conn, detach);
+                virDomainNetReleaseActualDevice(conn, vm->def, detach);
             else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(detach->ifname));
         }
@@ -4396,7 +4397,6 @@ lxcDomainDetachDeviceLive(virLXCDriver *driver,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("device type '%1$s' cannot be detached"),
                        virDomainDeviceTypeToString(dev->type));
@@ -4692,7 +4692,8 @@ static int lxcDomainLxcOpenNamespace(virDomainPtr dom,
         goto endjob;
     }
 
-    virProcessGetNamespaces(priv->initpid, &nfds, fdlist);
+    if (virProcessGetNamespaces(priv->initpid, &nfds, fdlist) < 0)
+        goto endjob;
 
     ret = nfds;
 

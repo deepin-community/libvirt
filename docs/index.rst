@@ -65,7 +65,10 @@ Blog Planet
 
 .. raw:: html
 
-   <script src="js/virt-tools-blog-planet.js">
+   <script type="text/javascript">
+     <!--
+     window.addEventListener("load", function() { fetchRSS() });
+     // -->
    </script>
    <div id="planet"> </div>
 

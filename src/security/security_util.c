@@ -502,7 +502,7 @@ virSecurityMoveRememberedLabel(const char *name,
         } else if (errno != ENODATA) {
             virReportSystemError(errno,
                                  _("Unable to get XATTR %1$s on %2$s"),
-                                 timestamp_name, src);
+                                 attr_name, src);
             return -1;
         }
     }

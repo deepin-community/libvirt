@@ -1,8 +1,0 @@
-# The expected options are all implemented - just not in a way that Lintian
-# is capable of recognizing
-libvirt-daemon-common: init.d-script-does-not-implement-required-option * [etc/init.d/libvirt-guests]
-libvirt-daemon-common: init.d-script-does-not-implement-status-option [etc/init.d/libvirt-guests]
-libvirt-daemon-common: init.d-script-does-not-source-init-functions [etc/init.d/libvirt-guests]
-
-# Versioned conflicts are needed for DEP17 M7
-libvirt-daemon-common: conflicts-with-version libvirt-daemon-system *

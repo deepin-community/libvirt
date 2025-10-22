@@ -2059,8 +2059,9 @@ static int lxcContainerChild(void *data)
     /* TODO is it safe to call it here or should this call be moved in
      * front of the clone() as otherwise there might be a risk for a
      * deadlock */
-    ngroups = virGetGroupList(virCommandGetUID(cmd), virCommandGetGID(cmd),
-                              &groups);
+    if ((ngroups = virGetGroupList(virCommandGetUID(cmd), virCommandGetGID(cmd),
+                                   &groups)) < 0)
+        goto cleanup;
 
     ret = 0;
  cleanup:

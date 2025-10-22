@@ -142,7 +142,7 @@ qemuAssignDeviceControllerAlias(virDomainDef *domainDef,
         return;
 
     if (controller->type == VIR_DOMAIN_CONTROLLER_TYPE_PCI) {
-        if (!qemuDomainSupportsPCIMultibus(domainDef)) {
+        if (!virQEMUCapsHasPCIMultiBus(domainDef)) {
             /* qemus that don't support multiple PCI buses have
              * hardcoded the name of their single PCI controller as
              * "pci".
@@ -214,17 +214,8 @@ qemuAssignDeviceDiskAlias(virDomainDef *def,
     if (!disk->info.alias) {
         if (disk->info.type == VIR_DOMAIN_DEVICE_ADDRESS_TYPE_DRIVE) {
             if (disk->bus == VIR_DOMAIN_DISK_BUS_SCSI) {
-                virDomainControllerDef *cont;
-
-                if (!(cont = virDomainDeviceFindSCSIController(def, &disk->info.addr.drive))) {
-                    virReportError(VIR_ERR_INTERNAL_ERROR,
-                                   _("unable to find a SCSI controller for idx=%1$d"),
-                                   disk->info.addr.drive.controller);
-                    return -1;
-                }
-
-                controllerModel = cont->model;
-
+                controllerModel = qemuDomainFindSCSIControllerModel(def,
+                                                                    &disk->info);
                 if (controllerModel < 0)
                     return -1;
             }
@@ -658,14 +649,6 @@ qemuAssignDeviceCryptoAlias(virDomainDef *def,
 }
 
 
-static void
-qemuAssignDevicePstoreAlias(virDomainPstoreDef *pstore)
-{
-    if (!pstore->info.alias)
-        pstore->info.alias = g_strdup("pstore0");
-}
-
-
 int
 qemuAssignDeviceAliases(virDomainDef *def)
 {
@@ -755,8 +738,6 @@ qemuAssignDeviceAliases(virDomainDef *def)
     for (i = 0; i < def->ncryptos; i++) {
         qemuAssignDeviceCryptoAlias(def, def->cryptos[i]);
     }
-    if (def->pstore)
-        qemuAssignDevicePstoreAlias(def->pstore);
 
     return 0;
 }

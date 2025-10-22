@@ -19,8 +19,6 @@
 
 #include <config.h>
 
-#define VIR_FROM_THIS VIR_FROM_NETWORK
-
 void networkPreReloadFirewallRules(virNetworkDriverState *driver G_GNUC_UNUSED,
                                    bool startup G_GNUC_UNUSED,
                                    bool force G_GNUC_UNUSED)
@@ -38,24 +36,11 @@ int networkCheckRouteCollision(virNetworkDef *def G_GNUC_UNUSED)
     return 0;
 }
 
-int networkAddFirewallRules(virNetworkDef *def G_GNUC_UNUSED,
-                            virFirewallBackend firewallBackend,
-                            virFirewall **fwRemoval G_GNUC_UNUSED)
+int networkAddFirewallRules(virNetworkDef *def G_GNUC_UNUSED)
 {
-    /*
-     * Shouldn't be possible, since virNetworkLoadDriverConfig
-     * ought to fail to find the required binaries when loading,
-     * so this is just a sanity check
-     */
-    if (firewallBackend != VIR_FIREWALL_BACKEND_NONE) {
-        virReportError(VIR_ERR_NO_SUPPORT,
-                       _("Firewall backend '%1$s' not available on this platform"),
-                       virFirewallBackendTypeToString(firewallBackend));
-        return -1;
-    }
     return 0;
 }
 
-void networkRemoveFirewallRules(virNetworkObj *obj G_GNUC_UNUSED)
+void networkRemoveFirewallRules(virNetworkDef *def G_GNUC_UNUSED)
 {
 }

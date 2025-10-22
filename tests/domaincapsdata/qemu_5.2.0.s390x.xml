@@ -261,11 +261,6 @@
         <value>builtin</value>
       </enum>
     </crypto>
-    <interface supported='yes'>
-      <enum name='backendType'>
-        <value>default</value>
-      </enum>
-    </interface>
   </devices>
   <features>
     <gic supported='no'/>
@@ -275,9 +270,7 @@
     <backup supported='no'/>
     <async-teardown supported='no'/>
     <s390-pv supported='no'/>
-    <ps2 supported='no'/>
     <sev supported='no'/>
     <sgx supported='no'/>
-    <launchSecurity supported='no'/>
   </features>
 </domainCapabilities>

@@ -1,8 +1,0 @@
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt-admin.so.0
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt-admin.so.0.*
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt-lxc.so.0
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt-lxc.so.0.*
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt-qemu.so.0
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt-qemu.so.0.*
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt.so.0
-usr/lib/${DEB_HOST_MULTIARCH}/libvirt.so.0.*

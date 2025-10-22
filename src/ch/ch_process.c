@@ -22,21 +22,14 @@
 
 #include <unistd.h>
 #include <fcntl.h>
-#include <poll.h>
 
 #include "ch_domain.h"
 #include "ch_monitor.h"
 #include "ch_process.h"
 #include "domain_cgroup.h"
-#include "domain_interface.h"
-#include "viralloc.h"
 #include "virerror.h"
-#include "virfile.h"
 #include "virjson.h"
 #include "virlog.h"
-#include "virnuma.h"
-#include "virstring.h"
-#include "ch_interface.h"
 
 #define VIR_FROM_THIS VIR_FROM_CH
 
@@ -53,7 +46,7 @@ virCHProcessConnectMonitor(virCHDriver *driver,
     virCHMonitor *monitor = NULL;
     virCHDriverConfig *cfg = virCHDriverGetConfig(driver);
 
-    monitor = virCHMonitorNew(vm, cfg);
+    monitor = virCHMonitorNew(vm, cfg->stateDir);
 
     virObjectUnref(cfg);
     return monitor;
@@ -69,13 +62,6 @@ virCHProcessUpdateConsoleDevice(virDomainObj *vm,
     virJSONValue *dev, *file;
 
     if (!config)
-        return;
-
-    /* This method is used to extract pty info from cloud-hypervisor and capture
-     * it in domain configuration. This step can be skipped for serial devices
-     * with unix backend.*/
-    if (STREQ(device, "serial") &&
-        vm->def->serials[0]->source->type == VIR_DOMAIN_CHR_TYPE_UNIX)
         return;
 
     dev = virJSONValueObjectGet(config, device);
@@ -462,359 +448,13 @@ virCHProcessSetupVcpus(virDomainObj *vm)
     return 0;
 }
 
-static int
-virCHProcessSetup(virDomainObj *vm)
-{
-    virCHDomainObjPrivate *priv = vm->privateData;
-
-    virCHDomainRefreshThreadInfo(vm);
-
-    VIR_DEBUG("Setting emulator tuning/settings");
-    if (virCHProcessSetupEmulatorThreads(vm) < 0)
-        return -1;
-
-    VIR_DEBUG("Setting iothread tuning/settings");
-    if (virCHProcessSetupIOThreads(vm) < 0)
-        return -1;
-
-    VIR_DEBUG("Setting global CPU cgroup (if required)");
-    if (virDomainCgroupSetupGlobalCpuCgroup(vm,
-                                            priv->cgroup) < 0)
-        return -1;
-
-    VIR_DEBUG("Setting vCPU tuning/settings");
-    if (virCHProcessSetupVcpus(vm) < 0)
-        return -1;
-
-    virCHProcessUpdateInfo(vm);
-    return 0;
-}
-
-
-/**
- * chMonitorSocketConnect:
- * @mon: pointer to monitor object
- *
- * Connects to the monitor socket. Caller is responsible for closing the socketfd
- *
- * Returns socket fd on success, -1 on error
- */
-static int
-chMonitorSocketConnect(virCHMonitor *mon)
-{
-    struct sockaddr_un server_addr = { };
-    int sock;
-
-    sock = socket(AF_UNIX, SOCK_STREAM, 0);
-    if (sock < 0) {
-        virReportSystemError(errno, "%s", _("Failed to open a UNIX socket"));
-        return -1;
-    }
-
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sun_family = AF_UNIX;
-    if (virStrcpyStatic(server_addr.sun_path, mon->socketpath) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                       _("UNIX socket path '%1$s' too long"),
-                       mon->socketpath);
-        goto error;
-    }
-
-    if (connect(sock, (struct sockaddr *)&server_addr,
-                sizeof(server_addr)) == -1) {
-        virReportSystemError(errno, "%s", _("Failed to connect to mon socket"));
-        goto error;
-    }
-
-    return sock;
- error:
-    VIR_FORCE_CLOSE(sock);
-    return -1;
-}
-
-
-#define PKT_TIMEOUT_MS 500 /* ms */
-
-static char *
-chSocketRecv(int sock, bool use_timeout)
-{
-    struct pollfd pfds[1];
-    char *buf = NULL;
-    size_t buf_len = 1024;
-    int timeout = PKT_TIMEOUT_MS;
-    int ret;
-
-    buf = g_new0(char, buf_len);
-
-    pfds[0].fd = sock;
-    pfds[0].events = POLLIN;
-
-    if (!use_timeout)
-        timeout = -1;
-
-    do {
-        ret = poll(pfds, G_N_ELEMENTS(pfds), timeout);
-    } while (ret < 0 && errno == EINTR);
-
-    if (ret <= 0) {
-        if (ret < 0) {
-            virReportSystemError(errno, _("Poll on sock %1$d failed"), sock);
-        } else if (ret == 0) {
-            virReportSystemError(errno, _("Poll on sock %1$d timed out"), sock);
-        }
-        return NULL;
-    }
-
-    do {
-        ret = recv(sock, buf, buf_len - 1, 0);
-    } while (ret < 0 && errno == EINTR);
-
-    if (ret < 0) {
-        virReportSystemError(errno, _("recv on sock %1$d failed"), sock);
-        return NULL;
-    }
-
-    return g_steal_pointer(&buf);
-}
-
-#undef PKT_TIMEOUT_MS
-
-static int
-chSocketProcessHttpResponse(int sock, bool use_poll_timeout)
-{
-    g_autofree char *response = NULL;
-    int http_res;
-
-    response = chSocketRecv(sock, use_poll_timeout);
-    if (response == NULL) {
-        return -1;
-    }
-
-    /* Parse the HTTP response code */
-    if (sscanf(response, "HTTP/1.%*d %d", &http_res) != 1) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                        _("Failed to parse HTTP response code"));
-        return -1;
-    }
-    if (http_res != 204 && http_res != 200) {
-        virReportError(VIR_ERR_INTERNAL_ERROR,
-                        _("Unexpected response from CH: %1$s"), response);
-        return -1;
-    }
-
-    return 0;
-}
-
-static int
-chCloseFDs(int *fds, size_t nfds)
-{
-    size_t i;
-    for (i = 0; i < nfds; i++) {
-        VIR_FORCE_CLOSE(fds[i]);
-    }
-    return 0;
-}
-
-/**
- * chProcessAddNetworkDevices:
- * @driver: pointer to ch driver object
- * @mon: pointer to the monitor object
- * @vmdef: pointer to domain definition
- * @nicindexes: returned array of FDs of guest interfaces
- * @nnicindexes: returned number of network indexes
- *
- * Send tap fds to CH process via AddNet api. Capture the network indexes of
- * guest interfaces in nicindexes.
- *
- * Returns 0 on success, -1 on error.
- */
-static int
-chProcessAddNetworkDevices(virCHDriver *driver,
-                           virCHMonitor *mon,
-                           virDomainDef *vmdef,
-                           int **nicindexes,
-                           size_t *nnicindexes)
-{
-    size_t i;
-    VIR_AUTOCLOSE mon_sockfd = -1;
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    g_auto(virBuffer) http_headers = VIR_BUFFER_INITIALIZER;
-
-    if (!virBitmapIsBitSet(driver->chCaps, CH_MULTIFD_IN_ADDNET)) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Guest networking is not supported by this version of ch"));
-        return -1;
-    }
-
-    if ((mon_sockfd = chMonitorSocketConnect(mon)) < 0)
-        return -1;
-
-    virBufferAddLit(&http_headers, "PUT /api/v1/vm.add-net HTTP/1.1\r\n");
-    virBufferAddLit(&http_headers, "Host: localhost\r\n");
-    virBufferAddLit(&http_headers, "Content-Type: application/json\r\n");
-
-    for (i = 0; i < vmdef->nnets; i++) {
-        g_autofree int *tapfds = NULL;
-        g_autofree char *payload = NULL;
-        g_autofree char *response = NULL;
-        size_t tapfd_len;
-        size_t payload_len;
-        int saved_errno;
-        int rc;
-
-        if (vmdef->nets[i]->driver.virtio.queues == 0) {
-            /* "queues" here refers to queue pairs. When 0, initialize
-             * queue pairs to 1.
-             */
-            vmdef->nets[i]->driver.virtio.queues = 1;
-        }
-        tapfd_len = vmdef->nets[i]->driver.virtio.queues;
-
-        if (virCHDomainValidateActualNetDef(vmdef->nets[i]) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("net definition failed validation"));
-            return -1;
-        }
-
-        tapfds = g_new0(int, tapfd_len);
-        memset(tapfds, -1, (tapfd_len) * sizeof(int));
-
-        /* Connect Guest interfaces */
-        if (virCHConnetNetworkInterfaces(driver, vmdef, vmdef->nets[i], tapfds,
-                                         nicindexes, nnicindexes) < 0)
-            return -1;
-
-        if (virCHMonitorBuildNetJson(vmdef->nets[i], i, &payload) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Failed to build net json"));
-            return -1;
-        }
-
-        VIR_DEBUG("payload sent with net-add request to CH = %s", payload);
-
-        virBufferAsprintf(&buf, "%s", virBufferCurrentContent(&http_headers));
-        virBufferAsprintf(&buf, "Content-Length: %ld\r\n\r\n", strlen(payload));
-        virBufferAsprintf(&buf, "%s", payload);
-        payload_len = virBufferUse(&buf);
-        payload = virBufferContentAndReset(&buf);
-
-        rc = virSocketSendMsgWithFDs(mon_sockfd, payload, payload_len,
-                                     tapfds, tapfd_len);
-        saved_errno = errno;
-
-        /* Close sent tap fds in Libvirt, as they have been dup()ed in CH */
-        chCloseFDs(tapfds, tapfd_len);
-
-        if (rc < 0) {
-            virReportSystemError(saved_errno, "%s",
-                                 _("Failed to send net-add request to CH"));
-            return -1;
-        }
-
-        if (chSocketProcessHttpResponse(mon_sockfd, true) < 0)
-            return -1;
-    }
-
-    return 0;
-}
-
-/**
- * virCHRestoreCreateNetworkDevices:
- * @driver: pointer to driver structure
- * @vmdef: pointer to domain definition
- * @vmtapfds: returned array of FDs of guest interfaces
- * @nvmtapfds: returned number of network indexes
- * @nicindexes: returned array of network indexes
- * @nnicindexes: returned number of network indexes
- *
- * Create network devices for the domain. This function is called during
- * domain restore.
- *
- * Returns 0 on success or -1 in case of error
-*/
-static int
-virCHRestoreCreateNetworkDevices(virCHDriver *driver,
-                                 virDomainDef *vmdef,
-                                 int **vmtapfds,
-                                 size_t *nvmtapfds,
-                                 int **nicindexes,
-                                 size_t *nnicindexes)
-{
-    size_t i, j;
-    size_t tapfd_len;
-    size_t index_vmtapfds;
-    for (i = 0; i < vmdef->nnets; i++) {
-        g_autofree int *tapfds = NULL;
-        tapfd_len = vmdef->nets[i]->driver.virtio.queues;
-        if (virCHDomainValidateActualNetDef(vmdef->nets[i]) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("net definition failed validation"));
-            return -1;
-        }
-        tapfds = g_new0(int, tapfd_len);
-        memset(tapfds, -1, (tapfd_len) * sizeof(int));
-
-        /* Connect Guest interfaces */
-        if (virCHConnetNetworkInterfaces(driver, vmdef, vmdef->nets[i], tapfds,
-                                          nicindexes, nnicindexes) < 0)
-            return -1;
-
-        index_vmtapfds = *nvmtapfds;
-        VIR_EXPAND_N(*vmtapfds, *nvmtapfds, tapfd_len);
-        for (j = 0; j < tapfd_len; j++) {
-            VIR_APPEND_ELEMENT_INPLACE(*vmtapfds, index_vmtapfds, tapfds[j]);
-        }
-    }
-    return 0;
-}
-
-/**
- * virCHProcessStartValidate:
- * @driver: pointer to driver structure
- * @vm: domain object
- *
- * Checks done before starting a VM.
- *
- * Returns 0 on success or -1 in case of error
- */
-static int
-virCHProcessStartValidate(virCHDriver *driver,
-                          virDomainObj *vm)
-{
-    if (vm->def->virtType == VIR_DOMAIN_VIRT_KVM) {
-        VIR_DEBUG("Checking for KVM availability");
-        if (!virCapabilitiesDomainSupported(driver->caps, -1,
-                                            VIR_ARCH_NONE, VIR_DOMAIN_VIRT_KVM, false)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Domain requires KVM, but it is not available. Check that virtualization is enabled in the host BIOS, and host configuration is setup to load the kvm modules."));
-            return -1;
-        }
-    } else if (vm->def->virtType == VIR_DOMAIN_VIRT_HYPERV) {
-        VIR_DEBUG("Checking for mshv availability");
-        if (!virCapabilitiesDomainSupported(driver->caps, -1,
-                                            VIR_ARCH_NONE, VIR_DOMAIN_VIRT_HYPERV, false)) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("Domain requires MSHV device, but it is not available. Check that virtualization is enabled in the host BIOS, and host configuration is setup to load the mshv modules."));
-            return -1;
-        }
-
-    } else {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("virt type '%1$s' is not supported"),
-                       virDomainVirtTypeToString(vm->def->virtType));
-        return -1;
-    }
-
-    return 0;
-}
-
 /**
  * virCHProcessStart:
  * @driver: pointer to driver structure
  * @vm: pointer to virtual machine structure
  * @reason: reason for switching vm to running state
  *
- * Starts Cloud-Hypervisor listening on a local socket
+ * Starts Cloud-Hypervisor listen on a local socket
  *
  * Returns 0 on success or -1 in case of error
  */
@@ -835,10 +475,6 @@ virCHProcessStart(virCHDriver *driver,
         return -1;
     }
 
-    if (virCHProcessStartValidate(driver, vm) < 0) {
-        return -1;
-    }
-
     if (!priv->monitor) {
         /* And we can get the first monitor connection now too */
         if (!(priv->monitor = virCHProcessConnectMonitor(driver, vm))) {
@@ -847,7 +483,8 @@ virCHProcessStart(virCHDriver *driver,
             goto cleanup;
         }
 
-        if (virCHMonitorCreateVM(driver, priv->monitor) < 0) {
+        if (virCHMonitorCreateVM(driver, priv->monitor,
+                                 &nnicindexes, &nicindexes) < 0) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                            _("failed to create guest VM"));
             goto cleanup;
@@ -857,13 +494,6 @@ virCHProcessStart(virCHDriver *driver,
     vm->pid = priv->monitor->pid;
     vm->def->id = vm->pid;
     priv->machineName = virCHDomainGetMachineName(vm);
-
-    if (chProcessAddNetworkDevices(driver, priv->monitor, vm->def,
-                                   &nicindexes, &nnicindexes) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Failed while adding guest interfaces"));
-        goto cleanup;
-    }
 
     if (virDomainCgroupSetupCgroup("ch", vm,
                                    nnicindexes, nicindexes,
@@ -877,19 +507,32 @@ virCHProcessStart(virCHDriver *driver,
     if (virCHProcessInitCpuAffinity(vm) < 0)
         goto cleanup;
 
-    /* Bring up netdevs before starting CPUs */
-    if (virDomainInterfaceStartDevices(vm->def) < 0)
-        return -1;
-
     if (virCHMonitorBootVM(priv->monitor) < 0) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        _("failed to boot guest VM"));
         goto cleanup;
     }
 
-    if (virCHProcessSetup(vm) < 0)
+    virCHDomainRefreshThreadInfo(vm);
+
+    VIR_DEBUG("Setting emulator tuning/settings");
+    if (virCHProcessSetupEmulatorThreads(vm) < 0)
         goto cleanup;
 
+    VIR_DEBUG("Setting iothread tuning/settings");
+    if (virCHProcessSetupIOThreads(vm) < 0)
+        goto cleanup;
+
+    VIR_DEBUG("Setting global CPU cgroup (if required)");
+    if (virDomainCgroupSetupGlobalCpuCgroup(vm,
+                                            priv->cgroup) < 0)
+        goto cleanup;
+
+    VIR_DEBUG("Setting vCPU tuning/settings");
+    if (virCHProcessSetupVcpus(vm) < 0)
+        goto cleanup;
+
+    virCHProcessUpdateInfo(vm);
     virDomainObjSetState(vm, VIR_DOMAIN_RUNNING, reason);
 
     return 0;
@@ -909,23 +552,12 @@ virCHProcessStop(virCHDriver *driver G_GNUC_UNUSED,
     int ret;
     int retries = 0;
     virCHDomainObjPrivate *priv = vm->privateData;
-    virCHDriverConfig *cfg = virCHDriverGetConfig(driver);
-    virDomainDef *def = vm->def;
-    size_t i;
 
     VIR_DEBUG("Stopping VM name=%s pid=%d reason=%d",
               vm->def->name, (int)vm->pid, (int)reason);
 
     if (priv->monitor) {
         g_clear_pointer(&priv->monitor, virCHMonitorClose);
-    }
-
-    /* de-activate netdevs after stopping vm */
-    ignore_value(virDomainInterfaceStopDevices(vm->def));
-
-    for (i = 0; i < def->nnets; i++) {
-        virDomainNetDef *net = def->nets[i];
-        virDomainInterfaceDeleteDevice(def, net, false, cfg->stateDir);
     }
 
  retry:
@@ -947,102 +579,4 @@ virCHProcessStop(virCHDriver *driver G_GNUC_UNUSED,
     virDomainObjSetState(vm, VIR_DOMAIN_SHUTOFF, reason);
 
     return 0;
-}
-
-/**
- * virCHProcessStartRestore:
- * @driver: pointer to driver structure
- * @vm: pointer to virtual machine structure
- * @from: directory path to restore the VM from
- *
- * Starts Cloud-Hypervisor process with the restored VM
- *
- * Returns 0 on success or -1 in case of error
- */
-int
-virCHProcessStartRestore(virCHDriver *driver, virDomainObj *vm, const char *from)
-{
-    virCHDomainObjPrivate *priv = vm->privateData;
-    g_autoptr(virCHDriverConfig) cfg = virCHDriverGetConfig(priv->driver);
-    g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-    g_auto(virBuffer) http_headers = VIR_BUFFER_INITIALIZER;
-    g_autofree char *payload = NULL;
-    g_autofree char *response = NULL;
-    VIR_AUTOCLOSE mon_sockfd = -1;
-    g_autofree int *tapfds = NULL;
-    g_autofree int *nicindexes = NULL;
-    size_t payload_len;
-    size_t ntapfds = 0;
-    size_t nnicindexes = 0;
-    int ret = -1;
-
-    if (!priv->monitor) {
-        /* Get the first monitor connection if not already */
-        if (!(priv->monitor = virCHProcessConnectMonitor(driver, vm))) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("failed to create connection to CH socket"));
-            goto cleanup;
-        }
-    }
-
-    vm->pid = priv->monitor->pid;
-    vm->def->id = vm->pid;
-    priv->machineName = virCHDomainGetMachineName(vm);
-
-    if (virCHMonitorBuildRestoreJson(vm->def, from, &payload) < 0) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("failed to restore domain"));
-        goto cleanup;
-    }
-
-    virBufferAddLit(&http_headers, "PUT /api/v1/vm.restore HTTP/1.1\r\n");
-    virBufferAddLit(&http_headers, "Host: localhost\r\n");
-    virBufferAddLit(&http_headers, "Content-Type: application/json\r\n");
-    virBufferAsprintf(&buf, "%s", virBufferCurrentContent(&http_headers));
-    virBufferAsprintf(&buf, "Content-Length: %ld\r\n\r\n", strlen(payload));
-    virBufferAsprintf(&buf, "%s", payload);
-    payload_len = virBufferUse(&buf);
-    payload = virBufferContentAndReset(&buf);
-
-    if ((mon_sockfd = chMonitorSocketConnect(priv->monitor)) < 0)
-        goto cleanup;
-
-    if (virCHRestoreCreateNetworkDevices(driver, vm->def, &tapfds, &ntapfds, &nicindexes, &nnicindexes) < 0)
-        goto cleanup;
-
-    if (virDomainCgroupSetupCgroup("ch", vm,
-                                   nnicindexes, nicindexes,
-                                   &priv->cgroup,
-                                   cfg->cgroupControllers,
-                                   0, /*maxThreadsPerProc*/
-                                   priv->driver->privileged,
-                                   priv->machineName) < 0)
-        goto cleanup;
-
-    /* Bring up netdevs before restoring vm */
-    if (virDomainInterfaceStartDevices(vm->def) < 0)
-        goto cleanup;
-
-    if (virSocketSendMsgWithFDs(mon_sockfd, payload, payload_len, tapfds, ntapfds) < 0) {
-        virReportSystemError(errno, "%s",
-                             _("Failed to send restore request to CH"));
-        goto cleanup;
-    }
-
-    /* Restore is a synchronous operation in CH. so, pass false to wait until there's a response */
-    if (chSocketProcessHttpResponse(mon_sockfd, false) < 0)
-        goto cleanup;
-
-    if (virCHProcessSetup(vm) < 0)
-        goto cleanup;
-
-    virDomainObjSetState(vm, VIR_DOMAIN_PAUSED, VIR_DOMAIN_PAUSED_FROM_SNAPSHOT);
-    ret = 0;
-
- cleanup:
-    if (tapfds)
-        chCloseFDs(tapfds, ntapfds);
-    if (ret)
-        virCHProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_FAILED);
-    return ret;
 }

@@ -1176,7 +1176,7 @@ bhyveStateCleanup(void)
     return 0;
 }
 
-static virDrvStateInitResult
+static int
 bhyveStateInitialize(bool privileged,
                      const char *root,
                      bool monolithic G_GNUC_UNUSED,

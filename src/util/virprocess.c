@@ -444,64 +444,7 @@ int virProcessKillPainfully(pid_t pid, bool force)
     return virProcessKillPainfullyDelay(pid, force, 0, false);
 }
 
-#if defined(WITH_BSD_CPU_AFFINITY)
-
-int virProcessSetAffinity(pid_t pid,
-                          virBitmap *map,
-                          bool quiet)
-{
-    size_t i;
-    cpuset_t mask;
-    g_autofree char *mapStr = virBitmapFormat(map);
-
-    VIR_DEBUG("Set process affinity on %1$lld to %2$s", (long long)pid, mapStr);
-
-    CPU_ZERO(&mask);
-    for (i = 0; i < virBitmapSize(map); i++) {
-        if (virBitmapIsBitSet(map, i))
-            CPU_SET(i, &mask);
-    }
-
-    if (cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_TIDPID, pid,
-                           sizeof(mask), &mask) != 0) {
-        if (quiet) {
-            VIR_DEBUG("cannot set CPU affinity on process %d: %s",
-                      pid, g_strerror(errno));
-        } else {
-            virReportSystemError(errno,
-                                 _("cannot set CPU affinity on process %1$d"), pid);
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-virBitmap *
-virProcessGetAffinity(pid_t pid)
-{
-    size_t i;
-    cpuset_t mask;
-    virBitmap *ret = NULL;
-
-    CPU_ZERO(&mask);
-    if (cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_TIDPID, pid,
-                           sizeof(mask), &mask) != 0) {
-        virReportSystemError(errno,
-                             _("cannot get CPU affinity of process %1$d"), pid);
-        return NULL;
-    }
-
-    ret = virBitmapNew(sizeof(mask) * 8);
-
-    for (i = 0; i < sizeof(mask) * 8; i++)
-        if (CPU_ISSET(i, &mask))
-            ignore_value(virBitmapSetBit(ret, i));
-
-    return ret;
-}
-
-#elif defined(WITH_SCHED_GETAFFINITY)
+#if WITH_DECL_CPU_SET_T
 
 int virProcessSetAffinity(pid_t pid, virBitmap *map, bool quiet)
 {
@@ -510,9 +453,8 @@ int virProcessSetAffinity(pid_t pid, virBitmap *map, bool quiet)
     size_t masklen;
     cpu_set_t *mask;
     int rv = -1;
-    g_autofree char *mapStr = virBitmapFormat(map);
 
-    VIR_DEBUG("Set process affinity on %1$lld to %2$s", (long long)pid, mapStr);
+    VIR_DEBUG("Set process affinity on %lld", (long long)pid);
 
     /* Not only may the statically allocated cpu_set_t be too small,
      * but there is no way to ask the kernel what size is large enough.
@@ -594,7 +536,61 @@ virProcessGetAffinity(pid_t pid)
     return ret;
 }
 
-#else /* ! (defined(WITH_BSD_CPU_AFFINITY) || defined(WITH_SCHED_GETAFFINITY)) */
+#elif defined(WITH_BSD_CPU_AFFINITY)
+
+int virProcessSetAffinity(pid_t pid,
+                          virBitmap *map,
+                          bool quiet)
+{
+    size_t i;
+    cpuset_t mask;
+
+    CPU_ZERO(&mask);
+    for (i = 0; i < virBitmapSize(map); i++) {
+        if (virBitmapIsBitSet(map, i))
+            CPU_SET(i, &mask);
+    }
+
+    if (cpuset_setaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, pid,
+                           sizeof(mask), &mask) != 0) {
+        if (quiet) {
+            VIR_DEBUG("cannot set CPU affinity on process %d: %s",
+                      pid, g_strerror(errno));
+        } else {
+            virReportSystemError(errno,
+                                 _("cannot set CPU affinity on process %1$d"), pid);
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+virBitmap *
+virProcessGetAffinity(pid_t pid)
+{
+    size_t i;
+    cpuset_t mask;
+    virBitmap *ret = NULL;
+
+    CPU_ZERO(&mask);
+    if (cpuset_getaffinity(CPU_LEVEL_WHICH, CPU_WHICH_PID, pid,
+                           sizeof(mask), &mask) != 0) {
+        virReportSystemError(errno,
+                             _("cannot get CPU affinity of process %1$d"), pid);
+        return NULL;
+    }
+
+    ret = virBitmapNew(sizeof(mask) * 8);
+
+    for (i = 0; i < sizeof(mask) * 8; i++)
+        if (CPU_ISSET(i, &mask))
+            ignore_value(virBitmapSetBit(ret, i));
+
+    return ret;
+}
+
+#else /* WITH_DECL_CPU_SET_T */
 
 int virProcessSetAffinity(pid_t pid G_GNUC_UNUSED,
                           virBitmap *map G_GNUC_UNUSED,
@@ -614,7 +610,7 @@ virProcessGetAffinity(pid_t pid G_GNUC_UNUSED)
                          _("Process CPU affinity is not supported on this platform"));
     return NULL;
 }
-#endif /* ! (defined(WITH_BSD_CPU_AFFINITY) || defined(WITH_SCHED_GETAFFINITY)) */
+#endif /* WITH_DECL_CPU_SET_T */
 
 
 int virProcessGetPids(pid_t pid, size_t *npids, pid_t **pids)
@@ -656,9 +652,9 @@ int virProcessGetPids(pid_t pid, size_t *npids, pid_t **pids)
 }
 
 
-void virProcessGetNamespaces(pid_t pid,
-                             size_t *nfdlist,
-                             int **fdlist)
+int virProcessGetNamespaces(pid_t pid,
+                            size_t *nfdlist,
+                            int **fdlist)
 {
     size_t i = 0;
     const char *ns[] = { "user", "ipc", "uts", "net", "pid", "mnt" };
@@ -677,6 +673,8 @@ void virProcessGetNamespaces(pid_t pid,
             (*fdlist)[(*nfdlist)-1] = fd;
         }
     }
+
+    return 0;
 }
 
 
@@ -1575,7 +1573,7 @@ virProcessExitWithStatus(int status)
     exit(value);
 }
 
-#if defined(WITH_SCHED_SETSCHEDULER) && defined(WITH_SCHED_GET_PRIORITY_MIN)
+#if WITH_SCHED_SETSCHEDULER
 
 static int
 virProcessSchedTranslatePolicy(virProcessSchedPolicy policy)
@@ -1669,7 +1667,7 @@ virProcessSetScheduler(pid_t pid,
     return 0;
 }
 
-#else /* ! (defined(WITH_SCHED_SETSCHEDULER) && defined(WITH_SCHED_GET_PRIORITY_MIN)) */
+#else /* ! WITH_SCHED_SETSCHEDULER */
 
 int
 virProcessSetScheduler(pid_t pid G_GNUC_UNUSED,
@@ -1684,7 +1682,7 @@ virProcessSetScheduler(pid_t pid G_GNUC_UNUSED,
     return -1;
 }
 
-#endif /* ! (defined(WITH_SCHED_SETSCHEDULER) && defined(WITH_SCHED_GET_PRIORITY_MIN)) */
+#endif /* !WITH_SCHED_SETSCHEDULER */
 
 /*
  * Get all stat fields for a process based on pid and tid:

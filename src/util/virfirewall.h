@@ -21,19 +21,10 @@
 #pragma once
 
 #include "internal.h"
-#include "virenum.h"
-#include "virbuffer.h"
-#include "virxml.h"
-
-/* various external programs executed when applying firewalls */
-#define EBTABLES "ebtables"
-#define IPTABLES "iptables"
-#define IP6TABLES "ip6tables"
-#define NFT "nft"
 
 typedef struct _virFirewall virFirewall;
 
-typedef struct _virFirewallCmd virFirewallCmd;
+typedef struct _virFirewallRule virFirewallRule;
 
 typedef enum {
     VIR_FIREWALL_LAYER_ETHERNET,
@@ -43,25 +34,12 @@ typedef enum {
     VIR_FIREWALL_LAYER_LAST,
 } virFirewallLayer;
 
-typedef enum {
-    VIR_FIREWALL_BACKEND_NONE, /* Always fails */
-    VIR_FIREWALL_BACKEND_IPTABLES,
-    VIR_FIREWALL_BACKEND_NFTABLES,
+virFirewall *virFirewallNew(void);
 
-    VIR_FIREWALL_BACKEND_LAST,
-} virFirewallBackend;
-
-VIR_ENUM_DECL(virFirewallBackend);
-
-virFirewall *virFirewallNew(virFirewallBackend backend);
-int virFirewallNewFromRollback(virFirewall *original, virFirewall **fwRemoval);
 void virFirewallFree(virFirewall *firewall);
-virFirewallBackend virFirewallGetBackend(virFirewall *firewall);
-const char *virFirewallGetName(virFirewall *firewall);
-void virFirewallSetName(virFirewall *firewall, const char *name);
 
 /**
- * virFirewallAddCmd:
+ * virFirewallAddRule:
  * @firewall: firewall ruleset to add to
  * @layer: the firewall layer to change
  * @...: NULL terminated list of strings for the rule
@@ -70,61 +48,54 @@ void virFirewallSetName(virFirewall *firewall, const char *name);
  *
  * Returns the new rule
  */
-#define virFirewallAddCmd(firewall, layer, ...) \
-         virFirewallAddCmdFull(firewall, layer, false, NULL, NULL, __VA_ARGS__)
+#define virFirewallAddRule(firewall, layer, ...) \
+         virFirewallAddRuleFull(firewall, layer, false, NULL, NULL, __VA_ARGS__)
 
 typedef int (*virFirewallQueryCallback)(virFirewall *firewall,
                                         virFirewallLayer layer,
                                         const char *const *lines,
                                         void *opaque);
 
-virFirewallCmd *virFirewallAddCmdFull(virFirewall *firewall,
-                                      virFirewallLayer layer,
-                                      bool ignoreErrors,
-                                      virFirewallQueryCallback cb,
-                                      void *opaque,
-                                      ...)
-    G_GNUC_NULL_TERMINATED;
-
-virFirewallCmd *virFirewallAddRollbackCmd(virFirewall *firewall,
+virFirewallRule *virFirewallAddRuleFull(virFirewall *firewall,
                                           virFirewallLayer layer,
+                                          bool ignoreErrors,
+                                          virFirewallQueryCallback cb,
+                                          void *opaque,
                                           ...)
     G_GNUC_NULL_TERMINATED;
 
-void virFirewallRemoveCmd(virFirewall *firewall,
-                          virFirewallCmd *rule);
+void virFirewallRemoveRule(virFirewall *firewall,
+                           virFirewallRule *rule);
 
-void virFirewallCmdAddArg(virFirewall *firewall,
-                          virFirewallCmd *rule,
-                          const char *arg)
+void virFirewallRuleAddArg(virFirewall *firewall,
+                           virFirewallRule *rule,
+                           const char *arg)
     ATTRIBUTE_NONNULL(3);
 
-void virFirewallCmdAddArgFormat(virFirewall *firewall,
-                                virFirewallCmd *rule,
-                                const char *fmt, ...)
+void virFirewallRuleAddArgFormat(virFirewall *firewall,
+                                 virFirewallRule *rule,
+                                 const char *fmt, ...)
     ATTRIBUTE_NONNULL(3) G_GNUC_PRINTF(3, 4);
 
-void virFirewallCmdAddArgSet(virFirewall *firewall,
-                             virFirewallCmd *rule,
-                             const char *const *args)
+void virFirewallRuleAddArgSet(virFirewall *firewall,
+                              virFirewallRule *rule,
+                              const char *const *args)
     ATTRIBUTE_NONNULL(3);
 
-void virFirewallCmdAddArgList(virFirewall *firewall,
-                              virFirewallCmd *rule,
-                              ...)
+void virFirewallRuleAddArgList(virFirewall *firewall,
+                               virFirewallRule *rule,
+                               ...)
     G_GNUC_NULL_TERMINATED;
 
-size_t virFirewallCmdGetArgCount(virFirewallCmd *rule);
+size_t virFirewallRuleGetArgCount(virFirewallRule *rule);
 
-char *virFirewallCmdToString(const char *cmd,
-                             virFirewallCmd *rule);
+char *virFirewallRuleToString(const char *cmd,
+                              virFirewallRule *rule);
 
 typedef enum {
     /* Ignore all errors when applying rules, so no
      * rollback block will be required */
     VIR_FIREWALL_TRANSACTION_IGNORE_ERRORS = (1 << 0),
-    /* Set to auto-add a rollback rule for each rule that is applied */
-    VIR_FIREWALL_TRANSACTION_AUTO_ROLLBACK = (1 << 1),
 } virFirewallTransactionFlags;
 
 void virFirewallStartTransaction(virFirewall *firewall,
@@ -140,12 +111,5 @@ void virFirewallStartRollback(virFirewall *firewall,
                               unsigned int flags);
 
 int virFirewallApply(virFirewall *firewall);
-
-int virFirewallParseXML(virFirewall **firewall,
-                        xmlNodePtr node,
-                        xmlXPathContextPtr ctxt);
-
-int virFirewallFormat(virBuffer *buf,
-                      virFirewall *firewall);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virFirewall, virFirewallFree);

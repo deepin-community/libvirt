@@ -75,6 +75,3 @@ virCHDomainGetMachineName(virDomainObj *vm);
 
 virDomainObj *
 virCHDomainObjFromDomain(virDomainPtr domain);
-
-int
-virCHDomainValidateActualNetDef(virDomainNetDef *net);

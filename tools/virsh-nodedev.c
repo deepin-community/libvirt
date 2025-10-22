@@ -34,12 +34,17 @@
 /*
  * "nodedev-create" command
  */
-static const vshCmdInfo info_node_device_create = {
-     .help = N_("create a device defined "
-                "by an XML file on the node"),
-     .desc = N_("Create a device on the node.  Note that this "
+static const vshCmdInfo info_node_device_create[] = {
+    {.name = "help",
+     .data = N_("create a device defined "
+                "by an XML file on the node")
+    },
+    {.name = "desc",
+     .data = N_("Create a device on the node.  Note that this "
                 "command creates devices on the physical host "
-                "that can then be assigned to a virtual machine."),
+                "that can then be assigned to a virtual machine.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_device_create[] = {
@@ -61,7 +66,7 @@ cmdNodeDeviceCreate(vshControl *ctl, const vshCmd *cmd)
     virshControl *priv = ctl->privData;
     unsigned int flags = 0;
 
-    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0)
@@ -84,10 +89,15 @@ cmdNodeDeviceCreate(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodedev-destroy" command
  */
-static const vshCmdInfo info_node_device_destroy = {
-     .help = N_("destroy (stop) a device on the node"),
-     .desc = N_("Destroy a device on the node.  Note that this "
-                "command destroys devices on the physical host"),
+static const vshCmdInfo info_node_device_destroy[] = {
+    {.name = "help",
+     .data = N_("destroy (stop) a device on the node")
+    },
+    {.name = "desc",
+     .data = N_("Destroy a device on the node.  Note that this "
+                "command destroys devices on the physical host")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_device_destroy[] = {
@@ -96,9 +106,8 @@ static const vshCmdOptDef opts_node_device_destroy[] = {
      .help = "device"
     },
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device name or wwn pair in 'wwnn,wwpn' format"),
      .completer = virshNodeDeviceNameCompleter,
     },
@@ -142,7 +151,7 @@ cmdNodeDeviceDestroy(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshNodeDevice) dev = NULL;
     const char *device_value = NULL;
 
-    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
         return false;
 
     dev = vshFindNodeDevice(ctl, device_value);
@@ -353,9 +362,14 @@ virshNodeDeviceListCollect(vshControl *ctl,
 /*
  * "nodedev-list" command
  */
-static const vshCmdInfo info_node_list_devices = {
-    .help = N_("enumerate devices on this host"),
-    .desc = "",
+static const vshCmdInfo info_node_list_devices[] = {
+    {.name = "help",
+     .data = N_("enumerate devices on this host")
+    },
+    {.name = "desc",
+     .data = ""
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_list_devices[] = {
@@ -365,7 +379,6 @@ static const vshCmdOptDef opts_node_list_devices[] = {
     },
     {.name = "cap",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshNodeDeviceCapabilityNameCompleter,
      .help = N_("capability names, separated by comma")
     },
@@ -376,14 +389,6 @@ static const vshCmdOptDef opts_node_list_devices[] = {
     {.name = "all",
      .type = VSH_OT_BOOL,
      .help = N_("list inactive & active devices")
-    },
-    {.name = "persistent",
-     .type = VSH_OT_BOOL,
-     .help = N_("list persistent devices")
-    },
-    {.name = "transient",
-     .type = VSH_OT_BOOL,
-     .help = N_("list transient devices")
     },
     {.name = NULL}
 };
@@ -402,8 +407,6 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     int cap_type = -1;
     bool inactive = vshCommandOptBool(cmd, "inactive");
     bool all = vshCommandOptBool(cmd, "all");
-    bool persistent = vshCommandOptBool(cmd, "persistent");
-    bool transient = vshCommandOptBool(cmd, "transient");
 
     ignore_value(vshCommandOptStringQuiet(ctl, cmd, "cap", &cap_str));
 
@@ -417,13 +420,8 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
         return false;
     }
 
-    if (transient && (persistent || inactive)) {
-        vshError(ctl, "%s", _("Option --transient is incompatible with --persistent and --inactive"));
-        return false;
-    }
-
-    if (tree && (cap_str || inactive || persistent || transient)) {
-        vshError(ctl, "%s", _("Option --tree is incompatible with --cap, --inactive, --persistent and --transient"));
+    if (tree && (cap_str || inactive)) {
+        vshError(ctl, "%s", _("Option --tree is incompatible with --cap and --inactive"));
         return false;
     }
 
@@ -511,11 +509,6 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     if (!inactive)
         flags |= VIR_CONNECT_LIST_NODE_DEVICES_ACTIVE;
 
-    if (persistent)
-        flags |= VIR_CONNECT_LIST_NODE_DEVICES_PERSISTENT;
-    if (transient)
-        flags |= VIR_CONNECT_LIST_NODE_DEVICES_TRANSIENT;
-
     if (!(list = virshNodeDeviceListCollect(ctl, caps, ncaps, flags))) {
         ret = false;
         goto cleanup;
@@ -564,26 +557,27 @@ cmdNodeListDevices(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "nodedev-dumpxml" command
  */
-static const vshCmdInfo info_node_device_dumpxml = {
-    .help = N_("node device details in XML"),
-    .desc = N_("Output the node device details as an XML dump to stdout."),
+static const vshCmdInfo info_node_device_dumpxml[] = {
+    {.name = "help",
+     .data = N_("node device details in XML")
+    },
+    {.name = "desc",
+     .data = N_("Output the node device details as an XML dump to stdout.")
+    },
+    {.name = NULL}
 };
 
 
 static const vshCmdOptDef opts_node_device_dumpxml[] = {
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device name or wwn pair in 'wwnn,wwpn' format"),
      .completer = virshNodeDeviceNameCompleter,
     },
-    {.name = "inactive",
-     .type = VSH_OT_BOOL,
-     .help = N_("show inactive defined XML"),
-    },
     {.name = "xpath",
      .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -600,11 +594,10 @@ cmdNodeDeviceDumpXML(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(virshNodeDevice) device = NULL;
     g_autofree char *xml = NULL;
     const char *device_value = NULL;
-    unsigned int flags = 0;
     bool wrap = vshCommandOptBool(cmd, "wrap");
     const char *xpath = NULL;
 
-    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
          return false;
 
     if (vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
@@ -615,10 +608,7 @@ cmdNodeDeviceDumpXML(vshControl *ctl, const vshCmd *cmd)
     if (!device)
         return false;
 
-    if (vshCommandOptBool(cmd, "inactive"))
-        flags |= VIR_NODE_DEVICE_XML_INACTIVE;
-
-    if (!(xml = virNodeDeviceGetXMLDesc(device, flags)))
+    if (!(xml = virNodeDeviceGetXMLDesc(device, 0)))
         return false;
 
     return virshDumpXML(ctl, xml, "node-device", xpath, wrap);
@@ -627,23 +617,26 @@ cmdNodeDeviceDumpXML(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodedev-detach" command
  */
-static const vshCmdInfo info_node_device_detach = {
-    .help = N_("detach node device from its device driver"),
-    .desc = N_("Detach node device from its device driver before assigning to a domain."),
+static const vshCmdInfo info_node_device_detach[] = {
+    {.name = "help",
+     .data = N_("detach node device from its device driver")
+    },
+    {.name = "desc",
+     .data = N_("Detach node device from its device driver before assigning to a domain.")
+    },
+    {.name = NULL}
 };
 
 
 static const vshCmdOptDef opts_node_device_detach[] = {
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device key"),
      .completer = virshNodeDeviceNameCompleter,
     },
     {.name = "driver",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshNodeDevicePCIBackendCompleter,
      .help = N_("pci device assignment backend driver (e.g. 'vfio' or 'xen')")
     },
@@ -659,7 +652,7 @@ cmdNodeDeviceDetach(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
         return false;
 
     ignore_value(vshCommandOptStringQuiet(ctl, cmd, "driver", &driverName));
@@ -691,17 +684,21 @@ cmdNodeDeviceDetach(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodedev-reattach" command
  */
-static const vshCmdInfo info_node_device_reattach = {
-    .help = N_("reattach node device to its device driver"),
-    .desc = N_("Reattach node device to its device driver once released by the domain."),
+static const vshCmdInfo info_node_device_reattach[] = {
+    {.name = "help",
+     .data = N_("reattach node device to its device driver")
+    },
+    {.name = "desc",
+     .data = N_("Reattach node device to its device driver once released by the domain.")
+    },
+    {.name = NULL}
 };
 
 
 static const vshCmdOptDef opts_node_device_reattach[] = {
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device key"),
      .completer = virshNodeDeviceNameCompleter,
     },
@@ -716,7 +713,7 @@ cmdNodeDeviceReAttach(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
         return false;
 
     if (!(device = virNodeDeviceLookupByName(priv->conn, name))) {
@@ -737,17 +734,21 @@ cmdNodeDeviceReAttach(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodedev-reset" command
  */
-static const vshCmdInfo info_node_device_reset = {
-    .help = N_("reset node device"),
-    .desc = N_("Reset node device before or after assigning to a domain."),
+static const vshCmdInfo info_node_device_reset[] = {
+    {.name = "help",
+     .data = N_("reset node device")
+    },
+    {.name = "desc",
+     .data = N_("Reset node device before or after assigning to a domain.")
+    },
+    {.name = NULL}
 };
 
 
 static const vshCmdOptDef opts_node_device_reset[] = {
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device key"),
      .completer = virshNodeDeviceNameCompleter,
     },
@@ -762,7 +763,7 @@ cmdNodeDeviceReset(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
         return false;
 
     if (!(device = virNodeDeviceLookupByName(priv->conn, name))) {
@@ -877,21 +878,24 @@ virshNodeDeviceEventCallback virshNodeDeviceEventCallbacks[] = {
 G_STATIC_ASSERT(VIR_NODE_DEVICE_EVENT_ID_LAST == G_N_ELEMENTS(virshNodeDeviceEventCallbacks));
 
 
-static const vshCmdInfo info_node_device_event = {
-    .help = N_("Node Device Events"),
-    .desc = N_("List event types, or wait for node device events to occur"),
+static const vshCmdInfo info_node_device_event[] = {
+    {.name = "help",
+     .data = N_("Node Device Events")
+    },
+    {.name = "desc",
+     .data = N_("List event types, or wait for node device events to occur")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_device_event[] = {
     {.name = "device",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .help = N_("filter by node device name"),
      .completer = virshNodeDeviceNameCompleter,
     },
     {.name = "event",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshNodeDeviceEventNameCompleter,
      .help = N_("which event type to wait for")
     },
@@ -901,7 +905,6 @@ static const vshCmdOptDef opts_node_device_event[] = {
     },
     {.name = "timeout",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .help = N_("timeout seconds")
     },
     {.name = "list",
@@ -936,7 +939,7 @@ cmdNodeDeviceEvent(vshControl *ctl, const vshCmd *cmd)
         return true;
     }
 
-    if (vshCommandOptString(ctl, cmd, "event", &eventName) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "event", &eventName) < 0)
         return false;
     if (!eventName) {
         vshError(ctl, "%s", _("either --list or --event <type> is required"));
@@ -958,7 +961,7 @@ cmdNodeDeviceEvent(vshControl *ctl, const vshCmd *cmd)
     data.cb = &virshNodeDeviceEventCallbacks[event];
     if (vshCommandOptTimeoutToMs(ctl, cmd, &timeout) < 0)
         return false;
-    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
         return false;
 
     if (device_value) {
@@ -1003,16 +1006,20 @@ cmdNodeDeviceEvent(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodedev-undefine" command
  */
-static const vshCmdInfo info_node_device_undefine = {
-    .help = N_("Undefine an inactive node device"),
-    .desc = N_("Undefines the configuration for an inactive node device"),
+static const vshCmdInfo info_node_device_undefine[] = {
+    {.name = "help",
+     .data = N_("Undefine an inactive node device")
+    },
+    {.name = "desc",
+     .data = N_("Undefines the configuration for an inactive node device")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_device_undefine[] = {
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device name or wwn pair in 'wwnn,wwpn' format"),
      .completer = virshNodeDeviceNameCompleter,
     },
@@ -1025,7 +1032,7 @@ cmdNodeDeviceUndefine(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     g_autoptr(virshNodeDevice) dev = NULL;
     const char *device_value = NULL;
 
-    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
         return false;
 
     dev = vshFindNodeDevice(ctl, device_value);
@@ -1046,11 +1053,16 @@ cmdNodeDeviceUndefine(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "nodedev-define" command
  */
-static const vshCmdInfo info_node_device_define = {
-     .help = N_("Define or modify a device by an xml file on a node"),
-     .desc = N_("Defines or modifies a persistent device on the node that "
-                "can be assigned to a domain. The device must be started "
-                "before it can be assigned to a domain."),
+static const vshCmdInfo info_node_device_define[] = {
+    {.name = "help",
+     .data = N_("Define a device by an xml file on a node")
+    },
+    {.name = "desc",
+     .data = N_("Defines a persistent device on the node that can be "
+                "assigned to a domain. The device must be started before "
+                "it can be assigned to a domain.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_device_define[] = {
@@ -1072,7 +1084,7 @@ cmdNodeDeviceDefine(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     virshControl *priv = ctl->privData;
     unsigned int flags = 0;
 
-    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (virFileReadAll(from, VSH_MAX_XML_FILE, &buffer) < 0)
@@ -1095,16 +1107,20 @@ cmdNodeDeviceDefine(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "nodedev-start" command
  */
-static const vshCmdInfo info_node_device_start = {
-    .help = N_("Start an inactive node device"),
-    .desc = N_("Starts an inactive node device that was previously defined"),
+static const vshCmdInfo info_node_device_start[] = {
+    {.name = "help",
+     .data = N_("Start an inactive node device")
+    },
+    {.name = "desc",
+     .data = N_("Starts an inactive node device that was previously defined")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_device_start[] = {
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device name"),
      .completer = virshNodeDeviceNameCompleter,
     },
@@ -1119,7 +1135,7 @@ cmdNodeDeviceStart(vshControl *ctl, const vshCmd *cmd)
     bool ret = true;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
         return false;
 
     if (!(device = virNodeDeviceLookupByName(priv->conn, name))) {
@@ -1141,16 +1157,20 @@ cmdNodeDeviceStart(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodedev-autostart" command
  */
-static const vshCmdInfo info_node_device_autostart = {
-    .help = N_("autostart a defined node device"),
-    .desc = N_("Configure a node device to be automatically started at boot."),
+static const vshCmdInfo info_node_device_autostart[] = {
+    {.name = "help",
+     .data = N_("autostart a defined node device")
+    },
+    {.name = "desc",
+     .data = N_("Configure a node device to be automatically started at boot.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_device_autostart[] = {
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device name or wwn pair in 'wwnn,wwpn' format"),
      .completer = virshNodeDeviceNameCompleter,
     },
@@ -1168,7 +1188,7 @@ cmdNodeDeviceAutostart(vshControl *ctl, const vshCmd *cmd)
     const char *name = NULL;
     int autostart;
 
-    if (vshCommandOptString(ctl, cmd, "device", &name) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &name) < 0)
         return false;
 
     dev = vshFindNodeDevice(ctl, name);
@@ -1198,17 +1218,21 @@ cmdNodeDeviceAutostart(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodedev-info" command
  */
-static const vshCmdInfo info_node_device_info = {
-    .help = N_("node device information"),
-    .desc = N_("Returns basic information about the node device"),
+static const vshCmdInfo info_node_device_info[] = {
+    {.name = "help",
+     .data = N_("node device information")
+    },
+    {.name = "desc",
+     .data = N_("Returns basic information about the node device")
+    },
+    {.name = NULL}
 };
 
 
 static const vshCmdOptDef opts_node_device_info[] = {
     {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("device name or wwn pair in 'wwnn,wwpn' format"),
      .completer = virshNodeDeviceNameCompleter,
     },
@@ -1223,7 +1247,7 @@ cmdNodeDeviceInfo(vshControl *ctl, const vshCmd *cmd)
     int autostart;
     const char *parent = NULL;
 
-    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "device", &device_value) < 0)
          return false;
 
     device = vshFindNodeDevice(ctl, device_value);
@@ -1233,7 +1257,7 @@ cmdNodeDeviceInfo(vshControl *ctl, const vshCmd *cmd)
 
     parent = virNodeDeviceGetParent(device);
     vshPrint(ctl, "%-15s %s\n", _("Name:"), virNodeDeviceGetName(device));
-    vshPrint(ctl, "%-15s %s\n", _("Parent:"), NULLSTR_EMPTY(parent));
+    vshPrint(ctl, "%-15s %s\n", _("Parent:"), parent ? parent : "");
     vshPrint(ctl, "%-15s %s\n", _("Active:"), virNodeDeviceIsActive(device) ?
              _("yes") : _("no"));
     vshPrint(ctl, "%-15s %s\n", _("Persistent:"),
@@ -1247,184 +1271,88 @@ cmdNodeDeviceInfo(vshControl *ctl, const vshCmd *cmd)
 }
 
 
-/*
- * "nodedev-update" command
- */
-static const vshCmdInfo info_node_device_update = {
-    .help = N_("Update a active and/or inactive node device"),
-    .desc = N_("Updates the configuration of a node device"),
-};
-
-static const vshCmdOptDef opts_node_device_update[] = {
-    {.name = "device",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
-     .help = N_("device name or wwn pair in 'wwnn,wwpn' format"),
-     .completer = virshNodeDeviceNameCompleter,
-    },
-    VIRSH_COMMON_OPT_FILE(N_("file containing an XML description "
-                             "of the device")),
-    VIRSH_COMMON_OPT_CONFIG(N_("affect next node device startup")),
-    VIRSH_COMMON_OPT_LIVE(N_("affect running node device")),
-    VIRSH_COMMON_OPT_CURRENT(N_("affect current state of node device")),
-    {.name = NULL}
-};
-
-static bool
-cmdNodeDeviceUpdate(vshControl *ctl, const vshCmd *cmd)
-{
-    bool ret = false;
-    g_autoptr(virshNodeDevice) device = NULL;
-    const char *device_value = NULL;
-    const char *from = NULL;
-    g_autofree char *xml = NULL;
-    bool config = vshCommandOptBool(cmd, "config");
-    bool live = vshCommandOptBool(cmd, "live");
-    unsigned int flags = VIR_NODE_DEVICE_UPDATE_AFFECT_CURRENT;
-
-    VSH_EXCLUSIVE_OPTIONS("current", "live");
-    VSH_EXCLUSIVE_OPTIONS("current", "config");
-
-    if (vshCommandOptString(ctl, cmd, "device", &device_value) < 0)
-         return false;
-
-    device = vshFindNodeDevice(ctl, device_value);
-
-    if (!device)
-        return false;
-
-    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
-        goto cleanup;
-
-    if (virFileReadAll(from, VSH_MAX_XML_FILE, &xml) < 0)
-        goto cleanup;
-
-    if (config)
-        flags |= VIR_NODE_DEVICE_UPDATE_AFFECT_CONFIG;
-    if (live)
-        flags |= VIR_NODE_DEVICE_UPDATE_AFFECT_LIVE;
-
-    if (virNodeDeviceUpdate(device, xml, flags) < 0) {
-        vshError(ctl, _("Failed to update node device %1$s from '%2$s'"),
-                 virNodeDeviceGetName(device), from);
-        goto cleanup;
-    }
-
-    if (config) {
-        if (live) {
-            vshPrintExtra(ctl,
-                          _("Updated node device %1$s persistent config and live state"),
-                          virNodeDeviceGetName(device));
-        } else {
-            vshPrintExtra(ctl,
-                          _("Updated node device %1$s persistent config"),
-                          virNodeDeviceGetName(device));
-        }
-    } else if (live) {
-        vshPrintExtra(ctl, _("Updated node device %1$s live state"),
-                      virNodeDeviceGetName(device));
-    } else if (virNodeDeviceIsActive(device)) {
-        vshPrintExtra(ctl, _("Updated node device %1$s live state"),
-                      virNodeDeviceGetName(device));
-    } else {
-        vshPrintExtra(ctl, _("Updated node device %1$s persistent config"),
-                      virNodeDeviceGetName(device));
-    }
-
-    ret = true;
- cleanup:
-    vshReportError(ctl);
-    return ret;
-}
-
 
 const vshCmdDef nodedevCmds[] = {
     {.name = "nodedev-create",
      .handler = cmdNodeDeviceCreate,
      .opts = opts_node_device_create,
-     .info = &info_node_device_create,
+     .info = info_node_device_create,
      .flags = 0
     },
     {.name = "nodedev-destroy",
      .handler = cmdNodeDeviceDestroy,
      .opts = opts_node_device_destroy,
-     .info = &info_node_device_destroy,
+     .info = info_node_device_destroy,
      .flags = 0
     },
     {.name = "nodedev-detach",
      .handler = cmdNodeDeviceDetach,
      .opts = opts_node_device_detach,
-     .info = &info_node_device_detach,
+     .info = info_node_device_detach,
      .flags = 0
     },
     {.name = "nodedev-dettach",
+     .flags = VSH_CMD_FLAG_ALIAS,
      .alias = "nodedev-detach"
     },
     {.name = "nodedev-dumpxml",
      .handler = cmdNodeDeviceDumpXML,
      .opts = opts_node_device_dumpxml,
-     .info = &info_node_device_dumpxml,
+     .info = info_node_device_dumpxml,
      .flags = 0
     },
     {.name = "nodedev-list",
      .handler = cmdNodeListDevices,
      .opts = opts_node_list_devices,
-     .info = &info_node_list_devices,
+     .info = info_node_list_devices,
      .flags = 0
     },
     {.name = "nodedev-reattach",
      .handler = cmdNodeDeviceReAttach,
      .opts = opts_node_device_reattach,
-     .info = &info_node_device_reattach,
+     .info = info_node_device_reattach,
      .flags = 0
     },
     {.name = "nodedev-reset",
      .handler = cmdNodeDeviceReset,
      .opts = opts_node_device_reset,
-     .info = &info_node_device_reset,
+     .info = info_node_device_reset,
      .flags = 0
     },
     {.name = "nodedev-event",
      .handler = cmdNodeDeviceEvent,
      .opts = opts_node_device_event,
-     .info = &info_node_device_event,
+     .info = info_node_device_event,
      .flags = 0
     },
     {.name = "nodedev-define",
      .handler = cmdNodeDeviceDefine,
      .opts = opts_node_device_define,
-     .info = &info_node_device_define,
+     .info = info_node_device_define,
      .flags = 0
     },
     {.name = "nodedev-undefine",
      .handler = cmdNodeDeviceUndefine,
      .opts = opts_node_device_undefine,
-     .info = &info_node_device_undefine,
+     .info = info_node_device_undefine,
      .flags = 0
     },
     {.name = "nodedev-start",
      .handler = cmdNodeDeviceStart,
      .opts = opts_node_device_start,
-     .info = &info_node_device_start,
+     .info = info_node_device_start,
      .flags = 0
     },
     {.name = "nodedev-autostart",
      .handler = cmdNodeDeviceAutostart,
      .opts = opts_node_device_autostart,
-     .info = &info_node_device_autostart,
+     .info = info_node_device_autostart,
      .flags = 0
     },
     {.name = "nodedev-info",
      .handler = cmdNodeDeviceInfo,
      .opts = opts_node_device_info,
-     .info = &info_node_device_info,
-     .flags = 0
-    },
-    {.name = "nodedev-update",
-     .handler = cmdNodeDeviceUpdate,
-     .opts = opts_node_device_update,
-     .info = &info_node_device_update,
+     .info = info_node_device_info,
      .flags = 0
     },
     {.name = NULL}

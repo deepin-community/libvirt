@@ -645,7 +645,7 @@ libxlAddDom0(libxlDriverPrivate *driver)
     return ret;
 }
 
-static virDrvStateInitResult
+static int
 libxlStateInitialize(bool privileged,
                      const char *root,
                      bool monolithic G_GNUC_UNUSED,
@@ -2709,10 +2709,10 @@ libxlConnectDomainXMLToNative(virConnectPtr conn, const char * nativeFormat,
         goto cleanup;
 
     if (STREQ(nativeFormat, XEN_CONFIG_FORMAT_XL)) {
-        if (!(conf = xenFormatXL(def)))
+        if (!(conf = xenFormatXL(def, conn)))
             goto cleanup;
     } else if (STREQ(nativeFormat, XEN_CONFIG_FORMAT_XM)) {
-        if (!(conf = xenFormatXM(def)))
+        if (!(conf = xenFormatXM(conn, def)))
             goto cleanup;
     } else {
 
@@ -3087,22 +3087,6 @@ libxlDomainAttachHostPCIDevice(libxlDriverPrivate *driver,
 
     VIR_REALLOC_N(vm->def->hostdevs, vm->def->nhostdevs + 1);
 
-    /* The only supported driverType for Xen is
-     * VIR_DOMAIN_HOSTDEV_PCI_DRIVER_TYPE_XEN, which normally isn't
-     * set in the config (because it doesn't need to be), but it does
-     * need to be set for the impending call to
-     * virHostdevPreparePCIDevices()
-     */
-    if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT)
-        pcisrc->driver.name = VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_XEN;
-
-    if (pcisrc->driver.name != VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_XEN) {
-        virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("XEN does not support device assignment mode '%1$s'"),
-                       virDeviceHostdevPCIDriverNameTypeToString(pcisrc->driver.name));
-        goto cleanup;
-    }
-
     if (virHostdevPreparePCIDevices(hostdev_mgr, LIBXL_DRIVER_INTERNAL_NAME,
                                     vm->def->name, vm->def->uuid,
                                     &hostdev, 1, 0) < 0)
@@ -3411,6 +3395,15 @@ libxlDomainAttachNetDevice(libxlDriverPrivate *driver,
 
     if (actualType == VIR_DOMAIN_NET_TYPE_HOSTDEV) {
         virDomainHostdevDef *hostdev = virDomainNetGetActualHostdev(net);
+        virDomainHostdevSubsysPCI *pcisrc = &hostdev->source.subsys.u.pci;
+
+        /* For those just allocated from a network pool whose backend is
+         * still VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT, we need to set
+         * backend correctly.
+         */
+        if (hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
+            hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI)
+            pcisrc->backend = VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN;
 
         /* This is really a "smart hostdev", so it should be attached
          * as a hostdev (the hostdev code will reach over into the
@@ -3440,7 +3433,7 @@ libxlDomainAttachNetDevice(libxlDriverPrivate *driver,
     } else {
         virDomainNetRemoveHostdev(vm->def, net);
         if (net->type == VIR_DOMAIN_NET_TYPE_NETWORK && conn)
-            virDomainNetReleaseActualDevice(conn, net);
+            virDomainNetReleaseActualDevice(conn, vm->def, net);
     }
     virObjectUnref(cfg);
     virErrorRestore(&save_err);
@@ -3505,7 +3498,6 @@ libxlDomainAttachDeviceLive(libxlDriverPrivate *driver,
         case VIR_DOMAIN_DEVICE_VSOCK:
         case VIR_DOMAIN_DEVICE_AUDIO:
         case VIR_DOMAIN_DEVICE_CRYPTO:
-        case VIR_DOMAIN_DEVICE_PSTORE:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("device type '%1$s' cannot be attached"),
                            virDomainDeviceTypeToString(dev->type));
@@ -3614,7 +3606,6 @@ libxlDomainAttachDeviceConfig(virDomainDef *vmdef, virDomainDeviceDef *dev)
         case VIR_DOMAIN_DEVICE_VSOCK:
         case VIR_DOMAIN_DEVICE_AUDIO:
         case VIR_DOMAIN_DEVICE_CRYPTO:
-        case VIR_DOMAIN_DEVICE_PSTORE:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("persistent attach of device is not supported"));
             return -1;
@@ -3913,7 +3904,7 @@ libxlDomainDetachNetDevice(libxlDriverPrivate *driver,
         if (detach->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             g_autoptr(virConnect) conn = virGetConnectNetwork();
             if (conn)
-                virDomainNetReleaseActualDevice(conn, detach);
+                virDomainNetReleaseActualDevice(conn, vm->def, detach);
             else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(detach->ifname));
         }
@@ -3983,7 +3974,6 @@ libxlDomainDetachDeviceLive(libxlDriverPrivate *driver,
         case VIR_DOMAIN_DEVICE_VSOCK:
         case VIR_DOMAIN_DEVICE_AUDIO:
         case VIR_DOMAIN_DEVICE_CRYPTO:
-        case VIR_DOMAIN_DEVICE_PSTORE:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("device type '%1$s' cannot be detached"),
                            virDomainDeviceTypeToString(dev->type));
@@ -4074,7 +4064,6 @@ libxlDomainDetachDeviceConfig(virDomainDef *vmdef, virDomainDeviceDef *dev)
         case VIR_DOMAIN_DEVICE_VSOCK:
         case VIR_DOMAIN_DEVICE_AUDIO:
         case VIR_DOMAIN_DEVICE_CRYPTO:
-        case VIR_DOMAIN_DEVICE_PSTORE:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("persistent detach of device is not supported"));
             return -1;
@@ -4137,7 +4126,6 @@ libxlDomainUpdateDeviceLive(virDomainObj *vm, virDomainDeviceDef *dev)
         case VIR_DOMAIN_DEVICE_VSOCK:
         case VIR_DOMAIN_DEVICE_AUDIO:
         case VIR_DOMAIN_DEVICE_CRYPTO:
-        case VIR_DOMAIN_DEVICE_PSTORE:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                            _("device type '%1$s' cannot be updated"),
                            virDomainDeviceTypeToString(dev->type));
@@ -4200,7 +4188,6 @@ libxlDomainUpdateDeviceConfig(virDomainDef *vmdef, virDomainDeviceDef *dev)
         case VIR_DOMAIN_DEVICE_VSOCK:
         case VIR_DOMAIN_DEVICE_AUDIO:
         case VIR_DOMAIN_DEVICE_CRYPTO:
-        case VIR_DOMAIN_DEVICE_PSTORE:
             virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
                            _("persistent update of device is not supported"));
             return -1;

@@ -236,7 +236,6 @@ void qemuTestDriverFree(virQEMUDriver *driver)
     virObjectUnref(driver->caps);
     virObjectUnref(driver->config);
     virObjectUnref(driver->securityManager);
-    virObjectUnref(driver->domainEventState);
     g_clear_object(&driver->nbdkitCapsCache);
 
     virCPUDefFree(cpuDefault);
@@ -368,9 +367,6 @@ int qemuTestDriverInit(virQEMUDriver *driver)
                                       VIR_SECURITY_MANAGER_PRIVILEGED)))
         goto error;
     if (!(driver->securityManager = virSecurityManagerNewStack(mgr)))
-        goto error;
-
-    if (!(driver->domainEventState = virObjectEventStateNew()))
         goto error;
 
     qemuTestSetHostCPU(driver, driver->hostarch, NULL);
@@ -627,14 +623,17 @@ testQemuCapsIterate(const char *suffix,
 
 
 void
-testQemuInfoSetArgs(testQemuInfo *info,
-                    va_list argptr)
+testQemuInfoSetArgs(struct testQemuInfo *info,
+                    struct testQemuConf *conf, ...)
 {
+    va_list argptr;
     testQemuInfoArgName argname;
     int flag;
 
+    info->conf = conf;
     info->args.newargs = true;
 
+    va_start(argptr, conf);
     while ((argname = va_arg(argptr, testQemuInfoArgName)) != ARG_END) {
         switch (argname) {
         case ARG_QEMU_CAPS:
@@ -749,6 +748,8 @@ testQemuInfoSetArgs(testQemuInfo *info,
         if (info->args.invalidarg)
             break;
     }
+
+    va_end(argptr);
 }
 
 
@@ -899,7 +900,7 @@ testQemuInsertRealCaps(virFileCache *cache,
 
 
 int
-testQemuInfoInitArgs(testQemuInfo *info)
+testQemuInfoInitArgs(struct testQemuInfo *info)
 {
     ssize_t cap;
 
@@ -958,22 +959,17 @@ testQemuInfoInitArgs(testQemuInfo *info)
 
 
 void
-testQemuInfoFree(testQemuInfo *info)
+testQemuInfoClear(struct testQemuInfo *info)
 {
     VIR_FREE(info->infile);
     VIR_FREE(info->outfile);
-    VIR_FREE(info->out_xml_active);
-    VIR_FREE(info->out_xml_inactive);
     VIR_FREE(info->errfile);
-    virDomainDefFree(info->def);
     virObjectUnref(info->qemuCaps);
     g_clear_pointer(&info->args.fakeCapsAdd, virBitmapFree);
     g_clear_pointer(&info->args.fakeCapsDel, virBitmapFree);
     g_clear_pointer(&info->args.fds, g_hash_table_unref);
-    g_clear_pointer(&info->args.vdpafds, g_hash_table_unref);
     g_clear_object(&info->nbdkitCaps);
     g_clear_pointer(&info->args.fakeNbdkitCaps, virBitmapFree);
-    g_free(info);
 }
 
 

@@ -25,7 +25,6 @@
 #if defined(__linux__) || defined(__FreeBSD__) || defined(__APPLE__)
 # define VIR_MOCK_LOOKUP_MAIN
 # include "virmock.h"
-# include "virpci.h"
 # include <unistd.h>
 # include <fcntl.h>
 # include <sys/stat.h>
@@ -36,9 +35,9 @@
 
 static int (*real_access)(const char *path, int mode);
 static int (*real_open)(const char *path, int flags, ...);
-# if WITH___OPEN_2
+# ifdef __GLIBC__
 static int (*real___open_2)(const char *path, int flags);
-# endif /* ! WITH___OPEN_2 */
+# endif /* ! __GLIBC__ */
 static int (*real_close)(int fd);
 static DIR * (*real_opendir)(const char *name);
 static char *(*real_virFileCanonicalizePath)(const char *path);
@@ -926,14 +925,6 @@ pci_driver_handle_unbind(const char *path)
 }
 
 
-
-int
-virPCIDeviceFindBestVFIOVariant(virPCIDevice *dev G_GNUC_UNUSED,
-                                char **moduleName G_GNUC_UNUSED)
-{
-    return 0;
-}
-
 /*
  * Functions to load the symbols and init the environment
  */
@@ -945,9 +936,9 @@ init_syms(void)
 
     VIR_MOCK_REAL_INIT(access);
     VIR_MOCK_REAL_INIT(open);
-# if WITH___OPEN_2
+# ifdef __GLIBC__
     VIR_MOCK_REAL_INIT(__open_2);
-# endif /* WITH___OPEN_2 */
+# endif /* ! __GLIBC__ */
     VIR_MOCK_REAL_INIT(close);
 # if defined(__APPLE__) && defined(__x86_64__)
     VIR_MOCK_REAL_INIT_ALIASED(opendir, "opendir$INODE64");
@@ -966,9 +957,9 @@ init_env(void)
         't', 'e', 's', 't', 'n', 'a', 'm', 'e',
         PCI_VPD_LARGE_RESOURCE_FLAG | PCI_VPD_READ_ONLY_LARGE_RESOURCE_FLAG, 0x16, 0x00,
         'P', 'N', 0x02, '4', '2',
-        'E', 'C', 0x04, '4', '<', '>', '2',
+        'E', 'C', 0x04, '4', '2', '4', '2',
         'V', 'A', 0x02, 'E', 'X',
-        'R', 'V', 0x02, 0x1D, 0x00,
+        'R', 'V', 0x02, 0x31, 0x00,
         PCI_VPD_RESOURCE_END_VAL
     };
     struct pciVPD exampleVPD = {
@@ -1110,7 +1101,12 @@ open(const char *path, int flags, ...)
 }
 
 
-# if WITH___OPEN_2
+# ifdef __GLIBC__
+/* in some cases this function may not be present in headers, so we need
+ * a declaration to silence the compiler */
+int
+__open_2(const char *path, int flags);
+
 int
 __open_2(const char *path, int flags)
 {
@@ -1134,7 +1130,7 @@ __open_2(const char *path, int flags)
 
     return ret;
 }
-# endif /* WITH___OPEN_2 */
+# endif /* ! __GLIBC__ */
 
 DIR *
 opendir(const char *path)

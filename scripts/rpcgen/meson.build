@@ -1,6 +1,6 @@
 subdir('rpcgen')
 
-if tests_enabled[0] and xdr_dep.found()
+if tests_enabled[0]
   subdir('tests')
 
   if pytest_prog.found() and host_machine.system() != 'darwin'

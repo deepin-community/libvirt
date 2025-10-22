@@ -904,28 +904,33 @@ virXMLNodeGetSubelement(xmlNodePtr node,
  * virXMLNodeGetSubelementList:
  * @node: node to get subelement of
  * @name: name of subelement to fetch (NULL to fetch all sub-elements)
+ * @list: If non-NULL, filled with a list of pointers to the nodes. Caller is
+ *        responsible for freeing the list but not the members.
  *
- * Find and return a sub-elements node of @node named @name in a GPtrArray
- * populated with the xmlNodePtr objects. Caller is responsible for freeing the
- * array but not the contained xmlNode objects.
+ * Find and return a sub-elements node of @node named @name in a list.
+ * Returns the number of subelements with @name
  */
-GPtrArray *
+size_t
 virXMLNodeGetSubelementList(xmlNodePtr node,
-                            const char *name)
+                            const char *name,
+                            xmlNodePtr **list)
 {
-    GPtrArray *ret = g_ptr_array_new();
     xmlNodePtr n;
+    size_t nelems = 0;
 
     for (n = node->children; n; n = n->next) {
         if (n->type == XML_ELEMENT_NODE) {
             if (name && !virXMLNodeNameEqual(n, name))
                 continue;
 
-            g_ptr_array_add(ret, n);
+            if (list)
+                VIR_APPEND_ELEMENT_COPY(*list, nelems, n);
+            else
+                nelems++;
         }
     }
 
-    return ret;
+    return nelems;
 }
 
 

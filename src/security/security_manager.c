@@ -412,9 +412,9 @@ virSecurityManagerGetPrivileged(virSecurityManager *mgr)
  */
 int
 virSecurityManagerRestoreImageLabel(virSecurityManager *mgr,
-                                    virDomainDef *vm,
-                                    virStorageSource *src,
-                                    virSecurityDomainImageLabelFlags flags)
+                                   virDomainDef *vm,
+                                   virStorageSource *src,
+                                   virSecurityDomainImageLabelFlags flags)
 {
     VIR_LOCK_GUARD lock = virObjectLockGuard(mgr);
 
@@ -989,28 +989,6 @@ virSecurityManagerGetNested(virSecurityManager *mgr)
     return list;
 }
 
-/*
- * Usually called before virSecurityManagerGetNested().
- * We need to ensure locking the stack security manager before
- * locking the nested security manager to maintain the correct
- * synchronization state.
- * It must be followed by a call virSecurityManagerStackUnlock().
- */
-void
-virSecurityManagerStackLock(virSecurityManager *mgr)
-{
-    if (STREQ("stack", mgr->drv->name))
-        virObjectLock(mgr);
-}
-
-
-void
-virSecurityManagerStackUnlock(virSecurityManager *mgr)
-{
-    if (STREQ("stack", mgr->drv->name))
-        virObjectUnlock(mgr);
-}
-
 
 /**
  * virSecurityManagerDomainSetPathLabel:
@@ -1104,8 +1082,8 @@ virSecurityManagerDomainRestorePathLabel(virSecurityManager *mgr,
  */
 int
 virSecurityManagerSetMemoryLabel(virSecurityManager *mgr,
-                                 virDomainDef *vm,
-                                 virDomainMemoryDef *mem)
+                                     virDomainDef *vm,
+                                     virDomainMemoryDef *mem)
 {
     VIR_LOCK_GUARD lock = virObjectLockGuard(mgr);
 
@@ -1130,8 +1108,8 @@ virSecurityManagerSetMemoryLabel(virSecurityManager *mgr,
  */
 int
 virSecurityManagerRestoreMemoryLabel(virSecurityManager *mgr,
-                                     virDomainDef *vm,
-                                     virDomainMemoryDef *mem)
+                                        virDomainDef *vm,
+                                        virDomainMemoryDef *mem)
 {
     VIR_LOCK_GUARD lock = virObjectLockGuard(mgr);
 

@@ -113,15 +113,6 @@ typedef enum {
 } virNodeDevCCWCapFlags;
 
 typedef enum {
-    VIR_NODE_DEV_CCW_STATE_OFFLINE = 0,
-    VIR_NODE_DEV_CCW_STATE_ONLINE,
-
-    VIR_NODE_DEV_CCW_STATE_LAST
-} virNodeDevCCWStateType;
-
-VIR_ENUM_DECL(virNodeDevCCWState);
-
-typedef enum {
     VIR_NODE_DEV_CAP_FLAG_AP_MATRIX_MDEV            = (1 << 0),
 } virNodeDevAPMatrixCapFlags;
 
@@ -160,10 +151,11 @@ struct _virNodeDevCapSystem {
 
 typedef struct _virNodeDevCapMdev virNodeDevCapMdev;
 struct _virNodeDevCapMdev {
+    char *type;
     unsigned int iommuGroupNumber;
     char *uuid;
-    virMediatedDeviceConfig defined_config;
-    virMediatedDeviceConfig active_config;
+    virMediatedDeviceAttr **attributes;
+    size_t nattributes;
     char *parent_addr;
     bool autostart;
 };
@@ -288,7 +280,6 @@ struct _virNodeDevCapCCW {
     virMediatedDeviceType **mdev_types;
     size_t nmdev_types;
     virCCWDeviceAddress *channel_dev_addr;
-    virNodeDevCCWStateType state;
 };
 
 typedef struct _virNodeDevCapVDPA virNodeDevCapVDPA;
@@ -371,7 +362,7 @@ struct _virNodeDeviceDef {
 };
 
 char *
-virNodeDeviceDefFormat(const virNodeDeviceDef *def, unsigned int flags);
+virNodeDeviceDefFormat(const virNodeDeviceDef *def);
 
 
 typedef int (*virNodeDeviceDefPostParseCallback)(virNodeDeviceDef *dev,
@@ -442,14 +433,9 @@ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNodeDevCapsDef, virNodeDevCapsDefFree);
     VIR_CONNECT_LIST_NODE_DEVICES_ACTIVE | \
     VIR_CONNECT_LIST_NODE_DEVICES_INACTIVE
 
-#define VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_PERSISTENT \
-    VIR_CONNECT_LIST_NODE_DEVICES_PERSISTENT | \
-    VIR_CONNECT_LIST_NODE_DEVICES_TRANSIENT
-
 #define VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_ALL \
     VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_CAP | \
-    VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_ACTIVE | \
-    VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_PERSISTENT
+    VIR_CONNECT_LIST_NODE_DEVICES_FILTERS_ACTIVE
 
 int
 virNodeDeviceGetSCSIHostCaps(virNodeDevCapSCSIHost *scsi_host);
@@ -480,6 +466,3 @@ virNodeDeviceUpdateCaps(virNodeDeviceDef *def);
 int
 virNodeDeviceCapsListExport(virNodeDeviceDef *def,
                             virNodeDevCapType **list);
-
-void
-virNodeDeviceSyncMdevActiveConfig(virNodeDeviceDef *def);

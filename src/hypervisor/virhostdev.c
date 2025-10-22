@@ -242,16 +242,15 @@ virHostdevGetPCIHostDevice(const virDomainHostdevDef *hostdev,
         return -1;
 
     virPCIDeviceSetManaged(actual, hostdev->managed);
-    virPCIDeviceSetStubDriverName(actual, pcisrc->driver.model);
 
-    if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
+    if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
         virPCIDeviceSetStubDriverType(actual, VIR_PCI_STUB_DRIVER_VFIO);
-    } else if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_XEN) {
+    } else if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN) {
         virPCIDeviceSetStubDriverType(actual, VIR_PCI_STUB_DRIVER_XEN);
     } else {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                       _("pci backend driver type '%1$s' is not supported"),
-                       virDeviceHostdevPCIDriverNameTypeToString(pcisrc->driver.name));
+                       _("pci backend driver '%1$s' is not supported"),
+                       virDomainHostdevSubsysPCIBackendTypeToString(pcisrc->backend));
         return -1;
     }
 
@@ -342,6 +341,14 @@ virHostdevNetDevice(virDomainHostdevDef *hostdev,
     }
 
     return 0;
+}
+
+
+bool
+virHostdevIsPCIDevice(const virDomainHostdevDef *hostdev)
+{
+    return hostdev->mode == VIR_DOMAIN_HOSTDEV_MODE_SUBSYS &&
+        hostdev->source.subsys.type == VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI;
 }
 
 

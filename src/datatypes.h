@@ -604,9 +604,6 @@ struct _virDomain {
     unsigned char uuid[VIR_UUID_BUFLEN]; /* the domain unique identifier */
 };
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomain, virObjectUnref);
-
-
 /**
 * _virNetwork:
 *
@@ -649,9 +646,6 @@ struct _virInterface {
     char *name;                          /* the network external name */
     char *mac;                           /* the interface MAC address */
 };
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(virInterface, virObjectUnref);
-
 
 /**
 * _virStoragePool:
@@ -712,7 +706,6 @@ struct _virNodeDevice {
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNodeDevice, virObjectUnref);
 
-
 /**
  * _virSecret:
  *
@@ -758,8 +751,6 @@ struct _virDomainCheckpoint {
     virDomainPtr domain;
 };
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainCheckpoint, virObjectUnref);
-
 
 /**
  * _virDomainSnapshot
@@ -771,9 +762,6 @@ struct _virDomainSnapshot {
     char *name;
     virDomainPtr domain;
 };
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(virDomainSnapshot, virObjectUnref);
-
 
 /**
 * _virNWFilter:
@@ -787,8 +775,6 @@ struct _virNWFilter {
     unsigned char uuid[VIR_UUID_BUFLEN]; /* the network filter unique identifier */
 };
 
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNWFilter, virObjectUnref);
-
 
 /**
 * _virNWFilterBinding:
@@ -801,8 +787,6 @@ struct _virNWFilterBinding {
     char *portdev;                       /* the network filter port device name */
     char *filtername;                    /* the network filter name */
 };
-
-G_DEFINE_AUTOPTR_CLEANUP_FUNC(virNWFilterBinding, virObjectUnref);
 
 
 /*

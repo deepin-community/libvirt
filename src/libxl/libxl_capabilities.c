@@ -55,7 +55,7 @@ struct guest_arch {
 
 #define XEN_CAP_REGEX "(xen|hvm)-[[:digit:]]+\\.[[:digit:]]+-(aarch64|armv7l|x86_32|x86_64|ia64|powerpc64)(p|be)?"
 
-static void
+static int
 libxlCapsAddCPUID(virCPUData *data, virCPUx86CPUID *cpuid, ssize_t ncaps)
 {
     virCPUx86DataItem item = { 0 };
@@ -65,8 +65,14 @@ libxlCapsAddCPUID(virCPUData *data, virCPUx86CPUID *cpuid, ssize_t ncaps)
     for (i = 0; i < ncaps; i++) {
         item.data.cpuid = cpuid[i];
 
-        virCPUx86DataAdd(data, &item);
+        if (virCPUx86DataAdd(data, &item) < 0) {
+            VIR_DEBUG("Failed to add CPUID(%x,%x)",
+                      cpuid[i].eax_in, cpuid[i].ecx_in);
+            return -1;
+        }
     }
+
+    return 0;
 }
 
 /*
@@ -113,7 +119,8 @@ libxlCapsNodeData(virCPUDef *cpu, libxl_hwcap hwcap)
         return NULL;
 
     ncaps = G_N_ELEMENTS(cpuid);
-    libxlCapsAddCPUID(cpudata, cpuid, ncaps);
+    if (libxlCapsAddCPUID(cpudata, cpuid, ncaps) < 0)
+        return NULL;
 
     return g_steal_pointer(&cpudata);
 }
@@ -152,7 +159,6 @@ libxlCapsInitCPU(virCaps *caps, libxl_physinfo *phy_info)
     cpu->cores = phy_info->cores_per_socket;
     cpu->threads = phy_info->threads_per_core;
     cpu->dies = 1;
-    cpu->clusters = 1;
     cpu->sockets = phy_info->nr_cpus / (cpu->cores * cpu->threads);
 
     if (!(data = libxlCapsNodeData(cpu, phy_info->hw_cap)) ||
@@ -624,7 +630,8 @@ libxlMakeDomainDeviceHostdevCaps(virDomainCapsDeviceHostdev *dev)
     virDomainCapsEnumClear(&dev->capsType);
 
     virDomainCapsEnumClear(&dev->pciBackend);
-    VIR_DOMAIN_CAPS_ENUM_SET(dev->pciBackend, VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_XEN);
+    VIR_DOMAIN_CAPS_ENUM_SET(dev->pciBackend,
+                             VIR_DOMAIN_HOSTDEV_PCI_BACKEND_XEN);
     return 0;
 }
 

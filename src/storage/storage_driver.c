@@ -239,7 +239,7 @@ storageDriverAutostart(void)
  *
  * Initialization function for the Storage Driver
  */
-static virDrvStateInitResult
+static int
 storageStateInitialize(bool privileged,
                        const char *root,
                        bool monolithic G_GNUC_UNUSED,

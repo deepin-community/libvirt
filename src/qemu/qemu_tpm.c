@@ -611,11 +611,7 @@ qemuTPMEmulatorBuildCommand(virDomainTPMDef *tpm,
                            tpm->data.emulator.storagepath);
 
     virCommandAddArg(cmd, "--log");
-    if (tpm->data.emulator.debug != 0)
-        virCommandAddArgFormat(cmd, "file=%s,level=%u", tpm->data.emulator.logfile,
-                               tpm->data.emulator.debug);
-    else
-        virCommandAddArgFormat(cmd, "file=%s", tpm->data.emulator.logfile);
+    virCommandAddArgFormat(cmd, "file=%s", tpm->data.emulator.logfile);
 
     virCommandAddArg(cmd, "--terminate");
 

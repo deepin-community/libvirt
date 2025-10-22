@@ -591,8 +591,7 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
                                         virArch arch,
                                         virDomainVirtType domaintype,
                                         const char *emulator,
-                                        const char *machinetype,
-                                        bool reportError)
+                                        const char *machinetype)
 {
     virCapsGuest *foundguest = NULL;
     virCapsGuestDomain *founddomain = NULL;
@@ -681,10 +680,6 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
     /* XXX check default_emulator, see how it uses this */
     if (!foundguest) {
         g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
-
-        if (!reportError)
-            return NULL;
-
         if (ostype)
             virBufferAsprintf(&buf, "ostype=%s ",
                               virDomainOSTypeToString(ostype));
@@ -693,8 +688,10 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
         if (domaintype > VIR_DOMAIN_VIRT_NONE)
             virBufferAsprintf(&buf, "domaintype=%s ",
                               virDomainVirtTypeToString(domaintype));
-        virBufferEscapeString(&buf, "emulator=%s ", emulator);
-        virBufferEscapeString(&buf, "machine=%s ", machinetype);
+        if (emulator)
+            virBufferEscapeString(&buf, "emulator=%s ", emulator);
+        if (machinetype)
+            virBufferEscapeString(&buf, "machine=%s ", machinetype);
         if (virBufferCurrentContent(&buf) &&
             !virBufferCurrentContent(&buf)[0])
             virBufferAsprintf(&buf, "%s", _("any configuration"));
@@ -702,7 +699,7 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
         virReportError(VIR_ERR_INVALID_ARG,
                        _("could not find capabilities for %1$s"),
                        virBufferCurrentContent(&buf));
-        return NULL;
+        return ret;
     }
 
     ret = g_new0(virCapsDomainData, 1);
@@ -729,7 +726,6 @@ virCapabilitiesDomainDataLookupInternal(virCaps *caps,
  * @domaintype: domain type to search for, of enum virDomainVirtType
  * @emulator: Emulator path to search for
  * @machinetype: Machine type to search for
- * @reportError: whether to report error if no match is found
  *
  * Search capabilities for the passed values, and if found return
  * virCapabilitiesDomainDataLookup filled in with the default values
@@ -740,8 +736,7 @@ virCapabilitiesDomainDataLookup(virCaps *caps,
                                 virArch arch,
                                 int domaintype,
                                 const char *emulator,
-                                const char *machinetype,
-                                bool reportError)
+                                const char *machinetype)
 {
     virCapsDomainData *ret;
 
@@ -750,16 +745,14 @@ virCapabilitiesDomainDataLookup(virCaps *caps,
         ret = virCapabilitiesDomainDataLookupInternal(caps, ostype,
                                                       caps->host.arch,
                                                       domaintype,
-                                                      emulator, machinetype,
-                                                      reportError);
+                                                      emulator, machinetype);
         if (ret)
             return ret;
     }
 
     return virCapabilitiesDomainDataLookupInternal(caps, ostype,
                                                    arch, domaintype,
-                                                   emulator, machinetype,
-                                                   reportError);
+                                                   emulator, machinetype);
 }
 
 
@@ -767,16 +760,14 @@ bool
 virCapabilitiesDomainSupported(virCaps *caps,
                                int ostype,
                                virArch arch,
-                               int virttype,
-                               bool reportError)
+                               int virttype)
 {
     g_autofree virCapsDomainData *capsdata = NULL;
 
     capsdata = virCapabilitiesDomainDataLookup(caps, ostype,
                                                arch,
                                                virttype,
-                                               NULL, NULL,
-                                               reportError);
+                                               NULL, NULL);
 
     return capsdata != NULL;
 }
@@ -820,10 +811,9 @@ virCapsHostNUMACellCPUFormat(virBuffer *buf,
                 return -1;
 
             virBufferAsprintf(&childBuf,
-                              " socket_id='%d' die_id='%d' cluster_id='%d' core_id='%d' siblings='%s'",
+                              " socket_id='%d' die_id='%d' core_id='%d' siblings='%s'",
                               cpus[j].socket_id,
                               cpus[j].die_id,
-                              cpus[j].cluster_id,
                               cpus[j].core_id,
                               siblings);
         }
@@ -1463,7 +1453,6 @@ virCapabilitiesFillCPUInfo(int cpu_id G_GNUC_UNUSED,
 
     if (virHostCPUGetSocket(cpu_id, &cpu->socket_id) < 0 ||
         virHostCPUGetDie(cpu_id, &cpu->die_id) < 0 ||
-        virHostCPUGetCluster(cpu_id, &cpu->cluster_id) < 0 ||
         virHostCPUGetCore(cpu_id, &cpu->core_id) < 0)
         return -1;
 
@@ -1723,7 +1712,6 @@ virCapabilitiesHostNUMAInitFake(virCapsHostNUMA *caps)
                     if (tmp) {
                         cpus[cid].id = id;
                         cpus[cid].die_id = 0;
-                        cpus[cid].cluster_id = 0;
                         cpus[cid].socket_id = s;
                         cpus[cid].core_id = c;
                         cpus[cid].siblings = virBitmapNewCopy(siblings);

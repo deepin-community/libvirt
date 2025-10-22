@@ -208,7 +208,7 @@ nwfilterStateCleanup(void)
  *
  * Initialization function for the QEMU daemon
  */
-static virDrvStateInitResult
+static int
 nwfilterStateInitialize(bool privileged,
                         const char *root,
                         bool monolithic G_GNUC_UNUSED,

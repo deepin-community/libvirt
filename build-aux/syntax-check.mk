@@ -1,12 +1,13 @@
 #
-# Rules for running syntax-check, derived from gnulib's top/maint.mk
+# Rules for running syntax-check, derived from gnulib's
+# maint.mk
 #
 # Specifically, all shared code should match gnulib commit
 #
-#   d5191e456737661d4a0df5287f6c2064ab74dbbe (2024-02-15)
+#   dd2503c8e73621e919e8e214a29c495ac89d8a92 (2022-05-21)
 #
 # Copyright (C) 2008-2019 Red Hat, Inc.
-# Copyright (C) 2001-2024 Free Software Foundation, Inc.
+# Copyright (C) 2001-2022 Free Software Foundation, Inc.
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1082,8 +1083,7 @@ sc_prohibit_stdio--_without_use:
 	@h='stdio--.h' re='\<((f(re)?|p)open|tmpfile) *\(' \
 	  $(_sc_header_without_use)
 
-_stddef_syms_re = \
-  NULL|max_align_t|nullptr_t|offsetof|ptrdiff_t|size_t|unreachable|wchar_t
+_stddef_syms_re = NULL|offsetof|ptrdiff_t|size_t|wchar_t
 # Prohibit the inclusion of stddef.h without an actual use.
 sc_prohibit_stddef_without_use:
 	@h='stddef.h' \
@@ -1310,9 +1310,26 @@ sc_prohibit_path_max_allocation:
 	halt='Avoid stack allocations of size PATH_MAX' \
 	  $(_sc_search_regexp)
 
-sc_unportable_grep_q:
-	@prohibit='grep ''-q' halt="unportable 'grep ""-q', use >/dev/null instead" \
-	  $(_sc_search_regexp)
+ifneq ($(_gl-Makefile),)
+syntax-check: sc_spacing-check \
+	sc_prohibit-duplicate-header sc_mock-noinline sc_group-qemu-caps \
+        sc_header-ifdef
+	@if ! cppi --version >/dev/null 2>&1; then \
+		echo "*****************************************************" >&2; \
+		echo "* cppi not installed, some checks have been skipped *" >&2; \
+		echo "*****************************************************" >&2; \
+	fi; \
+	if [ -z "$(FLAKE8)" ]; then \
+		echo "*****************************************************" >&2; \
+		echo "* flake8 not installed, sc_flake8 has been skipped  *" >&2; \
+		echo "*****************************************************" >&2; \
+	fi
+	if [ -z "$(BLACK)" ]; then \
+		echo "*****************************************************" >&2; \
+		echo "* black not installed, sc_black has been skipped    *" >&2; \
+		echo "*****************************************************" >&2; \
+	fi
+endif
 
 # Don't include duplicate header in the source (either *.c or *.h)
 sc_prohibit-duplicate-header:
@@ -1340,11 +1357,6 @@ sc_prohibit_enum_impl_with_vir_prefix_in_virsh:
 	@prohibit='VIR_ENUM_(IMPL|DECL)\(vir[^s]' \
 	in_vc_files='tools/virsh.*\.[ch]$$' \
 	halt='avoid "vir" prefix for enums in virsh' \
-	  $(_sc_search_regexp)
-
-sc_rst_since:
-	@prohibit=':since:`[^`]+$|:since:`[^`]+[.,;]`|:since:`[^`]+` [.,;]' \
-	halt='format :since: correctly' \
 	  $(_sc_search_regexp)
 
 
@@ -1386,7 +1398,7 @@ exclude_file_name_regexp--sc_prohibit_close = \
   (\.p[yl]$$|\.spec\.in$$|^docs/|^(src/util/vir(file|event)\.c|src/libvirt-stream\.c|tests/(vir.+mock\.c|commandhelper\.c|qemusecuritymock\.c)|tools/nss/libvirt_nss_(leases|macs)\.c)|tools/virt-qemu-qmp-proxy$$)
 
 exclude_file_name_regexp--sc_prohibit_empty_lines_at_EOF = \
-  ((^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest|qemunbdkit|virshtest)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)|\.bin)
+  ((^tests/(nodedevmdevctl|viracpi|virhostcpu|virpcitest|virstoragetest|qemunbdkit)data/|docs/js/.*\.js|docs/fonts/.*\.woff|\.diff|tests/virconfdata/no-newline\.conf$$)|\.bin)
 
 exclude_file_name_regexp--sc_prohibit_fork_wrappers = \
   (^(src/(util/(vircommand|virdaemon)|lxc/lxc_controller)|tests/testutils)\.c$$)
@@ -1437,7 +1449,7 @@ exclude_file_name_regexp--sc_require_config_h_first = \
 	^(examples/|tools/virsh-edit\.c$$|tests/virmockstathelpers\.c$$|scripts/rpcgen/tests/test_demo\.c$$)
 
 exclude_file_name_regexp--sc_trailing_blank = \
-  /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo|tests/virshtestdata/.*$$
+  /sysinfodata/.*\.data|/virhostcpudata/.*\.cpuinfo$$
 
 exclude_file_name_regexp--sc_unmarked_diagnostics = \
   ^(scripts/apibuild.py|tests/virt-aa-helper-test|docs/js/.*\.js)$$
@@ -1466,7 +1478,7 @@ exclude_file_name_regexp--sc_prohibit_mixed_case_abbreviations = \
   ^src/(vbox/vbox_CAPI.*.h|esx/esx_vi.(c|h)|esx/esx_storage_backend_iscsi.c)$$
 
 exclude_file_name_regexp--sc_prohibit_empty_first_line = \
-  ^tests/vmwareverdata/fusion-5.0.3.txt|scripts/rpcgen/tests/demo\.c|^tests/virshtestdata/.*$$
+  ^tests/vmwareverdata/fusion-5.0.3.txt|scripts/rpcgen/tests/demo\.c$$
 
 exclude_file_name_regexp--sc_prohibit_useless_translation = \
   ^tests/virpolkittest.c
