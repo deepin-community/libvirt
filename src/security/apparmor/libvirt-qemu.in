@@ -34,7 +34,6 @@
   # only modify its comm value or those in its thread group.
   owner @{PROC}/@{pid}/task/@{tid}/comm rw,
   @{PROC}/sys/kernel/cap_last_cap r,
-  @{PROC}/sys/vm/max_map_count r,
   @{PROC}/sys/vm/overcommit_memory r,
   # detect hardware capabilities via qemu_getauxval
   owner @{PROC}/*/auxv r,
@@ -197,8 +196,7 @@
     signal (receive) set=("term") peer=libvirtd,
     signal (receive) set=("term") peer=virtqemud,
 
-    owner @{run}/user/[0-9]*/libvirt/qemu/run/passt/* rw,
-    owner @{run}/libvirt/qemu/passt/* rw,
+    owner /{,var/}run/libvirt/qemu/passt/* rw,
 
     include if exists <abstractions/passt>
   }
@@ -253,9 +251,6 @@
   /sys/devices/system/node/ r,
   /sys/devices/system/node/node[0-9]*/meminfo r,
   /sys/module/vhost/parameters/max_mem_regions r,
-
-   # Access to libnuma
-   /sys/devices/system/node/*/cpumap r,
 
   # silence refusals to open lttng files (see LP: #1432644)
   deny /dev/shm/lttng-ust-wait-* r,

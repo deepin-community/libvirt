@@ -137,7 +137,6 @@ if conf.has('WITH_QEMU')
   qemu_user_group_conf = configuration_data({
     'QEMU_USER': qemu_user,
     'QEMU_GROUP': qemu_group,
-    'USE_NBDKIT_DEFAULT': use_nbdkit_default.to_int(),
   })
   qemu_conf = configure_file(
     input: 'qemu.conf.in',
@@ -148,7 +147,6 @@ if conf.has('WITH_QEMU')
   qemu_user_group_hack_conf = configuration_data({
     'QEMU_USER': qemu_user,
     'QEMU_GROUP': qemu_group,
-    'USE_NBDKIT_DEFAULT': use_nbdkit_default.to_int(),
     # This hack is necessary because the output file is going to be
     # used as input for another configure_file() call later, which
     # will take care of substituting @CONFIG@ with useful data
@@ -158,13 +156,6 @@ if conf.has('WITH_QEMU')
     input: 'test_libvirtd_qemu.aug.in',
     output: 'test_libvirtd_qemu.aug.tmp',
     configuration: qemu_user_group_hack_conf,
-  )
-
-  # Install the sysuser config for the qemu driver
-  install_data(
-    'libvirt-qemu.sysusers.conf',
-    install_dir: sysusersdir,
-    rename: [ 'libvirt-qemu.conf' ],
   )
 
   virt_conf_files += qemu_conf
@@ -209,7 +200,7 @@ if conf.has('WITH_QEMU')
     'in_file': files('virtqemud.init.in'),
   }
 
-  if conf.has('WITH_USERFAULTFD_SYSCTL')
+  if conf.has('WITH_SYSCTL')
     install_data(
       'postcopy-migration.sysctl',
       install_dir: prefix / 'lib' / 'sysctl.d',

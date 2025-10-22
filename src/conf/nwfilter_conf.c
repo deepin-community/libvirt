@@ -2362,7 +2362,8 @@ static virNWFilterRuleDef *
 virNWFilterRuleParse(xmlNodePtr node)
 {
     g_autofree char *statematch = NULL;
-    g_autoptr(GPtrArray) attrNodes = NULL;
+    g_autofree xmlNodePtr *attrNodes = NULL;
+    size_t nattrNodes = 0;
     g_autoptr(virNWFilterRuleDef) ret = NULL;
 
     ret = g_new0(virNWFilterRuleDef, 1);
@@ -2388,18 +2389,17 @@ virNWFilterRuleParse(xmlNodePtr node)
         (STREQ(statematch, "0") || STRCASEEQ(statematch, "false")))
         ret->flags |= RULE_FLAG_NO_STATEMATCH;
 
-    attrNodes = virXMLNodeGetSubelementList(node, NULL);
+    nattrNodes = virXMLNodeGetSubelementList(node, NULL, &attrNodes);
 
-    if (attrNodes->len > 0) {
+    if (nattrNodes > 0) {
         size_t i;
         size_t attr = 0;
 
         /* First we look up the type of the first valid element. The rest of
          * the parsing then only considers elements with same name. */
-        for (i = 0; i < attrNodes->len; i++) {
+        for (i = 0; i < nattrNodes; i++) {
             for (attr = 0; virAttr[attr].id; attr++) {
-                if (virXMLNodeNameEqual(g_ptr_array_index(attrNodes, i),
-                                        virAttr[attr].id)) {
+                if (virXMLNodeNameEqual(attrNodes[i], virAttr[attr].id)) {
                     ret->prtclType = virAttr[attr].prtclType;
                     break;
                 }
@@ -2411,17 +2411,15 @@ virNWFilterRuleParse(xmlNodePtr node)
         }
 
         /* parse the correct subelements now */
-        for (i = 0; i < attrNodes->len; i++) {
-            xmlNodePtr attrNode = g_ptr_array_index(attrNodes, i);
-
+        for (i = 0; i < nattrNodes; i++) {
             /* no valid elements */
             if (!virAttr[attr].id)
                 break;
 
-            if (!virXMLNodeNameEqual(attrNode, virAttr[attr].id))
+            if (!virXMLNodeNameEqual(attrNodes[i], virAttr[attr].id))
                 continue;
 
-            if (virNWFilterRuleDetailsParse(attrNode, ret, virAttr[attr].att) < 0)
+            if (virNWFilterRuleDetailsParse(attrNodes[i], ret, virAttr[attr].att) < 0)
                 return NULL;
         }
 

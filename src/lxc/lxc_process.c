@@ -49,7 +49,6 @@
 #include "virprocess.h"
 #include "netdev_bandwidth_conf.h"
 #include "virutil.h"
-#include "domain_interface.h"
 
 #define VIR_FROM_THIS VIR_FROM_LXC
 
@@ -150,6 +149,7 @@ static void virLXCProcessCleanup(virLXCDriver *driver,
 {
     size_t i;
     virLXCDomainObjPrivate *priv = vm->privateData;
+    const virNetDevVPortProfile *vport = NULL;
     g_autoptr(virLXCDriverConfig) cfg = virLXCDriverGetConfig(driver);
     g_autoptr(virConnect) conn = NULL;
 
@@ -210,14 +210,18 @@ static void virLXCProcessCleanup(virLXCDriver *driver,
 
     for (i = 0; i < vm->def->nnets; i++) {
         virDomainNetDef *iface = vm->def->nets[i];
-
+        vport = virDomainNetGetActualVirtPortProfile(iface);
         if (iface->ifname) {
-            virDomainInterfaceVportRemove(iface);
+            if (vport &&
+                vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH)
+                ignore_value(virNetDevOpenvswitchRemovePort(
+                                virDomainNetGetActualBridgeName(iface),
+                                iface->ifname));
             ignore_value(virNetDevVethDelete(iface->ifname));
         }
         if (iface->type == VIR_DOMAIN_NET_TYPE_NETWORK) {
             if (conn || (conn = virGetConnectNetwork()))
-                virDomainNetReleaseActualDevice(conn, iface);
+                virDomainNetReleaseActualDevice(conn, vm->def, iface);
             else
                 VIR_WARN("Unable to release network device '%s'", NULLSTR(iface->ifname));
         }
@@ -244,7 +248,7 @@ static void virLXCProcessCleanup(virLXCDriver *driver,
         /* we can't stop the operation even if the script raised an error */
         virHookCall(VIR_HOOK_DRIVER_LXC, vm->def->name,
                     VIR_HOOK_LXC_OP_RELEASE, VIR_HOOK_SUBOP_END,
-                    virDomainShutoffReasonTypeToString(reason), xml, NULL);
+                    NULL, xml, NULL);
     }
 
     if (flags & VIR_LXC_PROCESS_CLEANUP_REMOVE_TRANSIENT)
@@ -633,11 +637,13 @@ virLXCProcessSetupInterfaces(virLXCDriver *driver,
         virErrorPreserveLast(&save_err);
         for (i = 0; i < def->nnets; i++) {
             virDomainNetDef *iface = def->nets[i];
-
-            virDomainInterfaceVportRemove(iface);
-
+            const virNetDevVPortProfile *vport = virDomainNetGetActualVirtPortProfile(iface);
+            if (vport && vport->virtPortType == VIR_NETDEV_VPORT_PROFILE_OPENVSWITCH)
+                ignore_value(virNetDevOpenvswitchRemovePort(
+                                virDomainNetGetActualBridgeName(iface),
+                                iface->ifname));
             if (iface->type == VIR_DOMAIN_NET_TYPE_NETWORK && netconn)
-                virDomainNetReleaseActualDevice(netconn, iface);
+                virDomainNetReleaseActualDevice(netconn, def, iface);
         }
         virErrorRestore(&save_err);
     }

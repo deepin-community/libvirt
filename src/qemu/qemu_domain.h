@@ -119,7 +119,6 @@ struct _qemuDomainObjPrivate {
 
     bool beingDestroyed;
     char *pidfile;
-    int pidMonitored;
 
     virDomainPCIAddressSet *pciaddrs;
     virDomainUSBAddressSet *usbaddrs;
@@ -199,10 +198,6 @@ struct _qemuDomainObjPrivate {
      * private XML. */
     virBitmap *migrationCaps;
 
-    /* True if QEMU supports "postcopy-recover-setup" migration state. Checked
-     * QEMU enters the state, not to be stored in private XML. */
-    bool migrationRecoverSetup;
-
     /* true if qemu-pr-helper process is running for the domain */
     bool prDaemonRunning;
 
@@ -280,7 +275,6 @@ struct _qemuDomainDiskPrivate {
 
     bool migrating; /* the disk is being migrated */
     virStorageSource *migrSource; /* disk source object used for NBD migration */
-    bool migrationslice; /* storage slice was added for migration purposes */
 
     /* information about the device */
     bool tray; /* device has tray */
@@ -425,8 +419,6 @@ typedef struct _qemuDomainNetworkPrivate qemuDomainNetworkPrivate;
 struct _qemuDomainNetworkPrivate {
     virObject parent;
 
-    /* Don't forget to possibly copy these members in qemuDomainChangeNet(). */
-
     /* True if the device was created by us. Otherwise we should
      * avoid removing it. Currently only used for
      * VIR_DOMAIN_NET_TYPE_DIRECT. */
@@ -474,7 +466,6 @@ typedef enum {
     QEMU_PROCESS_EVENT_UNATTENDED_MIGRATION,
     QEMU_PROCESS_EVENT_RESET,
     QEMU_PROCESS_EVENT_NBDKIT_EXITED,
-    QEMU_PROCESS_EVENT_SHUTDOWN_COMPLETED,
 
     QEMU_PROCESS_EVENT_LAST
 } qemuProcessEventType;
@@ -823,16 +814,10 @@ virDomainChrDef *qemuFindAgentConfig(virDomainDef *def);
 
 /* You should normally avoid these functions and use the variant that
  * doesn't have "Machine" in the name instead. */
-bool qemuDomainMachineIsQ35(const char *machine,
-                            const virArch arch);
-bool qemuDomainMachineIsI440FX(const char *machine,
-                               const virArch arch);
 bool qemuDomainMachineIsARMVirt(const char *machine,
                                 const virArch arch);
 bool qemuDomainMachineIsPSeries(const char *machine,
                                 const virArch arch);
-bool qemuDomainMachineIsXenFV(const char *machine,
-                              const virArch arch);
 bool qemuDomainMachineHasBuiltinIDE(const char *machine,
                                     const virArch arch);
 
@@ -840,21 +825,16 @@ bool qemuDomainIsQ35(const virDomainDef *def);
 bool qemuDomainIsI440FX(const virDomainDef *def);
 bool qemuDomainIsS390CCW(const virDomainDef *def);
 bool qemuDomainIsARMVirt(const virDomainDef *def);
-bool qemuDomainIsLoongArchVirt(const virDomainDef *def);
 bool qemuDomainIsRISCVVirt(const virDomainDef *def);
 bool qemuDomainIsPSeries(const virDomainDef *def);
 bool qemuDomainIsMipsMalta(const virDomainDef *def);
-bool qemuDomainIsXenFV(const virDomainDef *def);
 bool qemuDomainHasPCIRoot(const virDomainDef *def);
 bool qemuDomainHasPCIeRoot(const virDomainDef *def);
 bool qemuDomainHasBuiltinIDE(const virDomainDef *def);
 bool qemuDomainHasBuiltinESP(const virDomainDef *def);
 bool qemuDomainNeedsFDC(const virDomainDef *def);
-bool qemuDomainSupportsPCI(const virDomainDef *def);
-bool qemuDomainSupportsPCIMultibus(const virDomainDef *def);
-int qemuDomainGetSCSIControllerModel(const virDomainDef *def,
-                                     const virDomainControllerDef *cont,
-                                     virQEMUCaps *qemuCaps);
+bool qemuDomainSupportsPCI(virDomainDef *def,
+                           virQEMUCaps *qemuCaps);
 
 void qemuDomainUpdateCurrentMemorySize(virDomainObj *vm);
 
@@ -993,12 +973,12 @@ virStorageSource *qemuDomainGetStorageSourceByDevstr(const char *devstr,
                                                        virDomainDef *def,
                                                        virDomainBackupDef *backupdef);
 
-void
+int
 qemuDomainUpdateCPU(virDomainObj *vm,
                     virCPUDef *cpu,
                     virCPUDef **origCPU);
 
-void
+int
 qemuDomainFixupCPUs(virDomainObj *vm,
                     virCPUDef **origCPU);
 
@@ -1062,9 +1042,7 @@ qemuDomainSupportsCheckpointsBlockjobs(virDomainObj *vm)
     G_GNUC_WARN_UNUSED_RESULT;
 
 int
-qemuDomainMakeCPUMigratable(virArch arch,
-                            virCPUDef *cpu,
-                            virCPUDef *origCPU);
+qemuDomainMakeCPUMigratable(virCPUDef *cpu);
 
 int
 qemuDomainInitializePflashStorageSource(virDomainObj *vm,
@@ -1126,8 +1104,6 @@ qemuDomainRemoveLogs(virQEMUDriver *driver,
 
 int
 qemuDomainObjWait(virDomainObj *vm);
-bool
-qemuDomainObjIsActive(virDomainObj *vm);
 
 int
 qemuDomainRefreshStatsSchema(virDomainObj *dom);
@@ -1153,18 +1129,3 @@ void
 qemuDomainNumatuneMaybeFormatNodesetUnion(virDomainObj *vm,
                                           virBitmap **nodeset,
                                           char **nodesetStr);
-
-int
-qemuDomainStorageOpenStat(virQEMUDriverConfig *cfg,
-                          virDomainObj *vm,
-                          virStorageSource *src,
-                          int *ret_fd,
-                          struct stat *ret_sb,
-                          bool skipInaccessible);
-void
-qemuDomainStorageCloseStat(virStorageSource *src,
-                           int *fd);
-int
-qemuDomainStorageUpdatePhysical(virQEMUDriverConfig *cfg,
-                                virDomainObj *vm,
-                                virStorageSource *src);

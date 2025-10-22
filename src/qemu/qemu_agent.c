@@ -835,7 +835,6 @@ qemuAgentGuestSyncSend(qemuAgent *agent,
 /**
  * qemuAgentGuestSync:
  * @agent: agent object
- * @seconds: qemu agent command timeout value
  *
  * Send guest-sync with unique ID
  * and wait for reply. If we get one, check if
@@ -845,10 +844,9 @@ qemuAgentGuestSyncSend(qemuAgent *agent,
  *          -1 otherwise
  */
 static int
-qemuAgentGuestSync(qemuAgent *agent,
-                   int seconds)
+qemuAgentGuestSync(qemuAgent *agent)
 {
-    int timeout = QEMU_AGENT_WAIT_TIME;
+    int timeout = VIR_DOMAIN_QEMU_AGENT_COMMAND_DEFAULT;
     int rc;
 
     if (agent->inSync)
@@ -856,14 +854,8 @@ qemuAgentGuestSync(qemuAgent *agent,
 
     /* if user specified a custom agent timeout that is lower than the
      * default timeout, use the shorter timeout instead */
-    if ((agent->timeout >= 0) && (agent->timeout < timeout))
+    if ((agent->timeout >= 0) && (agent->timeout < QEMU_AGENT_WAIT_TIME))
         timeout = agent->timeout;
-
-    /* If user specified a timeout parameter smaller than both default
-     * value and agent->timeout in qga APIs(such as qemu-agent-command),
-     * use the parameter timeout value */
-    if ((seconds >= 0) && (seconds < timeout))
-        timeout = seconds;
 
     if ((rc = qemuAgentGuestSyncSend(agent, timeout, true)) < 0)
         return -1;
@@ -1030,7 +1022,7 @@ qemuAgentCommandFull(qemuAgent *agent,
         goto cleanup;
     }
 
-    if (qemuAgentGuestSync(agent, seconds) < 0)
+    if (qemuAgentGuestSync(agent) < 0)
         goto cleanup;
 
     if (!(cmdstr = virJSONValueToString(cmd, false)))

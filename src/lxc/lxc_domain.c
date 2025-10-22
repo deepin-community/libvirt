@@ -238,8 +238,7 @@ virLXCDomainDefPostParse(virDomainDef *def,
         return -1;
     if (!virCapabilitiesDomainSupported(caps, def->os.type,
                                         def->os.arch,
-                                        def->virtType,
-                                        true))
+                                        def->virtType))
         return -1;
 
     /* check for emulator and create a default one if needed */

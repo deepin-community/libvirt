@@ -543,14 +543,15 @@ G_STATIC_ASSERT(MAX_VIRT_CPUS <= sizeof(1UL) * CHAR_BIT);
  * Convert a virDomainDef object into an XM config record.
  */
 virConf *
-xenFormatXM(virDomainDef *def)
+xenFormatXM(virConnectPtr conn,
+            virDomainDef *def)
 {
     g_autoptr(virConf) conf = NULL;
 
     if (!(conf = virConfNew()))
         return NULL;
 
-    if (xenFormatConfigCommon(conf, def, XEN_CONFIG_FORMAT_XM) < 0)
+    if (xenFormatConfigCommon(conf, def, conn, XEN_CONFIG_FORMAT_XM) < 0)
         return NULL;
 
     if (xenFormatXMOS(conf, def) < 0)

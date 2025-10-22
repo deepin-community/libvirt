@@ -42,8 +42,7 @@ virCPUs390Compare(virCPUDef *host G_GNUC_UNUSED,
 static int
 virCPUs390Update(virCPUDef *guest,
                  const virCPUDef *host,
-                 bool relative,
-                 virCPUFeaturePolicy removedPolicy G_GNUC_UNUSED)
+                 bool relative)
 {
     g_autoptr(virCPUDef) updated = virCPUDefCopyWithoutModel(guest);
     size_t i;
@@ -73,9 +72,10 @@ virCPUs390Update(virCPUDef *guest,
     virCPUDefCopyModel(updated, host, true);
 
     for (i = 0; i < guest->nfeatures; i++) {
-       virCPUDefUpdateFeature(updated,
-                              guest->features[i].name,
-                              guest->features[i].policy);
+       if (virCPUDefUpdateFeature(updated,
+                                  guest->features[i].name,
+                                  guest->features[i].policy) < 0)
+           return -1;
     }
 
     virCPUDefStealModel(guest, updated, false);

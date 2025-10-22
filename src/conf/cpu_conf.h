@@ -148,7 +148,6 @@ struct _virCPUDef {
     unsigned int microcodeVersion;
     unsigned int sockets;
     unsigned int dies;
-    unsigned int clusters;
     unsigned int cores;
     unsigned int threads;
     unsigned int sigFamily;
@@ -245,12 +244,12 @@ virCPUDefAddFeature(virCPUDef *cpu,
                     const char *name,
                     int policy);
 
-void
+int
 virCPUDefUpdateFeature(virCPUDef *cpu,
                        const char *name,
                        int policy);
 
-void
+int
 virCPUDefAddFeatureIfMissing(virCPUDef *def,
                              const char *name,
                              int policy);
@@ -269,9 +268,6 @@ virCPUDefCheckFeatures(virCPUDef *cpu,
                        virCPUDefFeatureFilter filter,
                        void *opaque,
                        char ***features);
-
-char **
-virCPUDefListExplicitFeatures(const virCPUDef *def);
 
 virCPUDef **
 virCPUDefListParse(const char **xmlCPUs,

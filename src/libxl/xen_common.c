@@ -24,8 +24,6 @@
 
 #include <config.h>
 
-#include "datatypes.h"
-#include "driver.h"
 #include "internal.h"
 #include "virerror.h"
 #include "virconf.h"
@@ -1389,11 +1387,8 @@ xenParseGeneralMeta(virConf *conf, virDomainDef *def, virCaps *caps)
     }
 
     if (!(capsdata = virCapabilitiesDomainDataLookup(caps, def->os.type,
-                                                     VIR_ARCH_NONE,
-                                                     def->virtType, NULL,
-                                                     NULL, true))) {
+            VIR_ARCH_NONE, def->virtType, NULL, NULL)))
         goto out;
-    }
 
     def->os.arch = capsdata->arch;
     def->os.machine = g_strdup(capsdata->machinetype);
@@ -1588,7 +1583,8 @@ xenMakeIPList(virNetDevIPInfo *guestIP)
 }
 
 static int
-xenFormatNet(virConfValue *list,
+xenFormatNet(virConnectPtr conn,
+             virConfValue *list,
              virDomainNetDef *net,
              int hvm,
              const char *vif_typename)
@@ -1650,19 +1646,13 @@ xenFormatNet(virConfValue *list,
 
     case VIR_DOMAIN_NET_TYPE_NETWORK:
     {
-        g_autoptr(virConnect) conn = NULL;
-        virNetworkPtr network;
+        virNetworkPtr network = virNetworkLookupByName(conn, net->data.network.name);
         char *bridge;
-
-        if (!(conn = virGetConnectNetwork()))
-            return -1;
-
-        if (!(network = virNetworkLookupByName(conn, net->data.network.name))) {
+        if (!network) {
             virReportError(VIR_ERR_NO_NETWORK, "%s",
                            net->data.network.name);
             return -1;
         }
-
         bridge = virNetworkGetBridgeName(network);
         virObjectUnref(network);
         if (!bridge) {
@@ -2311,6 +2301,7 @@ xenFormatSound(virConf *conf, virDomainDef *def)
 
 static int
 xenFormatVif(virConf *conf,
+             virConnectPtr conn,
              virDomainDef *def,
              const char *vif_typename)
 {
@@ -2323,7 +2314,8 @@ xenFormatVif(virConf *conf,
     netVal->list = NULL;
 
     for (i = 0; i < def->nnets; i++) {
-        if (xenFormatNet(netVal, def->nets[i], hvm, vif_typename) < 0)
+        if (xenFormatNet(conn, netVal, def->nets[i],
+                         hvm, vif_typename) < 0)
             return -1;
     }
 
@@ -2341,6 +2333,7 @@ xenFormatVif(virConf *conf,
 int
 xenFormatConfigCommon(virConf *conf,
                       virDomainDef *def,
+                      virConnectPtr conn,
                       const char *nativeFormat)
 {
     if (xenFormatGeneralMeta(conf, def) < 0)
@@ -2368,10 +2361,10 @@ xenFormatConfigCommon(virConf *conf,
         return -1;
 
     if (STREQ(nativeFormat, XEN_CONFIG_FORMAT_XL)) {
-        if (xenFormatVif(conf, def, "vif") < 0)
+        if (xenFormatVif(conf, conn, def, "vif") < 0)
             return -1;
     } else if (STREQ(nativeFormat, XEN_CONFIG_FORMAT_XM)) {
-        if (xenFormatVif(conf, def, "netfront") < 0)
+        if (xenFormatVif(conf, conn, def, "netfront") < 0)
             return -1;
     } else {
         virReportError(VIR_ERR_INVALID_ARG,

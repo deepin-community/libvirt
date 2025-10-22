@@ -6,9 +6,7 @@
   <vcpu max='8'/>
   <iothreads supported='yes'/>
   <os supported='yes'>
-    <enum name='firmware'>
-      <value>efi</value>
-    </enum>
+    <enum name='firmware'/>
     <loader supported='yes'>
       <value>/obviously/fake/firmware1.fd</value>
       <value>/obviously/fake/firmware2.fd</value>
@@ -141,11 +139,6 @@
         <value>builtin</value>
       </enum>
     </crypto>
-    <interface supported='yes'>
-      <enum name='backendType'>
-        <value>default</value>
-      </enum>
-    </interface>
   </devices>
   <features>
     <gic supported='no'/>
@@ -154,9 +147,7 @@
     <backingStoreInput supported='yes'/>
     <backup supported='no'/>
     <async-teardown supported='no'/>
-    <ps2 supported='no'/>
     <sev supported='no'/>
     <sgx supported='no'/>
-    <launchSecurity supported='no'/>
   </features>
 </domainCapabilities>

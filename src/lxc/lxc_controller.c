@@ -313,8 +313,8 @@ static void virLXCControllerFree(virLXCController *ctrl)
 }
 
 
-static void virLXCControllerAddConsole(virLXCController *ctrl,
-                                       int hostFd)
+static int virLXCControllerAddConsole(virLXCController *ctrl,
+                                      int hostFd)
 {
     VIR_EXPAND_N(ctrl->consoles, ctrl->nconsoles, 1);
     ctrl->consoles[ctrl->nconsoles-1].daemon = ctrl->daemon;
@@ -326,6 +326,7 @@ static void virLXCControllerAddConsole(virLXCController *ctrl,
 
     ctrl->consoles[ctrl->nconsoles-1].epollFd = -1;
     ctrl->consoles[ctrl->nconsoles-1].epollWatch = -1;
+    return 0;
 }
 
 
@@ -946,7 +947,8 @@ static int virLXCControllerSetupServer(virLXCController *ctrl)
     if (virSecurityManagerClearSocketLabel(ctrl->securityManager, ctrl->def) < 0)
         goto error;
 
-    virNetServerAddService(srv, svc);
+    if (virNetServerAddService(srv, svc) < 0)
+        goto error;
     g_clear_pointer(&svc, virObjectUnref);
 
     if (!(ctrl->prog = virNetServerProgramNew(VIR_LXC_MONITOR_PROGRAM,
@@ -2654,7 +2656,8 @@ int main(int argc, char *argv[])
     }
 
     for (i = 0; i < nttyFDs; i++) {
-        virLXCControllerAddConsole(ctrl, ttyFDs[i]);
+        if (virLXCControllerAddConsole(ctrl, ttyFDs[i]) < 0)
+            goto cleanup;
         ttyFDs[i] = -1;
     }
 

@@ -1,8 +1,4 @@
-add-custom-policy-for-deepin.patch
-backport/apparmor-Don-t-check-for-existence-of-templates-upfront.patch
 forward/Reduce-udevadm-settle-timeout-to-10-seconds.patch
 debian/Debianize-libvirt-guests.patch
 debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
-deepin/0001-conf-qemu-add-libvirt-support-reuse-id-for-hygon-CSV.patch
-deepin/0002-conf-qemu-support-provide-inject-secret-for-Hygon-CS.patch

@@ -2,8 +2,6 @@ network_driver_sources = [
   'bridge_driver.c',
   'bridge_driver_conf.c',
   'bridge_driver_platform.c',
-  'network_iptables.c',
-  'network_nftables.c',
 ]
 
 driver_source_files += files(network_driver_sources)
@@ -48,42 +46,6 @@ if conf.has('WITH_NETWORK')
       '-DDAEMON_NAME="virtnetworkd"',
       '-DMODULE_NAME="network"',
     ],
-  }
-
-  network_options_conf = configuration_data({
-    'FIREWALL_BACKEND_PRIORITY': ', '.join(firewall_backend_priority),
-    'FIREWALL_BACKEND': firewall_backend_priority[0],
-  })
-
-  network_conf = configure_file(
-    input: 'network.conf.in',
-    output: 'network.conf',
-    configuration: network_options_conf,
-  )
-
-  network_options_hack_conf = configuration_data({
-    'FIREWALL_BACKEND_PRIORITY': ', '.join(firewall_backend_priority),
-    'FIREWALL_BACKEND': firewall_backend_priority[0],
-    # This hack is necessary because the output file is going to be
-    # used as input for another configure_file() call later, which
-    # will take care of substituting @CONFIG@ with useful data
-    'CONFIG': '@CONFIG@',
-  })
-  test_libvirtd_network_aug_tmp = configure_file(
-    input: 'test_libvirtd_network.aug.in',
-    output: 'test_libvirtd_network.aug.tmp',
-    configuration: network_options_hack_conf,
-  )
-
-  virt_conf_files += network_conf
-  virt_aug_files += files('libvirtd_network.aug')
-  virt_test_aug_files += {
-    'name': 'test_libvirtd_network.aug',
-    'aug': test_libvirtd_network_aug_tmp,
-    'conf': network_conf,
-    'test_name': 'libvirtd_network',
-    'test_srcdir': meson.current_source_dir(),
-    'test_builddir': meson.current_build_dir(),
   }
 
   virt_daemon_confs += {

@@ -524,9 +524,14 @@ static int
 virSecurityDACPreFork(virSecurityManager *mgr)
 {
     virSecurityDACData *priv = virSecurityManagerGetPrivateData(mgr);
+    int ngroups;
 
     g_clear_pointer(&priv->groups, g_free);
-    priv->ngroups = virGetGroupList(priv->user, priv->group, &priv->groups);
+    priv->ngroups = 0;
+    if ((ngroups = virGetGroupList(priv->user, priv->group,
+                                   &priv->groups)) < 0)
+        return -1;
+    priv->ngroups = ngroups;
     return 0;
 }
 
@@ -820,9 +825,6 @@ virSecurityDACRestoreFileLabelInternal(virSecurityManager *mgr,
         virStorageSourceIsLocalStorage(src))
         path = src->path;
 
-    if (!virFileExists(path))
-        return 0;
-
     /* Be aware that this function might run in a separate process.
      * Therefore, any driver state changes would be thrown away. */
 
@@ -937,12 +939,12 @@ virSecurityDACSetImageLabelInternal(virSecurityManager *mgr,
 
 
 static int
-virSecurityDACSetImageLabel(virSecurityManager *mgr,
-                            virDomainDef *def,
-                            virStorageSource *src,
-                            virSecurityDomainImageLabelFlags flags)
+virSecurityDACSetImageLabelRelative(virSecurityManager *mgr,
+                                    virDomainDef *def,
+                                    virStorageSource *src,
+                                    virStorageSource *parent,
+                                    virSecurityDomainImageLabelFlags flags)
 {
-    virStorageSource *parent = src;
     virStorageSource *n;
 
     for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
@@ -961,10 +963,19 @@ virSecurityDACSetImageLabel(virSecurityManager *mgr,
 }
 
 static int
-virSecurityDACRestoreImageLabelInt(virSecurityManager *mgr,
-                                   virDomainDef *def,
-                                   virStorageSource *src,
-                                   bool migrated)
+virSecurityDACSetImageLabel(virSecurityManager *mgr,
+                            virDomainDef *def,
+                            virStorageSource *src,
+                            virSecurityDomainImageLabelFlags flags)
+{
+    return virSecurityDACSetImageLabelRelative(mgr, def, src, src, flags);
+}
+
+static int
+virSecurityDACRestoreImageLabelSingle(virSecurityManager *mgr,
+                                      virDomainDef *def,
+                                      virStorageSource *src,
+                                      bool migrated)
 {
     virSecurityDACData *priv = virSecurityManagerGetPrivateData(mgr);
     virSecurityLabelDef *secdef;
@@ -1033,6 +1044,19 @@ virSecurityDACRestoreImageLabelInt(virSecurityManager *mgr,
     }
 
     return virSecurityDACRestoreFileLabelInternal(mgr, src, NULL, true);
+}
+
+
+static int
+virSecurityDACRestoreImageLabelInt(virSecurityManager *mgr,
+                                   virDomainDef *def,
+                                   virStorageSource *src,
+                                   bool migrated)
+{
+    if (virSecurityDACRestoreImageLabelSingle(mgr, def, src, migrated) < 0)
+        return -1;
+
+    return 0;
 }
 
 
@@ -1233,7 +1257,7 @@ virSecurityDACSetHostdevLabel(virSecurityManager *mgr,
         if (!pci)
             return -1;
 
-        if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
+        if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
             g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
             if (!vfioGroupDev)
@@ -1394,7 +1418,7 @@ virSecurityDACRestoreHostdevLabel(virSecurityManager *mgr,
         if (!pci)
             return -1;
 
-        if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
+        if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
             g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
             if (!vfioGroupDev)
@@ -1647,7 +1671,7 @@ virSecurityDACRestoreChardevLabel(virSecurityManager *mgr,
 }
 
 
-struct _virSecurityDACChardevCallbackData {
+struct _virSecuritySELinuxChardevCallbackData {
     virSecurityManager *mgr;
     bool chardevStdioLogd;
 };
@@ -1658,7 +1682,7 @@ virSecurityDACRestoreChardevCallback(virDomainDef *def,
                                      virDomainChrDef *dev G_GNUC_UNUSED,
                                      void *opaque)
 {
-    struct _virSecurityDACChardevCallbackData *data = opaque;
+    struct _virSecuritySELinuxChardevCallbackData *data = opaque;
 
     return virSecurityDACRestoreChardevLabel(data->mgr, def, dev->source,
                                              data->chardevStdioLogd);
@@ -1892,7 +1916,7 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
     size_t i;
     int rc = 0;
 
-    struct _virSecurityDACChardevCallbackData chardevData = {
+    struct _virSecuritySELinuxChardevCallbackData chardevData = {
         .mgr = mgr,
         .chardevStdioLogd = chardevStdioLogd,
     };
@@ -1951,20 +1975,10 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
             rc = -1;
     }
 
-    if (def->sec) {
-        switch (def->sec->sectype) {
-        case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
-        case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
-            if (virSecurityDACRestoreSEVLabel(mgr, def) < 0)
-                rc = -1;
-            break;
-        case VIR_DOMAIN_LAUNCH_SECURITY_PV:
-            break;
-        case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
-        case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
-            virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
-            return -1;
-        }
+    if (def->sec &&
+        def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_SEV) {
+        if (virSecurityDACRestoreSEVLabel(mgr, def) < 0)
+            rc = -1;
     }
 
     for (i = 0; i < def->nsysinfo; i++) {
@@ -1995,10 +2009,6 @@ virSecurityDACRestoreAllLabel(virSecurityManager *mgr,
         virSecurityDACRestoreFileLabel(mgr, def->os.slic_table) < 0)
         rc = -1;
 
-    if (def->pstore &&
-        virSecurityDACRestoreFileLabel(mgr, def->pstore->path) < 0)
-        rc = -1;
-
     return rc;
 }
 
@@ -2008,7 +2018,7 @@ virSecurityDACSetChardevCallback(virDomainDef *def,
                                  virDomainChrDef *dev G_GNUC_UNUSED,
                                  void *opaque)
 {
-    struct _virSecurityDACChardevCallbackData *data = opaque;
+    struct _virSecuritySELinuxChardevCallbackData *data = opaque;
 
     return virSecurityDACSetChardevLabel(data->mgr, def, dev->source,
                                          data->chardevStdioLogd);
@@ -2131,7 +2141,7 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
     uid_t user;
     gid_t group;
 
-    struct _virSecurityDACChardevCallbackData chardevData = {
+    struct _virSecuritySELinuxChardevCallbackData chardevData = {
         .mgr = mgr,
         .chardevStdioLogd = chardevStdioLogd,
     };
@@ -2189,20 +2199,10 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
             return -1;
     }
 
-    if (def->sec) {
-        switch (def->sec->sectype) {
-        case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
-        case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
-            if (virSecurityDACSetSEVLabel(mgr, def) < 0)
-                return -1;
-            break;
-        case VIR_DOMAIN_LAUNCH_SECURITY_PV:
-            break;
-        case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
-        case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
-            virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
+    if (def->sec &&
+        def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_SEV) {
+        if (virSecurityDACSetSEVLabel(mgr, def) < 0)
             return -1;
-        }
     }
 
     if (virSecurityDACGetImageIds(secdef, priv, &user, &group))
@@ -2241,12 +2241,6 @@ virSecurityDACSetAllLabel(virSecurityManager *mgr,
     if (def->os.slic_table &&
         virSecurityDACSetOwnership(mgr, NULL,
                                    def->os.slic_table,
-                                   user, group, true) < 0)
-        return -1;
-
-    if (def->pstore &&
-        virSecurityDACSetOwnership(mgr, NULL,
-                                   def->pstore->path,
                                    user, group, true) < 0)
         return -1;
 

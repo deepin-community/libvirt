@@ -199,46 +199,18 @@ virNetDevBandwidthFormat(const virNetDevBandwidth *def,
     return 0;
 }
 
-
-#define CHECK_LIMIT(val, limit, name) \
-    do { \
-        if ((val) > (limit)) { \
-            virReportError(VIR_ERR_OVERFLOW, \
-                           _("value '%1$llu' is too big for '%2$s' parameter, maximum is '%3$llu'"), \
-                           val, name, (unsigned long long) limit); \
-            return false; \
-        } \
-    } while (0)
-
-static bool
-virNetDevBandwidthRateValidate(const virNetDevBandwidthRate *rate)
+void
+virDomainClearNetBandwidth(virDomainDef *def)
 {
-    const unsigned long long speedLimit = 1ULL << 54;
-    const unsigned int sizeLimit = UINT_MAX >> 10;
+    size_t i;
+    virDomainNetType type;
 
-    /* These limits are taken straight from 'tc' sources. */
-
-    if (!rate)
-        return true;
-
-    CHECK_LIMIT(rate->average, speedLimit, "average");
-    CHECK_LIMIT(rate->peak, speedLimit, "peak");
-    CHECK_LIMIT(rate->burst, sizeLimit, "burst");
-    CHECK_LIMIT(rate->floor, speedLimit, "floor");
-
-    return true;
-}
-
-#undef CHECK_LIMIT
-
-bool
-virNetDevBandwidthValidate(const virNetDevBandwidth *def)
-{
-    if (!def)
-        return true;
-
-    return virNetDevBandwidthRateValidate(def->in) &&
-        virNetDevBandwidthRateValidate(def->out);
+    for (i = 0; i < def->nnets; i++) {
+        type = virDomainNetGetActualType(def->nets[i]);
+        if (virDomainNetGetActualBandwidth(def->nets[i]) &&
+            virNetDevSupportsBandwidth(type))
+            virNetDevBandwidthClear(def->nets[i]->ifname);
+    }
 }
 
 

@@ -488,7 +488,7 @@ secretStateCleanup(void)
 }
 
 
-static virDrvStateInitResult
+static int
 secretStateInitialize(bool privileged,
                       const char *root,
                       bool monolithic G_GNUC_UNUSED,

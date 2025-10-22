@@ -79,21 +79,13 @@ testCommandDryRun(const char *const*args G_GNUC_UNUSED,
                   void *opaque G_GNUC_UNUSED)
 {
     *status = 0;
-    /* if arg[1] is -ae then this is an nft command,
-     * and the caller requested to get the handle
-     * of the newly added object in stdout
-     */
-    if (STREQ_NULLABLE(args[1], "-ae"))
-        *output = g_strdup("# handle 5309");
-    else
-        *output = g_strdup("");
+    *output = g_strdup("");
     *error = g_strdup("");
 }
 
 static int testCompareXMLToArgvFiles(const char *xml,
                                      const char *cmdline,
-                                     const char *baseargs,
-                                     virFirewallBackend backend)
+                                     const char *baseargs)
 {
     g_autofree char *actualargv = NULL;
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
@@ -106,7 +98,7 @@ static int testCompareXMLToArgvFiles(const char *xml,
     if (!(def = virNetworkDefParse(NULL, xml, NULL, false)))
         return -1;
 
-    if (networkAddFirewallRules(def, backend, NULL) < 0)
+    if (networkAddFirewallRules(def) < 0)
         return -1;
 
     actual = actualargv = virBufferContentAndReset(&buf);
@@ -127,7 +119,6 @@ static int testCompareXMLToArgvFiles(const char *xml,
 struct testInfo {
     const char *name;
     const char *baseargs;
-    virFirewallBackend backend;
 };
 
 
@@ -141,11 +132,10 @@ testCompareXMLToIPTablesHelper(const void *data)
 
     xml = g_strdup_printf("%s/networkxml2firewalldata/%s.xml",
                           abs_srcdir, info->name);
-    args = g_strdup_printf("%s/networkxml2firewalldata/%s-%s.%s",
-                           abs_srcdir, info->name, RULESTYPE,
-                           virFirewallBackendTypeToString(info->backend));
+    args = g_strdup_printf("%s/networkxml2firewalldata/%s-%s.args",
+                           abs_srcdir, info->name, RULESTYPE);
 
-    result = testCompareXMLToArgvFiles(xml, args, info->baseargs, info->backend);
+    result = testCompareXMLToArgvFiles(xml, args, info->baseargs);
 
     return result;
 }
@@ -155,41 +145,23 @@ static int
 mymain(void)
 {
     int ret = 0;
-    g_autofree char *basefileIptables = NULL;
-    g_autofree char *basefileNftables = NULL;
-    g_autofree char *baseargsIptables = NULL;
-    g_autofree char *baseargsNftables = NULL;
-    const char *baseargs[VIR_FIREWALL_BACKEND_LAST];
+    g_autofree char *basefile = NULL;
+    g_autofree char *baseargs = NULL;
 
-# define DO_TEST_FOR_BACKEND(name, backend) \
+# define DO_TEST(name) \
     do { \
         struct testInfo info = { \
-            name, baseargs[backend], backend \
+            name, baseargs, \
         }; \
-        g_autofree char *label = g_strdup_printf("Network XML-2-%s %s", \
-                                                 virFirewallBackendTypeToString(backend), \
-                                                 name); \
-        if (virTestRun(label, testCompareXMLToIPTablesHelper, &info) < 0) \
+        if (virTestRun("Network XML-2-iptables " name, \
+                       testCompareXMLToIPTablesHelper, &info) < 0) \
             ret = -1; \
     } while (0)
 
-# define DO_TEST(name) \
-    DO_TEST_FOR_BACKEND(name, VIR_FIREWALL_BACKEND_IPTABLES); \
-    DO_TEST_FOR_BACKEND(name, VIR_FIREWALL_BACKEND_NFTABLES);
+    basefile = g_strdup_printf("%s/networkxml2firewalldata/base.args", abs_srcdir);
 
-
-    basefileIptables = g_strdup_printf("%s/networkxml2firewalldata/base.iptables", abs_srcdir);
-    if (virFileReadAll(basefileIptables, INT_MAX, &baseargsIptables) < 0)
+    if (virFileReadAll(basefile, INT_MAX, &baseargs) < 0)
         return EXIT_FAILURE;
-
-    baseargs[VIR_FIREWALL_BACKEND_IPTABLES] = baseargsIptables;
-
-    basefileNftables = g_strdup_printf("%s/networkxml2firewalldata/base.nftables", abs_srcdir);
-    if (virFileReadAll(basefileNftables, INT_MAX, &baseargsNftables) < 0)
-        return EXIT_FAILURE;
-
-    baseargs[VIR_FIREWALL_BACKEND_NFTABLES] = baseargsNftables;
-
 
     DO_TEST("nat-default");
     DO_TEST("nat-tftp");
@@ -198,11 +170,6 @@ mymain(void)
     DO_TEST("nat-ipv6");
     DO_TEST("nat-ipv6-masquerade");
     DO_TEST("route-default");
-    DO_TEST("forward-dev");
-    DO_TEST("isolated");
-    DO_TEST("forward-dev");
-    DO_TEST("nat-port-range");
-    DO_TEST("nat-port-range-ipv6");
 
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
 }

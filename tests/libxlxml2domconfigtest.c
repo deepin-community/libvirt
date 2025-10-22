@@ -28,7 +28,7 @@
 
 #include "testutils.h"
 
-#if defined(WITH_LIBXL)
+#if defined(WITH_LIBXL) && defined(WITH_YAJL)
 
 # include "internal.h"
 # include "libxl/libxl_conf.h"
@@ -224,4 +224,4 @@ int main(void)
     return EXIT_AM_SKIP;
 }
 
-#endif /* WITH_LIBXL */
+#endif /* WITH_LIBXL && WITH_YAJL */

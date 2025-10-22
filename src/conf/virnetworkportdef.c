@@ -64,7 +64,6 @@ virNetworkPortDefFree(virNetworkPortDef *def)
         break;
 
     case VIR_NETWORK_PORT_PLUG_TYPE_HOSTDEV_PCI:
-        virDeviceHostdevPCIDriverInfoClear(&def->plug.hostdevpci.driver);
         break;
 
     case VIR_NETWORK_PORT_PLUG_TYPE_LAST:
@@ -88,10 +87,10 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
     xmlNodePtr addressNode;
     xmlNodePtr rxfiltersNode = NULL;
     xmlNodePtr plugNode = NULL;
-    xmlNodePtr driverNode = NULL;
     g_autofree char *mac = NULL;
     g_autofree char *macmgr = NULL;
     g_autofree char *mode = NULL;
+    g_autofree char *driver = NULL;
 
     def = g_new0(virNetworkPortDef, 1);
 
@@ -224,13 +223,14 @@ virNetworkPortDefParseXML(xmlXPathContextPtr ctxt)
                                    VIR_XML_PROP_NONE,
                                    &def->plug.hostdevpci.managed) < 0)
             return NULL;
-
-        if ((driverNode = virXPathNode("./plug/driver", ctxt)) &&
-            virDeviceHostdevPCIDriverInfoParseXML(driverNode,
-                                                  &def->plug.hostdevpci.driver) < 0) {
+        driver = virXPathString("string(./plug/driver/@name)", ctxt);
+        if (driver &&
+            (def->plug.hostdevpci.driver =
+             virNetworkForwardDriverNameTypeFromString(driver)) <= 0) {
+              virReportError(VIR_ERR_XML_ERROR, "%s",
+                           _("Missing network port driver name"));
             return NULL;
         }
-
         if (!(addressNode = virXPathNode("./plug/address", ctxt))) {
             virReportError(VIR_ERR_XML_ERROR, "%s",
                            _("Missing network port PCI address"));
@@ -307,8 +307,8 @@ virNetworkPortDefFormatBuf(virBuffer *buf,
     virMacAddrFormat(&def->mac, macaddr);
     virBufferAsprintf(buf, "<mac address='%s'/>\n", macaddr);
 
-    virNetDevVPortProfileFormat(def->virtPortProfile, buf);
-
+    if (virNetDevVPortProfileFormat(def->virtPortProfile, buf) < 0)
+        return -1;
     if (def->bandwidth)
         virNetDevBandwidthFormat(def->bandwidth, def->class_id, buf);
     if (virNetDevVlanFormat(&def->vlan, buf) < 0)
@@ -319,7 +319,6 @@ virNetworkPortDefFormatBuf(virBuffer *buf,
                           virTristateBoolTypeToString(def->trustGuestRxFilters));
 
     if (def->plugtype != VIR_NETWORK_PORT_PLUG_TYPE_NONE) {
-
         virBufferAsprintf(buf, "<plug type='%s'",
                           virNetworkPortPlugTypeToString(def->plugtype));
 
@@ -352,9 +351,10 @@ virNetworkPortDefFormatBuf(virBuffer *buf,
             }
             virBufferAddLit(buf, ">\n");
             virBufferAdjustIndent(buf, 2);
-
-            if (virDeviceHostdevPCIDriverInfoFormat(buf, &def->plug.hostdevpci.driver) < 0)
-                return -1;
+            if (def->plug.hostdevpci.driver)
+                virBufferEscapeString(buf, "<driver name='%s'/>\n",
+                                      virNetworkForwardDriverNameTypeToString(
+                                          def->plug.hostdevpci.driver));
 
             virPCIDeviceAddressFormat(buf, def->plug.hostdevpci.addr, false);
             virBufferAdjustIndent(buf, -2);

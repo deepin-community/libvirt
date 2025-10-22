@@ -315,7 +315,7 @@ AppArmorSetSecurityHostLabel(virSCSIVHostDevice *dev G_GNUC_UNUSED,
 }
 
 /* Called on libvirtd startup to see if AppArmor is available */
-static virSecurityDriverStatus
+static int
 AppArmorSecurityManagerProbe(const char *virtDriver G_GNUC_UNUSED)
 {
     g_autofree char *template_qemu = NULL;
@@ -869,7 +869,7 @@ AppArmorSetSecurityHostdevLabel(virSecurityManager *mgr,
         if (!pci)
             goto done;
 
-        if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
+        if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
             char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
             if (!vfioGroupDev) {

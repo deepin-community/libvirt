@@ -765,7 +765,7 @@ virStorageSourceSliceCopy(const virStorageSourceSlice *src)
 }
 
 
-void
+static void
 virStorageSourceSliceFree(virStorageSourceSlice *slice)
 {
     if (!slice)
@@ -1347,7 +1347,8 @@ int
 virStorageSourcePrivateDataFormatRelPath(virStorageSource *src,
                                          virBuffer *buf)
 {
-    virBufferEscapeString(buf, "<relPath>%s</relPath>\n", src->relPath);
+    if (src->relPath)
+        virBufferEscapeString(buf, "<relPath>%s</relPath>\n", src->relPath);
 
     return 0;
 }

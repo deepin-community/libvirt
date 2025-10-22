@@ -145,7 +145,15 @@
     </optional>
     <interleave>
       <optional>
-        <ref name="hostdevDriver"/>
+        <element name="driver">
+          <attribute name="name">
+            <choice>
+              <value>kvm</value>
+              <value>vfio</value>
+            </choice>
+          </attribute>
+          <empty/>
+        </element>
       </optional>
       <element name="address">
         <ref name="pciaddress"/>

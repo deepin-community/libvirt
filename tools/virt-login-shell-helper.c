@@ -180,7 +180,7 @@ main(int argc, char **argv)
 
     struct option opt[] = {
         { "help", no_argument, NULL, 'h' },
-        { "version", no_argument, NULL, 'V' },
+        { "version", optional_argument, NULL, 'V' },
         { NULL, 0, NULL, 0 },
     };
     if (virInitialize() < 0) {
@@ -260,7 +260,8 @@ main(int argc, char **argv)
     if (!(conf = virConfReadFile(login_shell_path, 0)))
         goto cleanup;
 
-    ngroups = virGetGroupList(uid, gid, &groups);
+    if ((ngroups = virGetGroupList(uid, gid, &groups)) < 0)
+        goto cleanup;
 
     if (virLoginShellAllowedUser(conf, name, groups, ngroups) < 0)
         goto cleanup;

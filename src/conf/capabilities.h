@@ -89,7 +89,6 @@ struct _virCapsHostNUMACellCPU {
     unsigned int id;
     unsigned int socket_id;
     unsigned int die_id;
-    unsigned int cluster_id;
     unsigned int core_id;
     virBitmap *siblings;
 };
@@ -309,15 +308,13 @@ virCapabilitiesDomainDataLookup(virCaps *caps,
                                 virArch arch,
                                 int domaintype,
                                 const char *emulator,
-                                const char *machinetype,
-                                bool reportError);
+                                const char *machinetype);
 
 bool
 virCapabilitiesDomainSupported(virCaps *caps,
                                int ostype,
                                virArch arch,
-                               int domaintype,
-                               bool reportError);
+                               int domaintype);
 
 
 void
