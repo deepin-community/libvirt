@@ -1,3 +1,9 @@
+libvirt (10.7.0-3deepin3) unstable; urgency=medium
+
+  * feat: add sw64 support
+
+ -- hudeng <hudeng@deepin.org>  Thu, 23 Oct 2025 13:29:40 +0800
+
 libvirt (10.7.0-3deepin2) unstable; urgency=medium
 
   * Add Chinese translation.

@@ -23,6 +23,8 @@ usr/share/libvirt/cpu_map/ppc64_POWER9.xml
 usr/share/libvirt/cpu_map/ppc64_POWERPC_e5500.xml
 usr/share/libvirt/cpu_map/ppc64_POWERPC_e6500.xml
 usr/share/libvirt/cpu_map/ppc64_vendors.xml
+usr/share/libvirt/cpu_map/sw64_core3.xml
+usr/share/libvirt/cpu_map/sw64_core4.xml
 usr/share/libvirt/cpu_map/x86_486.xml
 usr/share/libvirt/cpu_map/x86_Broadwell-IBRS.xml
 usr/share/libvirt/cpu_map/x86_Broadwell-noTSX-IBRS.xml

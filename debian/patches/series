@@ -6,3 +6,4 @@ debian/apparmor_profiles_local_include.patch
 debian/Use-sensible-editor-by-default.patch
 deepin/0001-conf-qemu-add-libvirt-support-reuse-id-for-hygon-CSV.patch
 deepin/0002-conf-qemu-support-provide-inject-secret-for-Hygon-CS.patch
+deepin/0003-feat-deepin-add-sw64-support.patch
