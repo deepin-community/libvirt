@@ -1,0 +1,714 @@
+From b0b530826523d580e5dadd856d685c8f73d3a191 Mon Sep 17 00:00:00 2001
+From: hudeng <hudeng@deepin.org>
+Date: Thu, 23 Oct 2025 11:24:29 +0800
+Subject: [PATCH] feat: deepin add sw64 support
+
+---
+ meson.build                     |   2 +-
+ po/POTFILES                     |   1 +
+ src/conf/domain_conf.c          |   7 +-
+ src/conf/schemas/basictypes.rng |   1 +
+ src/cpu/cpu.c                   |   2 +
+ src/cpu/cpu_sw64.c              | 300 ++++++++++++++++++++++++++++++++
+ src/cpu/cpu_sw64.h              |  30 ++++
+ src/cpu/meson.build             |   1 +
+ src/cpu_map/index.xml           |   6 +
+ src/cpu_map/meson.build         |   2 +
+ src/cpu_map/sw64_core3.xml      |   4 +
+ src/cpu_map/sw64_core4.xml      |   4 +
+ src/qemu/qemu_capabilities.c    |   7 +
+ src/qemu/qemu_domain.c          |  30 +++-
+ src/qemu/qemu_domain.h          |   1 +
+ src/util/virarch.c              |   8 +-
+ src/util/virarch.h              |   4 +
+ src/util/virhostcpu.c           |   2 +
+ src/util/virsysinfo.c           |   3 +-
+ 19 files changed, 409 insertions(+), 6 deletions(-)
+ create mode 100644 src/cpu/cpu_sw64.c
+ create mode 100644 src/cpu/cpu_sw64.h
+ create mode 100644 src/cpu_map/sw64_core3.xml
+ create mode 100644 src/cpu_map/sw64_core4.xml
+
+diff --git a/meson.build b/meson.build
+index f31485c3..66604f1a 100644
+--- a/meson.build
++++ b/meson.build
+@@ -1604,7 +1604,7 @@ elif get_option('driver_lxc').enabled()
+   error('linux and remote_driver are required for LXC')
+ endif
+ 
+-if not get_option('driver_ch').disabled() and host_machine.system() == 'linux' and (host_machine.cpu_family() == 'x86_64' or host_machine.cpu_family() == 'aarch64')
++if not get_option('driver_ch').disabled() and host_machine.system() == 'linux' and (host_machine.cpu_family() == 'x86_64' or host_machine.cpu_family() == 'aarch64' or host_machine.cpu_family() == 'sw_64')
+   use_ch = true
+ 
+   if not conf.has('WITH_LIBVIRTD')
+diff --git a/po/POTFILES b/po/POTFILES
+index 1ed4086d..dfb742e4 100644
+--- a/po/POTFILES
++++ b/po/POTFILES
+@@ -73,6 +73,7 @@ src/cpu/cpu_map.c
+ src/cpu/cpu_ppc64.c
+ src/cpu/cpu_riscv64.c
+ src/cpu/cpu_s390.c
++src/cpu/cpu_sw64.c
+ src/cpu/cpu_x86.c
+ src/datatypes.c
+ src/driver.c
+diff --git a/src/conf/domain_conf.c b/src/conf/domain_conf.c
+index b14fc3f3..cc2c606b 100644
+--- a/src/conf/domain_conf.c
++++ b/src/conf/domain_conf.c
+@@ -13005,6 +13005,9 @@ virDomainVideoDefaultRAM(const virDomainDef *def,
+         /* Original Xen PVFB hardcoded to 4 MB */
+         return 4 * 1024;
+ 
++#if defined(__sw_64__)
++    case VIR_DOMAIN_VIDEO_TYPE_VIRTIO:
++#endif
+     case VIR_DOMAIN_VIDEO_TYPE_QXL:
+         /* QEMU use 64M as the minimal video memory for qxl device */
+         return 64 * 1024;
+@@ -13012,8 +13015,10 @@ virDomainVideoDefaultRAM(const virDomainDef *def,
+     case VIR_DOMAIN_VIDEO_TYPE_DEFAULT:
+     case VIR_DOMAIN_VIDEO_TYPE_VBOX:
+     case VIR_DOMAIN_VIDEO_TYPE_PARALLELS:
+-    case VIR_DOMAIN_VIDEO_TYPE_VIRTIO:
+     case VIR_DOMAIN_VIDEO_TYPE_GOP:
++#if !defined(__sw_64__)
++    case VIR_DOMAIN_VIDEO_TYPE_VIRTIO:
++#endif
+     case VIR_DOMAIN_VIDEO_TYPE_NONE:
+     case VIR_DOMAIN_VIDEO_TYPE_RAMFB:
+     case VIR_DOMAIN_VIDEO_TYPE_LAST:
+diff --git a/src/conf/schemas/basictypes.rng b/src/conf/schemas/basictypes.rng
+index 2931e316..dfe5f154 100644
+--- a/src/conf/schemas/basictypes.rng
++++ b/src/conf/schemas/basictypes.rng
+@@ -471,6 +471,7 @@
+       <value>x86_64</value>
+       <value>xtensa</value>
+       <value>xtensaeb</value>
++      <value>sw_64</value>
+     </choice>
+   </define>
+ 
+diff --git a/src/cpu/cpu.c b/src/cpu/cpu.c
+index a2518d7c..9fd543b7 100644
+--- a/src/cpu/cpu.c
++++ b/src/cpu/cpu.c
+@@ -28,6 +28,7 @@
+ #include "cpu_s390.h"
+ #include "cpu_arm.h"
+ #include "cpu_loongarch.h"
++#include "cpu_sw64.h"
+ #include "cpu_riscv64.h"
+ #include "capabilities.h"
+ 
+@@ -43,6 +44,7 @@ static struct cpuArchDriver *drivers[] = {
+     &cpuDriverArm,
+     &cpuDriverRiscv64,
+     &cpuDriverLoongArch,
++    &cpuDriverSW64,
+ };
+ 
+ 
+diff --git a/src/cpu/cpu_sw64.c b/src/cpu/cpu_sw64.c
+new file mode 100644
+index 00000000..913fd442
+--- /dev/null
++++ b/src/cpu/cpu_sw64.c
+@@ -0,0 +1,300 @@
++/*
++ * cpu_sw64.c: CPU driver for sw64 CPUs
++ *
++ * Copyright (C) 2021 Lu Feifei
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library.  If not, see
++ * <http://www.gnu.org/licenses/>.
++ */
++
++#include <config.h>
++
++#include "virfile.h"
++#include "viralloc.h"
++#include "cpu.h"
++#include "cpu_sw64.h"
++#include "cpu_map.h"
++#include "virstring.h"
++#include "virhostcpu.h"
++
++#define VIR_FROM_THIS VIR_FROM_CPU
++#define ARRAY_CARDINALITY(Array) (sizeof(Array) / sizeof(*(Array)))
++#define CPUINFO_PATH "/proc/cpuinfo"
++
++static const virArch archs[] = { VIR_ARCH_SW_64 };
++
++typedef struct _sw64Model sw64Model;
++struct _sw64Model {
++    char *name;
++};
++
++typedef struct _sw64Map sw64Map;
++struct _sw64Map {
++    size_t nmodels;
++    sw64Model **models;
++};
++
++static virCPUCompareResult
++virCPUsw64Compare(virCPUDef *host ATTRIBUTE_UNUSED,
++                  virCPUDef *cpu ATTRIBUTE_UNUSED,
++                  bool failMessages ATTRIBUTE_UNUSED)
++{
++    return VIR_CPU_COMPARE_IDENTICAL;
++}
++
++static int
++virCPUsw64Update(virCPUDef *guest,
++                 const virCPUDef *host,
++                 bool relative ATTRIBUTE_UNUSED,
++                 virCPUFeaturePolicy removedPolicy G_GNUC_UNUSED)
++{
++    g_autoptr(virCPUDef) updated = NULL;
++
++    if (!relative || guest->mode != VIR_CPU_MODE_HOST_MODEL)
++        return 0;
++
++    if (!host) {
++        virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
++                       _("unknown host CPU model"));
++        return -1;
++    }
++
++    if (!(updated = virCPUDefCopyWithoutModel(guest)))
++        return -1;
++
++    updated->mode = VIR_CPU_MODE_CUSTOM;
++    virCPUDefCopyModel(updated, host, true);
++
++    virCPUDefStealModel(guest, updated, false);
++    guest->mode = VIR_CPU_MODE_CUSTOM;
++    guest->match = VIR_CPU_MATCH_EXACT;
++
++    return 0;
++}
++
++static void
++sw64ModelFree(sw64Model *model)
++{
++    if (!model)
++        return;
++
++    VIR_FREE(model->name);
++    VIR_FREE(model);
++}
++
++static void
++sw64MapFree(sw64Map *map)
++{
++    size_t i;
++
++    if (!map)
++        return;
++
++    for (i = 0; i < map->nmodels; i++)
++        sw64ModelFree(map->models[i]);
++    VIR_FREE(map->models);
++    VIR_FREE(map);
++}
++
++static sw64Model *
++sw64ModelFind(const sw64Map *map,
++              const char *name)
++{
++    size_t i;
++
++    for (i = 0; i < map->nmodels; i++) {
++        if (STREQ(map->models[i]->name, name))
++            return map->models[i];
++    }
++
++    return NULL;
++}
++
++static int
++sw64ModelParse(xmlXPathContextPtr ctxt ATTRIBUTE_UNUSED,
++               const char *name,
++               void *data)
++{
++    sw64Map *map = data;
++    sw64Model *model;
++    int ret = -1;
++
++    model = g_new0(sw64Model, 1);
++
++    model->name = g_strdup(name);
++
++    if (sw64ModelFind(map, model->name)) {
++        virReportError(VIR_ERR_INTERNAL_ERROR,
++                       _("CPU model %1$s already defined"), model->name);
++        goto cleanup;
++    }
++
++    VIR_APPEND_ELEMENT(map->models, map->nmodels, model);
++
++    ret = 0;
++
++ cleanup:
++    sw64ModelFree(model);
++    return ret;
++}
++
++static sw64Map *
++sw64LoadMap(void)
++{
++    sw64Map *map;
++
++    map = g_new0(sw64Map, 1);
++
++    if (cpuMapLoad("sw64", NULL, NULL, sw64ModelParse, map) < 0)
++        goto error;
++
++    return map;
++
++ error:
++    sw64MapFree(map);
++    return NULL;
++}
++
++static int
++sw64CPUParseCpuModeString(const char *str,
++		          const char *prefix,
++			  unsigned int *mode)
++{
++    char *p;
++    unsigned int ui;
++    /* If the string doesn't start with the expected prefix, then
++     * we're not looking at the right string and we should move on */
++    if (!STRPREFIX(str, prefix))
++        return 1;
++    /* Skip the prefix */
++    str += strlen(prefix);
++
++    /* Skip all whitespace */
++    while (g_ascii_isspace(*str))
++        str++;
++    if (*str == '\0')
++        goto error;
++
++    /* Skip the colon. If anything but a colon is found, then we're
++     * not looking at the right string and we should move on */
++    if (*str != ':')
++        return 1;
++    str++;
++
++    /* Skip all whitespace */
++    while (g_ascii_isspace(*str))
++        str++;
++    if (*str == '\0')
++        goto error;
++
++    if (virStrToLong_ui(str, &p, 10, &ui) < 0 ||
++        (*p != '.' && *p != '\0' && !g_ascii_isspace(*p))) {
++        goto error;
++    }
++
++    *mode = ui;
++    return 0;
++
++ error:
++    virReportError(VIR_ERR_INTERNAL_ERROR,
++                   _("Missing or invalid CPU variation in %s"),
++                   CPUINFO_PATH);
++    return -1;
++}
++
++static int
++sw64CPUParseCpuMode(FILE *cpuinfo, unsigned int *mode)
++{
++    const char *prefix = "cpu variation";
++    char line[1024];
++
++    while (fgets(line, sizeof(line), cpuinfo) != NULL) {
++        if (sw64CPUParseCpuModeString(line, prefix, mode) < 0)
++            return -1;
++    }
++
++    return 0;
++}
++
++static int
++virCPUsw64GetHost(virCPUDef *cpu,
++                  virDomainCapsCPUModels *models ATTRIBUTE_UNUSED)
++{
++    int ret = -1;
++    unsigned int mode;
++    FILE *cpuinfo = fopen(CPUINFO_PATH, "r");
++    if (!cpuinfo) {
++        virReportSystemError(errno,
++                             _("cannot open %s"), CPUINFO_PATH);
++	return -1;
++    }
++
++    ret = sw64CPUParseCpuMode(cpuinfo, &mode);
++    if (ret < 0)
++        goto cleanup;
++
++    if (mode == 3)
++        cpu->model = g_strdup("core3");
++    else if (mode == 4)
++        cpu->model = g_strdup("core4");
++
++ cleanup:
++    VIR_FORCE_FCLOSE(cpuinfo);
++    return ret;
++}
++
++static int
++virCPUsw64DriverGetModels(char ***models)
++{
++    sw64Map *map;
++    size_t i;
++    int ret = -1;
++
++    if (!(map = sw64LoadMap()))
++        goto error;
++
++    if (models) {
++        *models = g_new0(char *, map->nmodels + 1);
++
++        for (i = 0; i < map->nmodels; i++) {
++            (*models)[i] = g_strdup(map->models[i]->name);
++        }
++    }
++
++    ret = map->nmodels;
++
++ cleanup:
++    sw64MapFree(map);
++    return ret;
++
++ error:
++    if (models) {
++        g_strfreev(*models);
++        *models = NULL;
++    }
++    goto cleanup;
++}
++
++struct cpuArchDriver cpuDriverSW64 = {
++    .name = "sw_64",
++    .arch = archs,
++    .narch = G_N_ELEMENTS(archs),
++    .getHost = virCPUsw64GetHost,
++    .compare = virCPUsw64Compare,
++    .decode = NULL,
++    .encode = NULL,
++    .baseline = NULL,
++    .update = virCPUsw64Update,
++    .getModels = virCPUsw64DriverGetModels,
++};
+diff --git a/src/cpu/cpu_sw64.h b/src/cpu/cpu_sw64.h
+new file mode 100644
+index 00000000..d38cd9fa
+--- /dev/null
++++ b/src/cpu/cpu_sw64.h
+@@ -0,0 +1,30 @@
++/*
++ * cpu_sw64.h: CPU driver for sw64 CPUs
++ *
++ * Copyright (C) 2021 Lu Feifei
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library.  If not, see
++ * <http://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#ifndef __VIR_CPU_SW64_H__
++#define __VIR_CPU_SW64_H__
++
++#include "cpu.h"
++
++extern struct cpuArchDriver cpuDriverSW64;
++
++#endif /* __VIR_CPU_SW64_H__ */
+diff --git a/src/cpu/meson.build b/src/cpu/meson.build
+index 141230e3..882a804b 100644
+--- a/src/cpu/meson.build
++++ b/src/cpu/meson.build
+@@ -1,6 +1,7 @@
+ cpu_sources = [
+   'cpu.c',
+   'cpu_arm.c',
++  'cpu_sw64.c',
+   'cpu_loongarch.c',
+   'cpu_map.c',
+   'cpu_ppc64.c',
+diff --git a/src/cpu_map/index.xml b/src/cpu_map/index.xml
+index 39bad07f..910b28a9 100644
+--- a/src/cpu_map/index.xml
++++ b/src/cpu_map/index.xml
+@@ -120,4 +120,10 @@
+     <include filename='arm_FT-2000plus.xml'/>
+     <include filename='arm_Tengyun-S2500.xml'/>
+   </arch>
++
++  <arch name='sw_64'>
++    <!-- SW64-based CPU models -->
++    <include filename='sw64_core3.xml'/>
++    <include filename='sw64_core4.xml'/>
++  </arch>
+ </cpus>
+diff --git a/src/cpu_map/meson.build b/src/cpu_map/meson.build
+index 89b13175..f1d8b949 100644
+--- a/src/cpu_map/meson.build
++++ b/src/cpu_map/meson.build
+@@ -85,6 +85,8 @@ cpumap_data = [
+   'x86_vendors.xml',
+   'x86_Westmere-IBRS.xml',
+   'x86_Westmere.xml',
++  'sw64_core3.xml',
++  'sw64_core4.xml',
+ ]
+ 
+ install_data(cpumap_data, install_dir: pkgdatadir / 'cpu_map')
+diff --git a/src/cpu_map/sw64_core3.xml b/src/cpu_map/sw64_core3.xml
+new file mode 100644
+index 00000000..ec3fa0ef
+--- /dev/null
++++ b/src/cpu_map/sw64_core3.xml
+@@ -0,0 +1,4 @@
++<cpus>
++  <model name='core3'>
++  </model>
++</cpus>
+diff --git a/src/cpu_map/sw64_core4.xml b/src/cpu_map/sw64_core4.xml
+new file mode 100644
+index 00000000..11e763b5
+--- /dev/null
++++ b/src/cpu_map/sw64_core4.xml
+@@ -0,0 +1,4 @@
++<cpus>
++  <model name='core4'>
++  </model>
++</cpus>
+diff --git a/src/qemu/qemu_capabilities.c b/src/qemu/qemu_capabilities.c
+index 6a0f3e2a..0da12800 100644
+--- a/src/qemu/qemu_capabilities.c
++++ b/src/qemu/qemu_capabilities.c
+@@ -829,6 +829,8 @@ virArch virQEMUCapsArchFromString(const char *arch)
+         return VIR_ARCH_ARMV7L;
+     if (STREQ(arch, "or32"))
+         return VIR_ARCH_OR32;
++    if (STREQ(arch, "sw64"))
++        return VIR_ARCH_SW_64;
+ 
+     return virArchFromString(arch);
+ }
+@@ -842,6 +844,8 @@ const char *virQEMUCapsArchToString(virArch arch)
+         return "arm";
+     if (arch == VIR_ARCH_OR32)
+         return "or32";
++    if (arch == VIR_ARCH_SW_64)
++        return "sw64";
+ 
+     return virArchToString(arch);
+ }
+@@ -2746,6 +2750,9 @@ static const char *preferredMachines[] =
+     "pc", /* VIR_ARCH_X86_64 */
+     "sim", /* VIR_ARCH_XTENSA */
+     "sim", /* VIR_ARCH_XTENSAEB */
++
++    "core3", /* VIR_ARCH_SW_64 */
++
+ };
+ G_STATIC_ASSERT(G_N_ELEMENTS(preferredMachines) == VIR_ARCH_LAST);
+ 
+diff --git a/src/qemu/qemu_domain.c b/src/qemu/qemu_domain.c
+index 93dbbcbc..7ca8fbe9 100644
+--- a/src/qemu/qemu_domain.c
++++ b/src/qemu/qemu_domain.c
+@@ -4206,6 +4206,10 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
+             addPCIRoot = true;
+         break;
+ 
++    case VIR_ARCH_SW_64:
++        addPCIeRoot = true;
++        break;
++
+     case VIR_ARCH_ARMV6L:
+     case VIR_ARCH_ARMV7L:
+     case VIR_ARCH_ARMV7B:
+@@ -6068,7 +6072,8 @@ qemuDomainDefaultVideoDevice(const virDomainDef *def,
+     if (qemuDomainIsARMVirt(def) ||
+         qemuDomainIsLoongArchVirt(def) ||
+         qemuDomainIsRISCVVirt(def) ||
+-        ARCH_IS_S390(def->os.arch)) {
++        ARCH_IS_S390(def->os.arch) ||
++        ARCH_IS_SW64(def->os.arch)) {
+         return VIR_DOMAIN_VIDEO_TYPE_VIRTIO;
+     }
+     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_CIRRUS_VGA))
+@@ -9200,6 +9205,19 @@ qemuDomainMachineIsXenFV(const char *machine,
+     return false;
+ }
+ 
++static bool
++qemuDomainMachineIsSW64(const char *machine,
++                        const virArch arch)
++{
++    if (!ARCH_IS_SW64(arch))
++        return false;
++
++    if (STRPREFIX(machine, "core"))
++        return true;
++
++    return false;
++}
++
+ 
+ /* You should normally avoid this function and use
+  * qemuDomainHasBuiltinIDE() instead. */
+@@ -9210,7 +9228,8 @@ qemuDomainMachineHasBuiltinIDE(const char *machine,
+     return qemuDomainMachineIsI440FX(machine, arch) ||
+         STREQ(machine, "malta") ||
+         STREQ(machine, "sun4u") ||
+-        STREQ(machine, "g3beige");
++        STREQ(machine, "g3beige") ||
++	STRPREFIX(machine, "core");
+ }
+ 
+ 
+@@ -9293,6 +9312,13 @@ qemuDomainIsXenFV(const virDomainDef *def)
+ }
+ 
+ 
++bool
++qemuDomainIsSW64(const virDomainDef *def)
++{
++    return qemuDomainMachineIsSW64(def->os.machine, def->os.arch);
++}
++
++
+ bool
+ qemuDomainHasPCIRoot(const virDomainDef *def)
+ {
+diff --git a/src/qemu/qemu_domain.h b/src/qemu/qemu_domain.h
+index d799f6c0..0be45f8c 100644
+--- a/src/qemu/qemu_domain.h
++++ b/src/qemu/qemu_domain.h
+@@ -844,6 +844,7 @@ bool qemuDomainIsLoongArchVirt(const virDomainDef *def);
+ bool qemuDomainIsRISCVVirt(const virDomainDef *def);
+ bool qemuDomainIsPSeries(const virDomainDef *def);
+ bool qemuDomainIsMipsMalta(const virDomainDef *def);
++bool qemuDomainIsSW64(const virDomainDef *def);
+ bool qemuDomainIsXenFV(const virDomainDef *def);
+ bool qemuDomainHasPCIRoot(const virDomainDef *def);
+ bool qemuDomainHasPCIeRoot(const virDomainDef *def);
+diff --git a/src/util/virarch.c b/src/util/virarch.c
+index a94318da..5b4ac7ac 100644
+--- a/src/util/virarch.c
++++ b/src/util/virarch.c
+@@ -84,6 +84,8 @@ static const struct virArchData {
+     { "x86_64",       64, VIR_ARCH_LITTLE_ENDIAN },
+     { "xtensa",       32, VIR_ARCH_LITTLE_ENDIAN },
+     { "xtensaeb",     32, VIR_ARCH_BIG_ENDIAN },
++
++    { "sw_64",        64, VIR_ARCH_LITTLE_ENDIAN },
+ };
+ 
+ G_STATIC_ASSERT(G_N_ELEMENTS(virArchData) == VIR_ARCH_LAST);
+@@ -197,6 +199,8 @@ virArch virArchFromHost(void)
+         return VIR_ARCH_ARMV7L;
+     case PROCESSOR_ARCHITECTURE_ARM64:
+         return VIR_ARCH_AARCH64;
++    case PROCESSOR_ARCHITECTURE_SW64:
++        return VIR_ARCH_SW_64;
+     default:
+         VIR_WARN("Unknown host arch '%d', report to devel@lists.libvirt.org",
+                  info.wProcessorArchitecture);
+@@ -225,7 +229,9 @@ virArch virArchFromHost(void)
+         arch = VIR_ARCH_AARCH64;
+     } else if (STREQ(ut.machine, "loongarch64")) {
+         arch = VIR_ARCH_LOONGARCH64;
+-    } else {
++    } else if (STREQ(ut.machine, "sw_64")) {
++        arch = VIR_ARCH_SW_64;
++    }else {
+         /* Otherwise assume the canonical name */
+         if ((arch = virArchFromString(ut.machine)) == VIR_ARCH_NONE) {
+             VIR_WARN("Unknown host arch %s, report to devel@lists.libvirt.org",
+diff --git a/src/util/virarch.h b/src/util/virarch.h
+index 2c01a13b..379f7a47 100644
+--- a/src/util/virarch.h
++++ b/src/util/virarch.h
+@@ -70,6 +70,8 @@ typedef enum {
+     VIR_ARCH_XTENSA,       /* XTensa      32 LE https://en.wikipedia.org/wiki/Xtensa#Processor_Cores */
+     VIR_ARCH_XTENSAEB,     /* XTensa      32 BE https://en.wikipedia.org/wiki/Xtensa#Processor_Cores */
+ 
++    VIR_ARCH_SW_64,       /* SW_64       64 LE XHB */
++
+     VIR_ARCH_LAST,
+ } virArch;
+ 
+@@ -109,6 +111,8 @@ typedef enum {
+ 
+ #define ARCH_IS_LOONGARCH(arch)  ((arch) == VIR_ARCH_LOONGARCH64)
+ 
++#define ARCH_IS_SW64(arch) ((arch) == VIR_ARCH_SW_64)
++
+ typedef enum {
+     VIR_ARCH_LITTLE_ENDIAN,
+     VIR_ARCH_BIG_ENDIAN,
+diff --git a/src/util/virhostcpu.c b/src/util/virhostcpu.c
+index 3b4a11ef..a5eec75d 100644
+--- a/src/util/virhostcpu.c
++++ b/src/util/virhostcpu.c
+@@ -577,6 +577,8 @@ virHostCPUParseFrequency(FILE *cpuinfo,
+         prefix = "cpu MHz dynamic";
+     else if (ARCH_IS_LOONGARCH(arch))
+         prefix = "CPU MHz";
++    else if (ARCH_IS_SW64(arch))
++        prefix = "cpu frequency [MHz]";
+ 
+     if (!prefix) {
+         VIR_WARN("%s is not supported by the %s parser",
+diff --git a/src/util/virsysinfo.c b/src/util/virsysinfo.c
+index dbcbca62..c392af22 100644
+--- a/src/util/virsysinfo.c
++++ b/src/util/virsysinfo.c
+@@ -1268,7 +1268,8 @@ virSysinfoRead(void)
+      defined(__amd64__) || \
+      defined(__riscv__) || \
+      defined(__mips__) || \
+-     defined(__loongarch__))
++     defined(__loongarch__) || \
++     defined(__sw_64__))
+     return virSysinfoReadDMI();
+ #else /* WIN32 || not supported arch */
+     /*
+-- 
+2.50.1
+
