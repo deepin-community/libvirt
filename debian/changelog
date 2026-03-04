@@ -1,3 +1,9 @@
+libvirt (10.7.0-3deepin5) unstable; urgency=medium
+
+  * feat: add Dharma CPU patch, Chengdu CPU patch
+
+ -- tunaichao <tunaichao@uniontech.com>  Wed, 04 Mar 2026 09:55:37 +0800
+
 libvirt (10.7.0-3deepin4) unstable; urgency=medium
 
   * feat: Add support for ARM-CCA confidential computing features

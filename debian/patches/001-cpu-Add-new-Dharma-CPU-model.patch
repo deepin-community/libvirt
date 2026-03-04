@@ -1,0 +1,112 @@
+Index: my_libvirt/src/cpu_map/index.xml
+===================================================================
+--- my_libvirt.orig/src/cpu_map/index.xml
++++ my_libvirt/src/cpu_map/index.xml
+@@ -75,6 +75,7 @@
+ 
+     <!-- Hygon CPU models -->
+     <include filename='x86_Dhyana.xml'/>
++    <include filename='x86_Dharma.xml'/>
+   </arch>
+ 
+   <arch name='ppc64'>
+Index: my_libvirt/src/cpu_map/meson.build
+===================================================================
+--- my_libvirt.orig/src/cpu_map/meson.build
++++ my_libvirt/src/cpu_map/meson.build
+@@ -36,6 +36,7 @@ cpumap_data = [
+   'x86_coreduo.xml',
+   'x86_cpu64-rhel5.xml',
+   'x86_cpu64-rhel6.xml',
++  'x86_Dharma.xml',
+   'x86_Dhyana.xml',
+   'x86_EPYC-IBPB.xml',
+   'x86_EPYC.xml',
+Index: my_libvirt/src/cpu_map/x86_Dharma.xml
+===================================================================
+--- /dev/null
++++ my_libvirt/src/cpu_map/x86_Dharma.xml
+@@ -0,0 +1,83 @@
++<cpus>
++  <model name='Dharma'>
++    <decode host='on' guest='on'/>
++    <signature family='24' model='4'/>
++    <vendor name='Hygon'/>
++    <feature name='3dnowprefetch'/>
++    <feature name='abm'/>
++    <feature name='adx'/>
++    <feature name='aes'/>
++    <feature name='amd-ssbd'/>
++    <feature name='amd-stibp'/>
++    <feature name='apic'/>
++    <feature name='arat'/>
++    <feature name='avx'/>
++    <feature name='avx2'/>
++    <feature name='bmi1'/>
++    <feature name='bmi2'/>
++    <feature name='clflush'/>
++    <feature name='clflushopt'/>
++    <feature name='clzero'/>
++    <feature name='cmov'/>
++    <feature name='cr8legacy'/>
++    <feature name='cx16'/>
++    <feature name='cx8'/>
++    <feature name='de'/>
++    <feature name='f16c'/>
++    <feature name='fma'/>
++    <feature name='fpu'/>
++    <feature name='fsgsbase'/>
++    <feature name='fxsr'/>
++    <feature name='fxsr_opt'/>
++    <feature name='ibpb'/>
++    <feature name='ibrs'/>
++    <feature name='lahf_lm'/>
++    <feature name='lm'/>
++    <feature name='mca'/>
++    <feature name='mce'/>
++    <feature name='misalignsse'/>
++    <feature name='mmx'/>
++    <feature name='mmxext'/>
++    <feature name='monitor' removed='yes'/>
++    <feature name='movbe'/>
++    <feature name='msr'/>
++    <feature name='mtrr'/>
++    <feature name='npt'/>
++    <feature name='nrip-save'/>
++    <feature name='nx'/>
++    <feature name='osvw'/>
++    <feature name='pae'/>
++    <feature name='pat'/>
++    <feature name='pclmuldq'/>
++    <feature name='pdpe1gb'/>
++    <feature name='perfctr_core'/>
++    <feature name='pge'/>
++    <feature name='pni'/>
++    <feature name='popcnt'/>
++    <feature name='pse'/>
++    <feature name='pse36'/>
++    <feature name='rdrand'/>
++    <feature name='rdseed'/>
++    <feature name='rdtscp'/>
++    <feature name='sep'/>
++    <feature name='sha-ni'/>
++    <feature name='smap'/>
++    <feature name='smep'/>
++    <feature name='sse'/>
++    <feature name='sse2'/>
++    <feature name='sse4.1'/>
++    <feature name='sse4.2'/>
++    <feature name='sse4a'/>
++    <feature name='ssse3'/>
++    <feature name='svm'/>
++    <feature name='syscall'/>
++    <feature name='tsc'/>
++    <feature name='umip'/>
++    <feature name='vme'/>
++    <feature name='xgetbv1'/>
++    <feature name='xsave'/>
++    <feature name='xsavec'/>
++    <feature name='xsaveerptr'/>
++    <feature name='xsaveopt'/>
++  </model>
++</cpus>
