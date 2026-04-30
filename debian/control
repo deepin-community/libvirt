@@ -32,8 +32,8 @@ Build-Depends:
  libparted-dev [linux-any],
  libpcap0.8-dev [linux-any],
  libpciaccess-dev [linux-any],
- librados-dev [amd64 arm64 mips64el ppc64el riscv64 s390x],
- librbd-dev [amd64 arm64 mips64el ppc64el riscv64 s390x],
+ librados-dev [amd64 arm64 mips64el ppc64el riscv64 s390x sw64],
+ librbd-dev [amd64 arm64 mips64el ppc64el riscv64 s390x sw64],
  libreadline-dev,
  libsanlock-dev [linux-any],
  libsasl2-dev,
@@ -57,7 +57,7 @@ Build-Depends:
  po-debconf,
  python3-docutils,
  python3:native,
- qemu-utils [amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32],
+ qemu-utils [amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 sw64 x32],
  systemtap-sdt-dev [linux-any],
  xsltproc,
 Vcs-Git: https://salsa.debian.org/libvirt-team/libvirt.git
@@ -177,7 +177,7 @@ Description: Virtualization daemon
 
 Package: libvirt-daemon-driver-qemu
 Section: admin
-Architecture: amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32
+Architecture: amd64 arm64 armel armhf i386 mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sparc64 x32 sw64
 Multi-Arch: no
 Depends:
  libvirt0 (= ${binary:Version}),
@@ -293,7 +293,7 @@ Description: Virtualization daemon iSCSI (libiscsi) storage driver
 
 Package: libvirt-daemon-driver-storage-rbd
 Section: admin
-Architecture: amd64 arm64 mips64el ppc64el riscv64 s390x
+Architecture: amd64 arm64 mips64el ppc64el riscv64 s390x sw64
 Multi-Arch: no
 Depends:
  libvirt-daemon (= ${binary:Version}),
