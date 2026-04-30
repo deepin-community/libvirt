@@ -1,3 +1,9 @@
+libvirt (9.10.0-1deepin1) unstable; urgency=medium
+
+  * Support reuse asid and secret injection for Hygon CSV
+
+ -- tunaichao <tunaichao@uniontech.com>  Thu, 30 Apr 2026 10:12:04 +0800
+
 libvirt (9.10.0-1) unstable; urgency=medium
 
   * [520e93f] New upstream version 9.10.0
