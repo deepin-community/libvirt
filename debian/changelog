@@ -1,3 +1,10 @@
+libvirt (10.7.0+really9.10.0-1deepin6) unstable; urgency=medium
+
+  * Revert to previous upstream.
+  
+
+ -- lichenggang <lichenggang@deepin.org>  Thu, 30 Apr 2026 17:36:31 +0800
+
 libvirt (9.10.0-1deepin6) unstable; urgency=medium
 
   * correct a patch error.
