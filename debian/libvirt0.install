@@ -41,6 +41,8 @@ usr/share/libvirt/cpu_map/x86_Cascadelake-Server.xml
 usr/share/libvirt/cpu_map/x86_Conroe.xml
 usr/share/libvirt/cpu_map/x86_Cooperlake.xml
 usr/share/libvirt/cpu_map/x86_Dhyana.xml
+usr/share/libvirt/cpu_map/x86_Chengdu.xml
+usr/share/libvirt/cpu_map/x86_Dharma.xml
 usr/share/libvirt/cpu_map/x86_EPYC-Genoa.xml
 usr/share/libvirt/cpu_map/x86_EPYC-IBPB.xml
 usr/share/libvirt/cpu_map/x86_EPYC-Milan.xml
