@@ -1,3 +1,9 @@
+libvirt (9.10.0-1deepin4) unstable; urgency=medium
+
+  * feat: Add support for ARM-CCA confidential computing features.
+
+ -- tunaichao <unaichao@uniontech.com>  Thu, 30 Apr 2026 15:04:41 +0800
+
 libvirt (9.10.0-1deepin3) unstable; urgency=medium
 
   * feat: add sw64 support

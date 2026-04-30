@@ -1,0 +1,296 @@
+From 8127449254052bc2509a58d4e3be3b7223dbb694 Mon Sep 17 00:00:00 2001
+From: WangYuli <wangyuli@aosc.io>
+Date: Fri, 5 Dec 2025 13:05:21 +0800
+Subject: [PATCH 3/3] src: Add ARM CCA support in domain schema
+
+bugzilla:https://gitee.com/openeuler/libvirt/issues/ICU4UF?from=project-issue
+reference:https://patchew.org/Libvirt/20250612071418.2926384-1-fj1078ii@aa.jp.fujitsu.com/
+
+Index: libvirt/src/conf/schemas/domaincaps.rng
+===================================================================
+--- libvirt.orig/src/conf/schemas/domaincaps.rng
++++ libvirt/src/conf/schemas/domaincaps.rng
+@@ -315,6 +315,9 @@
+         <ref name="sgx"/>
+       </optional>
+       <optional>
++        <ref name="cca"/>
++      </optional>
++      <optional>
+         <ref name="hyperv"/>
+       </optional>
+     </element>
+@@ -423,6 +426,39 @@
+     </element>
+   </define>
+ 
++  <define name="cca">
++    <element name="cca">
++      <ref name="supported"/>
++      <interleave>
++        <optional>
++          <attribute name="measurement-log">
++            <ref name="virYesNo"/>
++          </attribute>
++        </optional>
++        <optional>
++          <element name="enum">
++            <attribute name="name">
++              <value>measurement-algo</value>
++            </attribute>
++            <group>
++              <element name="value">
++                <value>sha256</value>
++              </element>
++              <element name="value">
++                <value>sha512</value>
++              </element>
++            </group>
++          </element>
++        </optional>
++        <optional>
++          <element name="personalization-value">
++            <text/>
++          </element>
++        </optional>
++      </interleave>
++    </element>
++  </define>
++
+   <define name="hyperv">
+     <element name="hyperv">
+       <ref name="supported"/>
+Index: libvirt/src/conf/schemas/domaincommon.rng
+===================================================================
+--- libvirt.orig/src/conf/schemas/domaincommon.rng
++++ libvirt/src/conf/schemas/domaincommon.rng
+@@ -520,6 +520,9 @@
+             <value>s390-pv</value>
+           </attribute>
+         </group>
++        <group>
++          <ref name="launchSecurityCCA"/>
++        </group>
+       </choice>
+     </element>
+   </define>
+@@ -562,6 +565,29 @@
+           <data type="string"/>
+         </element>
+       </optional>
++    </interleave>
++  </define>
++
++  <define name="launchSecurityCCA">
++    <attribute name="type">
++      <value>cca</value>
++    </attribute>
++    <interleave>
++      <optional>
++        <attribute name="measurement-log">
++          <ref name="virYesNo"/>
++        </attribute>
++      </optional>
++      <optional>
++        <element name="measurement-algo">
++          <data type="string"/>
++        </element>
++      </optional>
++      <optional>
++        <element name="personalization-value">
++          <data type="string"/>
++        </element>
++      </optional>
+     </interleave>
+   </define>
+ 
+Index: libvirt/src/qemu/qemu_capabilities.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_capabilities.c
++++ libvirt/src/qemu/qemu_capabilities.c
+@@ -1908,6 +1908,34 @@ virQEMUCapsSGXInfoCopy(virSGXCapability
+ 
+ 
+ static void
++virQEMUCapsCCAInfoCopy(virCCACapability **dst,
++                       virCCACapability *src)
++{
++    g_autoptr(virCCACapability) tmp = NULL;
++    size_t i;
++
++    if (!src) {
++        *dst = NULL;
++        return;
++    }
++
++    tmp = g_new0(virCCACapability, 1);
++
++    tmp->nCcaMeasurementAlgo = src->nCcaMeasurementAlgo;
++
++    if (tmp->nCcaMeasurementAlgo != 0) {
++        tmp->ccaMeasurementAlgo = g_new0(char *, tmp->nCcaMeasurementAlgo);
++
++        for (i = 0; i < tmp->nCcaMeasurementAlgo; i++) {
++            tmp->ccaMeasurementAlgo[i] = g_strdup(src->ccaMeasurementAlgo[i]);
++        }
++    }
++
++    *dst = g_steal_pointer(&tmp);
++}
++
++
++static void
+ virQEMUCapsAccelCopyMachineTypes(virQEMUCapsAccel *dst,
+                                  virQEMUCapsAccel *src)
+ {
+@@ -1982,6 +2010,9 @@ virQEMUCaps *virQEMUCapsNewCopy(virQEMUC
+     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_SGX_EPC))
+         virQEMUCapsSGXInfoCopy(&ret->sgxCapabilities, qemuCaps->sgxCapabilities);
+ 
++    if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_CCA_GUEST))
++        virQEMUCapsCCAInfoCopy(&ret->ccaCapabilities, qemuCaps->ccaCapabilities);
++
+     ret->hypervCapabilities = g_memdup(qemuCaps->hypervCapabilities,
+                                        sizeof(virDomainCapsFeatureHyperv));
+ 
+@@ -2561,6 +2592,13 @@ virQEMUCapsGetSGXCapabilities(virQEMUCap
+ }
+ 
+ 
++virCCACapability *
++virQEMUCapsGetCCACapabilities(virQEMUCaps *qemuCaps)
++{
++    return qemuCaps->ccaCapabilities;
++}
++
++
+ static int
+ virQEMUCapsProbeQMPObjectTypes(virQEMUCaps *qemuCaps,
+                                qemuMonitor *mon)
+@@ -4372,6 +4410,38 @@ virQEMUCapsParseSGXInfo(virQEMUCaps *qem
+ 
+ 
+ static int
++virQEMUCapsParseCCAInfo(virQEMUCaps *qemuCaps,
++                        xmlXPathContextPtr ctxt)
++{
++    g_autofree xmlNodePtr *nodes = NULL;
++    size_t i;
++    int n;
++
++    if ((n = virXPathNodeSet("./cca", ctxt, &nodes)) < 0)
++        return -1;
++
++    if (n > 0) {
++        g_autoptr(virCCACapability) tmp = g_new0(virCCACapability, 1);
++        tmp->ccaMeasurementAlgo = g_new0(char *, n);
++
++        for (i = 0; i < n; i++) {
++            char *malgo = NULL;
++            if (!(malgo = virXMLPropString(nodes[i], "measurement-algo"))) {
++                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
++                               _("missing CCA measurement-algo in QEMU capabilities cache"));
++                return -1;
++            }
++
++            tmp->ccaMeasurementAlgo[i] = g_strdup(malgo);
++        }
++        tmp->nCcaMeasurementAlgo = n;
++        qemuCaps->ccaCapabilities = g_steal_pointer(&tmp);
++    }
++    return 0;
++}
++
++
++static int
+ virQEMUCapsParseHypervCapabilities(virQEMUCaps *qemuCaps,
+                                    xmlXPathContextPtr ctxt)
+ {
+@@ -4697,6 +4767,9 @@ virQEMUCapsLoadCache(virArch hostArch,
+     if (virQEMUCapsParseSGXInfo(qemuCaps, ctxt) < 0)
+         return -1;
+ 
++    if (virQEMUCapsParseCCAInfo(qemuCaps, ctxt) < 0)
++        return -1;
++
+     if (virQEMUCapsParseHypervCapabilities(qemuCaps, ctxt) < 0)
+         return -1;
+ 
+@@ -4924,6 +4997,21 @@ virQEMUCapsFormatSGXInfo(virQEMUCaps *qe
+     virBufferAddLit(buf, "</sgx>\n");
+ }
+ 
++static void
++virQEMUCapsFormatCCAInfo(virQEMUCaps *qemuCaps, virBuffer *buf)
++{
++    virCCACapability *cca = virQEMUCapsGetCCACapabilities(qemuCaps);
++    size_t i;
++    size_t n;
++
++    n = cca->nCcaMeasurementAlgo;
++
++    if (n != 0) {
++        for (i = 0; i < n; i++) {
++            virBufferAsprintf(buf, "<cca measurement-algo='%s'/>\n", cca->ccaMeasurementAlgo[i]);
++        }
++    }
++}
+ 
+ static void
+ virQEMUCapsFormatHypervCapabilities(virQEMUCaps *qemuCaps,
+@@ -5033,6 +5121,9 @@ virQEMUCapsFormatCache(virQEMUCaps *qemu
+     if (qemuCaps->sgxCapabilities)
+         virQEMUCapsFormatSGXInfo(qemuCaps, &buf);
+ 
++    if (qemuCaps->ccaCapabilities)
++        virQEMUCapsFormatCCAInfo(qemuCaps, &buf);
++
+     if (qemuCaps->hypervCapabilities)
+         virQEMUCapsFormatHypervCapabilities(qemuCaps, &buf);
+ 
+@@ -6655,6 +6746,23 @@ virQEMUCapsFillDomainFeatureSGXCaps(virQ
+ }
+ 
+ 
++/**
++ * virQEMUCapsFillDomainFeatureCCACaps:
++ * @qemuCaps: QEMU capabilities
++ * @domCaps: domain capabilities
++ *
++ * Take the information about CCA capabilities that has been obtained
++ * using the 'query-cca-capabilities' QMP command and stored in @qemuCaps
++ * and convert it to a form suitable for @domCaps.
++ */
++static void
++virQEMUCapsFillDomainFeatureCCACaps(virQEMUCaps *qemuCaps,
++                                    virDomainCaps *domCaps)
++{
++    virQEMUCapsCCAInfoCopy(&domCaps->cca, qemuCaps->ccaCapabilities);
++}
++
++
+ static void
+ virQEMUCapsFillDomainFeatureHypervCaps(virQEMUCaps *qemuCaps,
+                                        virDomainCaps *domCaps)
+@@ -6721,6 +6829,7 @@ virQEMUCapsFillDomainCaps(virQEMUCaps *q
+     virQEMUCapsFillDomainFeatureSEVCaps(qemuCaps, domCaps);
+     virQEMUCapsFillDomainFeatureS390PVCaps(qemuCaps, domCaps);
+     virQEMUCapsFillDomainFeatureSGXCaps(qemuCaps, domCaps);
++    virQEMUCapsFillDomainFeatureCCACaps(qemuCaps, domCaps);
+     virQEMUCapsFillDomainFeatureHypervCaps(qemuCaps, domCaps);
+     virQEMUCapsFillDomainDeviceCryptoCaps(qemuCaps, crypto);
+ 
+Index: libvirt/src/qemu/qemu_capabilities.h
+===================================================================
+--- libvirt.orig/src/qemu/qemu_capabilities.h
++++ libvirt/src/qemu/qemu_capabilities.h
+@@ -878,6 +878,9 @@ virQEMUCapsGetSEVCapabilities(virQEMUCap
+ virSGXCapability *
+ virQEMUCapsGetSGXCapabilities(virQEMUCaps *qemuCaps);
+ 
++virCCACapability *
++virQEMUCapsGetCCACapabilities(virQEMUCaps *qemuCaps);
++
+ bool
+ virQEMUCapsGetKVMSupportsSecureGuest(virQEMUCaps *qemuCaps) G_NO_INLINE;
+ 
