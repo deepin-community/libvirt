@@ -1,0 +1,1365 @@
+From 123b913175cd83b2acbd37d9f8d4b9fc3dff466b Mon Sep 17 00:00:00 2001
+From: WangYuli <wangyuli@aosc.io>
+Date: Fri, 5 Dec 2025 12:59:39 +0800
+Subject: [PATCH 2/3] src: Add ARM CCA support in domain capabilities command
+
+bugzilla:https://gitee.com/openeuler/libvirt/issues/ICU4UF?from=project-issue
+reference:https://patchew.org/Libvirt/20250612071418.2926384-1-fj1078ii@aa.jp.fujitsu.com/
+
+----------------------------------------
+
+- Add ARM CCA support in domain capabilies XML schema.
+
+[Capability example]
+- Execution results of 'virsh domcapability" on qemu
+<domaincapabilities>
+...
+  <features>
+    ...
+    </sgx>
+    <cca supported='yes'>
+    <enum name='measurement-algo'>
+      <value>sha256</value>
+      <value>sha512</value>
+    </enum>
+    </cca>
+    <hyperv supported='yes'>
+    ...
+  </features>
+</domaincapabilities>
+
+Signed-off-by: Kazuhiro Abe <fj1078ii@aa.jp.fujitsu.com>
+Signed-off-by: rpm-build <rpm-build>
+Signed-off-by: WangYuli <wangyuli@aosc.io>
+---
+ docs/formatdomaincaps.rst                     | 21 +++-
+ src/conf/domain_capabilities.c                | 48 +++++++++
+ src/conf/domain_capabilities.h                |  6 ++
+ src/libvirt_private.syms                      |  1 +
+ src/qemu/qemu_capabilities.c                  | 28 ++++++
+ src/qemu/qemu_monitor.c                       | 10 ++
+ src/qemu/qemu_monitor.h                       |  3 +
+ src/qemu/qemu_monitor_json.c                  | 98 +++++++++++++++++++
+ src/qemu/qemu_monitor_json.h                  |  4 +
+ tests/domaincapsdata/bhyve_basic.x86_64.xml   |  1 +
+ tests/domaincapsdata/bhyve_fbuf.x86_64.xml    |  1 +
+ tests/domaincapsdata/bhyve_uefi.x86_64.xml    |  1 +
+ tests/domaincapsdata/empty.xml                |  1 +
+ tests/domaincapsdata/libxl-xenfv.xml          |  1 +
+ tests/domaincapsdata/libxl-xenpv.xml          |  1 +
+ .../domaincapsdata/qemu_4.2.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_4.2.0-tcg.x86_64.xml  |  1 +
+ .../qemu_4.2.0-virt.aarch64.xml               |  1 +
+ tests/domaincapsdata/qemu_4.2.0.aarch64.xml   |  1 +
+ tests/domaincapsdata/qemu_4.2.0.ppc64.xml     |  1 +
+ tests/domaincapsdata/qemu_4.2.0.s390x.xml     |  1 +
+ tests/domaincapsdata/qemu_4.2.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_5.0.0-q35.x86_64.xml  |  1 +
+ .../qemu_5.0.0-tcg-virt.riscv64.xml           |  1 +
+ .../domaincapsdata/qemu_5.0.0-tcg.x86_64.xml  |  1 +
+ .../qemu_5.0.0-virt.aarch64.xml               |  1 +
+ .../qemu_5.0.0-virt.riscv64.xml               |  1 +
+ tests/domaincapsdata/qemu_5.0.0.aarch64.xml   |  1 +
+ tests/domaincapsdata/qemu_5.0.0.ppc64.xml     |  1 +
+ tests/domaincapsdata/qemu_5.0.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_5.1.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_5.1.0-tcg.x86_64.xml  |  1 +
+ tests/domaincapsdata/qemu_5.1.0.sparc.xml     |  1 +
+ tests/domaincapsdata/qemu_5.1.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_5.2.0-q35.x86_64.xml  |  1 +
+ .../qemu_5.2.0-tcg-virt.riscv64.xml           |  1 +
+ .../domaincapsdata/qemu_5.2.0-tcg.x86_64.xml  |  1 +
+ .../qemu_5.2.0-virt.aarch64.xml               |  1 +
+ .../qemu_5.2.0-virt.riscv64.xml               |  1 +
+ tests/domaincapsdata/qemu_5.2.0.aarch64.xml   |  1 +
+ tests/domaincapsdata/qemu_5.2.0.ppc64.xml     |  1 +
+ tests/domaincapsdata/qemu_5.2.0.s390x.xml     |  1 +
+ tests/domaincapsdata/qemu_5.2.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_6.0.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_6.0.0-tcg.x86_64.xml  |  1 +
+ .../qemu_6.0.0-virt.aarch64.xml               |  1 +
+ tests/domaincapsdata/qemu_6.0.0.aarch64.xml   |  1 +
+ tests/domaincapsdata/qemu_6.0.0.s390x.xml     |  1 +
+ tests/domaincapsdata/qemu_6.0.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_6.1.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_6.1.0-tcg.x86_64.xml  |  1 +
+ tests/domaincapsdata/qemu_6.1.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_6.2.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_6.2.0-tcg.x86_64.xml  |  1 +
+ .../qemu_6.2.0-virt.aarch64.xml               |  1 +
+ tests/domaincapsdata/qemu_6.2.0.aarch64.xml   |  1 +
+ tests/domaincapsdata/qemu_6.2.0.ppc64.xml     |  1 +
+ tests/domaincapsdata/qemu_6.2.0.x86_64.xml    |  1 +
+ .../qemu_7.0.0-hvf.aarch64+hvf.xml            |  1 +
+ .../domaincapsdata/qemu_7.0.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_7.0.0-tcg.x86_64.xml  |  1 +
+ .../qemu_7.0.0-virt.aarch64.xml               |  1 +
+ tests/domaincapsdata/qemu_7.0.0.aarch64.xml   |  1 +
+ tests/domaincapsdata/qemu_7.0.0.ppc64.xml     |  1 +
+ tests/domaincapsdata/qemu_7.0.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_7.1.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_7.1.0-tcg.x86_64.xml  |  1 +
+ tests/domaincapsdata/qemu_7.1.0.ppc64.xml     |  1 +
+ tests/domaincapsdata/qemu_7.1.0.x86_64.xml    |  1 +
+ .../qemu_7.2.0-hvf.x86_64+hvf.xml             |  1 +
+ .../domaincapsdata/qemu_7.2.0-q35.x86_64.xml  |  1 +
+ .../qemu_7.2.0-tcg.x86_64+hvf.xml             |  1 +
+ .../domaincapsdata/qemu_7.2.0-tcg.x86_64.xml  |  1 +
+ tests/domaincapsdata/qemu_7.2.0.ppc.xml       |  1 +
+ tests/domaincapsdata/qemu_7.2.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_8.0.0-q35.x86_64.xml  |  1 +
+ .../qemu_8.0.0-tcg-virt.riscv64.xml           |  1 +
+ .../domaincapsdata/qemu_8.0.0-tcg.x86_64.xml  |  1 +
+ .../qemu_8.0.0-virt.riscv64.xml               |  1 +
+ tests/domaincapsdata/qemu_8.0.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_8.1.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_8.1.0-tcg.x86_64.xml  |  1 +
+ tests/domaincapsdata/qemu_8.1.0.s390x.xml     |  1 +
+ tests/domaincapsdata/qemu_8.1.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_8.2.0-q35.x86_64.xml  |  1 +
+ .../qemu_8.2.0-tcg-virt.loongarch64.xml       |  1 +
+ .../domaincapsdata/qemu_8.2.0-tcg.x86_64.xml  |  1 +
+ .../qemu_8.2.0-virt.aarch64.xml               |  1 +
+ .../qemu_8.2.0-virt.loongarch64.xml           |  1 +
+ tests/domaincapsdata/qemu_8.2.0.aarch64.xml   |  1 +
+ tests/domaincapsdata/qemu_8.2.0.armv7l.xml    |  1 +
+ tests/domaincapsdata/qemu_8.2.0.s390x.xml     |  1 +
+ tests/domaincapsdata/qemu_8.2.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_9.0.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_9.0.0-tcg.x86_64.xml  |  1 +
+ tests/domaincapsdata/qemu_9.0.0.sparc.xml     |  1 +
+ tests/domaincapsdata/qemu_9.0.0.x86_64.xml    |  1 +
+ .../domaincapsdata/qemu_9.1.0-q35.x86_64.xml  |  1 +
+ .../domaincapsdata/qemu_9.1.0-tcg.x86_64.xml  |  1 +
+ tests/domaincapsdata/qemu_9.1.0.x86_64.xml    |  1 +
+ 100 files changed, 309 insertions(+), 1 deletion(-)
+
+Index: libvirt/docs/formatdomaincaps.rst
+===================================================================
+--- libvirt.orig/docs/formatdomaincaps.rst
++++ libvirt/docs/formatdomaincaps.rst
+@@ -784,6 +784,24 @@ document store. In order to use SGX with
+ ``sections``
+    The sections of the SGX enclave page cache (called EPC).
+ 
++CCA capabilities
++^^^^^^^^^^^^^^^^
++
++Arm Confidential Compute Architecture (CCA) capabilities are exposed under the
++``cca`` element.
++
++Arm CCA is a system solution comprised of hardware and software components that
++maximizes the security of data on devices and in the cloud.
++CCA enhances the virtualization capabilities of the platform by separating the
++management of resources from access to those resources.
++
++For more details on the CCA feature, please follow resources in the CCA developer's
++document store. In order to use CCA with libvirt have a look at `CCA in domain
++XML <formatdomain.html#launch-security>`__
++
++``measurement-algo``
++   Options for the ``measurement-algo`` used to describe blob hashes.
++
+ 
+ Hyper-V Enlightenments
+ ^^^^^^^^^^^^^^^^^^^^^^
+@@ -796,3 +814,14 @@ are supported. The ``features`` enum cor
+ Please note that depending on the QEMU version some capabilities might be
+ missing even though QEMU does support them. This is because prior to QEMU-6.1.0
+ not all features were reported by QEMU.
++
++Launch security
++^^^^^^^^^^^^^^^
++
++The ``launchSecurity`` element exposes supported aspects of encrypted guests.
++The ``sectype`` enum corresponds to ``type`` attribute of ``<launchSecurity/>``
++element as documented in `Launch Security
++<formatdomain.html#launch-security>`__.  :since:`(Since 10.5.0)` For additional
++information on individual types, see sections above: `s390-pv capability`_ for
++S390 PV, `SEV capabilities`_ for AMD SEV and/or AMD SEV-SNP, `CCA capabilities`_
++for Arm CCA.
+Index: libvirt/src/conf/domain_capabilities.c
+===================================================================
+--- libvirt.orig/src/conf/domain_capabilities.c
++++ libvirt/src/conf/domain_capabilities.c
+@@ -88,6 +88,25 @@ virSGXCapabilitiesFree(virSGXCapability
+ }
+ 
+ 
++void
++virCCACapabilitiesFree(virCCACapability *cap)
++{
++    size_t i;
++
++    if (!cap)
++        return;
++
++    if (cap->nCcaMeasurementAlgo)
++        for (i = 0; i < cap->nCcaMeasurementAlgo; i++)
++            g_free(cap->ccaMeasurementAlgo[i]);
++
++    if (cap->ccaMeasurementAlgo)
++        g_free(cap->ccaMeasurementAlgo);
++
++    g_free(cap);
++}
++
++
+ static void
+ virDomainCapsDispose(void *obj)
+ {
+@@ -101,6 +120,7 @@ virDomainCapsDispose(void *obj)
+     virCPUDefFree(caps->cpu.hostModel);
+     virSEVCapabilitiesFree(caps->sev);
+     virSGXCapabilitiesFree(caps->sgx);
++    virCCACapabilitiesFree(caps->cca);
+     g_free(caps->hyperv);
+ 
+     values = &caps->os.loader.values;
+@@ -694,6 +714,33 @@ virDomainCapsFeatureSGXFormat(virBuffer
+ }
+ 
+ static void
++virDomainCapsFeatureCCAFormat(virBuffer *buf,
++                              const virCCACapability *cca)
++{
++    size_t i;
++
++    if (!cca) {
++        virBufferAddLit(buf, "<cca supported='no'/>\n");
++        return;
++    }
++
++    virBufferAddLit(buf, "<cca supported='yes'>\n");
++    virBufferAdjustIndent(buf, 2);
++
++    virBufferAddLit(buf, "<enum name='measurement-algo'>\n");
++    virBufferAdjustIndent(buf, 2);
++    for (i = 0; i < cca->nCcaMeasurementAlgo; i++) {
++        virBufferAsprintf(buf, "<value>%s</value>\n",
++                          cca->ccaMeasurementAlgo[i]);
++    }
++    virBufferAdjustIndent(buf, -2);
++    virBufferAddLit(buf, "</enum>\n");
++
++    virBufferAdjustIndent(buf, -2);
++    virBufferAddLit(buf, "</cca>\n");
++}
++
++static void
+ virDomainCapsFeatureHypervFormat(virBuffer *buf,
+                                  const virDomainCapsFeatureHyperv *hyperv)
+ {
+@@ -727,6 +774,7 @@ virDomainCapsFormatFeatures(const virDom
+ 
+     virDomainCapsFeatureSEVFormat(&childBuf, caps->sev);
+     virDomainCapsFeatureSGXFormat(&childBuf, caps->sgx);
++    virDomainCapsFeatureCCAFormat(&childBuf, caps->cca);
+     virDomainCapsFeatureHypervFormat(&childBuf, caps->hyperv);
+ 
+     virXMLFormatElement(buf, "features", NULL, &childBuf);
+Index: libvirt/src/conf/domain_capabilities.h
+===================================================================
+--- libvirt.orig/src/conf/domain_capabilities.h
++++ libvirt/src/conf/domain_capabilities.h
+@@ -289,6 +289,7 @@ struct _virDomainCaps {
+     virDomainCapsFeatureGIC gic;
+     virSEVCapability *sev;
+     virSGXCapability *sgx;
++    virCCACapability *cca;
+     virDomainCapsFeatureHyperv *hyperv;
+     /* add new domain features here */
+ 
+@@ -345,3 +346,8 @@ void
+ virSGXCapabilitiesFree(virSGXCapability *capabilities);
+ 
+ G_DEFINE_AUTOPTR_CLEANUP_FUNC(virSGXCapability, virSGXCapabilitiesFree);
++
++void
++virCCACapabilitiesFree(virCCACapability *capabilities);
++
++G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCCACapability, virCCACapabilitiesFree);
+Index: libvirt/src/libvirt_private.syms
+===================================================================
+--- libvirt.orig/src/libvirt_private.syms
++++ libvirt/src/libvirt_private.syms
+@@ -206,6 +206,7 @@ virDomainAuditVcpu;
+ 
+ 
+ # conf/domain_capabilities.h
++virCCACapabilitiesFree;
+ virDomainCapsCPUModelsAdd;
+ virDomainCapsCPUModelsCopy;
+ virDomainCapsCPUModelsGet;
+Index: libvirt/src/qemu/qemu_capabilities.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_capabilities.c
++++ libvirt/src/qemu/qemu_capabilities.c
+@@ -3487,6 +3487,32 @@ virQEMUCapsProbeQMPSGXCapabilities(virQE
+ }
+ 
+ 
++static int
++virQEMUCapsProbeQMPCCACapabilities(virQEMUCaps *qemuCaps,
++                                   qemuMonitor *mon)
++{
++    int rc = -1;
++    virCCACapability *caps = NULL;
++
++    if (!virQEMUCapsGet(qemuCaps, QEMU_CAPS_CCA_GUEST))
++        return 0;
++
++    if ((rc = qemuMonitorGetCCACapabilities(mon, &caps)) < 0)
++        return -1;
++
++    /* CCA isn't actually supported */
++    if (rc == 0) {
++        virQEMUCapsClear(qemuCaps, QEMU_CAPS_CCA_GUEST);
++        return 0;
++    }
++
++    virCCACapabilitiesFree(qemuCaps->ccaCapabilities);
++    qemuCaps->ccaCapabilities = caps;
++    return 0;
++}
++
++
++
+ /*
+  * Filter for features which should never be passed to QEMU. Either because
+  * QEMU never supported them or they were dropped as they never did anything
+@@ -5574,6 +5600,8 @@ virQEMUCapsInitQMPMonitor(virQEMUCaps *q
+         return -1;
+     if (virQEMUCapsProbeQMPSGXCapabilities(qemuCaps, mon) < 0)
+         return -1;
++    if (virQEMUCapsProbeQMPCCACapabilities(qemuCaps, mon) < 0)
++        return -1;
+ 
+     virQEMUCapsInitProcessCaps(qemuCaps);
+ 
+Index: libvirt/src/qemu/qemu_monitor.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_monitor.c
++++ libvirt/src/qemu/qemu_monitor.c
+@@ -3450,6 +3450,16 @@ qemuMonitorGetSGXCapabilities(qemuMonito
+ 
+ 
+ int
++qemuMonitorGetCCACapabilities(qemuMonitor *mon,
++                              virCCACapability **capabilities)
++{
++    QEMU_CHECK_MONITOR(mon);
++
++    return qemuMonitorJSONGetCCACapabilities(mon, capabilities);
++}
++
++
++int
+ qemuMonitorNBDServerStart(qemuMonitor *mon,
+                           const virStorageNetHostDef *server,
+                           const char *tls_alias)
+Index: libvirt/src/qemu/qemu_monitor.h
+===================================================================
+--- libvirt.orig/src/qemu/qemu_monitor.h
++++ libvirt/src/qemu/qemu_monitor.h
+@@ -832,6 +832,9 @@ int qemuMonitorGetSEVCapabilities(qemuMo
+ int qemuMonitorGetSGXCapabilities(qemuMonitor *mon,
+                                   virSGXCapability **capabilities);
+ 
++int qemuMonitorGetCCACapabilities(qemuMonitor *mon,
++                                  virCCACapability **capabilities);
++
+ typedef enum {
+   QEMU_MONITOR_MIGRATE_RESUME           = 1 << 0, /* resume failed post-copy migration */
+   QEMU_MONITOR_MIGRATION_FLAGS_LAST
+Index: libvirt/src/qemu/qemu_monitor_json.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_monitor_json.c
++++ libvirt/src/qemu/qemu_monitor_json.c
+@@ -6109,6 +6109,104 @@ qemuMonitorJSONGetSGXCapabilities(qemuMo
+ }
+ 
+ 
++static int
++qemuMonitorJSONGetCCAMeasurementAlgo(qemuMonitor *mon,
++                                     size_t *numalgo,
++                                     char ***malgo)
++{
++    g_autoptr(virJSONValue) cmd = NULL;
++    g_autoptr(virJSONValue) reply = NULL;
++    virJSONValue *caps;
++    virJSONValue *malgolist = NULL;
++    g_auto(GStrv) list = NULL;
++    size_t i;
++    size_t n = 0;
++
++    if (!(cmd = qemuMonitorJSONMakeCommand("query-cca-capabilities",
++                                           NULL)))
++        return -1;
++
++    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
++        return -1;
++
++    /* If the 'query-cca-capabilities' QMP command was not available
++     * we simply successfully return zero capabilities.
++     * This is the current QEMU (=9.1.91) and all non-ARM architectures */
++    if (qemuMonitorJSONHasError(reply, "CommandNotFound"))
++        return 0;
++
++    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
++        return -1;
++
++    caps = virJSONValueObjectGetObject(reply, "return");
++
++    if (!(caps = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
++        return -1;
++
++    if ((malgolist = virJSONValueObjectGetArray(caps, "sections"))) {
++        n = virJSONValueArraySize(malgolist);
++
++        /* If the received array is empty, an error is returned. */
++        if (n == 0)
++            return -1;
++
++        list = g_new0(char *, n + 1);
++
++        for (i = 0; i < n; i++) {
++            virJSONValue *cap = virJSONValueArrayGet(malgolist, i);
++            const char *measurement_algo = NULL;
++
++            if (!cap || virJSONValueGetType(cap) != VIR_JSON_TYPE_OBJECT) {
++                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
++                               _("missing entry in CCA capabilities list"));
++                return -1;
++            }
++
++            if (!(measurement_algo = virJSONValueObjectGetString(cap, "measurement-algo"))) {
++                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
++                           _("query-cca-capabilities reply was missing 'measurement-algo' field"));
++                return -1;
++            }
++
++            list[i] = g_strdup(measurement_algo);
++        }
++    }
++
++    *numalgo = n;
++    *malgo = g_steal_pointer(&list);
++    return 1;
++}
++
++
++/**
++ * qemuMonitorJSONGetCCACapabilities:
++ * @mon: qemu monitor object
++ * @capabilities: pointer to pointer to a CCA capability structure to be filled
++ *
++ * Returns -1 on error, 0 if CCA is not supported, and 1 if CCA is supported on
++ * the platform.
++ */
++int
++qemuMonitorJSONGetCCACapabilities(qemuMonitor *mon,
++                                  virCCACapability **capabilities)
++{
++    g_autoptr(virCCACapability) capability = NULL;
++    int ret = 0;
++
++    *capabilities = NULL;
++    capability = g_new0(virCCACapability, 1);
++
++    ret = qemuMonitorJSONGetCCAMeasurementAlgo(mon,
++                                               &capability->nCcaMeasurementAlgo,
++                                               &capability->ccaMeasurementAlgo);
++
++    if (ret > 0)
++        *capabilities = g_steal_pointer(&capability);
++
++    return ret;
++}
++
++
+ static virJSONValue *
+ qemuMonitorJSONBuildInetSocketAddress(const char *host,
+                                       const char *port)
+Index: libvirt/src/qemu/qemu_monitor_json.h
+===================================================================
+--- libvirt.orig/src/qemu/qemu_monitor_json.h
++++ libvirt/src/qemu/qemu_monitor_json.h
+@@ -169,6 +169,10 @@ qemuMonitorJSONGetSEVCapabilities(qemuMo
+                                   virSEVCapability **capabilities);
+ 
+ int
++qemuMonitorJSONGetCCACapabilities(qemuMonitor *mon,
++                                  virCCACapability **capabilities);
++
++int
+ qemuMonitorJSONMigrate(qemuMonitor *mon,
+                        unsigned int flags,
+                        const char *uri);
+Index: libvirt/tests/domaincapsdata/bhyve_basic.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/bhyve_basic.x86_64.xml
++++ libvirt/tests/domaincapsdata/bhyve_basic.x86_64.xml
+@@ -34,5 +34,6 @@
+     <genid supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/bhyve_fbuf.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/bhyve_fbuf.x86_64.xml
++++ libvirt/tests/domaincapsdata/bhyve_fbuf.x86_64.xml
+@@ -51,5 +51,6 @@
+     <genid supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/bhyve_uefi.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/bhyve_uefi.x86_64.xml
++++ libvirt/tests/domaincapsdata/bhyve_uefi.x86_64.xml
+@@ -43,5 +43,6 @@
+     <genid supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/empty.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/empty.xml
++++ libvirt/tests/domaincapsdata/empty.xml
+@@ -14,5 +14,6 @@
+   <features>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/libxl-xenfv.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/libxl-xenfv.xml
++++ libvirt/tests/domaincapsdata/libxl-xenfv.xml
+@@ -77,5 +77,6 @@
+     <genid supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/libxl-xenpv.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/libxl-xenpv.xml
++++ libvirt/tests/domaincapsdata/libxl-xenpv.xml
+@@ -67,5 +67,6 @@
+     <genid supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_4.2.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_4.2.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_4.2.0-q35.x86_64.xml
+@@ -318,5 +318,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_4.2.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_4.2.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_4.2.0-tcg.x86_64.xml
+@@ -264,5 +264,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_4.2.0-virt.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_4.2.0-virt.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_4.2.0-virt.aarch64.xml
+@@ -196,5 +196,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_4.2.0.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_4.2.0.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_4.2.0.aarch64.xml
+@@ -196,5 +196,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_4.2.0.ppc64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_4.2.0.ppc64.xml
++++ libvirt/tests/domaincapsdata/qemu_4.2.0.ppc64.xml
+@@ -164,5 +164,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_4.2.0.s390x.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_4.2.0.s390x.xml
++++ libvirt/tests/domaincapsdata/qemu_4.2.0.s390x.xml
+@@ -270,5 +270,6 @@
+     <s390-pv supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_4.2.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_4.2.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_4.2.0.x86_64.xml
+@@ -318,5 +318,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.0.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.0.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.0.0-q35.x86_64.xml
+@@ -320,5 +320,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.0.0-tcg-virt.riscv64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.0.0-tcg-virt.riscv64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.0.0-tcg-virt.riscv64.xml
+@@ -149,5 +149,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.0.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.0.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.0.0-tcg.x86_64.xml
+@@ -266,5 +266,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.0.0-virt.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.0.0-virt.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.0.0-virt.aarch64.xml
+@@ -209,5 +209,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.0.0-virt.riscv64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.0.0-virt.riscv64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.0.0-virt.riscv64.xml
+@@ -152,5 +152,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.0.0.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.0.0.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.0.0.aarch64.xml
+@@ -209,5 +209,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.0.0.ppc64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.0.0.ppc64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.0.0.ppc64.xml
+@@ -171,5 +171,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.0.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.0.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.0.0.x86_64.xml
+@@ -320,5 +320,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.1.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.1.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.1.0-q35.x86_64.xml
+@@ -253,5 +253,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.1.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.1.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.1.0-tcg.x86_64.xml
+@@ -266,5 +266,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.1.0.sparc.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.1.0.sparc.xml
++++ libvirt/tests/domaincapsdata/qemu_5.1.0.sparc.xml
+@@ -135,5 +135,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.1.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.1.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.1.0.x86_64.xml
+@@ -253,5 +253,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0-q35.x86_64.xml
+@@ -253,5 +253,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0-tcg-virt.riscv64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0-tcg-virt.riscv64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0-tcg-virt.riscv64.xml
+@@ -149,5 +149,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0-tcg.x86_64.xml
+@@ -266,5 +266,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0-virt.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0-virt.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0-virt.aarch64.xml
+@@ -209,5 +209,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0-virt.riscv64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0-virt.riscv64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0-virt.riscv64.xml
+@@ -152,5 +152,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0.aarch64.xml
+@@ -209,5 +209,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0.ppc64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0.ppc64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0.ppc64.xml
+@@ -171,5 +171,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0.s390x.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0.s390x.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0.s390x.xml
+@@ -272,5 +272,6 @@
+     <s390-pv supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_5.2.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_5.2.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_5.2.0.x86_64.xml
+@@ -253,5 +253,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.0.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.0.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.0.0-q35.x86_64.xml
+@@ -260,5 +260,6 @@
+       <maxESGuests>450</maxESGuests>
+     </sev>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.0.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.0.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.0.0-tcg.x86_64.xml
+@@ -274,5 +274,6 @@
+       <maxESGuests>450</maxESGuests>
+     </sev>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.0.0-virt.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.0.0-virt.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.0.0-virt.aarch64.xml
+@@ -211,5 +211,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.0.0.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.0.0.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.0.0.aarch64.xml
+@@ -211,5 +211,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.0.0.s390x.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.0.0.s390x.xml
++++ libvirt/tests/domaincapsdata/qemu_6.0.0.s390x.xml
+@@ -273,5 +273,6 @@
+     <s390-pv supported='yes'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.0.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.0.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.0.0.x86_64.xml
+@@ -260,5 +260,6 @@
+       <maxESGuests>450</maxESGuests>
+     </sev>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.1.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.1.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.1.0-q35.x86_64.xml
+@@ -256,5 +256,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.1.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.1.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.1.0-tcg.x86_64.xml
+@@ -269,5 +269,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.1.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.1.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.1.0.x86_64.xml
+@@ -256,5 +256,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.2.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.2.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.2.0-q35.x86_64.xml
+@@ -256,5 +256,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.2.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.2.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.2.0-tcg.x86_64.xml
+@@ -271,5 +271,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.2.0-virt.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.2.0-virt.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.2.0-virt.aarch64.xml
+@@ -218,5 +218,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.2.0.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.2.0.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.2.0.aarch64.xml
+@@ -218,5 +218,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.2.0.ppc64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.2.0.ppc64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.2.0.ppc64.xml
+@@ -170,5 +170,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_6.2.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_6.2.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_6.2.0.x86_64.xml
+@@ -256,5 +256,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.0.0-hvf.aarch64+hvf.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.0.0-hvf.aarch64+hvf.xml
++++ libvirt/tests/domaincapsdata/qemu_7.0.0-hvf.aarch64+hvf.xml
+@@ -172,5 +172,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.0.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.0.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.0.0-q35.x86_64.xml
+@@ -266,5 +266,6 @@
+         <section node='1' size='262144' unit='KiB'/>
+       </sections>
+     </sgx>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.0.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.0.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.0.0-tcg.x86_64.xml
+@@ -281,5 +281,6 @@
+         <section node='1' size='262144' unit='KiB'/>
+       </sections>
+     </sgx>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.0.0-virt.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.0.0-virt.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.0.0-virt.aarch64.xml
+@@ -217,5 +217,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.0.0.aarch64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.0.0.aarch64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.0.0.aarch64.xml
+@@ -217,5 +217,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.0.0.ppc64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.0.0.ppc64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.0.0.ppc64.xml
+@@ -175,5 +175,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.0.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.0.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.0.0.x86_64.xml
+@@ -266,5 +266,6 @@
+         <section node='1' size='262144' unit='KiB'/>
+       </sections>
+     </sgx>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.1.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.1.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.1.0-q35.x86_64.xml
+@@ -256,5 +256,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.1.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.1.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.1.0-tcg.x86_64.xml
+@@ -270,5 +270,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.1.0.ppc64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.1.0.ppc64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.1.0.ppc64.xml
+@@ -168,5 +168,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.1.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.1.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.1.0.x86_64.xml
+@@ -256,5 +256,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.2.0-hvf.x86_64+hvf.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.2.0-hvf.x86_64+hvf.xml
++++ libvirt/tests/domaincapsdata/qemu_7.2.0-hvf.x86_64+hvf.xml
+@@ -179,5 +179,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.2.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.2.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.2.0-q35.x86_64.xml
+@@ -262,5 +262,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.2.0-tcg.x86_64+hvf.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.2.0-tcg.x86_64+hvf.xml
++++ libvirt/tests/domaincapsdata/qemu_7.2.0-tcg.x86_64+hvf.xml
+@@ -260,5 +260,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.2.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.2.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.2.0-tcg.x86_64.xml
+@@ -260,5 +260,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.2.0.ppc.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.2.0.ppc.xml
++++ libvirt/tests/domaincapsdata/qemu_7.2.0.ppc.xml
+@@ -154,5 +154,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_7.2.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_7.2.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_7.2.0.x86_64.xml
+@@ -262,5 +262,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_8.0.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.0.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.0.0-q35.x86_64.xml
+@@ -263,6 +263,7 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>
+Index: libvirt/tests/domaincapsdata/qemu_8.0.0-tcg-virt.riscv64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.0.0-tcg-virt.riscv64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.0.0-tcg-virt.riscv64.xml
+@@ -155,5 +155,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_8.0.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.0.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.0.0-tcg.x86_64.xml
+@@ -265,6 +265,7 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>
+Index: libvirt/tests/domaincapsdata/qemu_8.0.0-virt.riscv64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.0.0-virt.riscv64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.0.0-virt.riscv64.xml
+@@ -158,5 +158,6 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_8.0.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.0.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.0.0.x86_64.xml
+@@ -263,6 +263,7 @@
+     <async-teardown supported='no'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>
+Index: libvirt/tests/domaincapsdata/qemu_8.1.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.1.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.1.0-q35.x86_64.xml
+@@ -265,6 +265,7 @@
+     <async-teardown supported='yes'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>
+Index: libvirt/tests/domaincapsdata/qemu_8.1.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.1.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.1.0-tcg.x86_64.xml
+@@ -266,6 +266,7 @@
+     <async-teardown supported='yes'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>
+Index: libvirt/tests/domaincapsdata/qemu_8.1.0.s390x.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.1.0.s390x.xml
++++ libvirt/tests/domaincapsdata/qemu_8.1.0.s390x.xml
+@@ -280,5 +280,6 @@
+     <s390-pv supported='yes'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+   </features>
+ </domainCapabilities>
+Index: libvirt/tests/domaincapsdata/qemu_8.1.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.1.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.1.0.x86_64.xml
+@@ -265,6 +265,7 @@
+     <async-teardown supported='yes'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>
+Index: libvirt/tests/domaincapsdata/qemu_8.2.0-q35.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.2.0-q35.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.2.0-q35.x86_64.xml
+@@ -267,6 +267,7 @@
+     <async-teardown supported='yes'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>
+Index: libvirt/tests/domaincapsdata/qemu_8.2.0-tcg.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.2.0-tcg.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.2.0-tcg.x86_64.xml
+@@ -266,6 +266,7 @@
+     <async-teardown supported='yes'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>
+Index: libvirt/tests/domaincapsdata/qemu_8.2.0.x86_64.xml
+===================================================================
+--- libvirt.orig/tests/domaincapsdata/qemu_8.2.0.x86_64.xml
++++ libvirt/tests/domaincapsdata/qemu_8.2.0.x86_64.xml
+@@ -267,6 +267,7 @@
+     <async-teardown supported='yes'/>
+     <sev supported='no'/>
+     <sgx supported='no'/>
++    <cca supported='no'/>
+     <hyperv supported='yes'>
+       <enum name='features'>
+         <value>relaxed</value>

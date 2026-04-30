@@ -1,0 +1,364 @@
+From 0c394e3cd79402a9a0741b3ca980379f1cc78a5e Mon Sep 17 00:00:00 2001
+From: WangYuli <wangyuli@aosc.io>
+Date: Fri, 5 Dec 2025 12:46:45 +0800
+Subject: [PATCH 1/3] src: Add ARM CCA support in qemu driver to launch VM
+
+bugzilla:https://gitee.com/openeuler/libvirt/issues/ICU4UF?from=project-issue
+reference:https://patchew.org/Libvirt/20250612071418.2926384-1-fj1078ii@aa.jp.fujitsu.com/
+
+--------------------------------
+
+src: Add ARM CCA support in qemu driver to launch VM
+
+- Add ARM CCA support to the qemu driver for aarch64 systems.
+
+[XML example]
+<domain>
+  ...
+  <launchsecurity type='cca'>
+    <measurement-algo>sha256</measurement-algo>
+  </launchsecurity>
+  ...
+</domain>
+
+Signed-off-by: Kazuhiro Abe <fj1078ii@aa.jp.fujitsu.com>
+Signed-off-by: rpm-build <rpm-build>
+Signed-off-by: WangYuli <wangyuli@aosc.io>
+---
+ docs/formatdomain.rst          | 43 ++++++++++++++++++++++++++++++++++
+ src/conf/domain_capabilities.h |  6 +++++
+ src/conf/domain_conf.c         | 25 ++++++++++++++++++++
+ src/conf/domain_conf.h         |  9 +++++++
+ src/conf/virconftypes.h        |  2 ++
+ src/qemu/qemu_capabilities.c   |  6 +++++
+ src/qemu/qemu_capabilities.h   |  3 +++
+ src/qemu/qemu_command.c        | 28 ++++++++++++++++++++++
+ src/qemu/qemu_firmware.c       |  1 +
+ src/qemu/qemu_namespace.c      |  2 ++
+ src/qemu/qemu_process.c        |  4 ++++
+ src/qemu/qemu_validate.c       |  4 ++++
+ 12 files changed, 133 insertions(+)
+
+Index: libvirt/docs/formatdomain.rst
+===================================================================
+--- libvirt.orig/docs/formatdomain.rst
++++ libvirt/docs/formatdomain.rst
+@@ -8748,6 +8748,49 @@ spec <https://support.amd.com/TechDocs/5
+    session blob defined in the SEV API spec. See SEV spec LAUNCH_START section
+    for the session blob format.
+ 
++The contents of the ``<launchSecurity type='cca'>`` element is used to create
++RealmVM using the Arm CCA feature (Confidential Compute Architecture).
++CCA :since:`Since 11.0.0` enhances the virtualization capabilities of the
++platform by separating the management of resources from access to those resources.
++This is achieved by extending the TrustZone of Cortex-A's Normal and Secure
++world concepts and adding the Realm world and the underlying Root world.
++The Secure Monitor runs in the root world and manages the transition between
++these security states. For more information see the Learn the architecture -
++Arm Confidential Compute Architecture software stack:
++`<https://developer.arm.com/documentation/den0127/latest>`__
++
++::
++
++  <domain>
++    ...
++    <launchSecurity type='cca' measurement-log='yes'>
++      <measurement-algo>sha256</measurement-algo>
++      <personalization-value>...</personalization-value>
++    </launchSecurity>
++    ...
++  </domain>
++
++The ``<launchSecurity/>`` element accepts the following attributes:
++
++``measurement-algo``
++   The optional ``measurement-algo`` element determines algorithm used to
++   describe blob hashes.
++
++``personalization-value``
++   The optional ``personalization-value`` element is used to configure
++   the Realm Personalization Value (RPV). The Realm Personalization
++   Value (RPV) is provided by the user to distinguish Realms that have
++   the same initial measurement. The personalization-value for libvirt
++   must be an 88-character string representing the Base64 encoding of
++   the 64-byte hexadecimal value defined in the RMM specification.
++   Ensure that you encode the 64-byte hex value from the RMM specification
++   using Base64 before providing it to libvirt.
++
++``measurement-log``
++   The optional ``measurement-log`` element provides a way to create
++   an event log in the format defined by the Trusted Computing Group
++   for TPM2.
++
+ Example configs
+ ===============
+ 
+Index: libvirt/src/conf/domain_capabilities.h
+===================================================================
+--- libvirt.orig/src/conf/domain_capabilities.h
++++ libvirt/src/conf/domain_capabilities.h
+@@ -231,6 +231,12 @@ struct _virSGXCapability {
+     virSGXSection *sgxSections;
+ };
+ 
++typedef struct _virCCACapability virCCACapability;
++struct _virCCACapability {
++    size_t nCcaMeasurementAlgo;
++    char **ccaMeasurementAlgo;
++};
++
+ STATIC_ASSERT_ENUM(VIR_DOMAIN_CRYPTO_MODEL_LAST);
+ STATIC_ASSERT_ENUM(VIR_DOMAIN_CRYPTO_TYPE_LAST);
+ STATIC_ASSERT_ENUM(VIR_DOMAIN_CRYPTO_BACKEND_LAST);
+Index: libvirt/src/conf/domain_conf.c
+===================================================================
+--- libvirt.orig/src/conf/domain_conf.c
++++ libvirt/src/conf/domain_conf.c
+@@ -1514,6 +1514,7 @@ VIR_ENUM_IMPL(virDomainLaunchSecurity,
+               "",
+               "sev",
+               "s390-pv",
++              "cca",
+ );
+ 
+ typedef enum {
+@@ -3825,6 +3826,10 @@ virDomainSecDefFree(virDomainSecDef *def
+         g_free(def->data.sev.secret_header);
+         g_free(def->data.sev.secret);
+         break;
++    case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
++        g_free(def->data.cca.measurement_algo);
++        g_free(def->data.cca.personalization_value);
++        break;
+     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+     case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+@@ -13501,6 +13506,19 @@ virDomainSEVDefParseXML(virDomainSEVDef
+     return 0;
+ }
+ 
++static int
++virDomainCCADefParseXML(virDomainCCADef *def,
++                        xmlXPathContextPtr ctxt)
++{
++    def->measurement_algo = virXPathString("string(./measurement-algo)", ctxt);
++    def->personalization_value = virXPathString("string(./personalization-value)", ctxt);
++
++    if (virXMLPropTristateBool(ctxt->node, "measurement-log", VIR_XML_PROP_NONE,
++                               &def->measurement_log) < 0)
++        return -1;
++
++    return 0;
++}
+ 
+ static virDomainSecDef *
+ virDomainSecDefParseXML(xmlNodePtr lsecNode,
+@@ -13523,6 +13541,10 @@ virDomainSecDefParseXML(xmlNodePtr lsecN
+         break;
+     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+         break;
++    case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
++        if (virDomainCCADefParseXML(&sec->data.cca, ctxt) < 0)
++            return NULL;
++        break;
+     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+     case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+     default:
+@@ -26550,6 +26572,7 @@ virDomainSecDefFormat(virBuffer *buf, vi
+     }
+ 
+     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
++    case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
+         break;
+ 
+     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+Index: libvirt/src/conf/domain_conf.h
+===================================================================
+--- libvirt.orig/src/conf/domain_conf.h
++++ libvirt/src/conf/domain_conf.h
+@@ -2846,6 +2846,7 @@ typedef enum {
+     VIR_DOMAIN_LAUNCH_SECURITY_NONE,
+     VIR_DOMAIN_LAUNCH_SECURITY_SEV,
+     VIR_DOMAIN_LAUNCH_SECURITY_PV,
++    VIR_DOMAIN_LAUNCH_SECURITY_CCA,
+ 
+     VIR_DOMAIN_LAUNCH_SECURITY_LAST,
+ } virDomainLaunchSecurity;
+@@ -2865,10 +2866,17 @@ struct _virDomainSEVDef {
+     virTristateBool kernel_hashes;
+ };
+ 
++struct _virDomainCCADef {
++    char *measurement_algo;
++    char *personalization_value;
++    virTristateBool measurement_log;
++};
++
+ struct _virDomainSecDef {
+     virDomainLaunchSecurity sectype;
+     union {
+         virDomainSEVDef sev;
++        virDomainCCADef cca;
+     } data;
+ };
+ 
+Index: libvirt/src/conf/virconftypes.h
+===================================================================
+--- libvirt.orig/src/conf/virconftypes.h
++++ libvirt/src/conf/virconftypes.h
+@@ -210,6 +210,8 @@ typedef struct _virDomainResourceDef vir
+ 
+ typedef struct _virDomainSEVDef virDomainSEVDef;
+ 
++typedef struct _virDomainCCADef virDomainCCADef;
++
+ typedef struct _virDomainSecDef virDomainSecDef;
+ 
+ typedef struct _virDomainShmemDef virDomainShmemDef;
+Index: libvirt/src/qemu/qemu_capabilities.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_capabilities.c
++++ libvirt/src/qemu/qemu_capabilities.c
+@@ -698,6 +698,9 @@ VIR_ENUM_IMPL(virQEMUCaps,
+               /* 450 */
+               "run-with.async-teardown", /* QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN */
+               "virtio-blk-vhost-vdpa", /* QEMU_CAPS_DEVICE_VIRTIO_BLK_VHOST_VDPA */
++
++              /* 465 */
++              "rme-guest", /* QEMU_CAPS_CCA_GUEST */
+     );
+ 
+ 
+@@ -783,6 +786,8 @@ struct _virQEMUCaps {
+ 
+     virSGXCapability *sgxCapabilities;
+ 
++    virCCACapability *ccaCapabilities;
++
+     virDomainCapsFeatureHyperv *hypervCapabilities;
+ 
+     /* Capabilities which may differ depending on the accelerator. */
+@@ -1389,6 +1394,7 @@ struct virQEMUCapsStringFlags virQEMUCap
+     { "virtio-crypto-device", QEMU_CAPS_DEVICE_VIRTIO_CRYPTO },
+     { "cryptodev-backend-lkcf", QEMU_CAPS_OBJECT_CRYPTO_LKCF },
+     { "pvpanic-pci", QEMU_CAPS_DEVICE_PANIC_PCI },
++    { "rme-guest", QEMU_CAPS_CCA_GUEST },
+ };
+ 
+ 
+Index: libvirt/src/qemu/qemu_capabilities.h
+===================================================================
+--- libvirt.orig/src/qemu/qemu_capabilities.h
++++ libvirt/src/qemu/qemu_capabilities.h
+@@ -678,6 +678,9 @@ typedef enum { /* virQEMUCapsFlags group
+     QEMU_CAPS_RUN_WITH_ASYNC_TEARDOWN, /* asynchronous teardown -run-with async-teardown=on|off */
+     QEMU_CAPS_DEVICE_VIRTIO_BLK_VHOST_VDPA, /* virtio-blk-vhost-vdpa block driver */
+ 
++    /* 465 */
++    QEMU_CAPS_CCA_GUEST, /* -object rme-guest */
++
+     QEMU_CAPS_LAST /* this must always be the last item */
+ } virQEMUCapsFlags;
+ 
+Index: libvirt/src/qemu/qemu_command.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_command.c
++++ libvirt/src/qemu/qemu_command.c
+@@ -7003,6 +7003,9 @@ qemuBuildMachineCommandLine(virCommand *
+         case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+             virBufferAddLit(&buf, ",confidential-guest-support=lsec0");
+             break;
++        case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
++            virBufferAddLit(&buf, ",confidential-guest-support=rme0");
++            break;
+         case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+         case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+             virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
+@@ -9727,6 +9730,27 @@ qemuBuildPVCommandLine(virDomainObj *vm,
+     return 0;
+ }
+ 
++static int
++qemuBuildCCACommandLine(virCommand *cmd, virDomainCCADef *cca, qemuDomainObjPrivate *priv)
++{
++    g_autoptr(virJSONValue) props = NULL;
++
++    VIR_DEBUG("measurement_algorithm=%s personalization_value=%s measurement_log=%d",
++              cca->measurement_algo, cca->personalization_value,
++              cca->measurement_log);
++
++    if (qemuMonitorCreateObjectProps(&props, "rme-guest", "rme0",
++                                     "S:measurement-algorithm", cca->measurement_algo,
++                                     "S:personalization-value", cca->personalization_value,
++                                     "T:measurement-log", cca->measurement_log,
++                                     NULL) < 0)
++        return -1;
++
++    if (qemuBuildObjectCommandlineFromJSON(cmd, props, priv->qemuCaps) < 0)
++        return -1;
++
++    return 0;
++}
+ 
+ static int
+ qemuBuildSecCommandLine(virDomainObj *vm, virCommand *cmd,
+@@ -9742,6 +9766,8 @@ qemuBuildSecCommandLine(virDomainObj *vm
+     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+         return qemuBuildPVCommandLine(vm, cmd);
+         break;
++    case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
++        return qemuBuildCCACommandLine(cmd, &sec->data.cca, vm->privateData);
+     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+     case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+         virReportEnumRangeError(virDomainLaunchSecurity, sec->sectype);
+Index: libvirt/src/qemu/qemu_firmware.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_firmware.c
++++ libvirt/src/qemu/qemu_firmware.c
+@@ -1374,6 +1374,7 @@ qemuFirmwareMatchDomain(const virDomainD
+             }
+             break;
+         case VIR_DOMAIN_LAUNCH_SECURITY_PV:
++        case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
+             break;
+         case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+         case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+Index: libvirt/src/qemu/qemu_namespace.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_namespace.c
++++ libvirt/src/qemu/qemu_namespace.c
+@@ -659,6 +659,8 @@ qemuDomainSetupLaunchSecurity(virDomainO
+ 
+         VIR_DEBUG("Set up launch security for SEV");
+         break;
++    case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
++        break;
+     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+         break;
+     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+Index: libvirt/src/qemu/qemu_process.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_process.c
++++ libvirt/src/qemu/qemu_process.c
+@@ -6754,6 +6754,8 @@ qemuProcessPrepareLaunchSecurityGuestInp
+     switch ((virDomainLaunchSecurity) sec->sectype) {
+     case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
+         return qemuProcessPrepareSEVGuestInput(vm);
++    case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
++        return 0;
+     case VIR_DOMAIN_LAUNCH_SECURITY_PV:
+         return 0;
+     case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+Index: libvirt/src/qemu/qemu_validate.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_validate.c
++++ libvirt/src/qemu/qemu_validate.c
+@@ -1322,6 +1322,8 @@ qemuValidateDomainDef(const virDomainDef
+                 return -1;
+             }
+             break;
++        case VIR_DOMAIN_LAUNCH_SECURITY_CCA:
++            break;
+         case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
+         case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
+             virReportEnumRangeError(virDomainLaunchSecurity, def->sec->sectype);
