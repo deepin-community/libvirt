@@ -44,8 +44,8 @@ Index: libvirt/src/conf/domain_conf.c
          if (sev->session)
              virBufferEscapeString(&childBuf, "<session>%s</session>\n", sev->session);
  
-+        if (def->user_id)
-+           virBufferEscapeString(childBuf, "<userid>%s</userid>\n", def->user_id);
++        if (sev->user_id)
++           virBufferEscapeString(&childBuf, "<userid>%s</userid>\n", sev->user_id);
 +
          break;
      }
