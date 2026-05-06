@@ -1039,7 +1039,7 @@ virSecuritySELinuxReserveLabel(virSecurityManager *mgr,
 }
 
 
-static virSecurityDriverStatus
+static int
 virSecuritySELinuxDriverProbe(const char *virtDriver)
 {
     if (is_selinux_enabled() <= 0)
@@ -1488,8 +1488,6 @@ virSecuritySELinuxRestoreFileLabel(virSecurityManager *mgr,
      */
     if (!path)
         return 0;
-    if (!virFileExists(path))
-        return 0;
 
     VIR_INFO("Restoring SELinux context on '%s'", path);
 
@@ -1776,10 +1774,10 @@ virSecuritySELinuxRestoreTPMFileLabelInt(virSecurityManager *mgr,
 
 
 static int
-virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
-                                       virDomainDef *def,
-                                       virStorageSource *src,
-                                       bool migrated)
+virSecuritySELinuxRestoreImageLabelSingle(virSecurityManager *mgr,
+                                          virDomainDef *def,
+                                          virStorageSource *src,
+                                          bool migrated)
 {
     virSecurityLabelDef *seclabel;
     virSecurityDeviceLabelDef *disk_seclabel;
@@ -1862,6 +1860,19 @@ virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
     }
 
     return virSecuritySELinuxRestoreFileLabel(mgr, path, true);
+}
+
+
+static int
+virSecuritySELinuxRestoreImageLabelInt(virSecurityManager *mgr,
+                                       virDomainDef *def,
+                                       virStorageSource *src,
+                                       bool migrated)
+{
+    if (virSecuritySELinuxRestoreImageLabelSingle(mgr, def, src, migrated) < 0)
+        return -1;
+
+    return 0;
 }
 
 
@@ -1982,12 +1993,12 @@ virSecuritySELinuxSetImageLabelInternal(virSecurityManager *mgr,
 
 
 static int
-virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
-                               virDomainDef *def,
-                               virStorageSource *src,
-                               virSecurityDomainImageLabelFlags flags)
+virSecuritySELinuxSetImageLabelRelative(virSecurityManager *mgr,
+                                        virDomainDef *def,
+                                        virStorageSource *src,
+                                        virStorageSource *parent,
+                                        virSecurityDomainImageLabelFlags flags)
 {
-    virStorageSource *parent = src;
     virStorageSource *n;
 
     for (n = src; virStorageSourceIsBacking(n); n = n->backingStore) {
@@ -2005,6 +2016,15 @@ virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
     return 0;
 }
 
+
+static int
+virSecuritySELinuxSetImageLabel(virSecurityManager *mgr,
+                                virDomainDef *def,
+                                virStorageSource *src,
+                                virSecurityDomainImageLabelFlags flags)
+{
+    return virSecuritySELinuxSetImageLabelRelative(mgr, def, src, src, flags);
+}
 
 struct virSecuritySELinuxMoveImageMetadataData {
     virSecurityManager *mgr;
@@ -2181,7 +2201,7 @@ virSecuritySELinuxSetHostdevSubsysLabel(virSecurityManager *mgr,
         if (!pci)
             return -1;
 
-        if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
+        if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
             g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
             if (!vfioGroupDev)
@@ -2417,7 +2437,7 @@ virSecuritySELinuxRestoreHostdevSubsysLabel(virSecurityManager *mgr,
         if (!pci)
             return -1;
 
-        if (pcisrc->driver.name == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO) {
+        if (pcisrc->backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO) {
             g_autofree char *vfioGroupDev = virPCIDeviceGetIOMMUGroupDev(pci);
 
             if (!vfioGroupDev)
@@ -2911,10 +2931,6 @@ virSecuritySELinuxRestoreAllLabel(virSecurityManager *mgr,
         virSecuritySELinuxRestoreFileLabel(mgr, def->os.slic_table, true) < 0)
         rc = -1;
 
-    if (def->pstore &&
-        virSecuritySELinuxRestoreFileLabel(mgr, def->pstore->path, true) < 0)
-        rc = -1;
-
     return rc;
 }
 
@@ -3337,11 +3353,6 @@ virSecuritySELinuxSetAllLabel(virSecurityManager *mgr,
     if (def->os.slic_table &&
         virSecuritySELinuxSetFilecon(mgr, def->os.slic_table,
                                      data->content_context, true) < 0)
-        return -1;
-
-    if (def->pstore &&
-        virSecuritySELinuxSetFilecon(mgr, def->pstore->path,
-                                     secdef->imagelabel, true) < 0)
         return -1;
 
     return 0;

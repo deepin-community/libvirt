@@ -1,3 +1,2 @@
-etc/apt/apt.conf.d/90libnss-libvirt
-usr/lib/${DEB_HOST_MULTIARCH}/libnss_libvirt.so.2
-usr/lib/${DEB_HOST_MULTIARCH}/libnss_libvirt_guest.so.2
+# the nss module (once enabled) will make apt call getdents (LP: #1732030)
+debian/apt/90libnss-libvirt etc/apt/apt.conf.d

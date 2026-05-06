@@ -57,6 +57,7 @@
   <flag name='pc-dimm'/>
   <flag name='machine-vmport-opt'/>
   <flag name='pci-serial'/>
+  <flag name='gpex-pcihost'/>
   <flag name='ioh3420'/>
   <flag name='x3130-upstream'/>
   <flag name='xio3130-downstream'/>
@@ -159,8 +160,6 @@
   <flag name='virtio-net.rss'/>
   <flag name='usb-host.guest-resets-all'/>
   <flag name='virtio-crypto'/>
-  <flag name='usb-mtp'/>
-  <flag name='netdev.user'/>
   <version>5002000</version>
   <microcodeVersion>43100243</microcodeVersion>
   <package>v5.2.0</package>

@@ -39,7 +39,6 @@ typedef enum {
      * separation makes our code more readable in terms of knowing when we're
      * starting a defined device and when we're creating a transient one */
     MDEVCTL_CMD_CREATE,
-    MDEVCTL_CMD_MODIFY,
 
     MDEVCTL_CMD_LAST,
 } virMdevctlCommand;
@@ -143,11 +142,10 @@ nodeDeviceGetMdevctlListCommand(bool defined,
 
 int
 nodeDeviceParseMdevctlJSON(const char *jsonstring,
-                           virNodeDeviceDef ***devs,
-                           bool defined);
+                           virNodeDeviceDef ***devs);
 
 int
-nodeDeviceUpdateMediatedDevices(virNodeDeviceDriverState *driver);
+nodeDeviceUpdateMediatedDevices(void);
 
 void
 nodeDeviceGenerateName(virNodeDeviceDef *def,
@@ -156,8 +154,7 @@ nodeDeviceGenerateName(virNodeDeviceDef *def,
                        const char *s);
 
 bool nodeDeviceDefCopyFromMdevctl(virNodeDeviceDef *dst,
-                                  virNodeDeviceDef *src,
-                                  bool defined);
+                                  virNodeDeviceDef *src);
 
 int
 nodeDeviceCreate(virNodeDevice *dev,
@@ -187,16 +184,3 @@ virCommand*
 nodeDeviceGetMdevctlSetAutostartCommand(virNodeDeviceDef *def,
                                         bool autostart,
                                         char **errmsg);
-
-virCommand*
-nodeDeviceGetMdevctlModifyCommand(virNodeDeviceDef *def,
-                                  bool defined,
-                                  bool live,
-                                  char **errmsg);
-int
-nodeDeviceUpdate(virNodeDevice *dev,
-                 const char *xmlDesc,
-                 unsigned int flags);
-
-void
-nodeDeviceDefResetMdevActiveConfig(virNodeDeviceDef *def);

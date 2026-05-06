@@ -285,7 +285,6 @@ virQEMUDriverConfig *virQEMUDriverConfigNew(bool privileged,
         return NULL;
 
     cfg->deprecationBehavior = g_strdup("none");
-    cfg->storageUseNbdkit = USE_NBDKIT_DEFAULT;
 
     return g_steal_pointer(&cfg);
 }
@@ -1066,24 +1065,6 @@ virQEMUDriverConfigLoadCapsFiltersEntry(virQEMUDriverConfig *cfg,
 }
 
 
-static int
-virQEMUDriverConfigLoadStorageEntry(virQEMUDriverConfig *cfg,
-                                    virConf *conf)
-{
-    if (virConfGetValueBool(conf, "storage_use_nbdkit", &cfg->storageUseNbdkit) < 0)
-        return -1;
-
-#if !WITH_NBDKIT
-    if (cfg->storageUseNbdkit) {
-        VIR_WARN("Ignoring configuration option 'storage_use_nbdkit': nbdkit is not supported by this libvirt");
-        cfg->storageUseNbdkit = false;
-    }
-#endif /* WITH_NBDKIT */
-
-    return 0;
-}
-
-
 int virQEMUDriverConfigLoadFile(virQEMUDriverConfig *cfg,
                                 const char *filename,
                                 bool privileged)
@@ -1153,9 +1134,6 @@ int virQEMUDriverConfigLoadFile(virQEMUDriverConfig *cfg,
         return -1;
 
     if (virQEMUDriverConfigLoadCapsFiltersEntry(cfg, conf) < 0)
-        return -1;
-
-    if (virQEMUDriverConfigLoadStorageEntry(cfg, conf) < 0)
         return -1;
 
     return 0;
@@ -1380,14 +1358,9 @@ virCaps *virQEMUDriverCreateCapabilities(virQEMUDriver *driver)
         return NULL;
     }
 
-    /* Ensure top lock is acquired before nested locks */
-    qemuSecurityStackLock(driver->securityManager);
-
     /* access sec drivers and create a sec model for each one */
-    if (!(sec_managers = qemuSecurityGetNested(driver->securityManager))) {
-        qemuSecurityStackUnlock(driver->securityManager);
+    if (!(sec_managers = qemuSecurityGetNested(driver->securityManager)))
         return NULL;
-    }
 
     /* calculate length */
     for (i = 0; sec_managers[i]; i++)
@@ -1407,17 +1380,13 @@ virCaps *virQEMUDriverCreateCapabilities(virQEMUDriver *driver)
             lbl = qemuSecurityGetBaseLabel(sec_managers[i], virtTypes[j]);
             type = virDomainVirtTypeToString(virtTypes[j]);
             if (lbl &&
-                virCapabilitiesHostSecModelAddBaseLabel(sm, type, lbl) < 0) {
-                qemuSecurityStackUnlock(driver->securityManager);
+                virCapabilitiesHostSecModelAddBaseLabel(sm, type, lbl) < 0)
                 return NULL;
-            }
         }
 
         VIR_DEBUG("Initialized caps for security driver \"%s\" with "
                   "DOI \"%s\"", model, doi);
     }
-
-    qemuSecurityStackUnlock(driver->securityManager);
 
     caps->host.numa = virCapabilitiesHostNUMANewHost();
     caps->host.cpu = virQEMUDriverGetHostCPU(driver);

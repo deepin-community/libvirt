@@ -513,7 +513,10 @@ virNetServerNewPostExecRestart(virJSONValue *object,
         if (!(service = virNetServerServiceNewPostExecRestart(child)))
             return NULL;
 
-        virNetServerAddService(srv, service);
+        if (virNetServerAddService(srv, service) < 0) {
+            virObjectUnref(service);
+            return NULL;
+        }
     }
 
 
@@ -620,7 +623,7 @@ virNetServerPreExecRestart(virNetServer *srv)
 }
 
 
-void
+int
 virNetServerAddService(virNetServer *srv,
                        virNetServerService *svc)
 {
@@ -630,6 +633,7 @@ virNetServerAddService(virNetServer *srv,
     srv->services[srv->nservices-1] = virObjectRef(svc);
 
     virNetServerServiceSetDispatcher(svc, virNetServerDispatchNewClient, srv);
+    return 0;
 }
 
 
@@ -665,7 +669,10 @@ virNetServerAddServiceActivation(virNetServer *srv,
         if (!svc)
             return -1;
 
-        virNetServerAddService(srv, svc);
+        if (virNetServerAddService(srv, svc) < 0) {
+            virObjectUnref(svc);
+            return -1;
+        }
     }
 
     /* Intentionally return 1 any time activation is present,
@@ -716,7 +723,11 @@ virNetServerAddServiceTCP(virNetServer *srv,
                                           nrequests_client_max)))
         return -1;
 
-    virNetServerAddService(srv, svc);
+    if (virNetServerAddService(srv, svc) < 0) {
+        virObjectUnref(svc);
+        return -1;
+    }
+
     virObjectUnref(svc);
 
     return 0;
@@ -761,7 +772,11 @@ virNetServerAddServiceUNIX(virNetServer *srv,
                                            nrequests_client_max)))
         return -1;
 
-    virNetServerAddService(srv, svc);
+    if (virNetServerAddService(srv, svc) < 0) {
+        virObjectUnref(svc);
+        return -1;
+    }
+
     virObjectUnref(svc);
 
     return 0;

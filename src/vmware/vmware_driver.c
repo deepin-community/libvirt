@@ -106,8 +106,7 @@ vmwareDomainDefPostParse(virDomainDef *def,
     struct vmware_driver *driver = opaque;
     if (!virCapabilitiesDomainSupported(driver->caps, def->os.type,
                                         def->os.arch,
-                                        def->virtType,
-                                        true))
+                                        def->virtType))
         return -1;
 
     return 0;

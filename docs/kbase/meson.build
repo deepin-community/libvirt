@@ -2,7 +2,6 @@ docs_kbase_files = [
   'backing_chains',
   'debuglogs',
   'domainstatecapture',
-  'failed_connection_after_install',
   'index',
   'kvm-realtime',
   'launch_security_sev',

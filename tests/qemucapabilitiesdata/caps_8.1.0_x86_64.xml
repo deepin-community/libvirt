@@ -56,6 +56,7 @@
   <flag name='pc-dimm'/>
   <flag name='machine-vmport-opt'/>
   <flag name='pci-serial'/>
+  <flag name='gpex-pcihost'/>
   <flag name='ioh3420'/>
   <flag name='x3130-upstream'/>
   <flag name='xio3130-downstream'/>
@@ -197,13 +198,6 @@
   <flag name='qcow2-discard-no-unref'/>
   <flag name='run-with.async-teardown'/>
   <flag name='virtio-blk-vhost-vdpa'/>
-  <flag name='smp-clusters'/>
-  <flag name='display-reload'/>
-  <flag name='usb-mtp'/>
-  <flag name='netdev.user'/>
-  <flag name='acpi-erst'/>
-  <flag name='intel-iommu.dma-translation'/>
-  <flag name='machine-i8042-opt'/>
   <version>8001000</version>
   <microcodeVersion>43100245</microcodeVersion>
   <package>v8.1.0</package>
@@ -3785,7 +3779,5 @@
     <cap name='tlbflush'/>
     <cap name='ipi'/>
     <cap name='avic'/>
-    <cap name='emsr_bitmap'/>
-    <cap name='xmm_input'/>
   </hypervCapabilities>
 </qemuCaps>

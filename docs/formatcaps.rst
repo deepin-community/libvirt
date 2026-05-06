@@ -37,12 +37,6 @@ The ``<host/>`` element consists of the following child elements:
    The host UUID.
 ``cpu``
    The host CPU architecture and features.
-
-   Note that, while this element contains a ``topology`` sub-element,
-   the information contained therein is farily high-level and likely
-   not very useful when it comes to optimizing guest vCPU placement.
-   Look into the ``topology`` *element*, described below, for more
-   detailed information.
 ``power_management``
    whether host is capable of memory suspend, disk hibernation, or hybrid
    suspend.
@@ -50,48 +44,12 @@ The ``<host/>`` element consists of the following child elements:
    This element exposes information on the hypervisor's migration capabilities,
    like live migration, supported URI transports, and so on.
 ``topology``
-   This element describes the host CPU topology in detail.
-
-   Management applications may want to use this information when defining new
-   guests: for example, in order to ensure that all vCPUs are scheduled on
-   CPUs that are in the same NUMA node or even CPU core.
-
-   The ``cells`` sub-element contains a list of NUMA nodes, each one
-   represented by a single ``cell`` element. Within each ``cell``, a ``cpus``
-   sub-element contains a list of logical CPUs, each one represented by a
-   single ``cpu`` element. In both cases, the ``num`` attribute of the
-   top-level element contains the number of children.
-
-   Each ``cpu`` element contains the following attributes:
-
-   ``id``
-     CPU identifier. Can be used to refer to it in the context of
-     `CPU tuning <formatdomain.html#cpu-tuning>`__.
-
-   ``socket_id``
-     Identifier for the physical package the CPU is in.
-
-   ``die_id``
-     Identifier for the die the CPU is in.
-
-     Note that, even if this attribute is present, you might not be able to
-     define guests with multiple CPU dies.
-
-   ``cluster_id``
-     Identifier for the cluster the CPU is in.
-
-     Note that, even if this attribute is present, you might not be able to
-     define guests with multiple CPU clusters.
-
-   ``core_id``
-     Identifier for the core the CPU is in.
-
-   ``siblings``
-     List of CPUs that are in the same core.
-
-     The list will include the current CPU, plus all other CPUs that have the
-     same values for ``socket_id``, ``die_id``, ``cluster_id`` and ``core_id``.
-
+   This element embodies the host internal topology. Management applications may
+   want to learn this information when orchestrating new guests - e.g. due to
+   reduce inter-NUMA node transfers. Note that the ``sockets`` value reported
+   here is per-NUMA-node; this is in contrast to the value given in domain
+   definitions, which is interpreted as a total number of sockets for the
+   domain.
 ``secmodel``
    To find out default security labels for different security models you need to
    parse this element. In contrast with the former elements, this is repeated
@@ -148,11 +106,11 @@ The ``<guest/>`` element will typically wrap up the following elements:
       If present, 32-bit guests can use PAE address space extensions,
       :since:`since 0.4.1`
    ``nonpae``
-      If present, 32-bit guests can be run without requiring PAE,
-      :since:`since 0.4.1`
+      If present, 32-bit guests can be run without requiring PAE, :since:`since
+      0.4.1`
    ``ia64_be``
-      If present, IA64 guests can be run in big-endian mode,
-      :since:`since 0.4.1`
+      If present, IA64 guests can be run in big-endian mode, :since:`since
+      0.4.1`
    ``acpi``
       If this element is present, the ``default`` attribute describes whether
       the hypervisor exposes ACPI to the guest by default, and the ``toggle``
@@ -202,7 +160,7 @@ capabilities enabled in the chip and BIOS you will see:
         <microcode version='236'/>
         <signature family='6' model='142' stepping='12'/>
         <counter name='tsc' frequency='2303997000' scaling='no'/>
-        <topology sockets='1' dies='1' clusters='1' cores='4' threads='2'/>
+        <topology sockets='1' dies='1' cores='4' threads='2'/>
         <maxphysaddr mode='emulate' bits='39'/>
         <feature name='ds'/>
         <feature name='acpi'/>
@@ -267,14 +225,14 @@ capabilities enabled in the chip and BIOS you will see:
               <sibling id='0' value='10'/>
             </distances>
             <cpus num='8'>
-              <cpu id='0' socket_id='0' die_id='0' cluster_id='0' core_id='0' siblings='0,4'/>
-              <cpu id='1' socket_id='0' die_id='0' cluster_id='0' core_id='1' siblings='1,5'/>
-              <cpu id='2' socket_id='0' die_id='0' cluster_id='0' core_id='2' siblings='2,6'/>
-              <cpu id='3' socket_id='0' die_id='0' cluster_id='0' core_id='3' siblings='3,7'/>
-              <cpu id='4' socket_id='0' die_id='0' cluster_id='0' core_id='0' siblings='0,4'/>
-              <cpu id='5' socket_id='0' die_id='0' cluster_id='0' core_id='1' siblings='1,5'/>
-              <cpu id='6' socket_id='0' die_id='0' cluster_id='0' core_id='2' siblings='2,6'/>
-              <cpu id='7' socket_id='0' die_id='0' cluster_id='0' core_id='3' siblings='3,7'/>
+              <cpu id='0' socket_id='0' die_id='0' core_id='0' siblings='0,4'/>
+              <cpu id='1' socket_id='0' die_id='0' core_id='1' siblings='1,5'/>
+              <cpu id='2' socket_id='0' die_id='0' core_id='2' siblings='2,6'/>
+              <cpu id='3' socket_id='0' die_id='0' core_id='3' siblings='3,7'/>
+              <cpu id='4' socket_id='0' die_id='0' core_id='0' siblings='0,4'/>
+              <cpu id='5' socket_id='0' die_id='0' core_id='1' siblings='1,5'/>
+              <cpu id='6' socket_id='0' die_id='0' core_id='2' siblings='2,6'/>
+              <cpu id='7' socket_id='0' die_id='0' core_id='3' siblings='3,7'/>
             </cpus>
           </cell>
         </cells>

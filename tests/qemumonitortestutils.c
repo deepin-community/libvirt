@@ -172,7 +172,7 @@ qemuMonitorTestAddInvalidCommandResponse(qemuMonitorTest *test,
 }
 
 
-int
+int G_GNUC_PRINTF(2, 3)
 qemuMonitorTestAddErrorResponse(qemuMonitorTest *test, const char *errmsg, ...)
 {
     va_list msgargs;
@@ -1036,13 +1036,6 @@ qemuMonitorTestFullAddItem(qemuMonitorTest *test,
 }
 
 
-struct qemuMonitorTestCommandReplyTuple {
-    const char *command;
-    const char *reply;
-    size_t line; /* line number of @command */
-};
-
-
 /**
  * qemuMonitorTestProcessFileEntries:
  * @inputstr: input file contents (modified)
@@ -1055,7 +1048,7 @@ struct qemuMonitorTestCommandReplyTuple {
  * The file contains a sequence of JSON commands and reply objects separated by
  * empty lines. A command is followed by a reply.
  */
-static int
+int
 qemuMonitorTestProcessFileEntries(char *inputstr,
                                   const char *fileName,
                                   struct qemuMonitorTestCommandReplyTuple **items,

@@ -1,5 +1,0 @@
-echo --split a,b,,c,,,d,,,,e,,,,,f,,,,,,e
-echo --split ,a,b,,c,,,d,,,,e,,,,,f,,,,,,e,
-echo --split ,,a,b,,c,,,d,,,,e,,,,,f,,,,,,e,,
-echo --split ,,,a,b,,c,,,d,,,,e,,,,,f,,,,,,e,,,
-echo --split ,,,,a,b,,c,,,d,,,,e,,,,,f,,,,,,e,,,,

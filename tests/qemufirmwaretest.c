@@ -62,23 +62,6 @@ testParseFormatFW(const void *opaque)
 
 
 static int
-testParseFailureFW(const void *opaque)
-{
-    const char *filename = opaque;
-    g_autofree char *inpath = NULL;
-
-    inpath = g_strdup_printf("%s/qemufirmwaredata/%s", abs_srcdir, filename);
-
-    /* This is a negative test case, so if the file was parsed
-     * successfully we need to report a failure  */
-    if (qemuFirmwareParse(inpath))
-        return -1;
-
-    return 0;
-}
-
-
-static int
 testFWPrecedence(const void *opaque G_GNUC_UNUSED)
 {
     g_autofree char *fakehome = NULL;
@@ -90,10 +73,8 @@ testFWPrecedence(const void *opaque G_GNUC_UNUSED)
         PREFIX "/share/qemu/firmware/40-edk2-ovmf-4m-qcow2-x64-sb.json",
         PREFIX "/share/qemu/firmware/41-edk2-ovmf-2m-raw-x64-sb.json",
         PREFIX "/share/qemu/firmware/50-edk2-aarch64-qcow2.json",
-        PREFIX "/share/qemu/firmware/50-edk2-loongarch64.json",
         PREFIX "/share/qemu/firmware/50-edk2-ovmf-4m-qcow2-x64-nosb.json",
         PREFIX "/share/qemu/firmware/50-edk2-ovmf-x64-microvm.json",
-        PREFIX "/share/qemu/firmware/50-edk2-riscv-qcow2.json",
         PREFIX "/share/qemu/firmware/51-edk2-aarch64-raw.json",
         PREFIX "/share/qemu/firmware/51-edk2-ovmf-2m-raw-x64-nosb.json",
         PREFIX "/share/qemu/firmware/52-edk2-aarch64-verbose-qcow2.json",
@@ -103,7 +84,6 @@ testFWPrecedence(const void *opaque G_GNUC_UNUSED)
         PREFIX "/share/qemu/firmware/60-edk2-ovmf-x64-inteltdx.json",
         PREFIX "/share/qemu/firmware/90-combined.json",
         PREFIX "/share/qemu/firmware/91-bios.json",
-        PREFIX "/share/qemu/firmware/93-invalid.json",
         NULL
     };
     const char **e;
@@ -258,22 +238,13 @@ mymain(void)
             ret = -1; \
     } while (0)
 
-#define DO_PARSE_FAILURE_TEST(filename) \
-    do { \
-        if (virTestRun("QEMU FW FAILURE " filename, \
-                       testParseFailureFW, filename) < 0) \
-            ret = -1; \
-    } while (0)
-
     DO_PARSE_TEST("usr/share/qemu/firmware/30-edk2-ovmf-4m-qcow2-x64-sb-enrolled.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/31-edk2-ovmf-2m-raw-x64-sb-enrolled.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/40-edk2-ovmf-4m-qcow2-x64-sb.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/41-edk2-ovmf-2m-raw-x64-sb.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/50-edk2-aarch64-qcow2.json");
-    DO_PARSE_TEST("usr/share/qemu/firmware/50-edk2-loongarch64.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/50-edk2-ovmf-4m-qcow2-x64-nosb.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/50-edk2-ovmf-x64-microvm.json");
-    DO_PARSE_TEST("usr/share/qemu/firmware/50-edk2-riscv-qcow2.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/51-edk2-aarch64-raw.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/51-edk2-ovmf-2m-raw-x64-nosb.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/52-edk2-aarch64-verbose-qcow2.json");
@@ -282,7 +253,6 @@ mymain(void)
     DO_PARSE_TEST("usr/share/qemu/firmware/60-edk2-ovmf-x64-inteltdx.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/90-combined.json");
     DO_PARSE_TEST("usr/share/qemu/firmware/91-bios.json");
-    DO_PARSE_FAILURE_TEST("usr/share/qemu/firmware/93-invalid.json");
 
     if (virTestRun("QEMU FW precedence test", testFWPrecedence, NULL) < 0)
         ret = -1;
@@ -319,7 +289,7 @@ mymain(void)
                       "/usr/share/edk2/ovmf/OVMF_CODE.fd:/usr/share/edk2/ovmf/OVMF_VARS.fd:"
                       "/usr/share/edk2/ovmf/OVMF.secboot.fd:NULL:"
                       "/usr/share/edk2/ovmf/OVMF.amdsev.fd:NULL:"
-                      "/usr/share/edk2/ovmf/OVMF.inteltdx.secboot.fd:NULL",
+                      "/usr/share/edk2/ovmf/OVMF.inteltdx.fd:NULL",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_BIOS,
                       VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
     DO_SUPPORTED_TEST("pc-q35-3.1", VIR_ARCH_I686, false,
@@ -333,9 +303,6 @@ mymain(void)
                       "/usr/share/edk2/aarch64/QEMU_EFI-silent-pflash.raw:/usr/share/edk2/aarch64/vars-template-pflash.raw:"
                       "/usr/share/edk2/aarch64/QEMU_EFI-pflash.qcow2:/usr/share/edk2/aarch64/vars-template-pflash.qcow2:"
                       "/usr/share/edk2/aarch64/QEMU_EFI-pflash.raw:/usr/share/edk2/aarch64/vars-template-pflash.raw",
-                      VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
-    DO_SUPPORTED_TEST("virt", VIR_ARCH_RISCV64, false,
-                      "/usr/share/edk2/riscv/RISCV_VIRT_CODE.qcow2:/usr/share/edk2/riscv/RISCV_VIRT_VARS.qcow2",
                       VIR_DOMAIN_OS_DEF_FIRMWARE_EFI);
 
     virFileWrapperClearPrefixes();

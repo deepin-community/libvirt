@@ -19,7 +19,4 @@
   <feature name='sve1920'/>
   <feature name='sve2048'/>
 
-  <!-- Pointer authentication -->
-  <feature name='pauth'/>
-
 </cpus>

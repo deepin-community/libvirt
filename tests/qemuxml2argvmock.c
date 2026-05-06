@@ -35,7 +35,6 @@
 #include "virutil.h"
 #include "qemu/qemu_interface.h"
 #include "qemu/qemu_command.h"
-#include "domain_interface.h"
 #include <unistd.h>
 #include <fcntl.h>
 
@@ -113,26 +112,6 @@ virNetDevTapCreate(char **ifname,
         return 0;
     }
 }
-
-
-int
-virDomainInterfaceBridgeConnect(virDomainDef *def G_GNUC_UNUSED,
-                                virDomainNetDef *net G_GNUC_UNUSED,
-                                int *tapfd,
-                                size_t *tapfdSize,
-                                bool privileged G_GNUC_UNUSED,
-                                ebtablesContext *ebtables G_GNUC_UNUSED,
-                                bool macFilter G_GNUC_UNUSED,
-                                const char *bridgeHelperName G_GNUC_UNUSED)
-{
-    size_t i;
-
-    for (i = 0; i < *tapfdSize; i++)
-        tapfd[i] = STDERR_FILENO + 100 + i;
-
-    return 0;
-}
-
 
 int
 virNetDevSetMAC(const char *ifname G_GNUC_UNUSED,
@@ -287,12 +266,4 @@ char *
 virIdentityEnsureSystemToken(void)
 {
     return g_strdup("3de80bcbf22d4833897f1638e01be9b2");
-}
-
-
-int
-virNetDevSetMTU(const char *ifname G_GNUC_UNUSED,
-                int mtu G_GNUC_UNUSED)
-{
-    return 0;
 }

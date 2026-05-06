@@ -22,7 +22,6 @@
 #pragma once
 
 #include "internal.h"
-#include "virsocketaddr.h"
 
 typedef struct _virSystemdActivation virSystemdActivation;
 
@@ -50,8 +49,6 @@ int virSystemdHasMachined(void);
 
 int virSystemdHasLogind(void);
 
-int virSystemdHasResolved(void);
-
 int virSystemdCanSuspend(bool *result);
 
 int virSystemdCanHibernate(bool *result);
@@ -77,7 +74,3 @@ void virSystemdActivationClaimFDs(virSystemdActivation *act,
 void virSystemdActivationFree(virSystemdActivation *act);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virSystemdActivation, virSystemdActivationFree);
-
-int virSystemdResolvedRegisterNameServer(int link,
-                                         const char *domain,
-                                         virSocketAddr *addr);

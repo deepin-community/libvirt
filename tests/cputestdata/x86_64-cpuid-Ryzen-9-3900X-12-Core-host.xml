@@ -3,9 +3,9 @@
   <model>EPYC-Rome</model>
   <vendor>AMD</vendor>
   <signature family='23' model='113' stepping='0'/>
+  <feature name='ht'/>
   <feature name='monitor'/>
   <feature name='osxsave'/>
-  <feature name='ht'/>
   <feature name='cmt'/>
   <feature name='xsaves'/>
   <feature name='mbm_total'/>
@@ -18,8 +18,6 @@
   <feature name='tce'/>
   <feature name='topoext'/>
   <feature name='perfctr_nb'/>
-  <feature name='overflow-recov'/>
-  <feature name='succor'/>
   <feature name='invtsc'/>
   <feature name='amd-ssbd'/>
   <feature name='lbrv'/>

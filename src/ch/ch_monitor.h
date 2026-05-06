@@ -37,12 +37,8 @@
 #define URL_VM_Suspend "vm.pause"
 #define URL_VM_RESUME "vm.resume"
 #define URL_VM_INFO "vm.info"
-#define URL_VM_SAVE "vm.snapshot"
-#define URL_VM_RESTORE "vm.restore"
 
 #define VIRCH_THREAD_NAME_LEN   16
-
-#define CH_NET_ID_PREFIX "net"
 
 typedef enum {
     virCHThreadTypeEmulator,
@@ -103,19 +99,20 @@ struct _virCHMonitor {
     virCHMonitorThreadInfo *threads;
 };
 
-virCHMonitor *virCHMonitorNew(virDomainObj *vm, virCHDriverConfig *cfg);
+virCHMonitor *virCHMonitorNew(virDomainObj *vm, const char *socketdir);
 void virCHMonitorClose(virCHMonitor *mon);
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virCHMonitor, virCHMonitorClose);
 
 
-int virCHMonitorCreateVM(virCHDriver *driver, virCHMonitor *mon);
+int virCHMonitorCreateVM(virCHDriver *driver,
+                         virCHMonitor *mon,
+                         size_t *nnicindexes,
+                         int **nicindexes);
 int virCHMonitorBootVM(virCHMonitor *mon);
 int virCHMonitorShutdownVM(virCHMonitor *mon);
 int virCHMonitorRebootVM(virCHMonitor *mon);
 int virCHMonitorSuspendVM(virCHMonitor *mon);
 int virCHMonitorResumeVM(virCHMonitor *mon);
-int virCHMonitorSaveVM(virCHMonitor *mon,
-                       const char *to);
 int virCHMonitorGetInfo(virCHMonitor *mon, virJSONValue **info);
 
 void virCHMonitorCPUInfoFree(virCHMonitorCPUInfo *cpus);
@@ -126,10 +123,3 @@ size_t virCHMonitorGetThreadInfo(virCHMonitor *mon, bool refresh,
                                  virCHMonitorThreadInfo **threads);
 int virCHMonitorGetIOThreads(virCHMonitor *mon,
                              virDomainIOThreadInfo ***iothreads);
-int
-virCHMonitorBuildNetJson(virDomainNetDef *netdef,
-                         int netindex,
-                         char **jsonstr);
-int virCHMonitorBuildRestoreJson(virDomainDef *vmdef,
-                                 const char *from,
-                                 char **jsonstr);

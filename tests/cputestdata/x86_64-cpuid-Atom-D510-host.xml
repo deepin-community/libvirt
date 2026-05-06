@@ -3,13 +3,6 @@
   <model>n270</model>
   <vendor>Intel</vendor>
   <signature family='6' model='28' stepping='10'/>
-  <feature name='dtes64'/>
-  <feature name='ds_cpl'/>
-  <feature name='tm2'/>
-  <feature name='cx16'/>
-  <feature name='xtpr'/>
-  <feature name='pdcm'/>
-  <feature name='movbe'/>
   <feature name='pse36'/>
   <feature name='ds'/>
   <feature name='acpi'/>
@@ -17,6 +10,13 @@
   <feature name='ht'/>
   <feature name='tm'/>
   <feature name='pbe'/>
-  <feature name='lahf_lm'/>
+  <feature name='dtes64'/>
+  <feature name='ds_cpl'/>
+  <feature name='tm2'/>
+  <feature name='cx16'/>
+  <feature name='xtpr'/>
+  <feature name='pdcm'/>
+  <feature name='movbe'/>
   <feature name='lm'/>
+  <feature name='lahf_lm'/>
 </cpu>

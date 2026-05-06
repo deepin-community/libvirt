@@ -133,7 +133,7 @@ qemuHostdevUpdateActiveDomainDevices(virQEMUDriver *driver,
 bool
 qemuHostdevNeedsVFIO(const virDomainHostdevDef *hostdev)
 {
-    return virHostdevIsPCIDevice(hostdev) ||
+    return virHostdevIsVFIODevice(hostdev) ||
         virHostdevIsMdevDevice(hostdev);
 }
 

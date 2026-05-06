@@ -1534,8 +1534,7 @@ hypervDomainDefParseSerial(virDomainDef *def, Msvm_ResourceAllocationSettingData
             continue;
         }
 
-        if (!(serial = virDomainChrDefNew(NULL)))
-            return -1;
+        serial = virDomainChrDefNew(NULL);
 
         serial->deviceType = VIR_DOMAIN_CHR_DEVICE_TYPE_SERIAL;
         serial->source->type = VIR_DOMAIN_CHR_TYPE_PIPE;
@@ -3133,7 +3132,6 @@ hypervDomainAttachDeviceFlags(virDomainPtr domain, const char *xml, unsigned int
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
         virReportError(VIR_ERR_INTERNAL_ERROR,
                        _("Attaching devices of type %1$d is not implemented"), dev->type);
         return -1;

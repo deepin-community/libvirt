@@ -56,6 +56,7 @@
   <flag name='pc-dimm'/>
   <flag name='machine-vmport-opt'/>
   <flag name='pci-serial'/>
+  <flag name='gpex-pcihost'/>
   <flag name='ioh3420'/>
   <flag name='x3130-upstream'/>
   <flag name='xio3130-downstream'/>
@@ -184,11 +185,6 @@
   <flag name='virtio-crypto'/>
   <flag name='pvpanic-pci'/>
   <flag name='virtio-gpu.blob'/>
-  <flag name='display-reload'/>
-  <flag name='usb-mtp'/>
-  <flag name='netdev.user'/>
-  <flag name='acpi-erst'/>
-  <flag name='machine-i8042-opt'/>
   <version>7000000</version>
   <microcodeVersion>43100243</microcodeVersion>
   <package>v7.0.0</package>

@@ -578,8 +578,6 @@ endif
 
 # build libvirt shared modules
 
-virt_module_deps = []
-
 foreach module : virt_modules
   mod = shared_module(
     module['name'],
@@ -609,7 +607,6 @@ foreach module : virt_modules
     install_rpath: libvirt_rpath,
   )
   set_variable('@0@_module'.format(module['name'].underscorify()), mod)
-  virt_module_deps += mod
 endforeach
 
 
@@ -619,11 +616,7 @@ foreach daemon : virt_daemons
   bin = executable(
     daemon['name'],
     [
-      daemon.get('sources', [
-        remote_protocol_generated,
-        remote_daemon_sources,
-        remote_daemon_generated
-      ]),
+      daemon.get('sources', [ remote_daemon_sources, remote_daemon_generated ]),
       dtrace_gen_objects,
     ],
     c_args: [
@@ -657,11 +650,6 @@ foreach daemon : virt_daemons
     install_dir: sbindir,
     install_rpath: libvirt_rpath,
   )
-
-   # libvirtd_prog is needed by the test suite
-  if daemon['name'] == 'libvirtd'
-    libvirtd_prog = bin
-  endif
 endforeach
 
 
@@ -812,9 +800,11 @@ endforeach
 if conf.has('WITH_LIBVIRTD')
   # Generate systemd service and socket unit files
   if init_script == 'systemd'
+    systemd_unit_dir = prefix / 'lib' / 'systemd' / 'system'
+
     install_data(
       guest_unit_files,
-      install_dir: unitdir,
+      install_dir: systemd_unit_dir,
     )
 
     if conf.has('WITH_POLKIT')
@@ -853,7 +843,7 @@ if conf.has('WITH_LIBVIRTD')
         output: service_out,
         configuration: unit_conf,
         install: true,
-        install_dir: unitdir,
+        install_dir: systemd_unit_dir,
       )
 
       foreach socket : unit.get('sockets', [ 'main', 'ro', 'admin' ])
@@ -879,7 +869,7 @@ if conf.has('WITH_LIBVIRTD')
           output: socket_out,
           configuration: unit_conf,
           install: true,
-          install_dir: unitdir,
+          install_dir: systemd_unit_dir,
         )
       endforeach
     endforeach
@@ -1049,8 +1039,7 @@ if tests_enabled[0]
           '-I', data['builddir'],
           data['file'].full_path(),
         ],
-        suite: 'script',
-        depends: [data['file']]
+        suite: 'script'
       )
     endforeach
   endif

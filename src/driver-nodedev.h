@@ -102,11 +102,6 @@ typedef int
 (*virDrvNodeDeviceIsActive)(virNodeDevicePtr dev);
 
 typedef int
-(*virDrvNodeDeviceUpdate)(virNodeDevicePtr dev,
-                          const char *xmlDesc,
-                          unsigned int flags);
-
-typedef int
 (*virDrvConnectNodeDeviceEventRegisterAny)(virConnectPtr conn,
                                            virNodeDevicePtr dev,
                                            int eventID,
@@ -151,5 +146,4 @@ struct _virNodeDeviceDriver {
     virDrvNodeDeviceGetAutostart nodeDeviceGetAutostart;
     virDrvNodeDeviceIsPersistent nodeDeviceIsPersistent;
     virDrvNodeDeviceIsActive nodeDeviceIsActive;
-    virDrvNodeDeviceUpdate nodeDeviceUpdate;
 };

@@ -468,7 +468,7 @@ qemuMonitorJSONHasError(virJSONValue *reply,
  *
  * Returns 0 on success and -1 on error.
  */
-static int G_GNUC_NULL_TERMINATED
+static int
 qemuMonitorJSONTransactionAdd(virJSONValue *actions,
                               const char *cmdname,
                               ...)
@@ -2910,7 +2910,6 @@ qemuMonitorJSONGetMigrationStatsReply(virJSONValue *reply,
     virJSONValue *ram;
     virJSONValue *disk;
     virJSONValue *comp;
-    virJSONValue *vfio;
     const char *statusstr;
     int rc;
     double mbps;
@@ -2969,7 +2968,6 @@ qemuMonitorJSONGetMigrationStatsReply(virJSONValue *reply,
     case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY:
     case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_PAUSED:
     case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER:
-    case QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER_SETUP:
     case QEMU_MONITOR_MIGRATION_STATUS_COMPLETED:
     case QEMU_MONITOR_MIGRATION_STATUS_CANCELLING:
     case QEMU_MONITOR_MIGRATION_STATUS_PRE_SWITCHOVER:
@@ -3091,17 +3089,6 @@ qemuMonitorJSONGetMigrationStatsReply(virJSONValue *reply,
             if (rc < 0) {
                 virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                                _("XBZRLE is active, but 'overflow' data was missing"));
-                return -1;
-            }
-        }
-
-        vfio = virJSONValueObjectGetObject(ret, "vfio");
-        if (vfio) {
-            rc = virJSONValueObjectGetNumberUlong(vfio, "transferred",
-                                                  &stats->vfio_data_transferred);
-            if (rc < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("vfio migration was active, but 'transferred' data was missing"));
                 return -1;
             }
         }
@@ -3766,8 +3753,7 @@ qemuMonitorJSONQueryRxFilter(qemuMonitor *mon, const char *alias,
     if (qemuMonitorJSONCheckReply(cmd, reply, VIR_JSON_TYPE_ARRAY) < 0)
         return -1;
 
-    if (filter &&
-        qemuMonitorJSONQueryRxFilterParse(reply, filter) < 0)
+    if (qemuMonitorJSONQueryRxFilterParse(reply, filter) < 0)
         return -1;
 
     return 0;
@@ -4049,10 +4035,6 @@ qemuMonitorJSONBlockCommit(qemuMonitor *mon,
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
     virTristateBool autodismiss = VIR_TRISTATE_BOOL_NO;
-    virTristateBool backingProtocol = VIR_TRISTATE_BOOL_ABSENT;
-
-    if (mon->blockjobMaskProtocol)
-        backingProtocol = VIR_TRISTATE_BOOL_YES;
 
     cmd = qemuMonitorJSONMakeCommand("block-commit",
                                      "s:device", device,
@@ -4063,7 +4045,6 @@ qemuMonitorJSONBlockCommit(qemuMonitor *mon,
                                      "S:backing-file", backingName,
                                      "T:auto-finalize", autofinalize,
                                      "T:auto-dismiss", autodismiss,
-                                     "T:backing-mask-protocol", backingProtocol,
                                      NULL);
     if (!cmd)
         return -1;
@@ -4333,10 +4314,6 @@ qemuMonitorJSONBlockStream(qemuMonitor *mon,
     g_autoptr(virJSONValue) reply = NULL;
     virTristateBool autofinalize = VIR_TRISTATE_BOOL_YES;
     virTristateBool autodismiss = VIR_TRISTATE_BOOL_NO;
-    virTristateBool backingProtocol = VIR_TRISTATE_BOOL_ABSENT;
-
-    if (mon->blockjobMaskProtocol)
-        backingProtocol = VIR_TRISTATE_BOOL_YES;
 
     if (!(cmd = qemuMonitorJSONMakeCommand("block-stream",
                                            "s:device", device,
@@ -4346,7 +4323,6 @@ qemuMonitorJSONBlockStream(qemuMonitor *mon,
                                            "S:backing-file", backingName,
                                            "T:auto-finalize", autofinalize,
                                            "T:auto-dismiss", autodismiss,
-                                           "T:backing-mask-protocol", backingProtocol,
                                            NULL)))
         return -1;
 
@@ -6725,11 +6701,9 @@ qemuMonitorJSONParseCPUx86Features(virJSONValue *data)
     item.type = VIR_CPU_X86_DATA_CPUID;
     for (i = 0; i < virJSONValueArraySize(data); i++) {
         if (qemuMonitorJSONParseCPUx86FeatureWord(virJSONValueArrayGet(data, i),
-                                                  &item.data.cpuid) < 0) {
+                                                  &item.data.cpuid) < 0 ||
+            virCPUx86DataAdd(cpudata, &item) < 0)
             return NULL;
-        }
-
-        virCPUx86DataAdd(cpudata, &item);
     }
 
     return g_steal_pointer(&cpudata);
@@ -7602,14 +7576,12 @@ qemuMonitorJSONProcessHotpluggableCpusReply(virJSONValue *vcpu,
     entry->node_id = -1;
     entry->socket_id = -1;
     entry->die_id = -1;
-    entry->cluster_id = -1;
     entry->core_id = -1;
     entry->thread_id = -1;
 
     ignore_value(virJSONValueObjectGetNumberInt(props, "node-id", &entry->node_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "socket-id", &entry->socket_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "die-id", &entry->die_id));
-    ignore_value(virJSONValueObjectGetNumberInt(props, "cluster-id", &entry->cluster_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "core-id", &entry->core_id));
     ignore_value(virJSONValueObjectGetNumberInt(props, "thread-id", &entry->thread_id));
 
@@ -7646,9 +7618,6 @@ qemuMonitorQueryHotpluggableCpusEntrySort(const void *p1,
 
     if (a->die_id != b->die_id)
         return a->die_id - b->die_id;
-
-    if (a->cluster_id != b->cluster_id)
-        return a->cluster_id - b->cluster_id;
 
     if (a->core_id != b->core_id)
         return a->core_id - b->core_id;
@@ -7974,19 +7943,12 @@ qemuMonitorJSONGetSEVMeasurement(qemuMonitor *mon)
     if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return NULL;
 
-    if (!(tmp = virJSONValueObjectGetString(data, "data"))) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("query-sev-launch-measure reply was missing 'data'"));
+    if (!(tmp = virJSONValueObjectGetString(data, "data")))
         return NULL;
-    }
 
     return g_strdup(tmp);
 }
 
-
-VIR_ENUM_IMPL(qemuMonitorSEVGuest,
-              QEMU_MONITOR_SEV_GUEST_TYPE_LAST,
-              "sev", "sev-snp");
 
 /**
  * Retrieve info about the SEV setup, returning those fields that
@@ -8001,15 +7963,13 @@ VIR_ENUM_IMPL(qemuMonitorSEVGuest,
  *  { "return": { "enabled": true, "api-major" : 0, "api-minor" : 0,
  *                "build-id" : 0, "policy" : 0, "state" : "running",
  *                "handle" : 1 } }
- *
- *  Or newer (as of QEMU v9.0.0-1155-g59d3740cb4):
- *
- *  {"return": {"enabled": true, "api-minor": 55, "handle": 1, "state": "launch-secret",
- *              "api-major": 1, "sev-type": "sev", "build-id": 21, "policy": 1}}
  */
 int
 qemuMonitorJSONGetSEVInfo(qemuMonitor *mon,
-                          qemuMonitorSEVInfo *info)
+                          unsigned int *apiMajor,
+                          unsigned int *apiMinor,
+                          unsigned int *buildID,
+                          unsigned int *policy)
 {
     g_autoptr(virJSONValue) cmd = NULL;
     g_autoptr(virJSONValue) reply = NULL;
@@ -8024,51 +7984,13 @@ qemuMonitorJSONGetSEVInfo(qemuMonitor *mon,
     if (!(data = qemuMonitorJSONGetReply(cmd, reply, VIR_JSON_TYPE_OBJECT)))
         return -1;
 
-    if (virJSONValueObjectGetNumberUint(data, "api-major", &info->apiMajor) < 0 ||
-        virJSONValueObjectGetNumberUint(data, "api-minor", &info->apiMinor) < 0 ||
-        virJSONValueObjectGetNumberUint(data, "build-id", &info->buildID) < 0) {
-        goto error;
-    }
-
-    if (virJSONValueObjectHasKey(data, "sev-type")) {
-        const char *sevTypeStr = virJSONValueObjectGetString(data, "sev-type");
-        int sevType;
-
-        if ((sevType = qemuMonitorSEVGuestTypeFromString(sevTypeStr)) < 0) {
-            virReportError(VIR_ERR_INTERNAL_ERROR,
-                           _("unknown SEV type '%1$s'"),
-                           sevTypeStr);
-            return -1;
-        }
-
-        info->type = sevType;
-    } else {
-        info->type = QEMU_MONITOR_SEV_GUEST_TYPE_SEV;
-    }
-
-    switch (info->type) {
-    case QEMU_MONITOR_SEV_GUEST_TYPE_SEV:
-        if (virJSONValueObjectGetNumberUint(data, "policy", &info->data.sev.policy) < 0 ||
-            virJSONValueObjectGetNumberUint(data, "handle", &info->data.sev.handle) < 0) {
-            goto error;
-        }
-        break;
-
-    case QEMU_MONITOR_SEV_GUEST_TYPE_SEV_SNP:
-        if (virJSONValueObjectGetNumberUlong(data, "snp-policy", &info->data.sev_snp.snp_policy) < 0)
-            goto error;
-        break;
-
-    case QEMU_MONITOR_SEV_GUEST_TYPE_LAST:
-        break;
-    }
+    if (virJSONValueObjectGetNumberUint(data, "api-major", apiMajor) < 0 ||
+        virJSONValueObjectGetNumberUint(data, "api-minor", apiMinor) < 0 ||
+        virJSONValueObjectGetNumberUint(data, "build-id", buildID) < 0 ||
+        virJSONValueObjectGetNumberUint(data, "policy", policy) < 0)
+        return -1;
 
     return 0;
-
- error:
-    virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                   _("query-sev reply was missing some data"));
-    return -1;
 }
 
 
@@ -8932,27 +8854,4 @@ qemuMonitorJSONQueryStats(qemuMonitor *mon,
         return NULL;
 
     return virJSONValueObjectStealArray(reply, "return");
-}
-
-int qemuMonitorJSONDisplayReload(qemuMonitor *mon,
-                                 const char *type,
-                                 bool tlsCerts)
-{
-    g_autoptr(virJSONValue) reply = NULL;
-    g_autoptr(virJSONValue) cmd = NULL;
-
-    cmd = qemuMonitorJSONMakeCommand("display-reload",
-                                     "s:type", type,
-                                     "b:tls-certs", tlsCerts,
-                                     NULL);
-    if (!cmd)
-        return -1;
-
-    if (qemuMonitorJSONCommand(mon, cmd, &reply) < 0)
-        return -1;
-
-    if (qemuMonitorJSONCheckError(cmd, reply) < 0)
-        return -1;
-
-    return 0;
 }

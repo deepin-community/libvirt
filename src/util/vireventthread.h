@@ -28,6 +28,4 @@ G_DECLARE_FINAL_TYPE(virEventThread, vir_event_thread, VIR, EVENT_THREAD, GObjec
 
 virEventThread *virEventThreadNew(const char *name);
 
-void virEventThreadStop(virEventThread *evt);
-
 GMainContext *virEventThreadGetContext(virEventThread *evt);

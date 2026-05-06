@@ -507,12 +507,6 @@ typedef enum {
      */
     VIR_ACCESS_PERM_NODE_DEVICE_DELETE,
 
-    /**
-     * @desc: Save node device
-     * @message: Saving node device driver requires authorization
-     */
-    VIR_ACCESS_PERM_NODE_DEVICE_SAVE,
-
     VIR_ACCESS_PERM_NODE_DEVICE_LAST
 } virAccessPermNodeDevice;
 

@@ -258,8 +258,6 @@ struct _virStorageSourceSlice {
     char *nodename;
 };
 
-void
-virStorageSourceSliceFree(virStorageSourceSlice *slice);
 
 struct _virStorageSourceFDTuple {
     GObject parent;

@@ -20,7 +20,7 @@
 
 #include <config.h>
 
-#if defined(WITH_LIBXL)
+#if defined(WITH_LIBXL) && defined(WITH_YAJL)
 # include "virmock.h"
 # include <sys/stat.h>
 # include <unistd.h>
@@ -168,4 +168,4 @@ libxlDomainGetEmulatorType(const virDomainDef *def G_GNUC_UNUSED)
     return LIBXL_DEVICE_MODEL_VERSION_QEMU_XEN;
 }
 
-#endif /* WITH_LIBXL */
+#endif /* WITH_LIBXL && WITH_YAJL */

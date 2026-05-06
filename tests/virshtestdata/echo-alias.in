@@ -1,3 +1,0 @@
-echo --string hello
-echo --str hello
-echo --hi;

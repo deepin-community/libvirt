@@ -10,7 +10,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: libvirt 6.0.0\n"
 "Report-Msgid-Bugs-To: https://libvirt.org/bugs.html\n"
-"POT-Creation-Date: 2024-08-27 08:20+0000\n"
+"POT-Creation-Date: 2023-11-27 09:22+0000\n"
 "PO-Revision-Date: 2015-03-05 07:40+0000\n"
 "Last-Translator: Copied by Zanata <copied-by-zanata@zanata.org>\n"
 "Language-Team: Telugu (http://www.transifex.com/projects/p/libvirt/language/"
@@ -318,20 +318,6 @@ msgstr ""
 #, c-format
 msgid ""
 "\n"
-"Usage:\n"
-"%1$s hostname port\n"
-"\n"
-"Hostname should be in one of the following forms:\n"
-"\n"
-"  qemu:system/$domname\t\tfor domains under qemu:///system\n"
-"  qemu:session/$domname\t\tfor domains under qemu:///session\n"
-"  qemu/$domname\t\t\ttries looking up $domname under system followed by "
-"session URI\n"
-msgstr ""
-
-#, c-format
-msgid ""
-"\n"
 "syntax: %1$s [OPTIONS] [HVTYPE]\n"
 "\n"
 " Hypervisor types:\n"
@@ -363,10 +349,6 @@ msgstr " %1$s (సహాయ కీపదం '%2$s')\n"
 msgid " %1$s (help keyword '%2$s'):\n"
 msgstr " %1$s (సహాయ కీపదం '%2$s'):\n"
 
-#, c-format
-msgid " --%1$s <string>..."
-msgstr ""
-
 msgid " Hypervisors:"
 msgstr "హైపర్విజర్లు:"
 
@@ -378,10 +360,6 @@ msgstr " నెట్వర్కింగ్:"
 
 msgid " Storage:"
 msgstr "నిల్వ:"
-
-#, c-format
-msgid " [--%1$s <string>]..."
-msgstr ""
 
 #, c-format
 msgid ""
@@ -404,6 +382,10 @@ msgstr ""
 #, c-format
 msgid "$%1$s value should be between 0 and %2$d"
 msgstr ""
+
+#, c-format
+msgid "%1$6s: Checking %2$-60s: "
+msgstr "%1$6s: పరిశీలించుతోంది %2$-60s: "
 
 #, c-format
 msgid "%1$s\n"
@@ -1007,10 +989,6 @@ msgid "'%1$s'"
 msgstr ""
 
 #, c-format
-msgid "'%1$s' 'index' value '%2$s' malformed"
-msgstr ""
-
-#, c-format
 msgid "'%1$s' D-Bus address is not handled"
 msgstr ""
 
@@ -1073,10 +1051,6 @@ msgstr "పాత్ '%1$s' ఏక్సెస్ చేయదగ్గది �
 #, fuzzy, c-format
 msgid "'%1$s' is not supported in this QEMU binary"
 msgstr "ఈ QEMU బైనరీ చేత %1$s తోడ్పాటునీయబడదు"
-
-#, c-format
-msgid "'%1$s' launch security is not supported with this QEMU binary"
-msgstr ""
 
 #, c-format
 msgid "'%1$s' missing"
@@ -1315,9 +1289,6 @@ msgstr "అల్గార్దెమ్ %d తుడిచివేయుట �
 msgid "'type' missing in reply of guest-get-fsinfo"
 msgstr "guest-get-vcpus యొక్క ప్రత్యుత్తరం నందు 'online' దొరకలేదు"
 
-msgid "'usb' disk must not be empty"
-msgstr ""
-
 #, fuzzy
 msgid "'user' missing in reply of guest-get-users"
 msgstr "guest-get-vcpus యొక్క ప్రత్యుత్తరం నందు 'online' దొరకలేదు"
@@ -1410,6 +1381,9 @@ msgstr "(నెట్వర్కు_నిర్వచనం)"
 msgid "(node_device_definition)"
 msgstr "(node_device_definition)"
 
+msgid "(none)"
+msgstr "(ఏదీ కాదు)"
+
 msgid "(nwfilter_definition)"
 msgstr "(nwfilter_definition)"
 
@@ -1461,16 +1435,16 @@ msgid "--%1$s <string>"
 msgstr "--%1$s <string>"
 
 #, c-format
-msgid "--%1$s <string>..."
-msgstr ""
-
-#, c-format
 msgid "--%1$s and --current are mutually exclusive"
 msgstr "--%1$s మరియు --current పరస్పరం వైరుద్యమైనవి"
 
 #, c-format
 msgid "--%1$s and --tree are mutually exclusive"
 msgstr "--%1$s మరియు --tree పరస్పరం వైరుధ్యం"
+
+#, fuzzy, c-format
+msgid "--%1$s is required"
+msgstr "--%1$s లేదా --current అవసరమైంది"
 
 #, c-format
 msgid "--%1$s or --current is required"
@@ -1539,6 +1513,14 @@ msgid "64-bit PCI hole setting is only for root PCI controllers"
 msgstr ""
 
 #, c-format
+msgid "<%1$s>"
+msgstr "<%1$s>"
+
+#, c-format
+msgid "<%1$s>..."
+msgstr "<%1$s>..."
+
+#, c-format
 msgid "<active_pcr_banks/> requires TPM version '%1$s'"
 msgstr ""
 
@@ -1572,9 +1554,21 @@ msgstr ""
 msgid "<snapshot> element is currently supported only with 'rbd' disks"
 msgstr ""
 
+msgid "<system_field> evaluation has failed"
+msgstr ""
+
+msgid "<system_field> value evaluation has failed"
+msgstr ""
+
 #, c-format
 msgid "<uuid> does not match secret file name '%1$s'"
 msgstr "<uuid> రహస్య దస్త్రము నామమును సరిపోలుటలేదు '%1$s'"
+
+msgid "<vendor_field> evaluation has failed"
+msgstr ""
+
+msgid "<vendor_field> value evaluation has failed"
+msgstr ""
 
 #, fuzzy, c-format
 msgid ""
@@ -1675,9 +1669,6 @@ msgstr ""
 #, fuzzy
 msgid "A storage driver is already registered"
 msgstr "ఒక క్లోజ్ కాల్‌బాక్ యిప్పటికే నమోదైంది"
-
-msgid "ACPI ERST device must reside on a PCI bus"
-msgstr ""
 
 msgid "ACPI index is not supported with this QEMU"
 msgstr ""
@@ -1914,9 +1905,6 @@ msgstr "సింక్రొనస్ ప్రత్యుత్తరము�
 msgid "Attempted double use of PCI Address %1$s"
 msgstr ""
 
-msgid "Attempting to start nbdkit twice"
-msgstr ""
-
 msgid ""
 "Attribute migratable is only allowed for 'host-passthrough' / 'maximum' CPU "
 "mode"
@@ -1989,9 +1977,6 @@ msgstr ""
 
 #, c-format
 msgid "Bad prefix name '%1$s' for resctrl monitor"
-msgstr ""
-
-msgid "Bad usage"
 msgstr ""
 
 msgid "Bad value for nativeMode"
@@ -2429,9 +2414,6 @@ msgstr "వేరొక USB నియంత్రికను జతచేయల
 msgid "Can't add host USB device: USB is disabled in this host"
 msgstr "అతిధేయి USB పరికరం జతచేయలేదు: ఈ అతిధేయి నందు USB అచేతనం చేయబడెను"
 
-msgid "Can't apply empty firewall command"
-msgstr ""
-
 #, fuzzy
 msgid "Can't change domain configuration in managed save state"
 msgstr "నిర్వాహిత దాపు స్థితితో వున్న క్రియాహీన డొమైన్లను గుర్తుంచు"
@@ -2699,10 +2681,6 @@ msgid "Cannot create resctrl directory '%1$s'"
 msgstr "లాగ్ డైరెక్టరీ '%1$s'ను సృష్టించలేదు"
 
 #, c-format
-msgid "Cannot create save directory '%1$s'"
-msgstr ""
-
-#, c-format
 msgid "Cannot create socket '%1$s'"
 msgstr ""
 
@@ -2766,6 +2744,22 @@ msgstr "ఇతర డొమైన్లను ప్రభావితం చే
 msgid "Cannot extract CPU definition from domain capabilities XML"
 msgstr ""
 
+#, fuzzy
+msgid "Cannot extract cache nodes under cachetune"
+msgstr "కన్సోల్ పరికరాలను వెలికితీయలేదు"
+
+#, fuzzy
+msgid "Cannot extract memnode nodes"
+msgstr "numatune నోడ్స్ వెలికితీయలేదు"
+
+#, fuzzy
+msgid "Cannot extract memory nodes under memorytune"
+msgstr "గరిష్ట మెమొరీకన్నా యెక్కువగా మెమొరీని అమర్చలేము"
+
+#, fuzzy
+msgid "Cannot extract monitor nodes"
+msgstr "ఎమ్యులేటర్‌పిన్ నోడ్స్ వెలికితీయలేదు"
+
 #, c-format
 msgid "Cannot extract running %1$s hypervisor version\n"
 msgstr "ప్రస్తుతం నడుస్తున్న %1$s అధివిశోర్ ప్రతిని సంగ్రహించలేదు\n"
@@ -2824,6 +2818,10 @@ msgstr ""
 
 msgid "Cannot find suitable CPU model for given data"
 msgstr "ఇచ్చిన డాటాకు సరిపోలు CPU మోడల్‌ను కనుగొనలేము"
+
+#, c-format
+msgid "Cannot find suitable emulator for %1$s"
+msgstr "%1$s కొరకు సరితూగు ఎమ్యులేటర్ కనుగొనలేక పోయింది"
 
 msgid "Cannot get all servers from daemon"
 msgstr ""
@@ -3296,27 +3294,11 @@ msgstr "మరల్పు నేమ్‌స్పేస్‌ను భాగ�
 msgid "Cannot unshare uninitialized CURL handle"
 msgstr "సిద్దీకరించని CURL హాండిల్ పంచుకొనక వుండలేదు"
 
-#, c-format
-msgid ""
-"Cannot update device '%1$s', parent address mismatch (current parent address "
-"'%2$s')"
-msgstr ""
-
-#, c-format
-msgid "Cannot update device '%1$s', type mismatch (current type '%2$s')"
-msgstr ""
-
-#, c-format
-msgid "Cannot update device '%1$s, uuid mismatch (current uuid '%2$s')"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Cannot use direct socket mode for %1$s transport"
 msgstr "సాకెట్ చిరునామాను స్ట్రింగ్‌కు మార్చలేదు: %1$s"
 
-msgid ""
-"Cannot use direct socket mode if no URI is set. For more information see "
-"https://libvirt.org/kbase/failed_connection_after_install.html"
+msgid "Cannot use direct socket mode if no URI is set"
 msgstr ""
 
 #, c-format
@@ -3491,114 +3473,6 @@ msgid ""
 "Check the host setup: interface %1$s has kernel autoconfigured IPv6 routes "
 "and enabling forwarding without accept_ra set to 2 will cause the kernel to "
 "flush them, breaking networking."
-msgstr ""
-
-msgid "Checking CA cert access"
-msgstr ""
-
-msgid "Checking cert access"
-msgstr ""
-
-msgid "Checking cert hostname match"
-msgstr ""
-
-msgid "Checking cert properties"
-msgstr ""
-
-msgid "Checking custom PKI base dir access"
-msgstr ""
-
-#, c-format
-msgid "Checking for %1$s module"
-msgstr ""
-
-msgid ""
-"Checking for AMD Secure Encrypted Virtualization-Encrypted State (SEV-ES)"
-msgstr ""
-
-msgid ""
-"Checking for AMD Secure Encrypted Virtualization-Secure Nested Paging (SEV-"
-"SNP)"
-msgstr ""
-
-#, c-format
-msgid "Checking for Linux >= %1$d.%2$d.%3$d"
-msgstr ""
-
-msgid "Checking for PowerPC KVM module loaded"
-msgstr ""
-
-#, c-format
-msgid "Checking for cgroup '%1$s' controller support"
-msgstr ""
-
-msgid "Checking for device assignment IOMMU support"
-msgstr ""
-
-msgid "Checking for hardware virtualization"
-msgstr ""
-
-#, c-format
-msgid "Checking for namespace '%1$s'"
-msgstr ""
-
-msgid "Checking for secure guest support"
-msgstr ""
-
-msgid "Checking if CA cert exists"
-msgstr ""
-
-msgid "Checking if IOMMU is enabled by kernel"
-msgstr ""
-
-msgid "Checking if cert exists"
-msgstr ""
-
-msgid "Checking if custom PKI base dir exists"
-msgstr ""
-
-#, c-format
-msgid "Checking if device '%1$s' exists"
-msgstr ""
-
-#, c-format
-msgid "Checking if device '%1$s' is accessible"
-msgstr ""
-
-msgid "Checking if key exists"
-msgstr ""
-
-msgid "Checking if system CA dir exists"
-msgstr ""
-
-msgid "Checking if system PKI dir exists"
-msgstr ""
-
-msgid "Checking if system cert dir exists"
-msgstr ""
-
-msgid "Checking if system key dir exists"
-msgstr ""
-
-msgid "Checking if user PKI base dir exists"
-msgstr ""
-
-msgid "Checking key access"
-msgstr ""
-
-msgid "Checking system CA dir access"
-msgstr ""
-
-msgid "Checking system PKI dir access"
-msgstr ""
-
-msgid "Checking system cert dir access"
-msgstr ""
-
-msgid "Checking system key dir access"
-msgstr ""
-
-msgid "Checking user PKI base dir access"
 msgstr ""
 
 #, fuzzy, c-format
@@ -3864,7 +3738,7 @@ msgstr "డొమైన్ %sకు అనుసంధానమైంది\n"
 msgid "Connections from inside daemon must be direct"
 msgstr ""
 
-msgid "Console only works in PTY mode"
+msgid "Console can only be enabled for a PTY"
 msgstr ""
 
 msgid "Constant pages:"
@@ -4616,6 +4490,10 @@ msgid "Could not open TPM device's cancel path %1$s"
 msgstr "ఇన్పుట్ పాత్‌ను '%1$s'ను తెరువలేక పోయింది"
 
 #, c-format
+msgid "Could not parse %1$s VPD resource fields"
+msgstr ""
+
+#, c-format
 msgid "Could not parse 'bonding/arp_interval' '%1$s' for '%2$s'"
 msgstr "'bonding/arp_interval' '%1$s' ను '%2$s' కొరకు పార్స్ చేయలేక పోయింది"
 
@@ -5023,10 +4901,6 @@ msgstr "ఉన్న వాల్యూమునుండి వొక వాల
 msgid "Create a vol."
 msgstr "వాల్యూమ్‌ను సృష్టించు"
 
-#, c-format
-msgid "Create the dir %1$s"
-msgstr ""
-
 #, fuzzy
 msgid "Created"
 msgstr "వలసపోయిన"
@@ -5071,6 +4945,9 @@ msgstr ""
 msgid "DAC seclabel couldn't be determined"
 msgstr ""
 
+msgid "DNS HOST records cannot be modified, only added or deleted"
+msgstr "DNS HOST రికార్డ్స్ సవరించబడలేవు, జతచేసినవి లేదా తొలగించినవి మాత్రమే"
+
 #, c-format
 msgid ""
 "DNS SRV port attribute not permitted without target for service '%1$s' in "
@@ -5091,6 +4968,9 @@ msgid ""
 "DNS SRV weight attribute not permitted without target for service '%1$s' in "
 "network '%2$s'"
 msgstr ""
+
+msgid "DNS TXT records cannot be modified, only added or deleted"
+msgstr "DNS TXT రికార్డ్స్ సవరించబడలేవు, జతచేసినవి లేదా తొలగించినవి మాత్రమే"
 
 msgid "Data processed:"
 msgstr "నిర్వర్తించబడిన డాటా:"
@@ -5120,6 +5000,9 @@ msgstr "డాటా‌స్టోర్‌యిన్ఫో అనుకో�
 msgid "Default paths:"
 msgstr ""
 
+msgid "Define a device by an xml file on a node"
+msgstr ""
+
 msgid "Define a domain."
 msgstr "క్షేత్రాన్ని నిర్వచించు."
 
@@ -5128,9 +5011,6 @@ msgstr "కొత్త నెట్వర్కు వడపోత నిర్
 
 msgid "Define a pool."
 msgstr "పూల్‌ను నిర్వచించు."
-
-msgid "Define or modify a device by an xml file on a node"
-msgstr ""
 
 #, fuzzy
 msgid "Define or modify a persistent physical host interface."
@@ -5152,8 +5032,8 @@ msgid "Defined"
 msgstr "క్షేత్రాన్ని నిర్వచించు."
 
 msgid ""
-"Defines or modifies a persistent device on the node that can be assigned to "
-"a domain. The device must be started before it can be assigned to a domain."
+"Defines a persistent device on the node that can be assigned to a domain. "
+"The device must be started before it can be assigned to a domain."
 msgstr ""
 
 #, fuzzy
@@ -5242,6 +5122,10 @@ msgstr "పరికరం %1$s యిప్పటికే వుంది"
 #, c-format
 msgid "Device %1$s detached\n"
 msgstr "పరికరం %1$s వేరుచేయబడింది\n"
+
+#, c-format
+msgid "Device %1$s does not have a VPD"
+msgstr ""
 
 #, c-format
 msgid "Device %1$s is already in use"
@@ -5744,12 +5628,6 @@ msgstr ""
 "డొమైన్‌కు KVM కు కావాలి, అయితే అది అందుబాటులోలేదు. ఆ వర్చ్యులైజేషన్ అనునది అతిధేయ BIOS నందు "
 "చేతనమగునట్లు పరిశీలించు, మరియు kvm మాడ్యూళ్ళను లోడు చేయుటకు అతిధేయ ఆకృతీకరణ అమర్చబడెను."
 
-msgid ""
-"Domain requires MSHV device, but it is not available. Check that "
-"virtualization is enabled in the host BIOS, and host configuration is setup "
-"to load the mshv modules."
-msgstr ""
-
 msgid "Domain requires at least 1 vCPU"
 msgstr ""
 
@@ -5890,10 +5768,6 @@ msgid "Duplicate hash table key '%1$s'"
 msgstr ""
 
 msgid "Duplicate info for NUMA latencies"
-msgstr ""
-
-#, c-format
-msgid "Duplicate mapping for iothread '%1$u'"
 msgstr ""
 
 #, fuzzy, c-format
@@ -6495,9 +6369,6 @@ msgstr "సంకేతం సంభాలన వాచ్‌ను జతచే
 msgid "Failed to add storage controller (name: %1$s, busType: %2$d)"
 msgstr ""
 
-msgid "Failed to allocate AF_VSOCK socket"
-msgstr ""
-
 #, c-format
 msgid "Failed to allocate PCI device list: %1$s"
 msgstr "PCI పరికర జాబితా కేటాయించుటకు విఫలమైంది: %1$s"
@@ -6516,9 +6387,9 @@ msgstr "tty కేటాయించుటలో విఫలమైంది"
 msgid "Failed to apply capabilities: %1$d"
 msgstr "సామర్ధ్యములను ఆపాదించుటలో విఫలమైంది: %1$d"
 
-#, c-format
-msgid "Failed to apply firewall command '%1$s': %2$s"
-msgstr ""
+#, fuzzy, c-format
+msgid "Failed to apply firewall rules %1$s: %2$s"
+msgstr "'%1$s' సృష్టించుటలో విఫలమైంది: %2$s"
 
 #, c-format
 msgid "Failed to attach device from %1$s"
@@ -6572,9 +6443,6 @@ msgstr "మౌంట్ సంచయం %1$s ను %2$s కు బందనం 
 #, c-format
 msgid "Failed to bind socket to '%1$s'"
 msgstr "సాకెట్ '%1$s' కు బందనం చేయలేదు"
-
-msgid "Failed to build net json"
-msgstr ""
 
 #, fuzzy
 msgid "Failed to build pidfile path"
@@ -6633,10 +6501,6 @@ msgid "Failed to clean up %1$s"
 msgstr "%1$s శుభ్రపరచుటకు విఫలమైంది"
 
 #, c-format
-msgid "Failed to cleanup stale managed save dir '%1$s'"
-msgstr ""
-
-#, c-format
 msgid "Failed to clear security context for agent for %1$s"
 msgstr "%1$s కొరకు ఏజెంట్ కు రక్షణ సందర్భం చెరిపివేయుటకు విఫలమైంది"
 
@@ -6681,9 +6545,6 @@ msgstr "ట్రీ జాబితా పూర్తిచేయుటకు 
 msgid "Failed to connect socket to '%1$s'"
 msgstr "సాకెట్‌ను '%1$s' కు అనుసంధానించుటకు విఫలమైంది"
 
-msgid "Failed to connect to mon socket"
-msgstr ""
-
 #, c-format
 msgid "Failed to connect to nbdkit for '%1$s': %2$s"
 msgstr ""
@@ -6694,10 +6555,6 @@ msgstr "ssh ఏజెంట్‌కు అనుసంధానమగుటక�
 #, fuzzy
 msgid "Failed to connect to the admin server"
 msgstr "హైపర్విజర్‌కు పునఃసంధానమగుటకు విఫలమైంది"
-
-#, c-format
-msgid "Failed to connect to vsock (cid=%1$llu port=%2$u)"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "Failed to connect: %1$s"
@@ -6755,10 +6612,6 @@ msgstr "'%1$s' సృష్టించుటలో విఫలమైంది:
 #, c-format
 msgid "Failed to create SASL client context: %1$d (%2$s)"
 msgstr "SASL కక్షిదారి సందర్భమును సృష్టించుటలో విఫలమైంది: %1$d (%2$s)"
-
-#, c-format
-msgid "Failed to create SAVE dir %1$s"
-msgstr ""
 
 msgid "Failed to create XML"
 msgstr "XML సృష్టించుటలో విఫలమైంది"
@@ -6953,10 +6806,6 @@ msgstr "vol %1$s సృష్టించుటలో విఫలమైంద�
 #, c-format
 msgid "Failed to create vol from %1$s"
 msgstr "volను %1$sనుండి సృష్టించుటలో విఫలమైంది"
-
-#, c-format
-msgid "Failed to create/open domain save xml file '%1$s'"
-msgstr ""
 
 #, c-format
 msgid "Failed to define domain from %1$s"
@@ -7546,7 +7395,7 @@ msgid "Failed to list volumes"
 msgstr "వాల్యూమ్‌లను జాబితా చేయుటకు విఫలమైంది"
 
 #, c-format
-msgid "Failed to load PCI driver module %1$s: %2$s"
+msgid "Failed to load PCI driver module %1$s"
 msgstr ""
 
 #, c-format
@@ -7697,7 +7546,8 @@ msgstr "%1$s తెరుచుటకు విఫలమైంది"
 msgid "Failed to open '%1$s'"
 msgstr "'%1$s' తెరుచుటకు విఫలమైంది"
 
-msgid "Failed to open a UNIX socket"
+#, c-format
+msgid "Failed to open a VPD file '%1$s'"
 msgstr ""
 
 #, c-format
@@ -7711,10 +7561,6 @@ msgstr "pid ఫైల్ '%1$s' తెరుచుటలో దోషం"
 #, c-format
 msgid "Failed to open domain image file '%1$s'"
 msgstr "డొమైన్ చిత్రం ఫైల్ '%1$s' తెరుచుటకు విఫలమైంది"
-
-#, c-format
-msgid "Failed to open domain save file '%1$s'"
-msgstr ""
 
 #, c-format
 msgid "Failed to open file '%1$s'"
@@ -7753,9 +7599,6 @@ msgstr "URI కాంపోనెంట్ %1$s యొక్క విలువ 
 
 #, c-format
 msgid "Failed to parse CCW address '%1$s'"
-msgstr ""
-
-msgid "Failed to parse HTTP response code"
 msgstr ""
 
 #, fuzzy, c-format
@@ -8067,10 +7910,6 @@ msgid "Failed to remove managed save image for domain '%1$s'"
 msgstr ""
 
 #, c-format
-msgid "Failed to remove managed save path '%1$s'"
-msgstr ""
-
-#, c-format
 msgid "Failed to remove storage volume '%1$s'(%2$s)"
 msgstr "నిల్వ వాల్యూమ్ '%1$s'(%2$s) తీసివేయుటకు విఫలమైంది"
 
@@ -8201,18 +8040,11 @@ msgstr "కొత్త iscsi యింటర్ఫేస్ సృష్టి�
 msgid "Failed to run command '%1$s' to update iscsi interface with IQN '%2$s'"
 msgstr "'%1$s' ఆదేశాన్ని నడిపి IQN '%2$s'తో iscsi యింటర్ఫేస్‌ను నవీకరించుటకు విఫలమైంది"
 
-#, c-format
-msgid "Failed to run firewall command %1$s: %2$s"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Failed to save '%1$s' for '%2$s'"
 msgstr "%1$s క్షేత్రాన్ని %2$sకి భద్రపరవటంలో విఫలమైంది"
 
 msgid "Failed to save VM settings"
-msgstr ""
-
-msgid "Failed to save domain"
 msgstr ""
 
 #, c-format
@@ -8251,15 +8083,9 @@ msgstr "క్షేత్రాన్ని తొలగించటంలో �
 msgid "Failed to send migration data to destination host"
 msgstr "గమ్యపు అతిధేయ కు అనుసంధానం కోల్పోయింది"
 
-msgid "Failed to send net-add request to CH"
-msgstr ""
-
 #, c-format
 msgid "Failed to send request to init control %1$s"
 msgstr "init నియంత్రిక %1$s కు అభ్యర్ధనను పంపుటకు విఫలమైంది"
-
-msgid "Failed to send restore request to CH"
-msgstr ""
 
 #, fuzzy
 msgid "Failed to serialize snapshot"
@@ -8407,9 +8233,6 @@ msgstr "డొమైన్ '%1$d' అనునది libxenlight తో మూ�
 
 #, c-format
 msgid "Failed to shutdown domain '%1$s'"
-msgstr ""
-
-msgid "Failed to shutoff after domain save"
 msgstr ""
 
 #, fuzzy, c-format
@@ -8614,10 +8437,6 @@ msgstr "ఇంటర్ఫేస్ లింక్ స్థితి నవీ
 msgid "Failed to update network %1$s"
 msgstr "నెట్వర్కు %1$s నవీకరించుటకు విఫలమైంది"
 
-#, c-format
-msgid "Failed to update node device %1$s from '%2$s'"
-msgstr ""
-
 msgid "Failed to verify peer's certificate"
 msgstr "పీర్ యొక్క ధృవీకరణపత్రం నిర్ధారించుటకు విఫలమైంది"
 
@@ -8632,9 +8451,6 @@ msgstr "నిల్వ వాల్యూమ్‌నకు %1$zu బైట్�
 #, fuzzy, c-format
 msgid "Failed to write '%1$s'"
 msgstr "'%1$s'ను చదువుటకు విఫలమైంది"
-
-msgid "Failed to write file header"
-msgstr ""
 
 msgid "Failed to write pixel data"
 msgstr ""
@@ -8654,14 +8470,8 @@ msgstr "pid ఫైల్ '%1$s' కు వ్రాయుటకు విఫల�
 msgid "Failed to write vmx file '%1$s'"
 msgstr "vmx ఫైలు '%1$s' వ్రాయుటకు విఫలమైంది"
 
-msgid "Failed to write xml definition"
-msgstr ""
-
 msgid "Failed to write xml description"
 msgstr "xml వివరణ వ్రాయుటకు విఫలమైంది"
-
-msgid "Failed while adding guest interfaces"
-msgstr ""
 
 msgid "Failed! Volume not removed."
 msgstr "విఫలమైంది! వాల్యూమ్ తీసివేయలేదు."
@@ -8793,17 +8603,17 @@ msgstr ""
 msgid "Finished after host request"
 msgstr ""
 
-#, c-format
-msgid "Firewall backend '%1$s' not available on this platform"
-msgstr ""
-
-msgid "Firewall backend is not implemented"
-msgstr ""
-
 msgid "Firmware entry is missing 'name' attribute"
 msgstr ""
 
 msgid "Firmware entry must have either value or 'file' attribute"
+msgstr ""
+
+#, c-format
+msgid "Firmware flash mode value '%1$s' unexpected"
+msgstr ""
+
+msgid "Firmware flash mode value was malformed"
 msgstr ""
 
 msgid ""
@@ -8960,6 +8770,17 @@ msgstr "మెమొరీ పారామితులను పొందు ల
 msgid "Get or set node memory parameters"
 msgstr "నోడ్ మెమొరీ పారామితులు పొందు లేదా అమర్చు"
 
+msgid ""
+"Get or set node memory parameters\n"
+"    To get the memory parameters, use following command: \n"
+"\n"
+"    virsh # node-memory-tune"
+msgstr ""
+"నోడ్ మెమొరీ పారామితులు పొందు లేదా అమర్చు\n"
+"    మెమొరీ పారామితులు పొందుటకు, కింది ఆదేశం వుపయోగించు: \n"
+"\n"
+"    virsh # node-memory-tune"
+
 msgid "Get or set numa parameters"
 msgstr "numa పారామితులు పొందలేదు లేదా అమర్చలేదు"
 
@@ -8967,17 +8788,50 @@ msgstr "numa పారామితులు పొందలేదు లేద�
 msgid "Get or set perf event"
 msgstr "మెమొరీ పారామితులను పొందు లేదా అమర్చు"
 
-msgid "Get or set the current blkio parameters for a guest domain."
+msgid ""
+"Get or set the current blkio parameters for a guest domain.\n"
+"    To get the blkio parameters use following command: \n"
+"\n"
+"    virsh # blkiotune <domain>"
 msgstr ""
+"అతిథి డొమైన్ కొరకు ప్రస్తుత blkio పారామితులు అమర్చు లేదా పొందు.\n"
+"    blkio పారామితులను పొందుటకు కింది ఆదేశం వుపయోగించు: \n"
+"\n"
+"    virsh # blkiotune <domain>"
 
-msgid "Get or set the current memory parameters for a guest domain."
+msgid ""
+"Get or set the current memory parameters for a guest domain.\n"
+"    To get the memory parameters use following command: \n"
+"\n"
+"    virsh # memtune <domain>"
 msgstr ""
+"అతిథి డొమైన్ కొరకు ప్రస్తుత మెమొరీ పారామితులు పొందు లేదా అమర్చు.\n"
+"    మెమొరీ పారామితులు పొందుటకు కింది ఆదేశం వుపయోగించు: \n"
+"\n"
+"    virsh # memtune <domain>"
 
-msgid "Get or set the current numa parameters for a guest domain."
+msgid ""
+"Get or set the current numa parameters for a guest domain.\n"
+"    To get the numa parameters use following command: \n"
+"\n"
+"    virsh # numatune <domain>"
 msgstr ""
+"అతిథి డొమైన్ కొరకు ప్రస్తుత numa పారామితులు పొందలేదు లేదా అమర్చలేదు.\n"
+"    numa పారామితులను పొందుటకు కింది ఆదేశం వుపయోగించండి: \n"
+"\n"
+"    virsh # numatune <domine>"
 
-msgid "Get or set the current perf events for a guest domain."
+#, fuzzy
+msgid ""
+"Get or set the current perf events for a guest domain.\n"
+"    To get the perf events list use following command: \n"
+"\n"
+"    virsh # perf <domain>"
 msgstr ""
+"అతిథి డొమైన్ కొరకు ప్రస్తుత మెమొరీ పారామితులు పొందు లేదా అమర్చు.\n"
+"    మెమొరీ పారామితులు పొందుటకు కింది ఆదేశం వుపయోగించు: \n"
+"\n"
+"    virsh # memtune <domain>"
 
 msgid "Get or set the current snapshot"
 msgstr "ప్రస్తుత స్నాప్‌షాట్ పొందు లేదా అమర్చు"
@@ -9072,9 +8926,6 @@ msgstr "అతిథి ఏజెంట్ స్పందించుటలే�
 
 msgid "Guest agent not available for now"
 msgstr "ఇప్పుడు అతిథి ఏజెంట్ అందుబాటులోలేదు"
-
-msgid "Guest networking is not supported by this version of ch"
-msgstr ""
 
 msgid "HMAT is not supported with this QEMU"
 msgstr ""
@@ -9336,10 +9187,6 @@ msgid "IOThread ID"
 msgstr ""
 
 msgid "IOThread ID number"
-msgstr ""
-
-#, c-format
-msgid "IOThread mapping for disk '%1$s' is not available with this QEMU binary"
 msgstr ""
 
 #, fuzzy
@@ -9974,9 +9821,6 @@ msgstr "మానిటర్ కొరకు ప్రయత్నించు�
 
 #, c-format
 msgid "Invalid file descriptor while waiting for monitor (vm='%1$s')"
-msgstr ""
-
-msgid "Invalid firewall command has 0 arguments"
 msgstr ""
 
 msgid "Invalid firmware name"
@@ -11286,9 +11130,6 @@ msgstr "JSON పత్రము నందు max_clients దత్తాంశ�
 msgid "Missing backend %1$d"
 msgstr "బ్యాకెండ్ %1$d దొరకలేదు"
 
-msgid "Missing bridge helper name"
-msgstr ""
-
 #, fuzzy
 msgid "Missing bridge name"
 msgstr "సమయపాలకి పేరు లేదు"
@@ -11411,6 +11252,10 @@ msgstr "దొరకని చిరునామా"
 #, fuzzy
 msgid "Missing network port bridge name"
 msgstr "తప్పిపోయిన CPU రీతి నామము"
+
+#, fuzzy
+msgid "Missing network port driver name"
+msgstr "తప్పిపోయిన స్టోరేజ్ పూల్ మూలపు పరికర నామము"
 
 #, fuzzy
 msgid "Missing network port link device name"
@@ -11752,6 +11597,9 @@ msgstr "బహుళ-హెడ్ వీడియో పరికరాల త�
 msgid "Multiple interfaces attached to bridge"
 msgstr "బ్రిడ్జ్ కు బహుళ ఇంటర్ఫేసులు అనుబందించబడినవి"
 
+msgid "Multiple legacy USB controllers are not supported"
+msgstr "బహుళ లెగసీ USB నియంత్రికలు తోడ్పాటునీయవు"
+
 #, c-format
 msgid "Multiple memnode elements with cellid %1$u"
 msgstr ""
@@ -11790,11 +11638,6 @@ msgstr "hostdev రీతి '%s' మద్దతిచ్చునది కా
 
 msgid "NOTE"
 msgstr "NOTE"
-
-msgid ""
-"NOTE: Connecting to default daemon. Specify daemon using '-c' (e.g. "
-"virtqemud:///system)\n"
-msgstr ""
 
 msgid "NULL JSON type can't be converted to commandline"
 msgstr ""
@@ -11843,8 +11686,8 @@ msgid "NUMA memory tuning in 'preferred' mode only supports single node"
 msgstr "NUMA మెమొరీ ట్యూనింగ్ 'preferred' రీతినందు వొంటరి నోడ్‌కు మాత్రమే తోడ్పాటునిచ్చును"
 
 msgid ""
-"NUMA mode, one of strict, preferred and interleave or a number from the "
-"virDomainNumatuneMemMode enum"
+"NUMA mode, one of strict, preferred and interleave \n"
+"or a number from the virDomainNumatuneMemMode enum"
 msgstr ""
 
 #, fuzzy, c-format
@@ -12291,9 +12134,6 @@ msgstr ""
 msgid "No filesystems are mounted in the domain"
 msgstr "డొమైన్ నిలువరించుటలో దోషం"
 
-msgid "No firewall backend is available"
-msgstr ""
-
 msgid "No free NBD devices"
 msgstr "ఖాళీ NBD పరికరాలు లేవు"
 
@@ -12466,9 +12306,6 @@ msgstr ""
 msgid "No usable target index found for %1$d"
 msgstr "'%s' కొరకు సాకెట్ చిరునామా కనుగొనలేదు"
 
-msgid "No usable vsock found"
-msgstr ""
-
 #, fuzzy
 msgid ""
 "No user interaction callback provided: Can't get input from keyboard "
@@ -12595,10 +12432,6 @@ msgstr "క్రియాశీల పరికరం %1$s ను తిరి�
 msgid "Not resetting active device %1$s"
 msgstr "క్రియాశీల పరికరము %1$sను తిరిగి వుంచుటలేదు"
 
-#, sh-format
-msgid "Not shutting down transient guests on URI: $uri: "
-msgstr ""
-
 msgid "Not supported"
 msgstr "ఇంకా తోడ్పాటునీయుటలేదు"
 
@@ -12699,9 +12532,6 @@ msgstr ""
 #, fuzzy
 msgid "Only 1 IDE controller is supported"
 msgstr "PTY కన్సోల్ రకములు మాత్రమే తోడ్పాటునిచ్చును"
-
-msgid "Only 1 cluster per die is supported"
-msgstr ""
 
 #, fuzzy
 msgid "Only 1 die per socket is supported"
@@ -12941,12 +12771,7 @@ msgstr ""
 msgid "Option --file is required"
 msgstr ""
 
-msgid "Option --transient is incompatible with --persistent and --inactive"
-msgstr ""
-
-msgid ""
-"Option --tree is incompatible with --cap, --inactive, --persistent and --"
-"transient"
+msgid "Option --tree is incompatible with --cap and --inactive"
 msgstr ""
 
 msgid "Option argument is empty"
@@ -13033,6 +12858,9 @@ msgstr ""
 
 msgid "PASS"
 msgstr "PASS"
+
+msgid "PCI VPD reporting not available on this platform"
+msgstr ""
 
 #, c-format
 msgid ""
@@ -13312,14 +13140,6 @@ msgid "Policy kit denied action %1$s from <anonymous>"
 msgstr "పాలసీ కిట్ చర్యను %1$s ను <పేరులేనివిధం> నుండి తిరస్కరించెను"
 
 msgid "Polkit auth attempted, even though polkit is not available"
-msgstr ""
-
-#, c-format
-msgid "Poll on sock %1$d failed"
-msgstr ""
-
-#, c-format
-msgid "Poll on sock %1$d timed out"
 msgstr ""
 
 #, c-format
@@ -13729,9 +13549,6 @@ msgstr ""
 msgid "Relative backing during copy not supported yet"
 msgstr "అస్థిర డిస్కులు యింకా తోడ్పాటునీయవు"
 
-msgid "Reload domain's graphics display certificates"
-msgstr ""
-
 #, c-format
 msgid "Remote command terminated with non-zero code: %1$d"
 msgstr "సున్నా-కాని కోడ్‌తో రిమోట్ ఆదేశం అంతమైను: %1$d"
@@ -13806,10 +13623,6 @@ msgstr "అభ్యర్ధించిన ఆపరేషన్ చెల్�
 #, c-format
 msgid "Requested operation is not valid: %1$s"
 msgstr "అభ్యర్దించిన ఆపరేషన్ చెల్లునది కాదు: %1$s"
-
-#, c-format
-msgid "Requested resize to '%1$llu' but device size is '%2$llu'"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "Requested volume '%1$s' is not in pool '%2$s'"
@@ -13907,10 +13720,10 @@ msgstr "$uri URI పైన అతిథులను తిరిగికొన�
 msgid "Retrieve identity details about <client> from <server>"
 msgstr ""
 
-msgid "Retrieve server's client-related configuration limits"
+msgid "Retrieve server's client-related configuration limits "
 msgstr ""
 
-msgid "Retrieve threadpool attributes from a server."
+msgid "Retrieve threadpool attributes from a server. "
 msgstr ""
 
 msgid "Return pool info in bytes"
@@ -14056,6 +13869,9 @@ msgstr "S3 స్థితి ఈ డొమైన్ కొరకు అచే�
 msgid "S390 PV launch security is not supported by this host or kernel"
 msgstr ""
 
+msgid "S390 PV launch security is not supported with this QEMU binary"
+msgstr ""
+
 msgid "S4 state is disabled for this domain"
 msgstr "S4 స్థితి ఈ డొమైన్ కొరకు అచేతనంచేయబడెను"
 
@@ -14148,6 +13964,9 @@ msgstr "SCSI యూనిట్ విషయసూచి %1$d అనునది
 #, fuzzy
 msgid "SCSI_host host device must use 'pci' or 'ccw' address type"
 msgstr "నియంత్రికలు తప్పక 'ccid' చిరునామా రకం వుపయోగించాలి"
+
+msgid "SEV launch security is not supported with this QEMU binary"
+msgstr ""
 
 msgid "SEV measured direct kernel boot is not supported with this QEMU binary"
 msgstr ""
@@ -14366,13 +14185,13 @@ msgstr "అతిథి నందు ప్రోసెస్ చేయుటక
 msgid "Sending file descriptors is not supported on this socket"
 msgstr "ఈ సాకెట్ పైన ఫైల్ వివరణిలను పంపుట తోడ్పాటులేదు"
 
+msgid "Serial can only be enabled for a PTY"
+msgstr ""
+
 #, c-format
 msgid ""
 "Serial device with target type '%1$s' and target model '%2$s' not compatible "
 "with guest architecture or machine type"
-msgstr ""
-
-msgid "Serial only works in UNIX/PTY modes"
 msgstr ""
 
 #, c-format
@@ -15138,12 +14957,10 @@ msgstr "Ceph వాడుక తెలుపబడింది, అయితే 
 msgid "TLS:"
 msgstr ""
 
-#, c-format
-msgid "TPM 1.2 is not supported for model '%1$s'"
+msgid "TPM 1.2 is not supported on ARM"
 msgstr ""
 
-#, c-format
-msgid "TPM 1.2 is not supported on architecture '%1$s'"
+msgid "TPM 1.2 is not supported with the SPAPR device model"
 msgstr ""
 
 #, c-format
@@ -15180,10 +14997,6 @@ msgstr "లక్ష్యపు CPU మూలాన్ని సరిపోల
 #, fuzzy, c-format
 msgid "Target CPU check %1$s does not match source %2$s"
 msgstr "లక్ష్యపు CPU ఆకృతి %1$s మూలం %2$s తో సరిపోలలేదు"
-
-#, c-format
-msgid "Target CPU clusters %1$d does not match source %2$d"
-msgstr ""
 
 #, c-format
 msgid "Target CPU cores %1$d does not match source %2$d"
@@ -15510,12 +15323,6 @@ msgstr "లక్ష్యపు డొమైన్ పేరు '%1$s' మూ�
 msgid "Target domain IOMMU device count does not match source"
 msgstr "లక్ష్యపు డొమైన్ హబ్ పరికరం లెక్క %zu మూలం %zu తో సరిపోలడంలేదు"
 
-#, c-format
-msgid ""
-"Target domain IOMMU device dma translation '%1$s' does not match source "
-"'%2$s'"
-msgstr ""
-
 #, fuzzy, c-format
 msgid ""
 "Target domain IOMMU device eim value '%1$s' does not match source '%2$s'"
@@ -15639,9 +15446,6 @@ msgstr "లక్ష్యపు డొమైన్ ఇన్పుట్ పర
 msgid "Target domain parallel port count %1$zu does not match source %2$zu"
 msgstr "లక్ష్యపు డొమైన్ సమాంతర పోర్ట్ లెక్క %1$zu మూలం %2$zu తో సరిపోలడంలేదు"
 
-msgid "Target domain pstore device count does not match source"
-msgstr ""
-
 #, fuzzy, c-format
 msgid ""
 "Target domain redirected devices count %1$zu does not match source %2$zu"
@@ -15738,11 +15542,6 @@ msgstr "లక్ష్యపు CPU రీతి %1$s మూలం %2$s తో 
 msgid "Target maximum memory size '%1$llu' doesn't match source '%2$llu'"
 msgstr "లక్ష్యపు డొమైన్ గరిష్ట మెమొరీ %lld మూలం %lld తో సరిపోలడంలేదు"
 
-msgid ""
-"Target memory device 'dynamicMemslots' property doesn't match source memory "
-"device"
-msgstr ""
-
 #, c-format
 msgid ""
 "Target memory device address '0x%1$llx' doesn't match source memory device "
@@ -15812,14 +15611,6 @@ msgstr "లక్ష్యపు RNG రీతి ''%1$s మూలం %2$s త�
 #, c-format
 msgid "Target parallel port %1$d does not match source %2$d"
 msgstr "లక్ష్యపు సమాంతర పోర్ట్ %1$d మూలం %2$d తో సరిపోలడంలేదు"
-
-#, c-format
-msgid "Target pstore device backend '%1$s' does not match source '%2$s'"
-msgstr ""
-
-#, c-format
-msgid "Target pstore size '%1$llu' does not match source '%2$llu'"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "Target redirected device bus %1$s does not match source %2$s"
@@ -16017,18 +15808,6 @@ msgid "The CA certificate %1$s is not yet active"
 msgstr "CA ధృవీకరణపత్రం %1$s ఇంకా క్రియాశీలమవలేదు"
 
 #, c-format
-msgid ""
-"The CA certificate %1$s must be accessible to all users. As root run: chown "
-"root.root %2$s; chmod 0644 %3$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The CA certificate %1$s must not be accessible to other users. As this user, "
-"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
-msgstr ""
-
-#, c-format
 msgid "The CCW devno '%1$s' is in use already"
 msgstr ""
 
@@ -16061,12 +15840,6 @@ msgstr "మరీ పొడవైన నెట్వర్కు పరికర
 msgid ""
 "The PF device for VF %1$s has no network device name, cannot get virtual "
 "function info"
-msgstr ""
-
-#, c-format
-msgid ""
-"The PKI base dir %1$s must not be accessible to other users. Run: chown %2$d."
-"%3$d %4$s; chmod 0700 %5$s"
 msgstr ""
 
 #, c-format
@@ -16119,36 +15892,12 @@ msgid "The certificate uses an insecure algorithm"
 msgstr "దృవీకరణపత్రము సురక్షితముకాని అల్గార్దెమ్‌ను వుపయోగిస్తోంది"
 
 #, c-format
-msgid ""
-"The client cert %1$s must be accessible to all users. As root run: chown "
-"root.root %2$s; chmod 0644 %3$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The client cert %1$s must be restricted to this user. As this user, run: "
-"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
-msgstr ""
-
-#, c-format
 msgid "The client certificate %1$s has expired"
 msgstr "క్లైంట్ ధృవీకరణపత్రం %1$s గడువుతీరెను"
 
 #, c-format
 msgid "The client certificate %1$s is not yet active"
 msgstr "క్లైంట్ ధృవీకరణపత్రం %1$s ఇంకా క్రియాశీలమవలేదు"
-
-#, c-format
-msgid ""
-"The client key %1$s must be accessible to all users. As root run: chown root."
-"root %2$s; chmod 0644 %3$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The client key %1$s must be not be accessible to other users. As this user, "
-"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "The device at %1$s has no network device name"
@@ -16205,24 +15954,6 @@ msgid ""
 "The ich9-intel-hda audio controller is not supported in this QEMU binary"
 msgstr "ఈ QEMU బైనరీ చేత nvram పరికరం తోడ్పాటునీయదు"
 
-#, c-format
-msgid ""
-"The machine cannot act as a client or server. See https://libvirt.org/kbase/"
-"tlscerts.html#setting-up-a-certificate-authority-ca on how to install %1$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The machine cannot act as a client. See https://libvirt.org/kbase/tlscerts."
-"html#issuing-client-certificates on how to regenerate %1$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The machine cannot act as a server. See https://libvirt.org/kbase/tlscerts."
-"html#issuing-server-certificates on how to regenerate %1$s"
-msgstr ""
-
 #, fuzzy
 msgid "The machine has no snapshot and it should have it"
 msgstr "డొమైన్ %s అనునది పేరు %s తో స్నాప్‌షాట్లను కలిగిలేదు"
@@ -16253,18 +15984,6 @@ msgid ""
 msgstr ""
 
 #, c-format
-msgid ""
-"The server cert %1$s must be accessible to all users. As root run: chown "
-"root.root %2$s; chmod 0644 %3$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The server cert %1$s must be restricted to this user. As this user, run: "
-"chown %2$d.%3$d %4$s; chmod 0600 %5$s"
-msgstr ""
-
-#, c-format
 msgid "The server certificate %1$s has expired"
 msgstr "సేవిక ధృవీకరణపత్రం %1$s గడువుతీరెను"
 
@@ -16273,70 +15992,12 @@ msgid "The server certificate %1$s is not yet active"
 msgstr "సేవిక ధృవీకరణపత్రం %1$s ఇంకా క్రియాశీలమవలేదు"
 
 #, c-format
-msgid ""
-"The server key %1$s must be not be accessible to other users. As this user, "
-"run: chown %2$d.%3$d %4$s; chmod 0600 %5$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The server key %1$s must not be accessible to unprivileged users. As root "
-"run: chown root.root %2$s; chmod 0600 %3$s"
-msgstr ""
-
-#, c-format
 msgid "The server redirects from '%1$s' to '%2$s'"
 msgstr "'%1$s' నుం‍డి '%2$s' కు సేవిక రీడైరెక్ట్ అయ్యెను"
 
 #, fuzzy
 msgid "The slirp-helper doesn't support migration"
 msgstr "నిల్వ పూల్ వాల్యూమ్ సృష్టీకరణను మద్దతీయుట లేదు"
-
-#, c-format
-msgid ""
-"The system CA dir %1$s is usually installed as part of the base filesystem "
-"or openssl packages"
-msgstr ""
-
-#, c-format
-msgid ""
-"The system CA dir %1$s must be accessible to all users. As root, run: chown "
-"root.root; chmod 0755 %2$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The system PKI dir %1$s is usually installed as part of the base filesystem "
-"or openssl packages"
-msgstr ""
-
-#, c-format
-msgid ""
-"The system PKI dir %1$s must be accessible to all users. As root, run: chown "
-"root.root; chmod 0755 %2$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The system cert dir %1$s is usually installed as part of the libvirt package"
-msgstr ""
-
-#, c-format
-msgid ""
-"The system cert dir %1$s must be accessible to all users. As root, run: "
-"chown root.root; chmod 0755 %2$s"
-msgstr ""
-
-#, c-format
-msgid ""
-"The system key dir %1$s is usually installed as part of the libvirt package"
-msgstr ""
-
-#, c-format
-msgid ""
-"The system key dir %1$s must be accessible to all users. As root, run: chown "
-"root.root; chmod 0755 %2$s"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "The vbox driver does not support %1$s SCSI controller model"
@@ -16373,9 +16034,6 @@ msgstr "QEMU అనునది virtio scsi నియంత్రికకు �
 msgid ""
 "This QEMU doesn't support OpenGL rendernode with egl-headless graphics type"
 msgstr "7 కన్నా పెద్దదైన లక్ష్యం QEMU తోడ్పాటునీయదు"
-
-msgid "This QEMU doesn't support SCSI emulation with 'virtio-blk' device"
-msgstr ""
 
 msgid "This QEMU doesn't support scsi-block for lun passthrough"
 msgstr "ఈ QEMU అనునది lun passthrough కొరకు scsi-block తోడ్పాటునీయదు"
@@ -17111,6 +16769,10 @@ msgstr "%s మూయలేదు"
 msgid "Unable to close recursively all disks"
 msgstr "వనరు %s తెరువలేక పోయింది"
 
+#, c-format
+msgid "Unable to close the VPD file, fd: %1$d"
+msgstr ""
+
 msgid "Unable to close the new medium"
 msgstr ""
 
@@ -17210,9 +16872,6 @@ msgstr "డైరెక్టరీ %1$s సృష్టించలేక ప�
 msgid "Unable to create epoll fd"
 msgstr "epoll fd సృష్టించలేదు"
 
-msgid "Unable to create firewall command"
-msgstr ""
-
 #, fuzzy
 msgid "Unable to create kqueue"
 msgstr "సాకెట్ సృష్టించలేదు"
@@ -17244,6 +16903,10 @@ msgstr "మైగ్రేషన్ త్రెడ్ సృష్టించ�
 
 #, fuzzy
 msgid "Unable to create pipes"
+msgstr "%s సృష్టించలేదు"
+
+#, fuzzy
+msgid "Unable to create rule"
 msgstr "%s సృష్టించలేదు"
 
 msgid "Unable to create socket"
@@ -17954,10 +17617,6 @@ msgstr "సాకెట్ పైన వినలేదు"
 msgid "Unable to listen to UNIX socket path '%1$s'"
 msgstr "సాకెట్ పైన వినలేదు"
 
-#, c-format
-msgid "Unable to load %1$s: %2$s"
-msgstr ""
-
 msgid "Unable to load certificate"
 msgstr "ధృవీకరణపత్రం లోడుచేయలేదు"
 
@@ -17992,13 +17651,6 @@ msgstr ""
 
 msgid "Unable to modify live devices"
 msgstr "లైవ్ పరికరాలు సవరించలేదు"
-
-#, c-format
-msgid "Unable to modify mediated device: %1$s"
-msgstr ""
-
-msgid "Unable to modify mediated device: modify unsupported"
-msgstr ""
 
 #, c-format
 msgid "Unable to monitor directory: %1$s"
@@ -18181,10 +17833,6 @@ msgstr "లాక్ స్థితిని పార్స్ చేయలే
 #, fuzzy
 msgid "Unable to parse ovs-vsctl output"
 msgstr "vzlist అవుట్‌పుట్ పార్శ్‍ చేయుటలో విఫలమైంది"
-
-#, c-format
-msgid "Unable to parse port: %1$s"
-msgstr ""
 
 msgid "Unable to parse quota"
 msgstr "కోటా పార్స్ చేయలేదు"
@@ -19017,6 +18665,10 @@ msgstr "అనుకోని JSON ప్రత్యుత్తరం '%1$s'"
 msgid "Unexpected LXC URI path '%1$s', try lxc:///system"
 msgstr "అనుకోని OpenVZ URI పాత్ '%1$s', openvz:///system ప్రయత్నించుము"
 
+#, fuzzy
+msgid "Unexpected PCI backend 'xen'"
+msgstr "అనుకోని CPU ఫాల్‌బాక్ విలువ: %d"
+
 #, fuzzy, c-format
 msgid "Unexpected PCI controller model %1$d"
 msgstr "అనుకోని నియంత్రణి రకము %1$d"
@@ -19085,10 +18737,6 @@ msgstr ""
 msgid "Unexpected hostdev mode %1$d"
 msgstr "అనుకోని hostdev రీతి %1$d"
 
-#, c-format
-msgid "Unexpected length of '%1$s', expected %2$u got %3$zu"
-msgstr ""
-
 msgid "Unexpected lock parameters for disk resource"
 msgstr "డిస్కు వనరు కొరకు అనుకోని లాక్ పారామితులు"
 
@@ -19146,10 +18794,6 @@ msgstr "ఊహించని పూల్ రకము"
 msgid "Unexpected protocol %1$d"
 msgstr "ఊహించని పూల్ రకము"
 
-#, c-format
-msgid "Unexpected response from CH: %1$s"
-msgstr ""
-
 msgid "Unexpected root filesystem without loop device"
 msgstr "లూప్ పరికరం లేకుండా అనుకోని రూట్ ఫైల్‌సిస్టమ్"
 
@@ -19181,9 +18825,6 @@ msgid "Unexpectedly got a network port without a network bridge"
 msgstr ""
 
 msgid "Unexpectedly got a network port without a plug"
-msgstr ""
-
-msgid "Unix Socket backend is not supported by this version of ch."
 msgstr ""
 
 msgid "Unix file descriptors not supported on this platform"
@@ -19298,10 +18939,6 @@ msgstr "తెలియని chr పరికరము రకము '%s'"
 msgid "Unknown compatibility mode %1$s"
 msgstr "తెలియని సామర్ధ్యము రకము '%1$s'"
 
-#, c-format
-msgid "Unknown connection URI: '%1$s'"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "Unknown controller type %1$d"
 msgstr "తెలియని నియంత్రణి రకము '%s'"
@@ -19363,6 +19000,10 @@ msgstr "తెలియని టైంట్ ఫ్లాగ్ %s"
 #, fuzzy, c-format
 msgid "Unknown firewall layer %1$d"
 msgstr "తెలియని విడుదల: %s"
+
+#, c-format
+msgid "Unknown forward <driver name='%1$s'/> in network %2$s"
+msgstr "నెట్వర్కు %1$s నందు తెలియని ఫార్వార్డ్ <driver name='%2$s'/>"
 
 #, c-format
 msgid "Unknown forward type %1$d in network '%2$s'"
@@ -19598,10 +19239,6 @@ msgid "Unsupported NUMA memory tuning mode '%1$s'"
 msgstr "తోడ్పాటులేని NUMA మెమొరీ ట్యూనింగ్ తీరు '%1$s'"
 
 #, c-format
-msgid "Unsupported Network type %1$d"
-msgstr ""
-
-#, c-format
 msgid "Unsupported OS type: %1$s"
 msgstr "తోడ్పాటులేని OS రకం: %1$s"
 
@@ -19634,7 +19271,7 @@ msgid "Unsupported URI scheme '%1$s'"
 msgstr "తోడ్పాటులేని SMBIOS రీతి '%1$s'"
 
 #, c-format
-msgid "Unsupported VPD field access type '%1$s'"
+msgid "Unsupported VPD field access type specified %1$s"
 msgstr ""
 
 #, fuzzy, c-format
@@ -19791,6 +19428,10 @@ msgstr "తోడ్పాటులేని hostdev రీతి %1$s"
 msgid "Unsupported hostdev type %1$s"
 msgstr "తోడ్పాటులేని hostdev రకం %1$s"
 
+#, c-format
+msgid "Unsupported interface '%1$s' for TPM 1.2"
+msgstr ""
+
 #, fuzzy
 msgid "Unsupported listen type"
 msgstr "తోడ్పాటులేని వర్ట్ రకం"
@@ -19887,9 +19528,6 @@ msgstr "వినియోగించని"
 msgid "Unusual value in %1$s/devices/%2$s/class: %3$s"
 msgstr ""
 
-msgid "Update a active and/or inactive node device"
-msgstr ""
-
 msgid "Update device from an XML <file>."
 msgstr "XML <file> నుండి పరికరం నవీకరించు."
 
@@ -19915,22 +19553,7 @@ msgstr "నెట్వర్కు స్థిర సమాచారం పొ
 msgid "Updated network %1$s persistent config and live state"
 msgstr "స్థిరమైన ఆకృతీకరణ పొందుట విఫలమైను"
 
-#, c-format
-msgid "Updated node device %1$s live state"
-msgstr ""
-
-#, c-format
-msgid "Updated node device %1$s persistent config"
-msgstr ""
-
-#, c-format
-msgid "Updated node device %1$s persistent config and live state"
-msgstr ""
-
 msgid "Updates on a running domain need VIR_DOMAIN_AFFECT_LIVE flag"
-msgstr ""
-
-msgid "Updates the configuration of a node device"
 msgstr ""
 
 msgid "Upgrade to a kernel supporting namespaces"
@@ -19966,21 +19589,6 @@ msgid ""
 "options:\n"
 "  -h | --help     display this help and exit\n"
 "  -v | --version  output version information and exit\n"
-msgstr ""
-
-#, c-format
-msgid ""
-"Usage:\n"
-"  %1$s { -v | -h } [TRUST|SERVER|CLIENT]\n"
-"\n"
-"Validate TLS certificate configuration\n"
-"\n"
-"options:\n"
-"  -s     | --system   validate system certificates (default)\n"
-"  -u     | --user     validate user certificates\n"
-"  -p DIR | --path DIR validate custom certificate path\n"
-"  -h     | --help     display this help and exit\n"
-"  -v     | --version  output version information and exit\n"
 msgstr ""
 
 #, sh-format
@@ -20090,9 +19698,6 @@ msgstr "qemu యొక్క ఈ వర్షన్‌ చేత VFIO PCI పర
 msgid "VFIO device assignment is currently not supported on this system"
 msgstr "qemu యొక్క ఈ వర్షన్‌ చేత VFIO PCI పరికర అప్పగింత తోడ్పాటునీయదు"
 
-msgid "VFIO device assignment is not available on this platform"
-msgstr ""
-
 msgid "VM disk source and snapshot disk source are not the same"
 msgstr ""
 
@@ -20105,6 +19710,10 @@ msgstr ""
 #, c-format
 msgid "VMX entry '%1$s' contains unsupported scheme '%2$s'"
 msgstr "VMX ప్రవేశం '%1$s' తోడ్పాటులేని స్కీమ్ '%2$s' కలిగివుంది"
+
+#, c-format
+msgid "VMX entry '%1$s' doesn't contain a port part"
+msgstr "VMX ప్రవేశం '%1$s' పోర్ట్ పార్ట్ కలిగివుండదు"
 
 msgid "VMX entry 'annotation' contains invalid escape sequence"
 msgstr "VMX ప్రవేశం 'annotation' చెల్లని ఎస్కేప్ వరుసను కలిగివుంది"
@@ -20138,6 +19747,9 @@ msgstr ""
 
 msgid "VNC supports connected='keep' only"
 msgstr "VNC అనునది connected='keep' మాత్రమే తోడ్పాటునిచ్చును"
+
+msgid "VPD fields access type parsing has failed"
+msgstr ""
 
 #, c-format
 msgid "Value '%1$s' is not representable as %2$s"
@@ -20334,10 +19946,6 @@ msgstr "XBZRLE క్రియాశీలంగా వుంది, అయి�
 msgid "XBZRLE is active, but 'pages' data was missing"
 msgstr "XBZRLE క్రియాశీలంగా వుంది, అయితే 'pages' దత్తాంశం దొరకలేదు"
 
-#, c-format
-msgid "XEN does not support device assignment mode '%1$s'"
-msgstr ""
-
 msgid "XML description is invalid or not well formed"
 msgstr "XML వివరణ చెల్లనిది లేదా సరిగా రూపొందలేదు"
 
@@ -20383,6 +19991,14 @@ msgid "You must map the root user of container"
 msgstr "మీరు తప్పక కంటైనర్ యొక్క రూట్ వాడుకరిని మాప్ చేయాలి"
 
 #, c-format
+msgid "[--%1$s <number>]"
+msgstr "[--%1$s <number>]"
+
+#, c-format
+msgid "[--%1$s <string>]"
+msgstr "[--%1$s <string>]"
+
+#, c-format
 msgid "[--%1$s] <number>"
 msgstr "[--%1$s] <number>"
 
@@ -20391,8 +20007,12 @@ msgid "[--%1$s] <string>"
 msgstr "[--%1$s] <string>"
 
 #, c-format
-msgid "[--%1$s] <string>..."
-msgstr ""
+msgid "[<%1$s>]..."
+msgstr "[<%1$s>]..."
+
+#, c-format
+msgid "[[--%1$s] <string>]..."
+msgstr "[[--%1$s] <string>]..."
 
 msgid ""
 "a 'none' video type must be the only video device defined for the domain"
@@ -20465,9 +20085,6 @@ msgstr "ఏక్సెస్ తిరస్కరించబడింది"
 #, c-format
 msgid "access denied: %1$s"
 msgstr "ఏక్సెస్ తిరస్కరించబడెను: %1$s"
-
-msgid "acpi-erst backend of pstore device is not supported"
-msgstr ""
 
 msgid "active"
 msgstr "క్రియాశీలం"
@@ -20560,26 +20177,17 @@ msgstr "ప్రస్తుత డొమైన్ ప్రభావితం 
 msgid "affect current state of network"
 msgstr "నెట్వర్కు యొక్క ప్రస్తుత స్థితి ప్రభావితంచేయి"
 
-msgid "affect current state of node device"
-msgstr ""
-
 msgid "affect next boot"
 msgstr "తరువాత బూట్ ప్రభావితం చేయును"
 
 msgid "affect next network startup"
 msgstr "తరువాతి నెట్వర్కు ప్రారంభం ప్రభావితంచేయి"
 
-msgid "affect next node device startup"
-msgstr ""
-
 msgid "affect running domain"
 msgstr "నడుస్తున్న డొమైన్ ప్రభావితం చేయును"
 
 msgid "affect running network"
 msgstr "నడుస్తున్న నెట్వర్కు ప్రభావితంచేయి"
-
-msgid "affect running node device"
-msgstr ""
 
 msgid "after reverting, change state to paused"
 msgstr "తిరిగివుంచిన తరువాత, స్థితిని ఆపివున్న దానికి మార్చు"
@@ -20590,6 +20198,14 @@ msgstr "తిరిగివుంచిన తరువాత, స్థిత
 #, fuzzy, c-format
 msgid "algorithm=%1$d is not supported"
 msgstr "అల్గార్దెమ్ %1$d తుడిచివేయుట తోడ్పాటులేదు"
+
+#, c-format
+msgid "alias '%1$s' of command '%2$s' has mismatched alias type"
+msgstr ""
+
+#, c-format
+msgid "alias '%1$s' of command '%2$s' has missing alias option"
+msgstr ""
 
 #, fuzzy
 msgid "all CPU models are accepted"
@@ -20826,12 +20442,6 @@ msgid "attribute 'limit' is only supported for maxphysaddr mode 'passthrough'"
 msgstr ""
 
 #, c-format
-msgid ""
-"attribute 'register=yes' in <domain> element requires 'localOnly=yes' in "
-"network %1$s"
-msgstr ""
-
-#, c-format
 msgid "audio ID %1$u is used multiple times"
 msgstr ""
 
@@ -21042,10 +20652,6 @@ msgstr "base64-encoded రహస్య విలువ"
 msgid "bhyve state driver is not active"
 msgstr "qemu స్థితి డ్రైవర్ క్రియాశీలముగాలేదు"
 
-#, c-format
-msgid "binary '%1$s' does not exist in $PATH"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "binding '%1$s' already exists"
 msgstr "స్నాప్‌షాట్ '%1$s' యిప్పటికే వుంది"
@@ -21108,10 +20714,6 @@ msgid "block device"
 msgstr "నిరోధక పరికరం"
 
 #, c-format
-msgid "block device backed disk must be resized to its actual size '%1$llu'"
-msgstr ""
-
-#, c-format
 msgid "block device snapshot target '%1$s' doesn't exist"
 msgstr ""
 
@@ -21154,11 +20756,6 @@ msgid "block peek request too large for remote protocol, %1$zi > %2$d"
 msgstr "దూరస్థ నియమంకు నిరోధక పీక్ అభ్యర్ధన మరీ పొడవు, %1$zi > %2$d"
 
 msgid "block resize is not supported for vhostuser disk"
-msgstr ""
-
-msgid ""
-"block resize to full capacity supported only with 'raw' local block-based "
-"disks"
 msgstr ""
 
 msgid "block size must be a power of two"
@@ -21222,6 +20819,13 @@ msgstr "బాండ్ యింటర్ఫేస్ miimon అప్‌డి
 
 msgid "bond interface misses the bond element"
 msgstr "బాండ్ యింటర్ఫేస్ బాండ్ మూలకంను వదిలివేసింది"
+
+msgid "bool"
+msgstr "bool"
+
+#, c-format
+msgid "bool parameter '%1$s' of command '%2$s' has completer set"
+msgstr ""
 
 #, fuzzy, c-format
 msgid "boot order %1$u is already used by another device"
@@ -21299,9 +20903,6 @@ msgstr "బ్రిడ్జు నామము '%1$s' యిప్పటిక
 #, c-format
 msgid "bridge name not allowed in %1$s mode (network '%2$s')"
 msgstr "%1$s రీతినందు బ్రడ్జ్ పేరు అనుమతించబడదు (నెట్వర్కు '%2$s')"
-
-msgid "bridge port creation is not supported on this platform"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "bridge zone not allowed in %1$s mode (network '%2$s')"
@@ -21461,9 +21062,6 @@ msgid "can't parse cputune shares value"
 msgstr "cputune పంచే విలువ పార్స్ చేయలేదు"
 
 msgid "can't pivot a shared disk to a storage volume not supporting sharing"
-msgstr ""
-
-msgid "can't query rx filters: device alias not found"
 msgstr ""
 
 msgid "can't reopen image with unknown presence of backing store"
@@ -21884,6 +21482,53 @@ msgstr "లక్ష్యము '%1$s'నుండి విభజన సంఖ
 msgid "cannot extend file '%1$s'"
 msgstr "ఫైలు '%1$s'ను పొడిగింపలేము"
 
+msgid "cannot extract blkiotune nodes"
+msgstr "blkiotune నోడ్లను బహిర్గతపరచలేదు"
+
+#, fuzzy
+msgid "cannot extract cachetune nodes"
+msgstr "numatune నోడ్స్ వెలికితీయలేదు"
+
+msgid "cannot extract console devices"
+msgstr "కన్సోల్ పరికరాలను వెలికితీయలేదు"
+
+msgid "cannot extract device leases"
+msgstr "పరికరం లీజులను వెలికితీయలేదు"
+
+msgid "cannot extract emulatorpin nodes"
+msgstr "ఎమ్యులేటర్‌పిన్ నోడ్స్ వెలికితీయలేదు"
+
+#, fuzzy
+msgid "cannot extract emulatorsched nodes"
+msgstr "ఎమ్యులేటర్‌పిన్ నోడ్స్ వెలికితీయలేదు"
+
+#, fuzzy
+msgid "cannot extract hugepages nodes"
+msgstr "numatune నోడ్స్ వెలికితీయలేదు"
+
+#, fuzzy
+msgid "cannot extract iothreadpin nodes"
+msgstr "ఎమ్యులేటర్‌పిన్ నోడ్స్ వెలికితీయలేదు"
+
+#, fuzzy
+msgid "cannot extract iothreadsched nodes"
+msgstr "వనరు నోడ్స్ వెలికితీయలేదు"
+
+#, fuzzy
+msgid "cannot extract memorytune nodes"
+msgstr "numatune నోడ్స్ వెలికితీయలేదు"
+
+msgid "cannot extract resource nodes"
+msgstr "వనరు నోడ్స్ వెలికితీయలేదు"
+
+#, fuzzy
+msgid "cannot extract snapshot nodes"
+msgstr "numatune నోడ్స్ వెలికితీయలేదు"
+
+#, fuzzy
+msgid "cannot extract vcpusched nodes"
+msgstr "వనరు నోడ్స్ వెలికితీయలేదు"
+
 #, c-format
 msgid "cannot fill file '%1$s'"
 msgstr "ఫైలు '%1$s'ను నింపలేము"
@@ -22300,9 +21945,6 @@ msgstr "నెట్వర్కు పరికరం PCI చిరునామ
 msgid "cannot modify network device model from %1$s to %2$s"
 msgstr "%1$s నుండి %2$s కు నెట్వర్కు పరికరం రకం సవరించలేదు"
 
-msgid "cannot modify network device portgroup attribute"
-msgstr ""
-
 msgid "cannot modify network device rom bar setting"
 msgstr "నెట్వర్కు పరికరం rom బార్ అమరిక సవరించలేదు"
 
@@ -22420,10 +22062,6 @@ msgstr "json %1$sను పార్శ్ చేయలేక పోయింద
 #, fuzzy, c-format
 msgid "cannot parse json %1$s: unterminated string/map/array"
 msgstr "json %sను పార్శ్ చేయలేక పోయింది: %s"
-
-#, c-format
-msgid "cannot parse openfiles '%1$s' for virtiofs"
-msgstr ""
 
 #, c-format
 msgid "cannot parse partition number from target '%1$s'"
@@ -22691,12 +22329,6 @@ msgstr "నడుస్తున్న డొమైన్ యొక్క స్
 msgid "cannot save file '%1$s'"
 msgstr "ఫైల్ '%1$s' దాయలేదు"
 
-msgid "cannot save/restore domain with host devices"
-msgstr ""
-
-msgid "cannot save/restore domain with network devices"
-msgstr ""
-
 #, c-format
 msgid "cannot seek in '%1$s'"
 msgstr "'%1$s' నందు సీక్ చేయలేదు"
@@ -22960,6 +22592,9 @@ msgstr "vm స్థితి కాక డిస్కు స్థితి �
 #, c-format
 msgid "cd: %1$s: %2$s"
 msgstr "cd: %1$s: %2$s"
+
+msgid "cd: command valid only in interactive mode"
+msgstr "cd: ఇంటారాక్టివ్ రీతినందు మాత్రమే ఆదేశము చెల్లునది"
 
 msgid "cdrom device with virtio bus isn't supported"
 msgstr ""
@@ -23250,6 +22885,34 @@ msgid "command '%1$s' doesn't support option --%2$s"
 msgstr "'%1$s' ఆదేశం --%2$s ఐచ్ఛికానికి మద్దతివ్వదు"
 
 #, c-format
+msgid "command '%1$s' has handler set"
+msgstr ""
+
+#, fuzzy, c-format
+msgid "command '%1$s' has inconsistent alias"
+msgstr "డొమైన్ '%1$s' ఏ ప్రస్తుత స్నాప్‌షాట్ కలిగిలేదు"
+
+#, c-format
+msgid "command '%1$s' has info set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' has multiple flags set"
+msgstr ""
+
+#, c-format
+msgid "command '%1$s' has options set"
+msgstr ""
+
+#, fuzzy, c-format
+msgid "command '%1$s' has too many options"
+msgstr "'%s' ఆదేశానికి --%s ఐచ్ఛికం కావలసి ఉంది"
+
+#, c-format
+msgid "command '%1$s' lacks help"
+msgstr ""
+
+#, c-format
 msgid "command '%1$s' requires --%2$s option"
 msgstr "'%1$s' ఆదేశానికి --%2$s ఐచ్ఛికం కావలసి ఉంది"
 
@@ -23257,10 +22920,18 @@ msgstr "'%1$s' ఆదేశానికి --%2$s ఐచ్ఛికం కా�
 msgid "command '%1$s' requires <%2$s> option"
 msgstr "'%1$s' ఆదేశానికి <%2$s> ఐచ్చికం కావలసి ఉంది"
 
-msgid "command groups is NULL run vshInit before reloading"
+#, c-format
+msgid "command alias '%1$s' is pointing to a non-existent command '%2$s'"
 msgstr ""
 
-msgid "command groups must be non-NULL"
+#, c-format
+msgid "command alias '%1$s' is pointing to another command alias '%2$s'"
+msgstr ""
+
+msgid "command groups and command are both NULL run vshInit before reloading"
+msgstr ""
+
+msgid "command groups and command set cannot both be NULL"
 msgstr ""
 
 #, c-format
@@ -23569,9 +23240,6 @@ msgstr ""
 msgid "could not determine max vcpus for the domain"
 msgstr "డొమైన్‌కొరకు గరిష్ట vcpusను నిర్ణయించలేక పోయింది"
 
-msgid "could not find a usable firewall backend"
-msgstr ""
-
 #, c-format
 msgid "could not find backing store index '%1$u' in chain for '%2$s'"
 msgstr ""
@@ -23795,6 +23463,9 @@ msgstr "Xen అధిప్రతి ప్రవేశాన్ని ఉపయ
 msgid "could not use Xen hypervisor entry %1$s"
 msgstr "Xen అధిప్రతి ప్రవేశం %1$sని ఉపయోగించలేదు"
 
+msgid "couldn't convert node device def to mdevctl JSON"
+msgstr ""
+
 #, fuzzy
 msgid "couldn't fetch array of leases"
 msgstr "స్నాప్‌షాట్ %s యొక్క పేరెంట్ పొందలేక పోయింది"
@@ -23859,12 +23530,6 @@ msgid ""
 "couldn't locate an existing dhcp host entry with \"mac='%1$s'\" "
 "\"name='%2$s'\" \"ip='%3$s'\" in network '%4$s'"
 msgstr "నెట్వర్కు '%s' నందు సరిపోలు dhcp అతిధేయి ప్రవేశం గుర్తించలేక పోయింది"
-
-#, c-format
-msgid ""
-"couldn't register rollback command - command '%1$s' had no valid handle in "
-"output ('%2$s')"
-msgstr ""
 
 #, c-format
 msgid "couldn't retrieve authentication methods list: %1$s"
@@ -24373,10 +24038,6 @@ msgstr "పరికరము కీ"
 msgid "device list is not an object"
 msgstr ""
 
-#, c-format
-msgid "device modalias file %1$s content has improper format"
-msgstr ""
-
 msgid "device name"
 msgstr ""
 
@@ -24568,10 +24229,6 @@ msgstr "డిస్కు '%1$s' రెండుమార్లు తెలు
 msgid "disk '%1$s' was not found in the domain config"
 msgstr "డొమైన్ నిర్వచనం నందు వాల్యూమ్ '%1$s' కనబడలేదు.\n"
 
-msgid ""
-"disk 'queue' count must be configured for explicit iothread to queue mapping"
-msgstr ""
-
 msgid "disk attributes: disk[,checkpoint=type][,bitmap=name]"
 msgstr ""
 
@@ -24641,11 +24298,6 @@ msgstr "రహస్యము '%s' విలువను కలిగిలే�
 msgid "disk driver %1$s is not supported"
 msgstr "డిస్కు డ్రైవర్ %1$s తోడ్పాటులేదు"
 
-msgid ""
-"disk driver 'iothread' attribute can't be used together with 'iothreads' "
-"subelement"
-msgstr ""
-
 msgid "disk event_idx mode supported only for virtio bus"
 msgstr "డిస్కు event_idx రీతి అనునది virtio బస్ కొరకు మాత్రమే తోడ్పాటునిచ్చును"
 
@@ -24665,14 +24317,6 @@ msgstr "డిస్కు ఫార్మాట్ %1$s తోడ్పాట�
 
 msgid "disk ioeventfd mode supported only for virtio bus"
 msgstr "డిస్కు ioeventfd రీతి అనునది virtio బస్ కొరకు మాత్రమే తోడ్పాటునిచ్చును"
-
-#, c-format
-msgid "disk iothread queue '%1$u' is already assigned"
-msgstr ""
-
-#, c-format
-msgid "disk iothread queue '%1$u' mapping out of range"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "disk iotune field '%1$s' must be an integer"
@@ -24887,9 +24531,6 @@ msgstr "డొమైన్ యిప్పటికే నడుచుచున�
 #, fuzzy
 msgid "domain already has a vsock device"
 msgstr "క్షేత్రం ఇప్పటికే ‌క్రియాసహితంగా ఉంది"
-
-msgid "domain already has an iommu device"
-msgstr ""
 
 msgid "domain architecture (/domain/os/type/@arch)"
 msgstr ""
@@ -25444,9 +25085,6 @@ msgstr "సేవ నుండి దోషం: %1$s"
 msgid "error getting profile status"
 msgstr "ప్రొఫైల్ నామమును నకలుతీయుటలో దోషము"
 
-msgid "error in original firewall object"
-msgstr ""
-
 msgid "error in poll call"
 msgstr "పోల్ కాల్ నందు దోషం"
 
@@ -25781,12 +25419,8 @@ msgid "expected protocol '%1$s' but got '%2$s' in URI JSON volume definition"
 msgstr ""
 
 #, c-format
-msgid "expected syntax: --%1$s <number>"
-msgstr ""
-
-#, c-format
-msgid "expected syntax: --%1$s <string>"
-msgstr ""
+msgid "expected syntax: --%1$s <%2$s>"
+msgstr "ఊహించిన సిన్టాక్సు: --%1$s <%2$s>"
 
 #, c-format
 msgid "expected unicast mac address, found multicast '%1$s'"
@@ -26141,6 +25775,9 @@ msgstr ""
 msgid "failed to create logfile %1$s"
 msgstr "లాగ్‌పైలు %1$sను సృష్టించుటకు విఫలమైంది"
 
+msgid "failed to create mdevctl thread"
+msgstr ""
+
 msgid "failed to create profile"
 msgstr "ప్రొఫైల్ సృష్టించుటకు విఫలమైంది"
 
@@ -26171,6 +25808,10 @@ msgid "failed to create the RBD IoCTX. Does the pool '%1$s' exist?"
 msgstr "RBD IoCTX సృష్టించుటకు విఫలమైంది. పూల్ '%1$s' వుందా?"
 
 msgid "failed to create udev context"
+msgstr "udev కాంటెక్స్ట్ సృష్టించుటకు విఫలమైంది"
+
+#, fuzzy
+msgid "failed to create udev enumerate thread"
 msgstr "udev కాంటెక్స్ట్ సృష్టించుటకు విఫలమైంది"
 
 #, fuzzy
@@ -26222,6 +25863,12 @@ msgstr "SASL దత్తాంశం ఎన్కోడింగ్ విఫ�
 #, fuzzy, c-format
 msgid "failed to encrypt the data: '%1$s'"
 msgstr "RBD చిత్రం '%1$s' తెరుచుటకు విఫలమైంది"
+
+msgid "failed to evaluate <system_field> elements"
+msgstr ""
+
+msgid "failed to evaluate <vendor_field> elements"
+msgstr ""
 
 #, c-format
 msgid "failed to execute command '%1$s': %2$s"
@@ -26370,6 +26017,10 @@ msgstr "అధిప్రతి రకాన్ని పొందటంలో 
 msgid "failed to get interface '%1$s'"
 msgstr "ఇంటర్ఫేస్ '%1$s' పొందుటకు విఫలమైంది"
 
+#, fuzzy, c-format
+msgid "failed to get interface-types from '%1$s'"
+msgstr "ఇంటర్ఫేస్ '%1$s' పొందుటకు విఫలమైంది"
+
 #, fuzzy
 msgid "failed to get launch security policy"
 msgstr "మాత్రుక పూల్ పొందుటలో విఫలమైంది"
@@ -26391,6 +26042,10 @@ msgstr "'%1$s' నెట్వర్కు పొందటంలో విఫల
 
 msgid "failed to get node information"
 msgstr "నోడు సమాచారాన్ని పొందటంలో విఫలమైంది"
+
+#, c-format
+msgid "failed to get number of %1$s interfaces on host"
+msgstr "అతిధేయపై %1$s యింటర్ఫేసుల సంఖ్యను పొందుటలో విఫలమైంది"
 
 #, c-format
 msgid "failed to get number of host interfaces: %1$s%2$s%3$s"
@@ -26446,6 +26101,10 @@ msgstr "RBD చిత్రం '%1$s' పునఃపరిమాణం చే�
 
 msgid "failed to get sysinfo"
 msgstr "వ్యవస్థసమాచారం పొందుటకు విఫలమైంది"
+
+#, fuzzy, c-format
+msgid "failed to get targets from '%1$s'"
+msgstr "రహస్యము '%1$s' పొందుటకు విఫలమైంది"
 
 msgid "failed to get the daemon version"
 msgstr "డెమాన్ వర్షన్ పొందుటకు విఫలమైంది"
@@ -26565,10 +26224,6 @@ msgid "failed to monitor nbdkit process %1$i"
 msgstr ""
 
 #, c-format
-msgid "failed to monitor qemu in-shutdown process %1$i"
-msgstr ""
-
-#, c-format
 msgid "failed to move file to %1$s "
 msgstr "ఫైలు %1$s కు కదుల్చుటకు విఫలమైంది"
 
@@ -26642,9 +26297,16 @@ msgstr "%1$s పార్స్ చేయుటకు విఫలమైంద�
 msgid "failed to parse %1$sversion"
 msgstr "%1$s పార్స్ చేయుటకు విఫలమైంది"
 
+#, fuzzy
+msgid "failed to parse CPU blockers in QEMU capabilities"
+msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
+
 #, fuzzy, c-format
 msgid "failed to parse SCSI host '%1$s'"
 msgstr "రీతి '%1$s'ను పార్శ్‍ చేయుటలో విఫలమైంది"
+
+msgid "failed to parse SGX sections in QEMU capabilities cache"
+msgstr ""
 
 #, fuzzy
 msgid "failed to parse agent timeout"
@@ -26699,6 +26361,21 @@ msgstr "పోర్టు సంఖ్య పార్స్ చేయుటక
 msgid "failed to parse pre-migration memlock limit"
 msgstr ""
 
+#, fuzzy
+msgid "failed to parse qemu capabilities cpus"
+msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
+
+msgid "failed to parse qemu capabilities flags"
+msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
+
+#, fuzzy
+msgid "failed to parse qemu capabilities gic"
+msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
+
+#, fuzzy
+msgid "failed to parse qemu capabilities machines"
+msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
+
 msgid "failed to parse qemu device list"
 msgstr "qemu పరికర జాబితా పార్స్ చేయుటకు విఫలమైంది"
 
@@ -26713,6 +26390,10 @@ msgstr "రీతి '%1$s'ను పార్శ్‍ చేయుటలో �
 #, fuzzy
 msgid "failed to parse slirp helper list"
 msgstr "qemu పరికర జాబితా పార్స్ చేయుటకు విఫలమైంది"
+
+#, fuzzy
+msgid "failed to parse slirp-helper features"
+msgstr "%s యొక్క విలువను పార్స్ చేయుటకు విఫలమైంది"
 
 #, c-format
 msgid "failed to parse the AP Card from sysfs path: '%1$s'"
@@ -26785,9 +26466,6 @@ msgstr "'%1$s'ను చదువుటకు విఫలమైంది"
 msgid "failed to read AppArmor template"
 msgstr "AppArmor మాదిరి చదువుటకు విఫలమైంది"
 
-msgid "failed to read CHSaveXMLHeader header"
-msgstr ""
-
 msgid "failed to read XML"
 msgstr "XML చదువుటకు విఫలమైంది"
 
@@ -26838,12 +26516,6 @@ msgstr "%s నుండి నోడ్ పరికరము సృష్టి
 msgid "failed to regenerate genid"
 msgstr "uuid జనియింపచేయుటలో విఫలమైంది"
 
-msgid "failed to register name server"
-msgstr ""
-
-msgid "failed to register name server: systemd-resolved is not available"
-msgstr ""
-
 msgid "failed to register udev interface driver"
 msgstr "udev ఇంటర్ఫేస్ డ్రైవర్ నమోదు విఫలమైంది"
 
@@ -26883,20 +26555,8 @@ msgstr ""
 msgid "failed to resolve symlink %1$s: %2$s"
 msgstr "సిమ్‌లింకు  %1$s నుండి ' %2$s'కు సృష్టించుటలో విఫలమైంది"
 
-msgid "failed to restore domain"
-msgstr ""
-
-msgid "failed to restore domain from managed save"
-msgstr ""
-
 msgid "failed to resume domain"
 msgstr "డొమైన్ తిరిగికొనసాగించుటకు విఫలమైనది"
-
-msgid "failed to resume domain after restore"
-msgstr ""
-
-msgid "failed to resume domain after restore from managed save"
-msgstr ""
 
 #, fuzzy
 msgid "failed to retrieve XML"
@@ -27014,9 +26674,6 @@ msgstr "%1$lld ను %2$s కు నిల్వవుంచుటకు వి
 msgid "failed to suspend domain"
 msgstr ""
 
-msgid "failed to suspend domain before saving"
-msgstr ""
-
 msgid "failed to take screenshot"
 msgstr "స్క్రీన్‌షాట్ తీయుటలో విఫలమైంది"
 
@@ -27050,10 +26707,6 @@ msgstr "స్నాప్‌షాట్ జాబితా సేకరిం�
 #, fuzzy, c-format
 msgid "failed to update capacity data for block node '%1$s'"
 msgstr "ఫైల్ '%1$s' కొరకు జాగాను ముందుగా-కేటాయించుటకు విఫలమైంది"
-
-#, c-format
-msgid "failed to update capacity of '%1$s'"
-msgstr ""
 
 #, fuzzy
 msgid "failed to update device in BPF cgroup map"
@@ -27434,6 +27087,26 @@ msgstr ""
 msgid "fmode and dmode must be used with accessmode=mapped"
 msgstr ""
 
+#, c-format
+msgid "for %1$s module"
+msgstr ""
+
+#, c-format
+msgid "for Linux >= %1$d.%2$d.%3$d"
+msgstr "for Linux >= %1$d.%2$d.%3$d"
+
+msgid "for PowerPC KVM module loaded"
+msgstr ""
+
+msgid "for device assignment IOMMU support"
+msgstr ""
+
+msgid "for hardware virtualization"
+msgstr ""
+
+msgid "for secure guest support"
+msgstr ""
+
 msgid "forbidden characters in 'compat' attribute"
 msgstr "'compat' యాట్రిబ్యూట్ నందు దాచివుంచిన అక్షరాలు"
 
@@ -27685,9 +27358,6 @@ msgid "graphics URI to be used for seamless graphics migration"
 msgstr "నిరంతర గ్రాఫిక్స్ మైగ్రేషన్ కొరకు గ్రాఫిక్స్ URI వుపయోగించాలి"
 
 msgid "graphics device is needed for attribute value 'display=on' in <hostdev>"
-msgstr ""
-
-msgid "graphics display type"
 msgstr ""
 
 msgid ""
@@ -28038,18 +27708,9 @@ msgstr "అధిప్రతి అనుసంధానం URI"
 msgid "hypervisor feature autodetection override"
 msgstr ""
 
-#, c-format
-msgid ""
-"hypervisor provided conflicting CPU data: feature '%1$s' is both enabled and "
-"disabled at the same time"
-msgstr ""
-
 #, fuzzy
 msgid "i - turn off validation and try to redefine again"
 msgstr "f - బలవంతంగా, మరలా తిరిగినిర్వచించుటకు ప్రయత్నించు"
-
-msgid "iSCSI protocol accepts only one host"
-msgstr ""
 
 msgid "iSCSI storage pool does not support volume creation"
 msgstr "iSCSI నిల్వ పూల్ అనునది వాల్యూమ్ సృష్టీకరణను తోడ్పాటునీయలేదు"
@@ -28070,6 +27731,9 @@ msgid "idle:"
 msgstr "ఊరకనే:"
 
 msgid "ids of vcpus to manipulate"
+msgstr ""
+
+msgid "if IOMMU is enabled by kernel"
 msgstr ""
 
 #, c-format
@@ -28454,6 +28118,42 @@ msgstr "ఐచ్చికం --%1$s తరువాత చెల్లని '=
 
 msgid "invalid 'type' attribute for vhostuser disk source"
 msgstr ""
+
+#, c-format
+msgid "invalid <address> element found in <forward> of network %1$s"
+msgstr "చెల్లని <address> మూలకం నెట్వర్కు %1$s యొక్క <forward> నందు కనుగొంది"
+
+#, fuzzy, c-format
+msgid "invalid <forwarder> element found in <dns> of network %1$s"
+msgstr "చెల్లని <srv> మూలకం నెట్వర్కు %1$s యొక్క <dns> నందు కనబడింది"
+
+#, c-format
+msgid "invalid <host> element found in <dns> of network %1$s"
+msgstr "చెల్లని <host> మూలకం నెట్వర్కు %1$s యొక్క <dns> నందు కనబడింది"
+
+#, c-format
+msgid "invalid <interface> element found in <forward> of network %1$s"
+msgstr "చెల్లని <interface> మూలకం నెట్వర్కు %1$s యొక్క <forward> నందు కనుగొంది"
+
+#, c-format
+msgid "invalid <nat> element found in <forward> of network %1$s"
+msgstr "చెల్లని <nat> మూలకం నెట్వర్కు %1$s యొక్క <forward> నందు కనుగొంది"
+
+#, c-format
+msgid "invalid <pf> element found in <forward> of network %1$s"
+msgstr "చెల్లని <pf> మూలకం నెట్వర్కు %1$s యొక్క <forward> నందు కనుగొంది"
+
+#, c-format
+msgid "invalid <port> element found in <forward> of network %1$s"
+msgstr "నెట్వర్కు %1$s యొక్క <forward> నందు చెల్లని <port> మూలకం కనబడెను"
+
+#, c-format
+msgid "invalid <srv> element found in <dns> of network %1$s"
+msgstr "చెల్లని <srv> మూలకం నెట్వర్కు %1$s యొక్క <dns> నందు కనబడింది"
+
+#, c-format
+msgid "invalid <txt> element found in <dns> of network %1$s"
+msgstr "చెల్లని <txt> మూలకం <dns> నందు నెట్వర్కు %1$s నందు కనుగొన్నది"
 
 #, fuzzy
 msgid "invalid CPU cache level, must be in range [1,3]"
@@ -28986,9 +28686,6 @@ msgstr "చెల్లని సీక్రెట్ రకం '%1$s'"
 msgid "invalid server address"
 msgstr "సరికాని MAC చిరునామా"
 
-msgid "invalid size of ACPI ERST pstore device"
-msgstr ""
-
 #, c-format
 msgid "invalid size supplied for '%1$s'"
 msgstr "'%1$s' కొరకు యెటువంటి పరిమాణము అందివ్వబడలేదు"
@@ -29161,9 +28858,6 @@ msgstr "SATA ఈ QEMU బైనరీతో మద్దతించబడదు
 msgid "iommu: interrupt remapping is not supported with this QEMU binary"
 msgstr "vhost-net అనునది ఈ QEMU బైనరీతో తోడ్పాటునీయదు"
 
-msgid "iommu: updating dma translation is not supported with this QEMU binary"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "iothread %1$d not found"
 msgstr "hostdev %s కనబడలేదు"
@@ -29175,10 +28869,6 @@ msgid "iothread id of existing IOThread"
 msgstr ""
 
 msgid "iothread is not supported with vhostuser disk"
-msgstr ""
-
-msgid ""
-"iothread to queue mapping must be provided for all iothreads or for none"
 msgstr ""
 
 msgid "iothread_id for the IOThread to delete"
@@ -29702,9 +29392,6 @@ msgstr "పేరెంట్స్ లేకుండా స్నాప్‌�
 msgid "list only transient domains"
 msgstr "అస్థిర డొమైన్లు జాబితాచేయి"
 
-msgid "list persistent devices"
-msgstr ""
-
 msgid "list persistent domains"
 msgstr "స్థిరమైన డొమైన్లను జాబితాచేయి"
 
@@ -29743,9 +29430,6 @@ msgstr "జాబితా పట్టిక (అప్రమేయ)"
 
 msgid "list the name, rather than the full xml"
 msgstr "పూర్తి xml కన్నా, పేరును జాబితా చేయి"
-
-msgid "list transient devices"
-msgstr ""
 
 msgid "list transient domains"
 msgstr "అస్థిర డొమైన్లు జాబితాచేయి"
@@ -29818,9 +29502,6 @@ msgstr "లాక్ నిర్వాహిక అనుసంధానం న
 
 msgid "lock owner details have not been registered"
 msgstr "లాక్ వోనర్ వివరాలు నమోదు కాలేదు"
-
-msgid "locking options are not supported by this virtiofsd"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "logical volume '%1$s' is sparse, volume wipe not supported"
@@ -30103,9 +29784,6 @@ msgstr ""
 msgid "manipulate authorized SSH keys file for given user (via agent)"
 msgstr ""
 
-msgid "maplen must be non-negative"
-msgstr ""
-
 msgid "mark inactive domains with managed save state"
 msgstr "నిర్వాహిత దాపు స్థితితో వున్న క్రియాహీన డొమైన్లను గుర్తుంచు"
 
@@ -30123,9 +29801,6 @@ msgstr ""
 #, fuzzy
 msgid "matching input device not found"
 msgstr "usb పరికరం కనబడలేదు"
-
-msgid "matching iommu device not found"
-msgstr ""
 
 #, fuzzy
 msgid "matching memory device was not found"
@@ -30148,18 +29823,12 @@ msgstr ""
 msgid "maxcells > REMOTE_NODE_MAX_CELLS"
 msgstr "maxcells > REMOTE_NODE_MAX_CELLS"
 
-msgid "maxcells must be non-negative"
-msgstr ""
-
 msgid "maxerrors too large"
 msgstr "maxerrors మరీ పెద్దది"
 
 #, fuzzy
 msgid "maxids > REMOTE_DOMAIN_LIST_MAX"
 msgstr "maxStats > REMOTE_DOMAIN_MEMORY_STATS_MAX"
-
-msgid "maxids must be non-negative"
-msgstr ""
 
 msgid "maximum"
 msgstr "గరిష్టం"
@@ -30200,9 +29869,6 @@ msgstr "maxinfo * maplen > REMOTE_CPUMAPS_MAX"
 msgid "maxinfo > REMOTE_VCPUINFO_MAX"
 msgstr "maxinfo > REMOTE_VCPUINFO_MAX"
 
-msgid "maxinfo must be non-negative"
-msgstr ""
-
 #, fuzzy
 msgid "maxnames > REMOTE_DOMAIN_LIST_MAX"
 msgstr "maxnames > REMOTE_NODE_DEVICE_CAPS_LIST_MAX"
@@ -30238,15 +29904,9 @@ msgstr "maxnames > REMOTE_NODE_DEVICE_CAPS_LIST_MAX"
 msgid "maxnames > REMOTE_STORAGE_VOL_LIST_MAX"
 msgstr "maxnames > REMOTE_NODE_DEVICE_CAPS_LIST_MAX"
 
-msgid "maxnames must be non-negative"
-msgstr ""
-
 #, fuzzy
 msgid "maxuuids > REMOTE_SECRET_LIST_MAX"
 msgstr "maxnames > REMOTE_NODE_DEVICE_CAPS_LIST_MAX"
-
-msgid "maxuuids must be non-negative"
-msgstr ""
 
 msgid "mdev attribute missing name or value"
 msgstr ""
@@ -30517,11 +30177,12 @@ msgid ""
 msgstr ""
 "ఇంక్రిమెంటల్ నకలుతో భాగస్వామ్యం-కాని నిల్వ మైగ్రేషన్ (అదే బేస్ చిత్రం మూలం మరియు గమ్యం మధ్య పంచుకొనెను)"
 
-msgid "migration with this virtiofs device is not supported"
-msgstr ""
-
 msgid "migration with transient disk is not supported"
 msgstr ""
+
+#, fuzzy
+msgid "migration with virtiofs device is not supported"
+msgstr "స్థిరమైన పరికర అనుబందం తోడ్పాటులేదు"
 
 #, c-format
 msgid "migration_address must not be the address of the local machine: %1$s"
@@ -30590,6 +30251,10 @@ msgstr "తప్పిపోయిన root మూలకము"
 msgid "missing 'alias' attribute for qemu:device"
 msgstr ""
 
+#, fuzzy, c-format
+msgid "missing 'architecture' in '%1$s'"
+msgstr "తప్పిపోయిన CPU ఆకృతి"
+
 msgid "missing 'config' in info query result from cloud-hypervisor"
 msgstr ""
 
@@ -30604,6 +30269,10 @@ msgid ""
 msgstr ""
 "నెట్వర్కు %1$s నందలి <forward> నందలి <nat> నందలి <address> నందు దొరకని 'end' ఏట్రిబ్యూట్"
 
+#, fuzzy, c-format
+msgid "missing 'executable' in '%1$s'"
+msgstr "తప్పనిసరి ఆకృతీకరణ ప్రవేశం '%1$s' దొరకలేదు"
+
 #, c-format
 msgid "missing 'file' in '%1$s' from cloud-hypervisor"
 msgstr ""
@@ -30616,6 +30285,14 @@ msgstr "SELinux సందర్భ పాత్ర '%1$s' అమర్చలే�
 msgid "missing 'filename' field in JSON backing volume definition"
 msgstr "JSON స్థితి పత్రము నందు ధృవీకరణ క్షేత్రం దొరకలేదు"
 
+#, fuzzy, c-format
+msgid "missing 'filename' in '%1$s'"
+msgstr "%1$s నందు దొరకని పేరు సమాచారం"
+
+#, fuzzy, c-format
+msgid "missing 'format' in '%1$s'"
+msgstr "%1$s నందు దొరకని పేరు సమాచారం"
+
 #, fuzzy
 msgid "missing 'guid' attribute"
 msgstr "బూట్ క్రమం యాట్రిబ్యూట్ దొరకట్లేదు"
@@ -30624,6 +30301,10 @@ msgstr "బూట్ క్రమం యాట్రిబ్యూట్ దొ
 msgid "missing 'id' attribute for mediated device's <type> element"
 msgstr "ఇంటర్ఫేస్ యొక్క <actual> మూలకంనందు టైప్ యాట్రిబ్యూట్ లేదు"
 
+#, fuzzy, c-format
+msgid "missing 'machines' in '%1$s'"
+msgstr "స్నాప్‌షాట్ నందు డొమైన్ లేదు"
+
 msgid ""
 "missing 'name' attribute for a host CPU model property in QEMU capabilities "
 "cache"
@@ -30631,6 +30312,10 @@ msgstr ""
 
 msgid "missing 'name' attribute for qemu:property"
 msgstr ""
+
+#, fuzzy, c-format
+msgid "missing 'nvram-template' in '%1$s'"
+msgstr "%1$s నందు దొరకని పేరు సమాచారం"
 
 msgid "missing 'path' attribute for vhostuser disk source"
 msgstr ""
@@ -30884,6 +30569,10 @@ msgstr "<interface> మూలకం నందు dev ఏట్రిబ్యూ
 msgid "missing device API for mediated device type '%1$s'"
 msgstr "%1$s కోసం సాధన సమాచారం తప్పిపోయింది"
 
+#, fuzzy, c-format
+msgid "missing device type in '%1$s'"
+msgstr "హబ్ పరికరం రకం లేదు"
+
 msgid "missing devices information"
 msgstr "సాధన సమాచారం తప్పిపోయింది"
 
@@ -31030,9 +30719,8 @@ msgstr "తప్పిపోయిన ఇన్‌పుట్ పరికర�
 msgid "missing input volume target path"
 msgstr "ఇన్పుట్ వాల్యూమ్ లక్ష్యపు పాత్ లేదు"
 
-#, c-format
-msgid "missing iothread mapping for queue '%1$zd'"
-msgstr ""
+msgid "missing interface information"
+msgstr "దొరకని ఇంటర్ఫేస్ సమాచారం"
 
 #, fuzzy
 msgid "missing ivgen info name string"
@@ -31067,6 +30755,10 @@ msgstr "లీజ్ కొరకు 'key' మూలకం దొరకట్ల
 #, fuzzy
 msgid "missing listen element for spice graphics"
 msgstr "లీజ్ కొరకు 'key' మూలకం దొరకట్లేదు"
+
+#, c-format
+msgid "missing mapping in '%1$s'"
+msgstr ""
 
 #, fuzzy
 msgid "missing microcode version in QEMU capabilities cache"
@@ -31194,9 +30886,6 @@ msgstr ""
 #, fuzzy
 msgid "missing path for <reservations/>"
 msgstr "దొరకని పేరు సమాచారం"
-
-msgid "missing path for ACPI ERST pstore device"
-msgstr ""
 
 msgid "missing path in nbdkit capabilities cache"
 msgstr ""
@@ -31445,10 +31134,6 @@ msgstr "అతిధేయి కొరకు పేరు లేదు"
 msgid "missing value for migration parameter '%1$s'"
 msgstr "%1$s నందు దొరకని పేరు సమాచారం"
 
-#, c-format
-msgid "missing value of modifying DNS TXT record in network %1$s"
-msgstr ""
-
 #, fuzzy
 msgid "missing values for acceleration"
 msgstr "దొరకని పేరు సమాచారం"
@@ -31550,16 +31235,6 @@ msgstr "నడుస్తున్న స్థితి సవరించు/
 msgid "modify/get the title instead of description"
 msgstr "వివరణకు బదులుగా శీర్షిక సవరించు/పొందు"
 
-#, c-format
-msgid ""
-"modprobe reported success loading module '%1$s', but module is missing from /"
-"sys/module"
-msgstr ""
-
-#, c-format
-msgid "module '%1$s' does not implement any pci driver"
-msgstr ""
-
 #, fuzzy
 msgid "monitor failure"
 msgstr "మానిటర్ పాత్ లేదు"
@@ -31601,12 +31276,6 @@ msgstr ""
 #, fuzzy
 msgid "msi option is only supported with a server"
 msgstr "sgio అనునది scsi అతిధేయ పరికరంకు మాత్రమే తోడ్పాటునిచ్చును"
-
-msgid "mtp is not supported with this QEMU binary"
-msgstr ""
-
-msgid "mtp only supports passthrough accessmode"
-msgstr ""
 
 #, c-format
 msgid ""
@@ -31737,9 +31406,6 @@ msgstr ""
 msgid "ncpumaps > REMOTE_VCPUINFO_MAX"
 msgstr "ncpumaps > REMOTE_VCPUINFO_MAX"
 
-msgid "ncpumaps must be non-negative"
-msgstr ""
-
 #, c-format
 msgid "ncpus count exceeds maximum: %1$u > %2$u"
 msgstr "ncpus లెక్క అనునది గరిష్టాన్ని దాటినది: %1$u > %2$u"
@@ -31781,9 +31447,6 @@ msgid "negotiation SSF %1$d was not strong enough"
 msgstr "నెగోషియేషన్ SSF %1$d సరిపోవునంత బలమైనదికాదు"
 
 msgid "nested JSON array to commandline conversion is not supported"
-msgstr ""
-
-msgid "net definition failed validation"
 msgstr ""
 
 msgid "netcat path not valid with native proxy mode"
@@ -32177,6 +31840,9 @@ msgstr "'%1$s' కొరకు యెటువంటి USB వుత్పత�
 #, c-format
 msgid "no USB vendor ID supplied for '%1$s'"
 msgstr "'%1$s' కొరకు యెటువంటి USB అమ్మకందారి ID అందివ్వబడలేదు"
+
+msgid "no VPD <fields> elements with an access type attribute found"
+msgstr ""
 
 #, c-format
 msgid "no WWNN supplied for '%1$s', and auto-generation failed"
@@ -32644,10 +32310,6 @@ msgstr "నోడ్ cpu మాప్"
 msgid "node device '%1$s' in %2$s must match connection"
 msgstr ""
 
-#, c-format
-msgid "node device '%1$s' is not persistent"
-msgstr ""
-
 msgid "node device details in XML"
 msgstr "XML నందు నోడ్ పరికరపు వివరములు"
 
@@ -32656,9 +32318,6 @@ msgid "node device event callback %1$d not registered"
 msgstr "డొమైన్ ఘటన %1$d నమోదుకాలేదు"
 
 msgid "node device information"
-msgstr ""
-
-msgid "node device is not active"
 msgstr ""
 
 msgid "node get memory parameters not implemented on this platform"
@@ -32703,10 +32362,6 @@ msgstr "NUMA మెమొరీ ట్యూనింగ్ కొరకు న�
 msgid "non unique alias detected: %1$s"
 msgstr ""
 
-#, c-format
-msgid "non-shared storage migration into '%1$s' target is not supported"
-msgstr ""
-
 msgid "nonzero ncpus doesn't match with NULL cpus"
 msgstr "సున్నాకాని ncpus అనునవి NULL cpus తో సరిపోలవు"
 
@@ -32748,9 +32403,6 @@ msgstr "%1$s నందలి nparams తప్పక %2$d కావాలి"
 msgid "nparams in %1$s must be equal to %2$d"
 msgstr "%1$s నందలి nparams తప్పక %2$d కు సమానం కావాలి"
 
-msgid "nparams must be non-negative"
-msgstr ""
-
 msgid "nparams too large"
 msgstr "nparams మరీ పెద్దవి"
 
@@ -32760,6 +32412,9 @@ msgstr "పారామితి '%s' యీ కెర్నల్‌చే త�
 
 msgid "numad is not available on this host"
 msgstr "ఈ అతిధేయపై నమ్‌పాడ్ అందుబాటులోలేదు"
+
+msgid "number"
+msgstr "సంఖ్య"
 
 msgid "number of bytes read:"
 msgstr "చదివిన బైట్ల సంఖ్య:"
@@ -32957,9 +32612,6 @@ msgstr "ఒక వొంటరి మెమొరీ బెలూన్ పర�
 msgid "only a single nvram device is supported"
 msgstr "ఒక వొంటరి nvram పరికరం మాత్రమే తోడ్పాటునిచ్చును"
 
-msgid "only a single pstore device is supported"
-msgstr ""
-
 #, fuzzy
 msgid "only a single vsock device is supported"
 msgstr "ఒక వొంటరి nvram పరికరం మాత్రమే తోడ్పాటునిచ్చును"
@@ -32976,9 +32628,6 @@ msgid "only can reboot running/paused domain"
 msgstr ""
 
 msgid "only can resume paused domain"
-msgstr ""
-
-msgid "only can save running/paused domain"
 msgstr ""
 
 msgid "only can shutdown running/paused domain"
@@ -33152,6 +32801,9 @@ msgstr "విధాన వైఫల్యం: %1$s"
 msgid "operation type %1$d not supported"
 msgstr "ఆపరేషన్ రకం %1$d తోడ్పాటునీయదు"
 
+msgid "optdata"
+msgstr "optdata"
+
 #, fuzzy, c-format
 msgid "option %1$s requires a positive integer argument"
 msgstr "ఐచ్చికం '-%c' కు ఆర్గుమెంట్ కావాలి"
@@ -33231,9 +32883,6 @@ msgstr "vhost-net అనునది ఈ QEMU బైనరీతో తోడ్
 
 msgid "output an XML string for the hypervisor sysinfo, if available"
 msgstr "హైపర్విజర్ వ్యవస్థసమాచారం అందుబాటులో వుంటే గనుక, XML స్ట్రింగ్ నందు అవుట్‌పుట్ యివ్వు"
-
-msgid "output help for each command"
-msgstr ""
 
 msgid "output the list of options which are missing completers"
 msgstr ""
@@ -33335,6 +32984,27 @@ msgstr "పారామితి '%1$s' తోడ్పాటులేదు"
 #, c-format
 msgid "parameter '%1$s' occurs multiple times"
 msgstr "పారామితి '%1$s' బహుళ పర్యాయాలు యెదురవుతుంది"
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' has incorrect alias option"
+msgstr ""
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' misused VSH_OFLAG_REQ"
+msgstr ""
+
+#, c-format
+msgid ""
+"parameter '%1$s' of command '%2$s' must be listed before optional parameters"
+msgstr ""
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' must be listed last"
+msgstr ""
+
+#, c-format
+msgid "parameter '%1$s' of command '%2$s' must use VSH_OFLAG_REQ flag"
+msgstr ""
 
 msgid "parameter=value"
 msgstr "parameter=value"
@@ -33440,19 +33110,15 @@ msgstr "pcap_setdirection: %1$s"
 msgid "pcap_setfilter: %1$s"
 msgstr "pcap_setfilter: %1$s"
 
-#, c-format
-msgid "pci backend driver type '%1$s' is not supported"
-msgstr ""
+#, fuzzy, c-format
+msgid "pci backend driver '%1$s' is not supported"
+msgstr "డిస్కు డ్రైవర్ %1$s తోడ్పాటులేదు"
 
 #, fuzzy, c-format
 msgid "pci device %1$s is not a PCI-Express device"
 msgstr "పరికరము %1$s PCI పరికరము కాదు"
 
 msgid "pci device assignment backend driver (e.g. 'vfio' or 'xen')"
-msgstr ""
-
-#, c-format
-msgid "pci driver '%1$s' supposedly loaded by module '%2$s' not found in sysfs"
 msgstr ""
 
 msgid ""
@@ -33730,10 +33396,9 @@ msgstr "KEEPCAPS తిరిగిఅమర్చుటకు prctl విఫ�
 msgid "prctl failed to set KEEPCAPS"
 msgstr "KEEPCAPS అమర్చుటకు prctl విఫలమైంది"
 
-#, c-format
 msgid ""
-"pre-creation of storage target for incremental storage migration of disk "
-"'%1$s' is not supported"
+"pre-creation of storage targets for incremental storage migration is not "
+"supported"
 msgstr ""
 
 #, fuzzy
@@ -33751,9 +33416,6 @@ msgid "preallocate metadata (for qcow2 instead of full allocation)"
 msgstr "ప్రీఎలొకేట్ మెటాడాటా (పూర్తి కేటాయింపు బదులుగా qcow2 కొరకు)"
 
 msgid "preallocation threads are unsupported with this QEMU"
-msgstr ""
-
-msgid "prefix the message"
 msgstr ""
 
 #, fuzzy
@@ -33815,6 +33477,9 @@ msgstr "మనిషి చదువగల అవుట్పుట్ ముద
 
 msgid "print help"
 msgstr "ముద్రణ సహాయం"
+
+msgid "print help for this function"
+msgstr "ఈ ఫంక్షన్ కొరకు సహాయం ముద్రించు"
 
 #, fuzzy
 msgid "print lease info for a given network"
@@ -33911,18 +33576,6 @@ msgstr "మైగ్రేషన్ల కొరకు సరిపోయే XML
 #, c-format
 msgid "ps2 bus does not support %1$s input device"
 msgstr "ps2 బస్ అనునది %1$s ఇన్‌పుట్ పరికరమును మద్దతీయుటలేదు"
-
-msgid "ps2 bus inputs require the ps2 feature not to be disabled"
-msgstr ""
-
-msgid "ps2 feature is not available with this QEMU binary"
-msgstr ""
-
-msgid "ps2 feature state cannot be controlled with this QEMU binary"
-msgstr ""
-
-msgid "pstore device is missing alias"
-msgstr ""
 
 #, c-format
 msgid "pull mode backup for disk '%1$s' requires qcow2 driver"
@@ -34140,9 +33793,6 @@ msgstr "నిరోధకగణాంకాల పరికర ప్రవే�
 msgid "query-rx-filter return data missing array element"
 msgstr ""
 
-msgid "query-sev reply was missing some data"
-msgstr ""
-
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'cbitpos' field"
 msgstr "query-version ప్రత్యుత్తరంకు 'micro' వర్షన్ దొరకలేదు"
@@ -34158,9 +33808,6 @@ msgstr "'qemu' దత్తాంశం క్వరీ-వర్షన్ ప�
 #, fuzzy
 msgid "query-sev-capabilities reply was missing 'reduced-phys-bits' field"
 msgstr "'qemu' దత్తాంశం క్వరీ-వర్షన్ ప్రత్యుత్తరంకు దొరకలేదు"
-
-msgid "query-sev-launch-measure reply was missing 'data'"
-msgstr ""
 
 msgid "query-sgx-capabilities reply was missing 'flc' field"
 msgstr ""
@@ -34239,12 +33886,6 @@ msgstr ""
 
 #, c-format
 msgid "range %1$s - %2$s start larger than end"
-msgstr ""
-
-msgid "ras feature is not available with this QEMU binary"
-msgstr ""
-
-msgid "ras feature is only supported with ARM Virt machines"
 msgstr ""
 
 msgid "rawio can be used only with device='lun'"
@@ -34338,10 +33979,6 @@ msgstr "nl_recv విఫలమైంది"
 #, fuzzy
 msgid "recv holeHandler failed"
 msgstr "ఆపరేషన్ తిరిగికొనసాగింపు విఫలమైంది"
-
-#, c-format
-msgid "recv on sock %1$d failed"
-msgstr ""
 
 #, fuzzy
 msgid "redefine metadata for existing checkpoint"
@@ -34564,10 +34201,6 @@ msgstr "అభ్యర్దించిన cpu మొత్తం గరిష
 msgid "requested cpu amount exceeds maximum supported amount (%1$d > %2$d)"
 msgstr "అభ్యర్దించిన cpu మొత్తం గరిష్టం (%1$d > %2$d) మించినది"
 
-#, c-format
-msgid "requested firewall_backend '%1$s' is not available"
-msgstr ""
-
 msgid "requested size must be an integer multiple of block size"
 msgstr ""
 
@@ -34638,22 +34271,9 @@ msgstr ""
 msgid "resize a vol"
 msgstr "వాల్యూమ్ పునఃపరిమాణంచేయి"
 
-msgid "resize of a 'sd' disk with storage slice is not supported"
-msgstr ""
-
-msgid "resize of a disk with storage slice is supported only for 'raw' images"
-msgstr ""
-
-msgid ""
-"resize of a disk with storage slice with non-zero 'offset' is not supported"
-msgstr ""
-
 #, fuzzy
 msgid "resize of qcow2 encrypted image is not supported"
 msgstr "fs ఫార్మాట్ %s తోడ్పాటులేదు"
-
-msgid "resize to capacity of source (block device)"
-msgstr ""
 
 msgid "resource busy"
 msgstr "వనరు రద్దీగావుంది"
@@ -34829,9 +34449,6 @@ msgstr "దాచుట రద్దైనది"
 
 msgid "save image is incomplete"
 msgstr "చిత్రము దాచుట పూర్తికాలేదు"
-
-msgid "save image magic is incorrect"
-msgstr ""
 
 msgid "saved"
 msgstr "దాచిన"
@@ -35155,9 +34772,6 @@ msgstr ""
 msgid "setting virtiofs boot order is not supported with this QEMU binary"
 msgstr ""
 
-msgid "setting virtiofs boot order is supported only with PCI bus"
-msgstr ""
-
 msgid "setuid or setgid failed"
 msgstr "setuid లేదా setgid విఫలమైంది"
 
@@ -35252,7 +34866,10 @@ msgstr ""
 msgid "shmem name cannot include '/' character"
 msgstr "ipset పేరు చెల్లని అక్షరాలు కలిగివుంది"
 
-msgid "shmem size must be a power of 2 and at least 1 MiB (1024 KiB)"
+msgid "shmem size must be a power of two"
+msgstr ""
+
+msgid "shmem size must be at least 1 MiB (1024 KiB)"
 msgstr ""
 
 msgid "show all possible graphical displays"
@@ -35756,6 +35373,9 @@ msgstr "స్ట్రీమ్ తెరిచిలేదు"
 msgid "stream must match connection of domain '%1$s'"
 msgstr ""
 
+msgid "string"
+msgstr "స్ట్రింగు"
+
 #, fuzzy, c-format
 msgid "string %1$s in %2$s must not be empty"
 msgstr "%1$s దీని నందలిది %2$s తప్పక సున్నా కాకూడదు"
@@ -35959,16 +35579,8 @@ msgstr ""
 msgid "terminate gracefully"
 msgstr "సఫలవంతంగా అంతంచేయి"
 
-#, c-format
-msgid "test hypervisor does not support device assignment mode '%1$s'"
-msgstr ""
-
 msgid "testOpen: supply a path or use test:///default"
 msgstr "testOpen: పాత్ ను సమకూర్చండి లేదా test:///default ఉపయోగించండి"
-
-#, c-format
-msgid "the '%1$s' network backend is not supported with this QEMU binary"
-msgstr ""
 
 #, c-format
 msgid ""
@@ -36060,6 +35672,9 @@ msgid "the machine has no snapshot"
 msgstr "డొమైన్ ఏ స్నాప్‌షాట్లను కలిగిలేదు"
 
 msgid "the new password"
+msgstr ""
+
+msgid "the passt network backend is not supported with this QEMU binary"
 msgstr ""
 
 #, fuzzy
@@ -36651,9 +36266,6 @@ msgstr "అస్థిర డొమైన్స్ స్థిర ఆకృత
 msgid "transient is not supported with vhostuser disk"
 msgstr ""
 
-msgid "transient node devices do not have any persistent config"
-msgstr ""
-
 #, fuzzy, c-format
 msgid "transport '%1$s' does not support socket attribute"
 msgstr "పూల్ టైప్ '%1$s' మూలము ఆవిష్కారమును మద్దతించదు"
@@ -36723,10 +36335,6 @@ msgstr "హబ్ రకం %1$s తోడ్పాటునీయదు"
 #, fuzzy, c-format
 msgid "type mismatch in event (actual 0x%1$x, expected 0x%2$x)"
 msgstr "ప్రోగ్రామ్ సరిపోలలేదు (యథార్ధ %1$x, అనుకొన్నది %2$x)"
-
-#, c-format
-msgid "type must be less than %1$d"
-msgstr ""
 
 msgid "type of source (block|file|network)"
 msgstr ""
@@ -36841,6 +36449,10 @@ msgstr "selinux సందర్భం సృష్టించలేదు: %1$s
 msgid "unable to create socket pair"
 msgstr "సాకెట్ జంట సృష్టించుట లేదు"
 
+#, fuzzy
+msgid "unable to create volume XML"
+msgstr "epoll fd సృష్టించలేదు"
+
 #, c-format
 msgid ""
 "unable to delete interface '%1$s' in network '%2$s'. It is currently being "
@@ -36897,9 +36509,9 @@ msgstr "రహస్య నిల్వ డ్రైవర్‌ను కను
 msgid "unable to find audio backend for sound device"
 msgstr ""
 
-#, c-format
-msgid "unable to find disk target '%1$s' for non-shared-storage migration"
-msgstr ""
+#, fuzzy, c-format
+msgid "unable to find disk by target: %1$s"
+msgstr "లక్ష్యం %1$s స్టాట్ బైండ్‌కు చేయలేదు"
 
 #, c-format
 msgid "unable to find parent device '%1$s'"
@@ -36955,10 +36567,6 @@ msgstr "cpu ఖాతా పొందలేక పోయింది"
 #, c-format
 msgid "unable to get current process context '%1$s'"
 msgstr "ప్రస్తుత ప్రోసెస్ సందర్భం '%1$s' పొందలేదు"
-
-#, c-format
-msgid "unable to get interface index for %1$s"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "unable to get machine from console. (error %1$d)"
@@ -37502,6 +37110,10 @@ msgid "unexpected host-model CPU for %1$s architecture"
 msgstr "%1$s ఆకృతి కొరకు CPU డాటాను డీకోడ్ చేయలేము"
 
 #, c-format
+msgid "unexpected hostdev driver name type %1$d "
+msgstr "అనుకోని hostdev డ్రైవర్ పేరు రకం %1$d"
+
+#, c-format
 msgid "unexpected hostdev mode %1$d"
 msgstr "అనుకోని hostdev రీతి %1$d"
 
@@ -37590,8 +37202,8 @@ msgid "unexpected nwfilter URI path '%1$s', try nwfilter:///system"
 msgstr "అనుకోని OpenVZ URI పాత్ '%1$s', openvz:///system ప్రయత్నించుము"
 
 #, c-format
-msgid "unexpected pci hostdev driver name %1$d"
-msgstr ""
+msgid "unexpected pci hostdev driver name type %1$d"
+msgstr "అనుకోని pci hostdev డ్రైవర్ పేరు రకం %1$d"
 
 msgid "unexpected pool type"
 msgstr "ఊహించని పూల్ రకము"
@@ -37763,16 +37375,16 @@ msgid "unknown SDL_AUDIODRIVER setting %1$s"
 msgstr ""
 
 #, c-format
-msgid "unknown SEV type '%1$s'"
-msgstr ""
-
-#, c-format
 msgid "unknown address type '%1$s' in network %2$s"
 msgstr "తెలియని చిరునామా రకం '%1$s' నెట్వర్కు %2$s నందు"
 
 #, c-format
 msgid "unknown arch %1$s in QEMU capabilities cache"
 msgstr ""
+
+#, fuzzy, c-format
+msgid "unknown architecture '%1$s'"
+msgstr "తెలియని ఆకృతి %1$s"
 
 #, fuzzy, c-format
 msgid "unknown architecture: %1$s"
@@ -37861,6 +37473,10 @@ msgstr "తెలియని అనుసంధానిత విలువ %1$
 msgid "unknown device type '%1$s'"
 msgstr "తెలియని పరికర రకం '%1$s'"
 
+#, fuzzy, c-format
+msgid "unknown device type in '%1$s'"
+msgstr "తెలియని పరికర రకం '%1$s'"
+
 #, c-format
 msgid "unknown disk snapshot driver '%1$s'"
 msgstr "తెలియని డిస్కు స్నాప్‌షాట్ డ్రైవర్ '%1$s'"
@@ -37946,6 +37562,10 @@ msgstr "తెలియని యింటర్ఫేస్ లింకు స
 #, c-format
 msgid "unknown interface startmode %1$s"
 msgstr "తెలియని ఇంటర్ఫేస్ ప్రారంభరకము %1$s"
+
+#, fuzzy, c-format
+msgid "unknown interface type: '%1$s'"
+msgstr "తెలియని ఇంటర్ఫేస్ రకము '%1$s'"
 
 #, fuzzy, c-format
 msgid "unknown ip address type '%1$s'"
@@ -38039,13 +37659,16 @@ msgstr ""
 msgid "unknown secret type '%1$s'"
 msgstr "తెలియని పరికర రకం '%1$s'"
 
+msgid "unknown secret usage type"
+msgstr "తెలియని రహస్య వినియోగరకము"
+
+#, c-format
+msgid "unknown secret usage type %1$s"
+msgstr "తెలియని రహస్య వినియోగ రకము %1$s"
+
 #, c-format
 msgid "unknown smbios mode '%1$s'"
 msgstr "తెలియని smbios రీతి '%1$s'"
-
-#, c-format
-msgid "unknown state '%1$s' for '%2$s'"
-msgstr ""
 
 #, c-format
 msgid "unknown storage capability type '%1$s' for '%2$s'"
@@ -38179,12 +37802,6 @@ msgid "unreachable static route gateway '%1$s' specified for network '%2$s'"
 msgstr "చేరలేని స్టాటిక్ రౌట్ గేట్‌వే '%1$s' నెట్వర్కు '%2$s' కొరకు తెలుపబడెను"
 
 #, c-format
-msgid ""
-"unrecognized 'firewall_backend = '%1$s' set in network driver config file "
-"%2$s"
-msgstr ""
-
-#, c-format
 msgid "unrecognized command name '%1$s'"
 msgstr "గుర్తించని ఆదేశం పేరు '%1$s'"
 
@@ -38275,10 +37892,6 @@ msgstr ""
 #, c-format
 msgid "unsupported authentication type %1$d"
 msgstr "మద్దతీయని దృవీకరణ రకము %1$d"
-
-#, c-format
-msgid "unsupported backend for pstore device: %1$s"
-msgstr ""
 
 #, fuzzy, c-format
 msgid "unsupported balloon device model '%1$s'"
@@ -38765,10 +38378,6 @@ msgid "validate the redefined checkpoint"
 msgstr ""
 
 #, c-format
-msgid "value '%1$llu' is too big for '%2$s' parameter, maximum is '%3$llu'"
-msgstr ""
-
-#, c-format
 msgid "value '%1$llu' is too big for coalesce parameter, maximum is '%2$lu'"
 msgstr ""
 
@@ -38962,9 +38571,6 @@ msgstr "వర్షన్ తేడా (యధార్ధం %1$x, అను�
 msgid "version parsing error"
 msgstr "వర్షన్ పార్సింగ్ దోషం"
 
-msgid "vfio migration was active, but 'transferred' data was missing"
-msgstr ""
-
 msgid "vgamem attribute only supported for video type qxl"
 msgstr ""
 
@@ -38988,6 +38594,9 @@ msgstr "hostdev వుపవ్యవస్థ రకము '%1$s' మద్ద�
 #, fuzzy
 msgid "vhost-user-gpu failed to start"
 msgstr "అతిథి ప్రారంభించుటలో విఫలమైంది: %s"
+
+msgid "vhost_user type support UNIX socket in this CH"
+msgstr ""
 
 msgid "vhostuser disk supports only virtio bus"
 msgstr ""
@@ -39123,10 +38732,6 @@ msgstr "virVMXContext ఏ formatFileName ఫంక్షన్ సమితి �
 msgid "virVMXContext has no parseFileName function set"
 msgstr "virVMXContext అనునది parseFileName ఫంక్షన్ సమితి కలిగిలేదు"
 
-#, c-format
-msgid "virt type '%1$s' is not supported"
-msgstr ""
-
 #, fuzzy, c-format
 msgid ""
 "virtio (non-)transitional models are not supported for address type=%1$s"
@@ -39177,9 +38782,6 @@ msgstr ""
 msgid "virtio-mem device is missing <requested/>"
 msgstr ""
 
-msgid "virtio-mem does not support dynamicMemslots"
-msgstr ""
-
 msgid "virtio-mem isn't supported by this QEMU binary"
 msgstr ""
 
@@ -39212,9 +38814,6 @@ msgstr ""
 msgid "virtio-serial controller %1$u not available"
 msgstr "virGetUserDirectory అందుబాటులో లేదు"
 
-msgid "virtio-sound controller is not supported in this QEMU binary"
-msgstr ""
-
 msgid "virtiofs does not support fmode and dmode"
 msgstr ""
 
@@ -39244,6 +38843,10 @@ msgstr "పూల్ అనునది పూల్ తొలగింపున
 #, fuzzy
 msgid "virtiofs is not supported with this QEMU binary"
 msgstr "vhost-net అనునది ఈ QEMU బైనరీతో తోడ్పాటునీయదు"
+
+#, fuzzy
+msgid "virtiofs is not yet supported in session mode"
+msgstr "USB రీడైరెక్షన్ అనునది ఈ QEMU వర్షన్ చేత తోడ్పాటునీయబడదు"
 
 #, fuzzy
 msgid "virtiofs only supports passthrough accessmode"
@@ -39309,9 +38912,6 @@ msgid ""
 msgstr ""
 "vmplayer అనునది libvirt నిలువరింపు/కొనసాగింపు (vmware నిలువరింపు/కొనసాగింపు) ఆపరేషన్ "
 "తోడ్పాటునీయదు"
-
-msgid "vmport feature requires the ps2 feature not to be disabled"
-msgstr ""
 
 #, fuzzy
 msgid "vmport is not available with this QEMU binary"
@@ -39643,387 +39243,9 @@ msgstr ""
 msgid "zone %1$s requested for network %2$s but firewalld is not active"
 msgstr ""
 
-#~ msgid "DNS HOST records cannot be modified, only added or deleted"
-#~ msgstr "DNS HOST రికార్డ్స్ సవరించబడలేవు, జతచేసినవి లేదా తొలగించినవి మాత్రమే"
-
-#~ msgid "DNS TXT records cannot be modified, only added or deleted"
-#~ msgstr "DNS TXT రికార్డ్స్ సవరించబడలేవు, జతచేసినవి లేదా తొలగించినవి మాత్రమే"
-
 #, c-format
-#~ msgid "VMX entry '%1$s' doesn't contain a port part"
-#~ msgstr "VMX ప్రవేశం '%1$s' పోర్ట్ పార్ట్ కలిగివుండదు"
-
-#, fuzzy
-#~ msgid "migration with virtiofs device is not supported"
-#~ msgstr "స్థిరమైన పరికర అనుబందం తోడ్పాటులేదు"
-
-#, fuzzy
-#~ msgid "failed to create udev enumerate thread"
-#~ msgstr "udev కాంటెక్స్ట్ సృష్టించుటకు విఫలమైంది"
-
-#, c-format
-#~ msgid "%1$6s: Checking %2$-60s: "
-#~ msgstr "%1$6s: పరిశీలించుతోంది %2$-60s: "
-
-#, fuzzy, c-format
-#~ msgid "Failed to apply firewall rules %1$s: %2$s"
-#~ msgstr "'%1$s' సృష్టించుటలో విఫలమైంది: %2$s"
-
-#, fuzzy
-#~ msgid "Unable to create rule"
-#~ msgstr "%s సృష్టించలేదు"
-
-#, c-format
-#~ msgid "failed to get number of %1$s interfaces on host"
-#~ msgstr "అతిధేయపై %1$s యింటర్ఫేసుల సంఖ్యను పొందుటలో విఫలమైంది"
-
-#, c-format
-#~ msgid "for Linux >= %1$d.%2$d.%3$d"
-#~ msgstr "for Linux >= %1$d.%2$d.%3$d"
-
-#~ msgid "(none)"
-#~ msgstr "(ఏదీ కాదు)"
-
-#, fuzzy, c-format
-#~ msgid "--%1$s is required"
-#~ msgstr "--%1$s లేదా --current అవసరమైంది"
-
-#~ msgid "bool"
-#~ msgstr "bool"
-
-#~ msgid "cd: command valid only in interactive mode"
-#~ msgstr "cd: ఇంటారాక్టివ్ రీతినందు మాత్రమే ఆదేశము చెల్లునది"
-
-#, c-format
-#~ msgid "expected syntax: --%1$s <%2$s>"
-#~ msgstr "ఊహించిన సిన్టాక్సు: --%1$s <%2$s>"
-
-#~ msgid "number"
-#~ msgstr "సంఖ్య"
-
-#~ msgid "optdata"
-#~ msgstr "optdata"
-
-#~ msgid "print help for this function"
-#~ msgstr "ఈ ఫంక్షన్ కొరకు సహాయం ముద్రించు"
-
-#~ msgid "string"
-#~ msgstr "స్ట్రింగు"
-
-#, c-format
-#~ msgid "<%1$s>"
-#~ msgstr "<%1$s>"
-
-#, c-format
-#~ msgid "<%1$s>..."
-#~ msgstr "<%1$s>..."
-
-#, c-format
-#~ msgid "Cannot find suitable emulator for %1$s"
-#~ msgstr "%1$s కొరకు సరితూగు ఎమ్యులేటర్ కనుగొనలేక పోయింది"
-
-#~ msgid ""
-#~ "Get or set node memory parameters\n"
-#~ "    To get the memory parameters, use following command: \n"
-#~ "\n"
-#~ "    virsh # node-memory-tune"
-#~ msgstr ""
-#~ "నోడ్ మెమొరీ పారామితులు పొందు లేదా అమర్చు\n"
-#~ "    మెమొరీ పారామితులు పొందుటకు, కింది ఆదేశం వుపయోగించు: \n"
-#~ "\n"
-#~ "    virsh # node-memory-tune"
-
-#~ msgid ""
-#~ "Get or set the current blkio parameters for a guest domain.\n"
-#~ "    To get the blkio parameters use following command: \n"
-#~ "\n"
-#~ "    virsh # blkiotune <domain>"
-#~ msgstr ""
-#~ "అతిథి డొమైన్ కొరకు ప్రస్తుత blkio పారామితులు అమర్చు లేదా పొందు.\n"
-#~ "    blkio పారామితులను పొందుటకు కింది ఆదేశం వుపయోగించు: \n"
-#~ "\n"
-#~ "    virsh # blkiotune <domain>"
-
-#~ msgid ""
-#~ "Get or set the current memory parameters for a guest domain.\n"
-#~ "    To get the memory parameters use following command: \n"
-#~ "\n"
-#~ "    virsh # memtune <domain>"
-#~ msgstr ""
-#~ "అతిథి డొమైన్ కొరకు ప్రస్తుత మెమొరీ పారామితులు పొందు లేదా అమర్చు.\n"
-#~ "    మెమొరీ పారామితులు పొందుటకు కింది ఆదేశం వుపయోగించు: \n"
-#~ "\n"
-#~ "    virsh # memtune <domain>"
-
-#~ msgid ""
-#~ "Get or set the current numa parameters for a guest domain.\n"
-#~ "    To get the numa parameters use following command: \n"
-#~ "\n"
-#~ "    virsh # numatune <domain>"
-#~ msgstr ""
-#~ "అతిథి డొమైన్ కొరకు ప్రస్తుత numa పారామితులు పొందలేదు లేదా అమర్చలేదు.\n"
-#~ "    numa పారామితులను పొందుటకు కింది ఆదేశం వుపయోగించండి: \n"
-#~ "\n"
-#~ "    virsh # numatune <domine>"
-
-#, fuzzy
-#~ msgid ""
-#~ "Get or set the current perf events for a guest domain.\n"
-#~ "    To get the perf events list use following command: \n"
-#~ "\n"
-#~ "    virsh # perf <domain>"
-#~ msgstr ""
-#~ "అతిథి డొమైన్ కొరకు ప్రస్తుత మెమొరీ పారామితులు పొందు లేదా అమర్చు.\n"
-#~ "    మెమొరీ పారామితులు పొందుటకు కింది ఆదేశం వుపయోగించు: \n"
-#~ "\n"
-#~ "    virsh # memtune <domain>"
-
-#~ msgid "Multiple legacy USB controllers are not supported"
-#~ msgstr "బహుళ లెగసీ USB నియంత్రికలు తోడ్పాటునీయవు"
-
-#, c-format
-#~ msgid "[--%1$s <number>]"
-#~ msgstr "[--%1$s <number>]"
-
-#, c-format
-#~ msgid "[--%1$s <string>]"
-#~ msgstr "[--%1$s <string>]"
-
-#, c-format
-#~ msgid "[<%1$s>]..."
-#~ msgstr "[<%1$s>]..."
-
-#, c-format
-#~ msgid "[[--%1$s] <string>]..."
-#~ msgstr "[[--%1$s] <string>]..."
-
-#, fuzzy, c-format
-#~ msgid "command '%1$s' has inconsistent alias"
-#~ msgstr "డొమైన్ '%1$s' ఏ ప్రస్తుత స్నాప్‌షాట్ కలిగిలేదు"
-
-#, fuzzy, c-format
-#~ msgid "command '%1$s' has too many options"
-#~ msgstr "'%s' ఆదేశానికి --%s ఐచ్ఛికం కావలసి ఉంది"
-
-#, fuzzy, c-format
-#~ msgid "failed to get interface-types from '%1$s'"
-#~ msgstr "ఇంటర్ఫేస్ '%1$s' పొందుటకు విఫలమైంది"
-
-#, fuzzy, c-format
-#~ msgid "failed to get targets from '%1$s'"
-#~ msgstr "రహస్యము '%1$s' పొందుటకు విఫలమైంది"
-
-#, fuzzy, c-format
-#~ msgid "missing 'architecture' in '%1$s'"
-#~ msgstr "తప్పిపోయిన CPU ఆకృతి"
-
-#, fuzzy, c-format
-#~ msgid "missing 'executable' in '%1$s'"
-#~ msgstr "తప్పనిసరి ఆకృతీకరణ ప్రవేశం '%1$s' దొరకలేదు"
-
-#, fuzzy, c-format
-#~ msgid "missing 'filename' in '%1$s'"
-#~ msgstr "%1$s నందు దొరకని పేరు సమాచారం"
-
-#, fuzzy, c-format
-#~ msgid "missing 'format' in '%1$s'"
-#~ msgstr "%1$s నందు దొరకని పేరు సమాచారం"
-
-#, fuzzy, c-format
-#~ msgid "missing 'machines' in '%1$s'"
-#~ msgstr "స్నాప్‌షాట్ నందు డొమైన్ లేదు"
-
-#, fuzzy, c-format
-#~ msgid "missing 'nvram-template' in '%1$s'"
-#~ msgstr "%1$s నందు దొరకని పేరు సమాచారం"
-
-#, fuzzy, c-format
-#~ msgid "missing device type in '%1$s'"
-#~ msgstr "హబ్ పరికరం రకం లేదు"
-
-#, fuzzy, c-format
-#~ msgid "unknown architecture '%1$s'"
-#~ msgstr "తెలియని ఆకృతి %1$s"
-
-#, fuzzy, c-format
-#~ msgid "unknown device type in '%1$s'"
-#~ msgstr "తెలియని పరికర రకం '%1$s'"
-
-#, fuzzy, c-format
-#~ msgid "unknown interface type: '%1$s'"
-#~ msgstr "తెలియని ఇంటర్ఫేస్ రకము '%1$s'"
-
-#, c-format
-#~ msgid "{[--%1$s] <string>}..."
-#~ msgstr "{[--%1$s] <string>}..."
-
-#, fuzzy
-#~ msgid "Cannot extract cache nodes under cachetune"
-#~ msgstr "కన్సోల్ పరికరాలను వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "Cannot extract memnode nodes"
-#~ msgstr "numatune నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "Cannot extract memory nodes under memorytune"
-#~ msgstr "గరిష్ట మెమొరీకన్నా యెక్కువగా మెమొరీని అమర్చలేము"
-
-#, fuzzy
-#~ msgid "Cannot extract monitor nodes"
-#~ msgstr "ఎమ్యులేటర్‌పిన్ నోడ్స్ వెలికితీయలేదు"
-
-#~ msgid "cannot extract blkiotune nodes"
-#~ msgstr "blkiotune నోడ్లను బహిర్గతపరచలేదు"
-
-#, fuzzy
-#~ msgid "cannot extract cachetune nodes"
-#~ msgstr "numatune నోడ్స్ వెలికితీయలేదు"
-
-#~ msgid "cannot extract console devices"
-#~ msgstr "కన్సోల్ పరికరాలను వెలికితీయలేదు"
-
-#~ msgid "cannot extract device leases"
-#~ msgstr "పరికరం లీజులను వెలికితీయలేదు"
-
-#~ msgid "cannot extract emulatorpin nodes"
-#~ msgstr "ఎమ్యులేటర్‌పిన్ నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "cannot extract emulatorsched nodes"
-#~ msgstr "ఎమ్యులేటర్‌పిన్ నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "cannot extract hugepages nodes"
-#~ msgstr "numatune నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "cannot extract iothreadpin nodes"
-#~ msgstr "ఎమ్యులేటర్‌పిన్ నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "cannot extract iothreadsched nodes"
-#~ msgstr "వనరు నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "cannot extract memorytune nodes"
-#~ msgstr "numatune నోడ్స్ వెలికితీయలేదు"
-
-#~ msgid "cannot extract resource nodes"
-#~ msgstr "వనరు నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "cannot extract snapshot nodes"
-#~ msgstr "numatune నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "cannot extract vcpusched nodes"
-#~ msgstr "వనరు నోడ్స్ వెలికితీయలేదు"
-
-#, fuzzy
-#~ msgid "failed to parse CPU blockers in QEMU capabilities"
-#~ msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
-
-#, fuzzy
-#~ msgid "failed to parse qemu capabilities cpus"
-#~ msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
-
-#~ msgid "failed to parse qemu capabilities flags"
-#~ msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
-
-#, fuzzy
-#~ msgid "failed to parse qemu capabilities gic"
-#~ msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
-
-#, fuzzy
-#~ msgid "failed to parse qemu capabilities machines"
-#~ msgstr "qemu సామర్థ్యాల ఫ్లాగ్స్ పార్స్ చేయుటకు విఫలమైంది"
-
-#, fuzzy
-#~ msgid "failed to parse slirp-helper features"
-#~ msgstr "%s యొక్క విలువను పార్స్ చేయుటకు విఫలమైంది"
-
-#, c-format
-#~ msgid "invalid <address> element found in <forward> of network %1$s"
-#~ msgstr "చెల్లని <address> మూలకం నెట్వర్కు %1$s యొక్క <forward> నందు కనుగొంది"
-
-#, fuzzy, c-format
-#~ msgid "invalid <forwarder> element found in <dns> of network %1$s"
-#~ msgstr "చెల్లని <srv> మూలకం నెట్వర్కు %1$s యొక్క <dns> నందు కనబడింది"
-
-#, c-format
-#~ msgid "invalid <host> element found in <dns> of network %1$s"
-#~ msgstr "చెల్లని <host> మూలకం నెట్వర్కు %1$s యొక్క <dns> నందు కనబడింది"
-
-#, c-format
-#~ msgid "invalid <interface> element found in <forward> of network %1$s"
-#~ msgstr "చెల్లని <interface> మూలకం నెట్వర్కు %1$s యొక్క <forward> నందు కనుగొంది"
-
-#, c-format
-#~ msgid "invalid <nat> element found in <forward> of network %1$s"
-#~ msgstr "చెల్లని <nat> మూలకం నెట్వర్కు %1$s యొక్క <forward> నందు కనుగొంది"
-
-#, c-format
-#~ msgid "invalid <pf> element found in <forward> of network %1$s"
-#~ msgstr "చెల్లని <pf> మూలకం నెట్వర్కు %1$s యొక్క <forward> నందు కనుగొంది"
-
-#, c-format
-#~ msgid "invalid <port> element found in <forward> of network %1$s"
-#~ msgstr "నెట్వర్కు %1$s యొక్క <forward> నందు చెల్లని <port> మూలకం కనబడెను"
-
-#, c-format
-#~ msgid "invalid <srv> element found in <dns> of network %1$s"
-#~ msgstr "చెల్లని <srv> మూలకం నెట్వర్కు %1$s యొక్క <dns> నందు కనబడింది"
-
-#, c-format
-#~ msgid "invalid <txt> element found in <dns> of network %1$s"
-#~ msgstr "చెల్లని <txt> మూలకం <dns> నందు నెట్వర్కు %1$s నందు కనుగొన్నది"
-
-#~ msgid "missing interface information"
-#~ msgstr "దొరకని ఇంటర్ఫేస్ సమాచారం"
-
-#, fuzzy
-#~ msgid "unable to create volume XML"
-#~ msgstr "epoll fd సృష్టించలేదు"
-
-#~ msgid "unknown secret usage type"
-#~ msgstr "తెలియని రహస్య వినియోగరకము"
-
-#, c-format
-#~ msgid "unknown secret usage type %1$s"
-#~ msgstr "తెలియని రహస్య వినియోగ రకము %1$s"
-
-#, fuzzy
-#~ msgid "Missing network port driver name"
-#~ msgstr "తప్పిపోయిన స్టోరేజ్ పూల్ మూలపు పరికర నామము"
-
-#, fuzzy
-#~ msgid "Unexpected PCI backend 'xen'"
-#~ msgstr "అనుకోని CPU ఫాల్‌బాక్ విలువ: %d"
-
-#, c-format
-#~ msgid "Unknown forward <driver name='%1$s'/> in network %2$s"
-#~ msgstr "నెట్వర్కు %1$s నందు తెలియని ఫార్వార్డ్ <driver name='%2$s'/>"
-
-#, fuzzy, c-format
-#~ msgid "pci backend driver '%1$s' is not supported"
-#~ msgstr "డిస్కు డ్రైవర్ %1$s తోడ్పాటులేదు"
-
-#, fuzzy, c-format
-#~ msgid "unable to find disk by target: %1$s"
-#~ msgstr "లక్ష్యం %1$s స్టాట్ బైండ్‌కు చేయలేదు"
-
-#, c-format
-#~ msgid "unexpected hostdev driver name type %1$d "
-#~ msgstr "అనుకోని hostdev డ్రైవర్ పేరు రకం %1$d"
-
-#, c-format
-#~ msgid "unexpected pci hostdev driver name type %1$d"
-#~ msgstr "అనుకోని pci hostdev డ్రైవర్ పేరు రకం %1$d"
-
-#, fuzzy
-#~ msgid "virtiofs is not yet supported in session mode"
-#~ msgstr "USB రీడైరెక్షన్ అనునది ఈ QEMU వర్షన్ చేత తోడ్పాటునీయబడదు"
+msgid "{[--%1$s] <string>}..."
+msgstr "{[--%1$s] <string>}..."
 
 #, fuzzy, c-format
 #~ msgid ""

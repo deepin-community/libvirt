@@ -22,7 +22,6 @@
 
 #include "ch_domain.h"
 #include "domain_driver.h"
-#include "domain_validate.h"
 #include "virchrdev.h"
 #include "virlog.h"
 #include "virtime.h"
@@ -37,7 +36,7 @@ void
 virCHDomainRemoveInactive(virCHDriver *driver,
                           virDomainObj *vm)
 {
-    if (!vm->persistent) {
+    if (vm->persistent) {
         virDomainObjListRemove(driver->domains, vm);
     }
 }
@@ -125,14 +124,11 @@ virCHDomainDefPostParse(virDomainDef *def,
 {
     virCHDriver *driver = opaque;
     g_autoptr(virCaps) caps = virCHDriverGetCapabilities(driver, false);
-
     if (!caps)
         return -1;
-
     if (!virCapabilitiesDomainSupported(caps, def->os.type,
                                         def->os.arch,
-                                        def->virtType,
-                                        true))
+                                        def->virtType))
         return -1;
 
     return 0;
@@ -180,7 +176,6 @@ chValidateDomainDeviceDef(const virDomainDeviceDef *dev,
     case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("Cloud-Hypervisor doesn't support '%1$s' device"),
                        virDomainDeviceTypeToString(dev->type));
@@ -199,14 +194,15 @@ chValidateDomainDeviceDef(const virDomainDeviceDef *dev,
 
     if (!virBitmapIsBitSet(driver->chCaps, CH_SERIAL_CONSOLE_IN_PARALLEL)) {
         if ((def->nconsoles &&
-             def->consoles[0]->source->type == VIR_DOMAIN_CHR_TYPE_PTY) &&
-            (def->nserials &&
-             def->serials[0]->source->type == VIR_DOMAIN_CHR_TYPE_PTY)) {
+                def->consoles[0]->source->type == VIR_DOMAIN_CHR_TYPE_PTY)
+            && (def->nserials &&
+                def->serials[0]->source->type == VIR_DOMAIN_CHR_TYPE_PTY)) {
             virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Only a single console or serial can be configured for this domain"));
+                       _("Only a single console or serial can be configured for this domain"));
             return -1;
         }
     }
+
 
     if (def->nconsoles > 1) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
@@ -222,25 +218,15 @@ chValidateDomainDeviceDef(const virDomainDeviceDef *dev,
 
     if (def->nconsoles && def->consoles[0]->source->type != VIR_DOMAIN_CHR_TYPE_PTY) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       _("Console only works in PTY mode"));
+                       _("Console can only be enabled for a PTY"));
         return -1;
     }
 
-    if (def->nserials) {
-        if (def->serials[0]->source->type != VIR_DOMAIN_CHR_TYPE_PTY &&
-            def->serials[0]->source->type != VIR_DOMAIN_CHR_TYPE_UNIX) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Serial only works in UNIX/PTY modes"));
-            return -1;
-        }
-        if (!virBitmapIsBitSet(driver->chCaps, CH_SOCKET_BACKEND_SERIAL_PORT) &&
-            def->serials[0]->source->type == VIR_DOMAIN_CHR_TYPE_UNIX) {
-            virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                           _("Unix Socket backend is not supported by this version of ch."));
-            return -1;
-        }
+    if (def->nserials && def->serials[0]->source->type != VIR_DOMAIN_CHR_TYPE_PTY) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Serial can only be enabled for a PTY"));
+        return -1;
     }
-
     return 0;
 }
 
@@ -368,44 +354,4 @@ virCHDomainObjFromDomain(virDomainPtr domain)
     }
 
     return vm;
-}
-
-int
-virCHDomainValidateActualNetDef(virDomainNetDef *net)
-{
-    virDomainNetType actualType = virDomainNetGetActualType(net);
-
-    /* hypervisor-agnostic validation */
-    if (virDomainActualNetDefValidate(net) < 0)
-        return -1;
-
-    /* CH specific validation */
-    switch (actualType) {
-    case VIR_DOMAIN_NET_TYPE_ETHERNET:
-        if (net->guestIP.nips > 1) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("ethernet type supports a single guest ip"));
-            return -1;
-        }
-        break;
-    case VIR_DOMAIN_NET_TYPE_VHOSTUSER:
-    case VIR_DOMAIN_NET_TYPE_BRIDGE:
-    case VIR_DOMAIN_NET_TYPE_NETWORK:
-    case VIR_DOMAIN_NET_TYPE_DIRECT:
-    case VIR_DOMAIN_NET_TYPE_USER:
-    case VIR_DOMAIN_NET_TYPE_SERVER:
-    case VIR_DOMAIN_NET_TYPE_CLIENT:
-    case VIR_DOMAIN_NET_TYPE_MCAST:
-    case VIR_DOMAIN_NET_TYPE_INTERNAL:
-    case VIR_DOMAIN_NET_TYPE_HOSTDEV:
-    case VIR_DOMAIN_NET_TYPE_UDP:
-    case VIR_DOMAIN_NET_TYPE_VDPA:
-    case VIR_DOMAIN_NET_TYPE_NULL:
-    case VIR_DOMAIN_NET_TYPE_VDS:
-    case VIR_DOMAIN_NET_TYPE_LAST:
-    default:
-        break;
-    }
-
-    return 0;
 }

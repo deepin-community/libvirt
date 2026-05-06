@@ -102,7 +102,7 @@ qemuVirtioFSOpenChardev(virQEMUDriver *driver,
     chrdev->data.nix.listen = true;
     chrdev->data.nix.path = g_strdup(socket_path);
 
-    if (qemuSecuritySetSocketLabel(driver->securityManager, vm->def) < 0)
+    if (qemuSecuritySetDaemonSocketLabel(driver->securityManager, vm->def) < 0)
         goto cleanup;
     fd = qemuOpenChrChardevUNIXSocket(chrdev);
     if (fd < 0) {
@@ -131,7 +131,6 @@ qemuVirtioFSBuildCommandLine(virQEMUDriverConfig *cfg,
 {
     g_autoptr(virCommand) cmd = NULL;
     g_auto(virBuffer) opts = VIR_BUFFER_INITIALIZER;
-    size_t i = 4;
 
     cmd = virCommandNew(fs->binary);
 
@@ -139,94 +138,36 @@ qemuVirtioFSBuildCommandLine(virQEMUDriverConfig *cfg,
     virCommandPassFD(cmd, *fd, VIR_COMMAND_PASS_FD_CLOSE_PARENT);
     *fd = -1;
 
-    if (virBitmapIsBitSet(fs->caps, QEMU_VHOST_USER_FS_FEATURE_SEPARATE_OPTIONS)) {
-        /* Note that this option format is used by the Rust version of the daemon
-         * since v1.0.0, which is way longer than the capability existed.
-         * The -o style of options can be removed once we bump the minimal
-         * QEMU version to 8.0.0, which dropped the C virtiofsd daemon */
-        virCommandAddArg(cmd, "--shared-dir");
-        virCommandAddArg(cmd, fs->src->path);
+    virCommandAddArg(cmd, "-o");
+    virBufferAddLit(&opts, "source=");
+    virQEMUBuildBufferEscapeComma(&opts, fs->src->path);
+    if (fs->cache)
+        virBufferAsprintf(&opts, ",cache=%s", virDomainFSCacheModeTypeToString(fs->cache));
+    if (fs->sandbox)
+        virBufferAsprintf(&opts, ",sandbox=%s", virDomainFSSandboxModeTypeToString(fs->sandbox));
 
-        switch (fs->cache) {
-        case VIR_DOMAIN_FS_CACHE_MODE_DEFAULT:
-        case VIR_DOMAIN_FS_CACHE_MODE_LAST:
-            break;
-        case VIR_DOMAIN_FS_CACHE_MODE_NONE:
-            virCommandAddArg(cmd, "--cache");
-            virCommandAddArg(cmd, "never");
-            break;
-        case VIR_DOMAIN_FS_CACHE_MODE_ALWAYS:
-            virCommandAddArg(cmd, "--cache");
-            virCommandAddArg(cmd, virDomainFSCacheModeTypeToString(fs->cache));
-            break;
-        }
+    if (fs->xattr == VIR_TRISTATE_SWITCH_ON)
+        virBufferAddLit(&opts, ",xattr");
+    else if (fs->xattr == VIR_TRISTATE_SWITCH_OFF)
+        virBufferAddLit(&opts, ",no_xattr");
 
-        if (fs->sandbox) {
-            virCommandAddArg(cmd, "--sandbox");
-            virCommandAddArg(cmd, virDomainFSSandboxModeTypeToString(fs->sandbox));
-        }
+    if (fs->flock == VIR_TRISTATE_SWITCH_ON)
+        virBufferAddLit(&opts, ",flock");
+    else if (fs->flock == VIR_TRISTATE_SWITCH_OFF)
+        virBufferAddLit(&opts, ",no_flock");
 
-        if (fs->xattr == VIR_TRISTATE_SWITCH_ON)
-            virCommandAddArg(cmd, "--xattr");
+    if (fs->posix_lock == VIR_TRISTATE_SWITCH_ON)
+        virBufferAddLit(&opts, ",posix_lock");
+    else if (fs->posix_lock == VIR_TRISTATE_SWITCH_OFF)
+        virBufferAddLit(&opts, ",no_posix_lock");
 
-        if (fs->posix_lock != VIR_TRISTATE_SWITCH_ABSENT ||
-            fs->flock != VIR_TRISTATE_SWITCH_ABSENT) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s", _("locking options are not supported by this virtiofsd"));
-            return NULL;
-        }
-    } else {
-        virCommandAddArg(cmd, "-o");
-        virBufferAddLit(&opts, "source=");
-        virQEMUBuildBufferEscapeComma(&opts, fs->src->path);
-        if (fs->cache)
-            virBufferAsprintf(&opts, ",cache=%s", virDomainFSCacheModeTypeToString(fs->cache));
-        if (fs->sandbox)
-            virBufferAsprintf(&opts, ",sandbox=%s", virDomainFSSandboxModeTypeToString(fs->sandbox));
-
-        if (fs->xattr == VIR_TRISTATE_SWITCH_ON)
-            virBufferAddLit(&opts, ",xattr");
-        else if (fs->xattr == VIR_TRISTATE_SWITCH_OFF)
-            virBufferAddLit(&opts, ",no_xattr");
-
-        if (fs->flock == VIR_TRISTATE_SWITCH_ON)
-            virBufferAddLit(&opts, ",flock");
-        else if (fs->flock == VIR_TRISTATE_SWITCH_OFF)
-            virBufferAddLit(&opts, ",no_flock");
-
-        if (fs->posix_lock == VIR_TRISTATE_SWITCH_ON)
-            virBufferAddLit(&opts, ",posix_lock");
-        else if (fs->posix_lock == VIR_TRISTATE_SWITCH_OFF)
-            virBufferAddLit(&opts, ",no_posix_lock");
-
-        virCommandAddArgBuffer(cmd, &opts);
-    }
+    virCommandAddArgBuffer(cmd, &opts);
 
     if (fs->thread_pool_size >= 0)
         virCommandAddArgFormat(cmd, "--thread-pool-size=%i", fs->thread_pool_size);
 
-    if (fs->openfiles > 0)
-        virCommandAddArgFormat(cmd, "--rlimit-nofile=%llu", fs->openfiles);
-
-    if (cfg->virtiofsdDebug) {
-        if (virBitmapIsBitSet(fs->caps, QEMU_VHOST_USER_FS_FEATURE_SEPARATE_OPTIONS))
-            virCommandAddArgList(cmd, "--log-level", "debug", NULL);
-        else
-            virCommandAddArg(cmd, "-d");
-    }
-
-    for (i = 0; i < fs->idmap.nuidmap; i++) {
-        virCommandAddArgFormat(cmd, "--uid-map=:%u:%u:%u:",
-                               fs->idmap.uidmap[i].start,
-                               fs->idmap.uidmap[i].target,
-                               fs->idmap.uidmap[i].count);
-    }
-
-    for (i = 0; i < fs->idmap.ngidmap; i++) {
-        virCommandAddArgFormat(cmd, "--gid-map=:%u:%u:%u:",
-                               fs->idmap.gidmap[i].start,
-                               fs->idmap.gidmap[i].target,
-                               fs->idmap.gidmap[i].count);
-    }
+    if (cfg->virtiofsdDebug)
+        virCommandAddArg(cmd, "-d");
 
     return g_steal_pointer(&cmd);
 }
@@ -300,6 +241,10 @@ qemuVirtioFSStart(virQEMUDriver *driver,
 
     if (!(cmd = qemuVirtioFSBuildCommandLine(cfg, fs, &fd)))
         goto error;
+
+    /* so far only running as root is supported */
+    virCommandSetUID(cmd, 0);
+    virCommandSetGID(cmd, 0);
 
     virCommandSetPidFile(cmd, pidfile);
     virCommandSetOutputFD(cmd, &logfd);
@@ -397,9 +342,6 @@ qemuVirtioFSSetupCgroup(virDomainObj *vm,
     pid_t pid = -1;
     int rc;
 
-    if (!cgroup)
-        return 0;
-
     if (!(pidfile = qemuVirtioFSCreatePidFilename(vm, fs->info.alias)))
         return -1;
 
@@ -416,92 +358,12 @@ qemuVirtioFSSetupCgroup(virDomainObj *vm,
     return 0;
 }
 
-static int
-qemuVirtioFSPrepareIdMap(virDomainFSDef *fs)
-{
-    g_autofree char *username = NULL;
-    g_autofree char *groupname = NULL;
-    virSubID *subuids = NULL;
-    virSubID *subgids = NULL;
-    uid_t euid = geteuid();
-    uid_t egid = getegid();
-    int subuidlen = 0;
-    int subgidlen = 0;
-    size_t i;
-
-    username = virGetUserName(euid);
-    groupname = virGetGroupName(egid);
-
-    if (!username || !groupname)
-        return -1;
-
-    fs->idmap.uidmap = g_new0(virDomainIdMapEntry, 2);
-    fs->idmap.gidmap = g_new0(virDomainIdMapEntry, 2);
-
-    if ((subuidlen = virGetSubIDs(&subuids, "/etc/subuid")) < 0)
-        return -1;
-
-    fs->idmap.uidmap[0].start = 0;
-    fs->idmap.uidmap[0].target = euid;
-    fs->idmap.uidmap[0].count = 1;
-    fs->idmap.nuidmap = 1;
-
-    for (i = 0; i < subuidlen; i++) {
-        if ((subuids[i].idstr && STREQ(subuids[i].idstr, username)) ||
-            subuids[i].id == euid) {
-            fs->idmap.uidmap[1].start = 1;
-            fs->idmap.uidmap[1].target = subuids[i].start;
-            fs->idmap.uidmap[1].count = subuids[i].range;
-            fs->idmap.nuidmap++;
-            break;
-        }
-    }
-
-    virSubIDsFree(&subuids, subuidlen);
-
-    if ((subgidlen = virGetSubIDs(&subgids, "/etc/subgid")) < 0)
-        return -1;
-
-    fs->idmap.gidmap[0].start = 0;
-    fs->idmap.gidmap[0].target = getegid();
-    fs->idmap.gidmap[0].count = 1;
-    fs->idmap.ngidmap = 1;
-
-    for (i = 0; i < subgidlen; i++) {
-        if ((subgids[i].idstr && STREQ(subgids[i].idstr, groupname)) ||
-            subgids[i].id == egid) {
-            fs->idmap.gidmap[1].start = 1;
-            fs->idmap.gidmap[1].target = subgids[i].start;
-            fs->idmap.gidmap[1].count = subgids[i].range;
-            fs->idmap.ngidmap++;
-            break;
-        }
-    }
-
-    virSubIDsFree(&subgids, subgidlen);
-
-    return 0;
-}
-
 int
 qemuVirtioFSPrepareDomain(virQEMUDriver *driver,
                           virDomainFSDef *fs)
 {
-    if (fs->sock)
+    if (fs->binary || fs->sock)
         return 0;
 
-    if (fs->binary) {
-        if (qemuVhostUserFillFSCapabilities(&fs->caps, fs->binary) < 0)
-            return -1;
-    } else {
-        if (qemuVhostUserFillDomainFS(driver, fs) < 0)
-            return -1;
-    }
-
-    if (!driver->privileged && !fs->idmap.uidmap) {
-        if (qemuVirtioFSPrepareIdMap(fs) < 0)
-            return -1;
-    }
-
-    return 0;
+    return qemuVhostUserFillDomainFS(driver, fs);
 }

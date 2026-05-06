@@ -86,12 +86,6 @@ VIR_ENUM_IMPL(virNodeDevDRM,
               "render",
 );
 
-VIR_ENUM_IMPL(virNodeDevCCWState,
-              VIR_NODE_DEV_CCW_STATE_LAST,
-              "offline",
-              "online",
-);
-
 static int
 virNodeDevCapsDefParseString(const char *xpath,
                              xmlXPathContextPtr ctxt,
@@ -182,16 +176,20 @@ virNodeDeviceCapSystemDefFormat(virBuffer *buf,
 {
     char uuidstr[VIR_UUID_STRING_BUFLEN];
 
-    virBufferEscapeString(buf, "<product>%s</product>\n",
-                          data->system.product_name);
+    if (data->system.product_name)
+        virBufferEscapeString(buf, "<product>%s</product>\n",
+                              data->system.product_name);
     virBufferAddLit(buf, "<hardware>\n");
     virBufferAdjustIndent(buf, 2);
-    virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
-                          data->system.hardware.vendor_name);
-    virBufferEscapeString(buf, "<version>%s</version>\n",
-                          data->system.hardware.version);
-    virBufferEscapeString(buf, "<serial>%s</serial>\n",
-                          data->system.hardware.serial);
+    if (data->system.hardware.vendor_name)
+        virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
+                              data->system.hardware.vendor_name);
+    if (data->system.hardware.version)
+        virBufferEscapeString(buf, "<version>%s</version>\n",
+                              data->system.hardware.version);
+    if (data->system.hardware.serial)
+        virBufferEscapeString(buf, "<serial>%s</serial>\n",
+                              data->system.hardware.serial);
     virUUIDFormat(data->system.hardware.uuid, uuidstr);
     virBufferAsprintf(buf, "<uuid>%s</uuid>\n", uuidstr);
     virBufferAdjustIndent(buf, -2);
@@ -199,12 +197,15 @@ virNodeDeviceCapSystemDefFormat(virBuffer *buf,
 
     virBufferAddLit(buf, "<firmware>\n");
     virBufferAdjustIndent(buf, 2);
-    virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
-                          data->system.firmware.vendor_name);
-    virBufferEscapeString(buf, "<version>%s</version>\n",
-                          data->system.firmware.version);
-    virBufferEscapeString(buf, "<release_date>%s</release_date>\n",
-                          data->system.firmware.release_date);
+    if (data->system.firmware.vendor_name)
+        virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
+                              data->system.firmware.vendor_name);
+    if (data->system.firmware.version)
+        virBufferEscapeString(buf, "<version>%s</version>\n",
+                              data->system.firmware.version);
+    if (data->system.firmware.release_date)
+        virBufferEscapeString(buf, "<release_date>%s</release_date>\n",
+                              data->system.firmware.release_date);
     virBufferAdjustIndent(buf, -2);
     virBufferAddLit(buf, "</firmware>\n");
 }
@@ -224,8 +225,9 @@ virNodeDeviceCapMdevTypesFormat(virBuffer *buf,
             virMediatedDeviceType *type = mdev_types[i];
             virBufferEscapeString(buf, "<type id='%s'>\n", type->id);
             virBufferAdjustIndent(buf, 2);
-            virBufferEscapeString(buf, "<name>%s</name>\n",
-                                  type->name);
+            if (type->name)
+                virBufferEscapeString(buf, "<name>%s</name>\n",
+                                      type->name);
             virBufferEscapeString(buf, "<deviceAPI>%s</deviceAPI>\n",
                                   type->device_api);
             virBufferAsprintf(buf,
@@ -240,34 +242,33 @@ virNodeDeviceCapMdevTypesFormat(virBuffer *buf,
 }
 
 static void
-virNodeDeviceCapVPDFormatCustomField(virBuffer *buf,
-                                     const char *fieldtype,
-                                     virPCIVPDResourceCustom *field)
+virNodeDeviceCapVPDFormatCustomVendorField(virPCIVPDResourceCustom *field, virBuffer *buf)
 {
-    g_auto(virBuffer) attrBuf = VIR_BUFFER_INITIALIZER;
-    g_auto(virBuffer) content = VIR_BUFFER_INITIALIZER;
-
     if (field == NULL || field->value == NULL)
         return;
 
-    virBufferAsprintf(&attrBuf, " index='%c'", field->idx);
-    virBufferEscapeString(&content, "%s", field->value);
-
-    virXMLFormatElementInternal(buf, fieldtype, &attrBuf, &content, false, false);
-}
-
-static void
-virNodeDeviceCapVPDFormatCustomVendorField(virPCIVPDResourceCustom *field, virBuffer *buf)
-{
-    virNodeDeviceCapVPDFormatCustomField(buf, "vendor_field", field);
+    virBufferAsprintf(buf, "<vendor_field index='%c'>%s</vendor_field>\n", field->idx,
+                      field->value);
 }
 
 static void
 virNodeDeviceCapVPDFormatCustomSystemField(virPCIVPDResourceCustom *field, virBuffer *buf)
 {
-    virNodeDeviceCapVPDFormatCustomField(buf, "system_field", field);
+    if (field == NULL || field->value == NULL)
+        return;
+
+    virBufferAsprintf(buf, "<system_field index='%c'>%s</system_field>\n", field->idx,
+                      field->value);
 }
 
+static inline void
+virNodeDeviceCapVPDFormatRegularField(virBuffer *buf, const char *keyword, const char *value)
+{
+    if (keyword == NULL || value == NULL)
+        return;
+
+    virBufferAsprintf(buf, "<%s>%s</%s>\n", keyword, value, keyword);
+}
 
 static void
 virNodeDeviceCapVPDFormat(virBuffer *buf, virPCIVPDResource *res)
@@ -280,33 +281,31 @@ virNodeDeviceCapVPDFormat(virBuffer *buf, virPCIVPDResource *res)
     virBufferEscapeString(buf, "<name>%s</name>\n", res->name);
 
     if (res->ro != NULL) {
-        virBufferAddLit(buf, "<fields access='readonly'>\n");
+        virBufferEscapeString(buf, "<fields access='%s'>\n", "readonly");
+
         virBufferAdjustIndent(buf, 2);
-
-        virBufferEscapeString(buf, "<change_level>%s</change_level>\n", res->ro->change_level);
-        virBufferEscapeString(buf, "<manufacture_id>%s</manufacture_id>\n", res->ro->manufacture_id);
-        virBufferEscapeString(buf, "<part_number>%s</part_number>\n", res->ro->part_number);
-        virBufferEscapeString(buf, "<serial_number>%s</serial_number>\n", res->ro->serial_number);
-
+        virNodeDeviceCapVPDFormatRegularField(buf, "change_level", res->ro->change_level);
+        virNodeDeviceCapVPDFormatRegularField(buf, "manufacture_id", res->ro->manufacture_id);
+        virNodeDeviceCapVPDFormatRegularField(buf, "part_number", res->ro->part_number);
+        virNodeDeviceCapVPDFormatRegularField(buf, "serial_number", res->ro->serial_number);
         g_ptr_array_foreach(res->ro->vendor_specific,
                             (GFunc)virNodeDeviceCapVPDFormatCustomVendorField, buf);
-
         virBufferAdjustIndent(buf, -2);
+
         virBufferAddLit(buf, "</fields>\n");
     }
 
     if (res->rw != NULL) {
-        virBufferAddLit(buf, "<fields access='readwrite'>\n");
+        virBufferEscapeString(buf, "<fields access='%s'>\n", "readwrite");
+
         virBufferAdjustIndent(buf, 2);
-
-        virBufferEscapeString(buf, "<asset_tag>%s</asset_tag>\n", res->rw->asset_tag);
-
+        virNodeDeviceCapVPDFormatRegularField(buf, "asset_tag", res->rw->asset_tag);
         g_ptr_array_foreach(res->rw->vendor_specific,
                             (GFunc)virNodeDeviceCapVPDFormatCustomVendorField, buf);
         g_ptr_array_foreach(res->rw->system_specific,
                             (GFunc)virNodeDeviceCapVPDFormatCustomSystemField, buf);
-
         virBufferAdjustIndent(buf, -2);
+
         virBufferAddLit(buf, "</fields>\n");
     }
 
@@ -452,9 +451,10 @@ virNodeDeviceCapUSBInterfaceDefFormat(virBuffer *buf,
                       data->usb_if.subclass);
     virBufferAsprintf(buf, "<protocol>%d</protocol>\n",
                       data->usb_if.protocol);
-    virBufferEscapeString(buf,
-                          "<description>%s</description>\n",
-                          data->usb_if.description);
+    if (data->usb_if.description)
+        virBufferEscapeString(buf,
+                              "<description>%s</description>\n",
+                              data->usb_if.description);
 }
 
 
@@ -466,8 +466,9 @@ virNodeDeviceCapNetDefFormat(virBuffer *buf,
 
     virBufferEscapeString(buf, "<interface>%s</interface>\n",
                           data->net.ifname);
-    virBufferEscapeString(buf, "<address>%s</address>\n",
-                          data->net.address);
+    if (data->net.address)
+        virBufferEscapeString(buf, "<address>%s</address>\n",
+                              data->net.address);
     virInterfaceLinkFormat(buf, &data->net.lnk);
     if (data->net.features) {
         for (i = 0; i < VIR_NET_DEV_FEAT_LAST; i++) {
@@ -529,23 +530,9 @@ virNodeDeviceCapSCSIDefFormat(virBuffer *buf,
     virBufferAsprintf(buf, "<target>%d</target>\n",
                       data->scsi.target);
     virBufferAsprintf(buf, "<lun>%d</lun>\n", data->scsi.lun);
-    virBufferEscapeString(buf, "<type>%s</type>\n",
-                          data->scsi.type);
-}
-
-
-static void
-virNodeDeviceCapStorageDefFormatBlocksize(virBuffer *buf,
-                                          const virNodeDevCapData *data)
-{
-    if (data->storage.logical_block_size == 0 &&
-        data->storage.num_blocks == 0)
-        return;
-
-    virBufferAsprintf(buf, "<logical_block_size>%llu</logical_block_size>\n",
-                      data->storage.logical_block_size);
-    virBufferAsprintf(buf, "<num_blocks>%llu</num_blocks>\n",
-                      data->storage.num_blocks);
+    if (data->scsi.type)
+        virBufferEscapeString(buf, "<type>%s</type>\n",
+                              data->scsi.type);
 }
 
 
@@ -553,13 +540,23 @@ static void
 virNodeDeviceCapStorageDefFormat(virBuffer *buf,
                                  const virNodeDevCapData *data)
 {
-    virBufferEscapeString(buf, "<block>%s</block>\n", data->storage.block);
-    virBufferEscapeString(buf, "<bus>%s</bus>\n", data->storage.bus);
-    virBufferEscapeString(buf, "<drive_type>%s</drive_type>\n", data->storage.drive_type);
-    virBufferEscapeString(buf, "<model>%s</model>\n", data->storage.model);
-    virBufferEscapeString(buf, "<vendor>%s</vendor>\n", data->storage.vendor);
-    virBufferEscapeString(buf, "<serial>%s</serial>\n", data->storage.serial);
-
+    virBufferEscapeString(buf, "<block>%s</block>\n",
+                          data->storage.block);
+    if (data->storage.bus)
+        virBufferEscapeString(buf, "<bus>%s</bus>\n",
+                              data->storage.bus);
+    if (data->storage.drive_type)
+        virBufferEscapeString(buf, "<drive_type>%s</drive_type>\n",
+                              data->storage.drive_type);
+    if (data->storage.model)
+        virBufferEscapeString(buf, "<model>%s</model>\n",
+                              data->storage.model);
+    if (data->storage.vendor)
+        virBufferEscapeString(buf, "<vendor>%s</vendor>\n",
+                              data->storage.vendor);
+    if (data->storage.serial)
+        virBufferEscapeString(buf, "<serial>%s</serial>\n",
+                              data->storage.serial);
     if (data->storage.flags & VIR_NODE_DEV_CAP_STORAGE_REMOVABLE) {
         int avl = data->storage.flags &
             VIR_NODE_DEV_CAP_STORAGE_REMOVABLE_MEDIA_AVAILABLE;
@@ -569,50 +566,53 @@ virNodeDeviceCapStorageDefFormat(virBuffer *buf,
                           "</media_available>\n", avl ? 1 : 0);
         virBufferAsprintf(buf, "<media_size>%llu</media_size>\n",
                           data->storage.removable_media_size);
-        virBufferEscapeString(buf, "<media_label>%s</media_label>\n", data->storage.media_label);
-        virNodeDeviceCapStorageDefFormatBlocksize(buf, data);
+        if (data->storage.media_label)
+            virBufferEscapeString(buf,
+                                  "<media_label>%s</media_label>\n",
+                                  data->storage.media_label);
+        if (data->storage.logical_block_size > 0)
+            virBufferAsprintf(buf, "<logical_block_size>%llu"
+                              "</logical_block_size>\n",
+                              data->storage.logical_block_size);
+        if (data->storage.num_blocks > 0)
+            virBufferAsprintf(buf,
+                              "<num_blocks>%llu</num_blocks>\n",
+                              data->storage.num_blocks);
         virBufferAdjustIndent(buf, -2);
         virBufferAddLit(buf, "</capability>\n");
     } else {
-        virBufferAsprintf(buf, "<size>%llu</size>\n", data->storage.size);
-        virNodeDeviceCapStorageDefFormatBlocksize(buf, data);
+        virBufferAsprintf(buf, "<size>%llu</size>\n",
+                          data->storage.size);
+        if (data->storage.logical_block_size > 0)
+            virBufferAsprintf(buf, "<logical_block_size>%llu"
+                              "</logical_block_size>\n",
+                              data->storage.logical_block_size);
+        if (data->storage.num_blocks > 0)
+            virBufferAsprintf(buf, "<num_blocks>%llu</num_blocks>\n",
+                              data->storage.num_blocks);
     }
-
     if (data->storage.flags & VIR_NODE_DEV_CAP_STORAGE_HOTPLUGGABLE)
         virBufferAddLit(buf, "<capability type='hotpluggable'/>\n");
 }
 
 static void
-virNodeDeviceCapMdevAttrFormat(virBuffer *buf,
-                               const virMediatedDeviceConfig *config)
+virNodeDeviceCapMdevDefFormat(virBuffer *buf,
+                              const virNodeDevCapData *data)
 {
     size_t i;
 
-    for (i = 0; i < config->nattributes; i++) {
-        virMediatedDeviceAttr *attr = config->attributes[i];
-        virBufferAsprintf(buf, "<attr name='%s' value='%s'/>\n",
-                          attr->name, attr->value);
-    }
-}
-
-static void
-virNodeDeviceCapMdevDefFormat(virBuffer *buf,
-                              const virNodeDevCapData *data,
-                              bool defined)
-{
-    if (defined)
-        virBufferEscapeString(buf, "<type id='%s'/>\n", data->mdev.defined_config.type);
-    else
-        virBufferEscapeString(buf, "<type id='%s'/>\n", data->mdev.active_config.type);
+    virBufferEscapeString(buf, "<type id='%s'/>\n", data->mdev.type);
     virBufferEscapeString(buf, "<uuid>%s</uuid>\n", data->mdev.uuid);
     virBufferEscapeString(buf, "<parent_addr>%s</parent_addr>\n",
                           data->mdev.parent_addr);
     virBufferAsprintf(buf, "<iommuGroup number='%u'/>\n",
                       data->mdev.iommuGroupNumber);
-    if (defined)
-        virNodeDeviceCapMdevAttrFormat(buf, &data->mdev.defined_config);
-    else
-        virNodeDeviceCapMdevAttrFormat(buf, &data->mdev.active_config);
+
+    for (i = 0; i < data->mdev.nattributes; i++) {
+        virMediatedDeviceAttr *attr = data->mdev.attributes[i];
+        virBufferAsprintf(buf, "<attr name='%s' value='%s'/>\n",
+                          attr->name, attr->value);
+    }
 }
 
 static void
@@ -663,29 +663,27 @@ virNodeDeviceCapCSSDefFormat(virBuffer *buf,
 
 
 char *
-virNodeDeviceDefFormat(const virNodeDeviceDef *def, unsigned int flags)
+virNodeDeviceDefFormat(const virNodeDeviceDef *def)
 {
     g_auto(virBuffer) buf = VIR_BUFFER_INITIALIZER;
     virNodeDevCapsDef *caps;
     size_t i = 0;
-    bool inactive_state = flags & VIR_NODE_DEVICE_XML_INACTIVE;
 
     virBufferAddLit(&buf, "<device>\n");
     virBufferAdjustIndent(&buf, 2);
     virBufferEscapeString(&buf, "<name>%s</name>\n", def->name);
-    if (!inactive_state) {
-        virBufferEscapeString(&buf, "<path>%s</path>\n", def->sysfs_path);
+    virBufferEscapeString(&buf, "<path>%s</path>\n", def->sysfs_path);
+    if (def->devnode)
         virBufferEscapeString(&buf, "<devnode type='dev'>%s</devnode>\n",
                               def->devnode);
-        if (def->devlinks) {
-            for (i = 0; def->devlinks[i]; i++) {
-                virBufferEscapeString(&buf, "<devnode type='link'>%s</devnode>\n",
-                                      def->devlinks[i]);
-            }
-        }
+    if (def->devlinks) {
+        for (i = 0; def->devlinks[i]; i++)
+            virBufferEscapeString(&buf, "<devnode type='link'>%s</devnode>\n",
+                                  def->devlinks[i]);
     }
-    virBufferEscapeString(&buf, "<parent>%s</parent>\n", def->parent);
-    if (def->driver && !inactive_state) {
+    if (def->parent)
+        virBufferEscapeString(&buf, "<parent>%s</parent>\n", def->parent);
+    if (def->driver) {
         virBufferAddLit(&buf, "<driver>\n");
         virBufferAdjustIndent(&buf, 2);
         virBufferEscapeString(&buf, "<name>%s</name>\n", def->driver);
@@ -746,13 +744,9 @@ virNodeDeviceDefFormat(const virNodeDeviceDef *def, unsigned int flags)
             virBufferEscapeString(&buf, "<type>%s</type>\n", virNodeDevDRMTypeToString(data->drm.type));
             break;
         case VIR_NODE_DEV_CAP_MDEV:
-            virNodeDeviceCapMdevDefFormat(&buf, data, inactive_state);
+            virNodeDeviceCapMdevDefFormat(&buf, data);
             break;
         case VIR_NODE_DEV_CAP_CCW_DEV:
-            if (data->ccw_dev.state != VIR_NODE_DEV_CCW_STATE_LAST) {
-                const char *state = virNodeDevCCWStateTypeToString(data->ccw_dev.state);
-                virBufferEscapeString(&buf, "<state>%s</state>\n", state);
-            }
             virNodeDeviceCapCCWDefFormat(&buf, data);
             break;
         case VIR_NODE_DEV_CAP_CSS_DEV:
@@ -967,62 +961,67 @@ virNodeDevCapMdevTypesParseXML(xmlXPathContextPtr ctxt,
     return ret;
 }
 
-
 static int
-virNodeDeviceCapVPDParseCustomFieldOne(xmlNodePtr node,
-                                       virPCIVPDResource *res,
-                                       bool read_only,
-                                       const char keyword_prefix)
-{
-    g_autofree char *value = NULL;
-    g_autofree char *index = NULL;
-    g_autofree char *keyword = NULL;
-
-    if (!(index = virXMLPropStringRequired(node, "index")))
-        return -1;
-
-    if (strlen(index) != 1) {
-        virReportError(VIR_ERR_XML_ERROR,
-                       _("'%1$s' 'index' value '%2$s' malformed"),
-                       node->name, index);
-        return -1;
-    }
-
-    keyword = g_strdup_printf("%c%c", keyword_prefix, index[0]);
-
-    if (!(value = virXMLNodeContentString(node)))
-        return -1;
-
-    virPCIVPDResourceUpdateKeyword(res, read_only, keyword, value);
-    return 0;
-}
-
-
-static int
-virNodeDeviceCapVPDParseCustomFields(xmlXPathContextPtr ctxt,
-                                     virPCIVPDResource *res,
-                                     bool readOnly)
+virNodeDeviceCapVPDParseCustomFields(xmlXPathContextPtr ctxt, virPCIVPDResource *res, bool readOnly)
 {
     int nfields = -1;
     g_autofree xmlNodePtr *nodes = NULL;
     size_t i = 0;
 
-    if ((nfields = virXPathNodeSet("./vendor_field", ctxt, &nodes)) < 0)
+    if ((nfields = virXPathNodeSet("./vendor_field[@index]", ctxt, &nodes)) < 0) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                _("failed to evaluate <vendor_field> elements"));
         return -1;
-
+    }
     for (i = 0; i < nfields; i++) {
-        if (virNodeDeviceCapVPDParseCustomFieldOne(nodes[i], res, readOnly, 'V') < 0)
-            return -1;
+        g_autofree char *value = NULL;
+        g_autofree char *index = NULL;
+        VIR_XPATH_NODE_AUTORESTORE(ctxt)
+        g_autofree char *keyword = NULL;
+
+        ctxt->node = nodes[i];
+        if (!(index = virXPathString("string(./@index[1])", ctxt)) ||
+            strlen(index) > 1) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                    _("<vendor_field> evaluation has failed"));
+            continue;
+        }
+        if (!(value = virXPathString("string(./text())", ctxt))) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                    _("<vendor_field> value evaluation has failed"));
+            continue;
+        }
+        keyword = g_strdup_printf("V%c", index[0]);
+        virPCIVPDResourceUpdateKeyword(res, readOnly, keyword, value);
     }
     VIR_FREE(nodes);
 
     if (!readOnly) {
-        if ((nfields = virXPathNodeSet("./system_field", ctxt, &nodes)) < 0)
+        if ((nfields = virXPathNodeSet("./system_field[@index]", ctxt, &nodes)) < 0) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                    _("failed to evaluate <system_field> elements"));
             return -1;
-
+        }
         for (i = 0; i < nfields; i++) {
-            if (virNodeDeviceCapVPDParseCustomFieldOne(nodes[i], res, readOnly, 'Y') < 0)
-                return -1;
+            g_autofree char *value = NULL;
+            g_autofree char *index = NULL;
+            g_autofree char *keyword = NULL;
+            VIR_XPATH_NODE_AUTORESTORE(ctxt);
+
+            ctxt->node = nodes[i];
+            if (!(index = virXPathString("string(./@index[1])", ctxt)) ||
+                strlen(index) > 1) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                        _("<system_field> evaluation has failed"));
+                continue;
+            }
+            if (!(value = virXPathString("string(./text())", ctxt))) {
+                virReportError(VIR_ERR_XML_ERROR, "%s",
+                        _("<system_field> value evaluation has failed"));
+                continue;
+            }
+            keyword = g_strdup_printf("Y%c", index[0]);
+            virPCIVPDResourceUpdateKeyword(res, readOnly, keyword, value);
         }
     }
 
@@ -1035,6 +1034,9 @@ virNodeDeviceCapVPDParseReadOnlyFields(xmlXPathContextPtr ctxt, virPCIVPDResourc
     const char *keywords[] = {"change_level", "manufacture_id",
                               "serial_number", "part_number", NULL};
     size_t i = 0;
+
+    if (res == NULL)
+        return -1;
 
     res->ro = virPCIVPDResourceRONew();
 
@@ -1071,33 +1073,47 @@ virNodeDeviceCapVPDParseXML(xmlXPathContextPtr ctxt, virPCIVPDResource **res)
     size_t i = 0;
     g_autoptr(virPCIVPDResource) newres = g_new0(virPCIVPDResource, 1);
 
+    if (res == NULL)
+        return -1;
+
     if (!(newres->name = virXPathString("string(./name)", ctxt))) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
-                       _("Could not read a device name from the <name> element"));
+                _("Could not read a device name from the <name> element"));
         return -1;
     }
 
-    if ((nfields = virXPathNodeSet("./fields", ctxt, &nodes)) < 0)
+    if ((nfields = virXPathNodeSet("./fields[@access]", ctxt, &nodes)) < 0) {
+        virReportError(VIR_ERR_XML_ERROR, "%s",
+                _("no VPD <fields> elements with an access type attribute found"));
         return -1;
+    }
 
     for (i = 0; i < nfields; i++) {
         g_autofree char *access = NULL;
         VIR_XPATH_NODE_AUTORESTORE(ctxt);
 
         ctxt->node = nodes[i];
-
-        if (!(access = virXMLPropStringRequired(nodes[i], "access")))
+        if (!(access = virXPathString("string(./@access[1])", ctxt))) {
+            virReportError(VIR_ERR_XML_ERROR, "%s",
+                    _("VPD fields access type parsing has failed"));
             return -1;
+        }
 
         if (STREQ(access, "readonly")) {
-            if (virNodeDeviceCapVPDParseReadOnlyFields(ctxt, newres) < 0)
+            if (virNodeDeviceCapVPDParseReadOnlyFields(ctxt, newres) < 0) {
+                virReportError(VIR_ERR_XML_ERROR,
+                        _("Could not parse %1$s VPD resource fields"), access);
                 return -1;
+            }
         } else if (STREQ(access, "readwrite")) {
-            if (virNodeDeviceCapVPDParseReadWriteFields(ctxt, newres) < 0)
+            if (virNodeDeviceCapVPDParseReadWriteFields(ctxt, newres) < 0) {
+                virReportError(VIR_ERR_XML_ERROR,
+                        _("Could not parse %1$s VPD resource fields"), access);
                 return -1;
+            }
         } else {
             virReportError(VIR_ERR_XML_ERROR,
-                           _("Unsupported VPD field access type '%1$s'"),
+                           _("Unsupported VPD field access type specified %1$s"),
                            access);
             return -1;
         }
@@ -1199,22 +1215,8 @@ virNodeDevCapCCWParseXML(xmlXPathContextPtr ctxt,
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autofree virCCWDeviceAddress *ccw_addr = NULL;
-    g_autofree char *state = NULL;
-    int val;
 
     ctxt->node = node;
-
-    /* state is optional */
-    ccw_dev->state = VIR_NODE_DEV_CCW_STATE_LAST;
-
-    if ((state = virXPathString("string(./state[1])", ctxt))) {
-        if ((val = virNodeDevCCWStateTypeFromString(state)) < 0) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
-                           _("unknown state '%1$s' for '%2$s'"), state, def->name);
-            return -1;
-        }
-        ccw_dev->state = val;
-    }
 
     ccw_addr = g_new0(virCCWDeviceAddress, 1);
 
@@ -2197,7 +2199,7 @@ virNodeDevCapSystemParseXML(xmlXPathContextPtr ctxt,
 static int
 virNodeDevCapMdevAttributeParseXML(xmlXPathContextPtr ctxt,
                                    xmlNodePtr node,
-                                   virMediatedDeviceConfig *config)
+                                   virNodeDevCapMdev *mdev)
 {
     VIR_XPATH_NODE_AUTORESTORE(ctxt)
     g_autoptr(virMediatedDeviceAttr) attr = virMediatedDeviceAttrNew();
@@ -2211,7 +2213,7 @@ virNodeDevCapMdevAttributeParseXML(xmlXPathContextPtr ctxt,
         return -1;
     }
 
-    VIR_APPEND_ELEMENT(config->attributes, config->nattributes, attr);
+    VIR_APPEND_ELEMENT(mdev->attributes, mdev->nattributes, attr);
 
     return 0;
 }
@@ -2230,7 +2232,7 @@ virNodeDevCapMdevParseXML(xmlXPathContextPtr ctxt,
 
     ctxt->node = node;
 
-    if (!(mdev->defined_config.type = virXPathString("string(./type[1]/@id)", ctxt))) {
+    if (!(mdev->type = virXPathString("string(./type[1]/@id)", ctxt))) {
         virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
                        _("missing type id attribute for '%1$s'"), def->name);
         return -1;
@@ -2262,7 +2264,7 @@ virNodeDevCapMdevParseXML(xmlXPathContextPtr ctxt,
         return -1;
 
     for (i = 0; i < nattrs; i++)
-        virNodeDevCapMdevAttributeParseXML(ctxt, attrs[i], &mdev->defined_config);
+        virNodeDevCapMdevAttributeParseXML(ctxt, attrs[i], mdev);
 
     return 0;
 }
@@ -2605,9 +2607,11 @@ virNodeDevCapsDefFree(virNodeDevCapsDef *caps)
         g_free(data->sg.path);
         break;
     case VIR_NODE_DEV_CAP_MDEV:
+        g_free(data->mdev.type);
         g_free(data->mdev.uuid);
-        virMediatedDeviceConfigClear(&data->mdev.defined_config);
-        virMediatedDeviceConfigClear(&data->mdev.active_config);
+        for (i = 0; i < data->mdev.nattributes; i++)
+            virMediatedDeviceAttrFree(data->mdev.attributes[i]);
+        g_free(data->mdev.attributes);
         g_free(data->mdev.parent_addr);
         break;
     case VIR_NODE_DEV_CAP_CSS_DEV:
@@ -2811,30 +2815,6 @@ virNodeDeviceCapsListExport(virNodeDeviceDef *def,
     return ncaps;
 }
 
-void
-virNodeDeviceSyncMdevActiveConfig(virNodeDeviceDef *def)
-{
-    size_t i;
-    virNodeDevCapsDef *caps;
-
-    for (caps = def->caps; caps; caps = caps->next) {
-        virNodeDevCapData *data = &caps->data;
-
-        if (caps->data.type != VIR_NODE_DEV_CAP_MDEV)
-            continue;
-
-        data->mdev.active_config.type = g_strdup(data->mdev.defined_config.type);
-        for (i = 0; i < data->mdev.defined_config.nattributes; i++) {
-            g_autoptr(virMediatedDeviceAttr) attr = g_new0(virMediatedDeviceAttr, 1);
-
-            attr->name = g_strdup(data->mdev.defined_config.attributes[i]->name);
-            attr->value = g_strdup(data->mdev.defined_config.attributes[i]->value);
-            VIR_APPEND_ELEMENT(data->mdev.active_config.attributes,
-                               data->mdev.active_config.nattributes,
-                               attr);
-        }
-    }
-}
 
 #ifdef __linux__
 
@@ -2925,9 +2905,9 @@ int
 virNodeDeviceGetSCSITargetCaps(const char *sysfsPath,
                                virNodeDevCapSCSITarget *scsi_target)
 {
+    int ret = -1;
     g_autofree char *dir = NULL;
     g_autofree char *rport = NULL;
-    g_autofree char *wwpn = NULL;
 
     VIR_DEBUG("Checking if '%s' is an FC remote port", scsi_target->name);
 
@@ -2937,21 +2917,28 @@ virNodeDeviceGetSCSITargetCaps(const char *sysfsPath,
     rport = g_path_get_basename(dir);
 
     if (!virFCIsCapableRport(rport))
-        return -1;
-
-    if (virFCReadRportValue(rport, "port_name",
-                            &wwpn) < 0) {
-        VIR_WARN("Failed to read port_name for '%s'", rport);
-        return -1;
-    }
+        goto cleanup;
 
     VIR_FREE(scsi_target->rport);
     scsi_target->rport = g_steal_pointer(&rport);
 
-    VIR_FREE(scsi_target->wwpn);
-    scsi_target->wwpn = g_steal_pointer(&wwpn);
+    if (virFCReadRportValue(scsi_target->rport, "port_name",
+                            &scsi_target->wwpn) < 0) {
+        VIR_WARN("Failed to read port_name for '%s'", scsi_target->rport);
+        goto cleanup;
+    }
+
     scsi_target->flags |= VIR_NODE_DEV_CAP_FLAG_FC_RPORT;
-    return 0;
+    ret = 0;
+
+ cleanup:
+    if (ret < 0) {
+        VIR_FREE(scsi_target->rport);
+        VIR_FREE(scsi_target->wwpn);
+        scsi_target->flags &= ~VIR_NODE_DEV_CAP_FLAG_FC_RPORT;
+    }
+
+    return ret;
 }
 
 
@@ -3090,12 +3077,13 @@ virNodeDeviceGetPCIVPDDynamicCap(virNodeDevCapPCIDev *devCapPCIDev)
     if (!(pciDev = virPCIDeviceNew(&devAddr)))
         return -1;
 
-    /* VPD is optional in PCI(e) specs. If it is there, attempt to add it. */
-    if ((res = virPCIDeviceGetVPD(pciDev))) {
-        devCapPCIDev->flags |= VIR_NODE_DEV_CAP_FLAG_PCI_VPD;
-        devCapPCIDev->vpd = g_steal_pointer(&res);
+    if (virPCIDeviceHasVPD(pciDev)) {
+        /* VPD is optional in PCI(e) specs. If it is there, attempt to add it. */
+        if ((res = virPCIDeviceGetVPD(pciDev))) {
+            devCapPCIDev->flags |= VIR_NODE_DEV_CAP_FLAG_PCI_VPD;
+            devCapPCIDev->vpd = g_steal_pointer(&res);
+        }
     }
-
     return 0;
 }
 

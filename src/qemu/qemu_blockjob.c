@@ -1372,12 +1372,8 @@ qemuBlockJobProcessEventConcludedBackup(virQEMUDriver *driver,
                                         unsigned long long progressTotal)
 {
     g_autoptr(qemuBlockStorageSourceAttachData) backend = NULL;
-    const char *diskdst = NULL;
 
-    if (job->disk)
-        diskdst = job->disk->dst;
-
-    qemuBackupNotifyBlockjobEnd(vm, diskdst, newstate, job->errmsg,
+    qemuBackupNotifyBlockjobEnd(vm, job->disk, newstate, job->errmsg,
                                 progressCurrent, progressTotal, asyncJob);
 
     if (job->data.backup.store &&
@@ -1390,8 +1386,7 @@ qemuBlockJobProcessEventConcludedBackup(virQEMUDriver *driver,
     if (backend)
         qemuBlockStorageSourceAttachRollback(qemuDomainGetMonitor(vm), backend);
 
-    if (job->disk &&
-        job->data.backup.bitmap)
+    if (job->data.backup.bitmap)
         qemuMonitorBitmapRemove(qemuDomainGetMonitor(vm),
                                 qemuBlockStorageSourceGetEffectiveNodename(job->disk->src),
                                 job->data.backup.bitmap);

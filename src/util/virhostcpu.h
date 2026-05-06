@@ -43,7 +43,6 @@ bool virHostCPUHasBitmap(void);
 virBitmap *virHostCPUGetPresentBitmap(void);
 virBitmap *virHostCPUGetOnlineBitmap(void);
 virBitmap *virHostCPUGetAvailableCPUsBitmap(void);
-int virHostCPUGetIsolated(virBitmap **isolated);
 
 int virHostCPUGetCount(void);
 int virHostCPUGetThreadsPerSubcore(virArch arch) G_NO_INLINE;
@@ -69,7 +68,6 @@ int virHostCPUStatsAssign(virNodeCPUStatsPtr param,
 #ifdef __linux__
 int virHostCPUGetSocket(unsigned int cpu, unsigned int *socket);
 int virHostCPUGetDie(unsigned int cpu, unsigned int *die);
-int virHostCPUGetCluster(unsigned int cpu, unsigned int *cluster);
 int virHostCPUGetCore(unsigned int cpu, unsigned int *core);
 
 virBitmap *virHostCPUGetSiblingsList(unsigned int cpu);

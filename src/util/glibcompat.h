@@ -22,7 +22,33 @@
 #include <glib/gstdio.h>
 #include <glib-object.h>
 
-#if !GLIB_CHECK_VERSION(2, 67, 0)
+#if GLIB_CHECK_VERSION(2, 67, 0)
+
+# if defined(__clang__)
+
+/*
+ * Clang detects (valid) issue in G_DEFINE_TYPE and derivatives starting with
+ * glib >= 2.67.0.  See https://gitlab.gnome.org/GNOME/glib/-/issues/600
+ *
+ * For that we need to disable the one check that produces an error in our
+ * builds when using any G_DEFINE_TYPE* macro.  Thankfully all those macros end
+ * up using _G_DEFINE_TYPE_EXTENDED_BEGIN.  Because with that we can redefine
+ * this one macro to cover all use cases.  The macro is defined the same way it
+ * is defined in glib (with a very low probability of being changed thanks to a
+ * comment above it).
+ */
+#  undef _G_DEFINE_TYPE_EXTENDED_BEGIN
+
+#  define _G_DEFINE_TYPE_EXTENDED_BEGIN(TypeName, type_name, TYPE_PARENT, flags) \
+    _Pragma("GCC diagnostic push") \
+    _Pragma("GCC diagnostic ignored \"-Wincompatible-pointer-types-discards-qualifiers\"") \
+    _G_DEFINE_TYPE_EXTENDED_BEGIN_PRE(TypeName, type_name, TYPE_PARENT) \
+    _G_DEFINE_TYPE_EXTENDED_BEGIN_REGISTER(TypeName, type_name, TYPE_PARENT, flags) \
+    _Pragma("GCC diagnostic pop")
+
+# endif /* __clang__ */
+
+#else /* GLib < 2.67.0 */
 
 /*
  * ...meanwhile GCC >= 11 has started issuing warnings about volatile
@@ -42,6 +68,15 @@
 
 #endif /* GLib < 2.67.0 */
 
+gchar * vir_g_canonicalize_filename(const gchar *filename,
+                                    const gchar *relative_to);
+
+gboolean
+vir_g_hash_table_steal_extended(GHashTable *hash_table,
+                                gconstpointer lookup_key,
+                                gpointer *stolen_key,
+                                gpointer *stolen_value);
+#define g_hash_table_steal_extended vir_g_hash_table_steal_extended
 
 gint vir_g_fsync(gint fd);
 char *vir_g_strdup_printf(const char *msg, ...)
@@ -54,20 +89,11 @@ char *vir_g_strdup_vprintf(const char *msg, va_list args)
 # define g_strdup_vprintf vir_g_strdup_vprintf
 #endif
 
+#define g_canonicalize_filename vir_g_canonicalize_filename
 #undef g_fsync
 #define g_fsync vir_g_fsync
 
 void vir_g_source_unref(GSource *src, GMainContext *ctx);
-
-
-/* Drop once we require glib-2.68 at minimum */
-guint
-vir_g_string_replace(GString *string,
-                     const gchar *find,
-                     const gchar *replace,
-                     guint limit);
-#undef g_string_replace
-#define g_string_replace vir_g_string_replace
 
 #if !GLIB_CHECK_VERSION(2, 73, 2)
 # if (defined(__has_attribute) && __has_attribute(__noinline__)) || G_GNUC_CHECK_VERSION (2, 96)

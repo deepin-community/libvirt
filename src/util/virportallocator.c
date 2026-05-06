@@ -29,11 +29,8 @@
 #include "virthread.h"
 #include "virerror.h"
 #include "virutil.h"
-#include "virlog.h"
 
 #define VIR_FROM_THIS VIR_FROM_NONE
-
-VIR_LOG_INIT("util.virportallocator");
 
 #define VIR_PORT_ALLOCATOR_NUM_PORTS 65536
 
@@ -231,8 +228,6 @@ virPortAllocatorAcquire(const virPortAllocatorRange *range,
                     return -1;
                 }
                 *port = i;
-                VIR_DEBUG("port='%u'", *port);
-
                 return 0;
             }
         }
@@ -252,8 +247,6 @@ virPortAllocatorRelease(unsigned short port)
     if (!pa)
         return -1;
 
-    VIR_DEBUG("port='%u'", port);
-
     if (!port)
         return 0;
 
@@ -271,8 +264,6 @@ virPortAllocatorSetUsed(unsigned short port)
 
     if (!pa)
         return -1;
-
-    VIR_DEBUG("port='%u'", port);
 
     if (!port)
         return 0;

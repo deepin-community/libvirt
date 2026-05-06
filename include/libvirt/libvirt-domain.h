@@ -2172,7 +2172,6 @@ int                     virDomainBlockPeek (virDomainPtr dom,
  */
 typedef enum {
     VIR_DOMAIN_BLOCK_RESIZE_BYTES = 1 << 0, /* size in bytes instead of KiB (Since: 0.9.11) */
-    VIR_DOMAIN_BLOCK_RESIZE_CAPACITY = 1 << 1, /* resize to full the capacity of the source (Since: 10.0.0) */
 } virDomainBlockResizeFlags;
 
 int                     virDomainBlockResize (virDomainPtr dom,
@@ -4613,15 +4612,6 @@ typedef enum {
 # define VIR_DOMAIN_JOB_DISK_TEMP_TOTAL "disk_temp_total"
 
 /**
- * VIR_DOMAIN_JOB_VFIO_DATA_TRANSFERRED:
- * virDomainGetJobStats field: number of bytes transferred by VFIO devices
- * in that iteration, as VIR_TYPED_PARAM_ULLONG.
- *
- * Since: 10.6.0
- */
-# define VIR_DOMAIN_JOB_VFIO_DATA_TRANSFERRED "vfio_data_transferred"
-
-/**
  * virConnectDomainEventGenericCallback:
  * @conn: the connection pointer
  * @dom: the domain pointer
@@ -6322,16 +6312,6 @@ int virDomainSetLifecycleAction(virDomainPtr domain,
 # define VIR_DOMAIN_LAUNCH_SECURITY_SEV_POLICY "sev-policy"
 
 /**
- * VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP_POLICY:
- *
- * Macro represents the policy of the SEV-SNP guest,
- * as VIR_TYPED_PARAM_ULLONG.
- *
- * Since: 10.5.0
- */
-# define VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP_POLICY "sev-snp-policy"
-
-/**
  * VIR_DOMAIN_LAUNCH_SECURITY_SEV_SECRET_HEADER:
  *
  * A macro used to represent the SEV launch secret header. The secret header
@@ -6525,23 +6505,5 @@ int virDomainFDAssociate(virDomainPtr domain,
                          unsigned int nfds,
                          int *fds,
                          unsigned int flags);
-
-/**
- * virDomainGraphicsReloadType:
- *
- * Since: 10.2.0
- */
-typedef enum {
-    VIR_DOMAIN_GRAPHICS_RELOAD_TYPE_ANY = 0, /* reload any graphics known to libvirt (Since: 10.2.0) */
-    VIR_DOMAIN_GRAPHICS_RELOAD_TYPE_VNC = 1, /* reload vnc graphics (Since: 10.2.0) */
-# ifdef VIR_ENUM_SENTINELS
-    VIR_DOMAIN_GRAPHICS_RELOAD_TYPE_LAST /* (Since: 10.2.0) */
-# endif
-} virDomainGraphicsReloadType;
-
-int
-virDomainGraphicsReload(virDomainPtr domain,
-                        unsigned int type,
-                        unsigned int flags);
 
 #endif /* LIBVIRT_DOMAIN_H */

@@ -3,8 +3,12 @@
         "uefi"
     ],
     "mapping": {
-        "device": "memory",
-        "filename": "/usr/share/edk2/ovmf/OVMF.inteltdx.secboot.fd"
+        "device": "flash",
+        "mode": "stateless",
+        "executable": {
+            "filename": "/usr/share/edk2/ovmf/OVMF.inteltdx.fd",
+            "format": "raw"
+        }
     },
     "targets": [
         {
@@ -15,8 +19,6 @@
         }
     ],
     "features": [
-        "enrolled-keys",
-        "secure-boot",
         "verbose-dynamic"
     ]
 }

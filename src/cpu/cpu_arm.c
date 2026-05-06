@@ -448,8 +448,7 @@ virCPUarmGetMap(void)
 static int
 virCPUarmUpdate(virCPUDef *guest,
                 const virCPUDef *host,
-                bool relative,
-                virCPUFeaturePolicy removedPolicy G_GNUC_UNUSED)
+                bool relative)
 {
     g_autoptr(virCPUDef) updated = virCPUDefCopyWithoutModel(guest);
 

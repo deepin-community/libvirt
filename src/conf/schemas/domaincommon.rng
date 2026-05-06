@@ -516,28 +516,12 @@
           <ref name="launchSecuritySEV"/>
         </group>
         <group>
-          <ref name="launchSecuritySEVSNP"/>
-        </group>
-        <group>
           <attribute name="type">
             <value>s390-pv</value>
           </attribute>
         </group>
       </choice>
     </element>
-  </define>
-
-  <define name="launchSecuritySEVCommon">
-    <optional>
-      <element name="cbitpos">
-        <data type="unsignedInt"/>
-      </element>
-    </optional>
-    <optional>
-      <element name="reducedPhysBits">
-        <data type="unsignedInt"/>
-      </element>
-    </optional>
   </define>
 
   <define name="launchSecuritySEV">
@@ -550,7 +534,16 @@
       </attribute>
     </optional>
     <interleave>
-      <ref name="launchSecuritySEVCommon"/>
+      <optional>
+        <element name="cbitpos">
+          <data type="unsignedInt"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="reducedPhysBits">
+          <data type="unsignedInt"/>
+        </element>
+      </optional>
       <element name="policy">
         <ref name="hexuint"/>
       </element>
@@ -572,52 +565,6 @@
     </interleave>
   </define>
 
-  <define name="launchSecuritySEVSNP">
-    <attribute name="type">
-      <value>sev-snp</value>
-    </attribute>
-    <optional>
-      <attribute name="kernelHashes">
-        <ref name="virYesNo"/>
-      </attribute>
-    </optional>
-    <optional>
-      <attribute name="authorKey">
-        <ref name="virYesNo"/>
-      </attribute>
-    </optional>
-    <optional>
-      <attribute name="vcek">
-        <ref name="virYesNo"/>
-      </attribute>
-    </optional>
-    <interleave>
-      <ref name="launchSecuritySEVCommon"/>
-      <element name="policy">
-        <ref name="hexuint"/>
-      </element>
-      <optional>
-        <element name="guestVisibleWorkarounds">
-          <data type="string"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="idBlock">
-          <data type="string"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="idAuth">
-          <data type="string"/>
-        </element>
-      </optional>
-      <optional>
-        <element name="hostData">
-          <data type="string"/>
-        </element>
-      </optional>
-    </interleave>
-  </define>
   <!--
       Enable or disable perf events for the domain. For each
       of the events the following rules apply:
@@ -2589,26 +2536,9 @@
       </optional>
     </element>
   </define>
-
-  <define name="diskDriverIothreads">
-    <element name="iothreads">
-      <oneOrMore>
-        <element name="iothread">
-          <attribute name="id">
-            <ref name="unsignedInt"/>
-          </attribute>
-          <zeroOrMore>
-            <element name="queue">
-              <attribute name="id">
-                <ref name="unsignedInt"/>
-              </attribute>
-            </element>
-          </zeroOrMore>
-        </element>
-      </oneOrMore>
-    </element>
-  </define>
-
+  <!--
+      Disk may use a special driver for access.
+    -->
   <define name="diskDriver">
     <element name="driver">
       <optional>
@@ -2660,23 +2590,17 @@
         </attribute>
       </optional>
       <ref name="virtioOptions"/>
-      <interleave>
-        <optional>
-          <element name="metadata_cache">
-            <optional>
-              <element name="max_size">
-                <ref name="scaledInteger"/>
-              </element>
-            </optional>
-          </element>
-        </optional>
-        <optional>
-          <ref name="diskDriverIothreads"/>
-        </optional>
-      </interleave>
+      <optional>
+        <element name="metadata_cache">
+          <optional>
+            <element name="max_size">
+              <ref name="scaledInteger"/>
+            </element>
+          </optional>
+        </element>
+      </optional>
     </element>
   </define>
-
   <define name="driverFormat">
     <optional>
       <attribute name="name">
@@ -2950,11 +2874,6 @@
                       <ref name="unsignedInt"/>
                     </element>
                   </optional>
-                  <optional>
-                    <attribute name="memReserve">
-                      <ref name="unsignedLong"/>
-                    </attribute>
-                  </optional>
                 </element>
               </optional>
               <!-- *-root controllers have an optional element "pcihole64"-->
@@ -3201,9 +3120,6 @@
               </choice>
               <empty/>
             </element>
-            <optional>
-              <ref name="idmap"/>
-            </optional>
             <ref name="filesystemCommon"/>
           </interleave>
         </group>
@@ -3311,11 +3227,6 @@
           </optional>
           <ref name="virtioOptions"/>
         </group>
-        <group>
-          <attribute name="type">
-            <value>mtp</value>
-          </attribute>
-        </group>
         <empty/>
       </choice>
     </element>
@@ -3376,15 +3287,6 @@
             <optional>
               <attribute name="size">
                 <data type="integer"/>
-              </attribute>
-            </optional>
-          </element>
-        </optional>
-        <optional>
-          <element name="openfiles">
-            <optional>
-              <attribute name="max">
-                <data type="positiveInteger"/>
               </attribute>
             </optional>
           </element>
@@ -3693,21 +3595,15 @@
               <attribute name="switchid">
                 <ref name="UUID"/>
               </attribute>
-              <optional>
-                <attribute name="portid">
-                  <data type="long"/>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="portgroupid">
-                  <data type="string"/>
-                </attribute>
-              </optional>
-              <optional>
-                <attribute name="connectionid">
-                  <data type="long"/>
-                </attribute>
-              </optional>
+              <attribute name="portid">
+                <data type="long"/>
+              </attribute>
+              <attribute name="portgroupid">
+                <data type="string"/>
+              </attribute>
+              <attribute name="connectionid">
+                <data type="long"/>
+              </attribute>
             </element>
             <ref name="interface-options"/>
           </interleave>
@@ -3841,7 +3737,6 @@
           <optional>
             <attribute name="type">
               <choice>
-                <value>default</value>
                 <value>passt</value>
               </choice>
             </attribute>
@@ -3864,12 +3759,18 @@
         </element>
       </optional>
       <optional>
-        <choice>
-          <group>
-            <ref name="hostdevDriver"/>
-          </group>
-          <group>
-            <element name="driver">
+        <element name="driver">
+          <choice>
+            <group>
+              <attribute name="name">
+                <choice>
+                  <value>kvm</value>
+                  <value>vfio</value>
+                  <value>xen</value>
+                </choice>
+              </attribute>
+            </group>
+            <group>
               <optional>
                 <attribute name="name">
                   <choice>
@@ -3907,90 +3808,90 @@
               <optional>
                 <ref name="event_idx"/>
               </optional>
-              <ref name="virtioOptions"/>
-              <interleave>
+            </group>
+          </choice>
+          <ref name="virtioOptions"/>
+          <interleave>
+            <optional>
+              <element name="host">
                 <optional>
-                  <element name="host">
-                    <optional>
-                      <attribute name="csum">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="gso">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="tso4">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="tso6">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="ecn">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="ufo">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="mrg_rxbuf">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                  </element>
-                </optional>
-                <optional>
-                  <element name="guest">
-                    <optional>
-                      <attribute name="csum">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="tso4">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="tso6">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="ecn">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                    <optional>
-                      <attribute name="ufo">
-                        <ref name="virOnOff"/>
-                      </attribute>
-                    </optional>
-                  </element>
-                </optional>
-                <optional>
-                  <attribute name="rss">
+                  <attribute name="csum">
                     <ref name="virOnOff"/>
                   </attribute>
                 </optional>
                 <optional>
-                  <attribute name="rss_hash_report">
+                  <attribute name="gso">
                     <ref name="virOnOff"/>
                   </attribute>
                 </optional>
-              </interleave>
-            </element>
-          </group>
-        </choice>
+                <optional>
+                  <attribute name="tso4">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="tso6">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="ecn">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="ufo">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="mrg_rxbuf">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+              </element>
+            </optional>
+            <optional>
+              <element name="guest">
+                <optional>
+                  <attribute name="csum">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="tso4">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="tso6">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="ecn">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+                <optional>
+                  <attribute name="ufo">
+                    <ref name="virOnOff"/>
+                  </attribute>
+                </optional>
+              </element>
+            </optional>
+            <optional>
+              <attribute name="rss">
+                <ref name="virOnOff"/>
+              </attribute>
+            </optional>
+            <optional>
+              <attribute name="rss_hash_report">
+                <ref name="virOnOff"/>
+              </attribute>
+            </optional>
+          </interleave>
+        </element>
       </optional>
       <optional>
         <ref name="alias"/>
@@ -5131,17 +5032,11 @@
           <value>ich7</value>
           <value>ich9</value>
           <value>usb</value>
-          <value>virtio</value>
         </choice>
       </attribute>
       <optional>
         <attribute name="multichannel">
           <ref name="virYesNo"/>
-        </attribute>
-      </optional>
-      <optional>
-        <attribute name="streams">
-          <ref name="uint32"/>
         </attribute>
       </optional>
       <interleave>
@@ -5164,11 +5059,6 @@
         <zeroOrMore>
           <ref name="codec"/>
         </zeroOrMore>
-        <optional>
-          <element name="driver">
-            <ref name="virtioOptions"/>
-          </element>
-        </optional>
       </interleave>
     </element>
   </define>
@@ -5929,11 +5819,6 @@
               <ref name="virYesNo"/>
             </attribute>
           </optional>
-          <optional>
-            <attribute name="debug">
-              <ref name="uint8"/>
-            </attribute>
-          </optional>
         </group>
         <group>
           <attribute name="type">
@@ -6100,11 +5985,6 @@
                 <ref name="uint8"/>
               </attribute>
             </optional>
-            <optional>
-              <attribute name="dma_translation">
-                <ref name="virOnOff"/>
-              </attribute>
-            </optional>
           </element>
         </optional>
         <optional>
@@ -6260,30 +6140,6 @@
     </element>
   </define>
 
-  <define name="pstore">
-    <element name="pstore">
-      <attribute name="backend">
-        <value>acpi-erst</value>
-      </attribute>
-      <interleave>
-        <optional>
-          <element name="path">
-            <ref name="absFilePath"/>
-          </element>
-        </optional>
-        <element name="size">
-          <ref name="scaledInteger"/>
-        </element>
-        <optional>
-          <ref name="address"/>
-        </optional>
-        <optional>
-          <ref name="alias"/>
-        </optional>
-      </interleave>
-    </element>
-  </define>
-
   <define name="hostdev">
     <element name="hostdev">
       <interleave>
@@ -6368,7 +6224,16 @@
     </attribute>
     <interleave>
       <optional>
-        <ref name="hostdevDriver"/>
+        <element name="driver">
+          <attribute name="name">
+            <choice>
+              <value>kvm</value>
+              <value>vfio</value>
+              <value>xen</value>
+            </choice>
+          </attribute>
+          <empty/>
+        </element>
       </optional>
       <optional>
         <ref name="teaming"/>
@@ -6386,7 +6251,6 @@
           <ref name="pciaddress"/>
         </element>
       </element>
-      <ref name="hostdevsubsysvfiodisplay"/>
     </interleave>
   </define>
 
@@ -6506,19 +6370,6 @@
     </element>
   </define>
 
-  <define name="hostdevsubsysvfiodisplay">
-    <optional>
-      <attribute name="ramfb">
-        <ref name="virOnOff"/>
-      </attribute>
-    </optional>
-    <optional>
-      <attribute name="display">
-        <ref name="virOnOff"/>
-      </attribute>
-    </optional>
-  </define>
-
   <define name="hostdevsubsysmdev">
     <attribute name="type">
       <value>mdev</value>
@@ -6530,7 +6381,16 @@
         <value>vfio-ap</value>
       </choice>
     </attribute>
-    <ref name="hostdevsubsysvfiodisplay"/>
+    <optional>
+      <attribute name="ramfb">
+        <ref name="virOnOff"/>
+      </attribute>
+    </optional>
+    <optional>
+      <attribute name="display">
+        <ref name="virOnOff"/>
+      </attribute>
+    </optional>
     <element name="source">
       <ref name="mdevaddress"/>
     </element>
@@ -6753,9 +6613,6 @@
         <optional>
           <ref name="vsock"/>
         </optional>
-        <optional>
-          <ref name="pstore"/>
-        </optional>
       </interleave>
     </element>
   </define>
@@ -6910,16 +6767,6 @@
                   <ref name="virYesNo"/>
                 </attribute>
               </optional>
-            </element>
-          </optional>
-          <optional>
-            <element name="ras">
-              <ref name="featurestate"/>
-            </element>
-          </optional>
-          <optional>
-            <element name="ps2">
-              <ref name="featurestate"/>
             </element>
           </optional>
         </interleave>
@@ -7410,11 +7257,6 @@
 
   <define name="memorydev-target">
     <element name="target">
-      <optional>
-        <attribute name="dynamicMemslots">
-          <ref name="virYesNo"/>
-        </attribute>
-      </optional>
       <interleave>
         <element name="size">
           <ref name="scaledInteger"/>
@@ -7964,16 +7806,6 @@
             </optional>
             <optional>
               <element name="avic">
-                <ref name="featurestate"/>
-              </element>
-            </optional>
-            <optional>
-              <element name="emsr_bitmap">
-                <ref name="featurestate"/>
-              </element>
-            </optional>
-            <optional>
-              <element name="xmm_input">
                 <ref name="featurestate"/>
               </element>
             </optional>

@@ -267,21 +267,11 @@ qemuBlockReopenReadOnly(virDomainObj *vm,
                         virStorageSource *src,
                         virDomainAsyncJob asyncJob);
 
-int
-qemuBlockReopenSliceExpand(virDomainObj *vm,
-                           virStorageSource *src);
-
-bool
-qemuBlockStorageSourceIsLUKS(const virStorageSource *src);
-bool
-qemuBlockStorageSourceIsRaw(const virStorageSource *src);
-
 bool
 qemuBlockStorageSourceNeedsStorageSliceLayer(const virStorageSource *src);
 
 bool
-qemuBlockStorageSourceNeedsFormatLayer(const virStorageSource *src,
-                                       virQEMUCaps *qemuCaps);
+qemuBlockStorageSourceNeedsFormatLayer(const virStorageSource *src);
 
 char *
 qemuBlockStorageSourceGetCookieString(virStorageSource *src);

@@ -1,6 +1,8 @@
 <cpu mode='custom' match='exact'>
   <model fallback='forbid'>Westmere</model>
   <vendor>Intel</vendor>
+  <feature policy='require' name='vme'/>
+  <feature policy='require' name='ss'/>
   <feature policy='require' name='pclmuldq'/>
   <feature policy='require' name='pcid'/>
   <feature policy='require' name='x2apic'/>
@@ -9,6 +11,4 @@
   <feature policy='require' name='osxsave'/>
   <feature policy='require' name='avx'/>
   <feature policy='require' name='hypervisor'/>
-  <feature policy='require' name='vme'/>
-  <feature policy='require' name='ss'/>
 </cpu>

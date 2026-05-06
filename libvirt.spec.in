@@ -90,14 +90,12 @@
 
 # Other optional features
 %define with_numactl          0%{!?_without_numactl:1}
-%define with_userfaultfd_sysctl 0%{!?_without_userfaultfd_sysctl:1}
 
 # A few optional bits off by default, we enable later
 %define with_fuse             0
 %define with_sanlock          0
 %define with_numad            0
 %define with_nbdkit           0
-%define with_nbdkit_config_default 0
 %define with_firewalld_zone   0
 %define with_netcf            0
 %define with_libssh2          0
@@ -176,23 +174,15 @@
     %endif
 %endif
 
-# We want to build with nbdkit support, but should only enable nbdkit by
-# default if the OS ships a SELinux policy that allows libvirt to launch it.
-# Right now that's not the case anywhere, but things should be fine by the time
-# Fedora 40 is released.
+# We should only enable nbdkit support if the OS ships a SELinux policy that
+# allows libvirt to launch it. Right now that's not the case anywhere, but
+# things should be fine by the time Fedora 40 is released.
+#
+# TODO: add RHEL 9 once a minor release that contains the necessary SELinux
+#       bits exists (we only support the most recent minor release)
 %if %{with_qemu}
-    # rhel-8 lacks pidfd_open
-    %if 0%{?fedora} || 0%{?rhel} >= 9
+    %if 0%{?fedora} >= 40
         %define with_nbdkit 0%{!?_without_nbdkit:1}
-
-        # setting 'with_nbdkit_config_default' must be done only when compiling
-        # in nbdkit support
-        #
-        # TODO: add RHEL 9 once a minor release that contains the necessary SELinux
-        #       bits exists (we only support the most recent minor release)
-        %if 0%{?fedora} >= 40
-            %define with_nbdkit_config_default 0%{!?_without_nbdkit_config_default:1}
-        %endif
     %endif
 %endif
 
@@ -204,18 +194,6 @@
 %if 0%{?fedora} || 0%{?rhel} >= 9
     %define with_modular_daemons 1
 %endif
-
-# Prefer nftables for future OS releases but keep using iptables
-# for existing ones
-%if 0%{?rhel} >= 10 || 0%{?fedora} >= 41
-    %define prefer_nftables 1
-    %define firewall_backend_priority nftables,iptables
-%else
-    %define prefer_nftables 0
-    %define firewall_backend_priority iptables,nftables
-%endif
-
-
 
 # Force QEMU to run as non-root
 %define qemu_user  qemu
@@ -259,12 +237,6 @@
     %define enable_werror -Dwerror=false -Dgit_werror=disabled
 %endif
 
-# Fedora and RHEL-9 are new enough to support /dev/userfaultfd, which
-# does not require enabling vm.unprivileged_userfaultfd sysctl.
-%if 0%{?fedora} || 0%{?rhel} >= 9
-    %define with_userfaultfd_sysctl 0
-%endif
-
 %define tls_priority "@LIBVIRT,SYSTEM"
 
 # libvirt 8.1.0 stops distributing any sysconfig files.
@@ -293,7 +265,7 @@ Release: 1%{?dist}
 License: GPL-2.0-or-later AND LGPL-2.1-only AND LGPL-2.1-or-later AND OFL-1.1
 URL: https://libvirt.org/
 
-%if %(echo %{version} | grep "\.0$" >/dev/null; echo $?) == 1
+%if %(echo %{version} | grep -q "\.0$"; echo $?) == 1
     %define mainturl stable_updates/
 %endif
 Source: https://download.libvirt.org/%{?mainturl}libvirt-%{version}.tar.xz
@@ -348,10 +320,10 @@ BuildRequires: gcc
     %if %{with_libxl}
 BuildRequires: xen-devel
     %endif
-BuildRequires: glib2-devel >= 2.58
+BuildRequires: glib2-devel >= 2.56
 BuildRequires: libxml2-devel
 BuildRequires: readline-devel
-BuildRequires: pkgconfig(bash-completion) >= 2.0
+BuildRequires: bash-completion >= 2.0
 BuildRequires: libtasn1-devel
 BuildRequires: gnutls-devel
 BuildRequires: libattr-devel
@@ -368,6 +340,8 @@ BuildRequires: sanlock-devel >= 2.4
 BuildRequires: libpcap-devel >= 1.5.0
 BuildRequires: libnl3-devel
 BuildRequires: libselinux-devel
+BuildRequires: iptables
+BuildRequires: ebtables
 # For modprobe
 BuildRequires: kmod
 BuildRequires: cyrus-sasl-devel
@@ -418,6 +392,9 @@ BuildRequires: libssh2-devel >= 1.3.0
     %if %{with_netcf}
 BuildRequires: netcf-devel >= 0.2.2
     %endif
+    %if 0%{?fedora} || 0%{?rhel} >= 9
+BuildRequires: passt
+    %endif
     %if %{with_esx}
 BuildRequires: libcurl-devel
     %endif
@@ -431,6 +408,8 @@ BuildRequires: systemtap-sdt-devel
 BuildRequires: util-linux
 # For showmount in FS driver (netfs discovery)
 BuildRequires: nfs-utils
+# For storage wiping with different algorithms
+BuildRequires: scrub
     %if %{with_numad}
 BuildRequires: numad
     %endif
@@ -452,6 +431,8 @@ BuildRequires: mingw32-filesystem
 BuildRequires: mingw32-gcc
 BuildRequires: mingw32-binutils
 BuildRequires: mingw32-glib2 >= 2.48
+BuildRequires: mingw32-libgpg-error
+BuildRequires: mingw32-libgcrypt
 BuildRequires: mingw32-gnutls
 BuildRequires: mingw32-gettext
 BuildRequires: mingw32-libxml2
@@ -465,6 +446,8 @@ BuildRequires: mingw64-filesystem
 BuildRequires: mingw64-gcc
 BuildRequires: mingw64-binutils
 BuildRequires: mingw64-glib2 >= 2.48
+BuildRequires: mingw64-libgpg-error
+BuildRequires: mingw64-libgcrypt
 BuildRequires: mingw64-gnutls
 BuildRequires: mingw64-gettext
 BuildRequires: mingw64-libxml2
@@ -604,11 +587,7 @@ Summary: Network driver plugin for the libvirtd daemon
 Requires: libvirt-daemon-common = %{version}-%{release}
 Requires: libvirt-libs = %{version}-%{release}
 Requires: dnsmasq >= 2.41
-    %if %{prefer_nftables}
-Requires: nftables
-    %else
 Requires: iptables
-    %endif
 
 %description daemon-driver-network
 The network driver plugin for the libvirtd daemon, providing
@@ -634,7 +613,6 @@ Requires: libvirt-libs = %{version}-%{release}
 # needed for device enumeration
 Requires: systemd >= 185
 # For managing persistent mediated devices
-# Note: for nodedev-update support at least mdevctl v1.3.0 is required
 Requires: mdevctl
 # for modprobe of pci devices
 Requires: module-init-tools
@@ -672,8 +650,6 @@ Requires: libvirt-libs = %{version}-%{release}
 Requires: nfs-utils
 # For mkfs
 Requires: util-linux
-# For storage wiping with different algorithms
-Requires: scrub
     %if %{with_qemu}
 # From QEMU RPMs
 Requires: /usr/bin/qemu-img
@@ -829,7 +805,6 @@ Requires: gzip
 Requires: bzip2
 Requires: lzop
 Requires: xz
-Requires: zstd
 Requires: systemd-container
 Requires: swtpm-tools
         %if %{with_numad}
@@ -917,7 +892,6 @@ Requires: libvirt-daemon-driver-nodedev = %{version}-%{release}
 Requires: libvirt-daemon-driver-nwfilter = %{version}-%{release}
 Requires: libvirt-daemon-driver-secret = %{version}-%{release}
 Requires: libvirt-daemon-driver-storage = %{version}-%{release}
-Requires: libvirt-ssh-proxy = %{version}-%{release}
 Requires: qemu
 
 %description daemon-qemu
@@ -946,7 +920,6 @@ Requires: libvirt-daemon-driver-nodedev = %{version}-%{release}
 Requires: libvirt-daemon-driver-nwfilter = %{version}-%{release}
 Requires: libvirt-daemon-driver-secret = %{version}-%{release}
 Requires: libvirt-daemon-driver-storage = %{version}-%{release}
-Requires: libvirt-ssh-proxy = %{version}-%{release}
 Requires: qemu-kvm
 
 %description daemon-kvm
@@ -1032,6 +1005,8 @@ capabilities of VirtualBox
 %package client
 Summary: Client side utilities of the libvirt library
 Requires: libvirt-libs = %{version}-%{release}
+# Needed by virt-pki-validate script.
+Requires: gnutls-utils
 
 # Ensure smooth upgrades
 Obsoletes: libvirt-bash-completion < 7.3.0
@@ -1053,6 +1028,8 @@ with some QEMU specific features of libvirt.
 
 %package libs
 Summary: Client side libraries
+# So remote clients can access libvirt over SSH tunnel
+Requires: cyrus-sasl
 # Needed by default sasl.conf - no onerous extra deps, since
 # 100's of other things on a system already pull in krb5-libs
 Requires: cyrus-sasl-gssapi
@@ -1111,13 +1088,6 @@ Requires: libvirt-daemon-driver-network = %{version}-%{release}
 %description nss
 Libvirt plugin for NSS for translating domain names into IP addresses.
 %endif
-
-%package ssh-proxy
-Summary: Libvirt SSH proxy
-Requires: libvirt-libs = %{version}-%{release}
-
-%description ssh-proxy
-Allows SSH into domains via VSOCK without need for network.
 
 %if %{with_mingw32}
 %package -n mingw32-libvirt
@@ -1244,12 +1214,6 @@ exit 1
     %define arg_nbdkit -Dnbdkit=disabled
 %endif
 
-%if %{with_nbdkit_config_default}
-    %define arg_nbdkit_config_default -Dnbdkit_config_default=enabled
-%else
-    %define arg_nbdkit_config_default -Dnbdkit_config_default=disabled
-%endif
-
 %if %{with_fuse}
     %define arg_fuse -Dfuse=enabled
 %else
@@ -1304,12 +1268,6 @@ exit 1
     %define arg_remote_mode -Dremote_default_mode=legacy
 %endif
 
-%if %{with_userfaultfd_sysctl}
-    %define arg_userfaultfd_sysctl -Duserfaultfd_sysctl=enabled
-%else
-    %define arg_userfaultfd_sysctl -Duserfaultfd_sysctl=disabled
-%endif
-
 %define when  %(date +"%%F-%%T")
 %define where %(hostname)
 %define who   %{?packager}%{!?packager:Unknown}
@@ -1325,8 +1283,6 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
 %meson \
            -Drunstatedir=%{_rundir} \
            -Dinitconfdir=%{_sysconfdir}/sysconfig \
-           -Dunitdir=%{_unitdir} \
-           -Dsysusersdir=%{_sysusersdir} \
            %{?arg_qemu} \
            %{?arg_openvz} \
            %{?arg_lxc} \
@@ -1373,7 +1329,6 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
            %{?arg_sanlock} \
            -Dlibpcap=enabled \
            %{?arg_nbdkit} \
-           %{?arg_nbdkit_config_default} \
            -Dlibnl=enabled \
            -Daudit=enabled \
            -Ddtrace=enabled \
@@ -1391,13 +1346,9 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
            -Dqemu_moddir=%{qemu_moddir} \
            -Dqemu_datadir=%{qemu_datadir} \
            -Dtls_priority=%{tls_priority} \
-           -Dsysctl_config=enabled \
-           %{?arg_userfaultfd_sysctl} \
-           -Dssh_proxy=enabled \
            %{?enable_werror} \
            -Dexpensive_tests=enabled \
            -Dinit_script=systemd \
-           -Dfirewall_backend_priority=%{firewall_backend_priority} \
            -Ddocs=enabled \
            -Dtests=enabled \
            -Drpath=disabled \
@@ -1443,7 +1394,6 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
   -Dhost_validate=disabled \
   -Dlibiscsi=disabled \
   -Dnbdkit=disabled \
-  -Dnbdkit_config_default=disabled \
   -Dlibnl=disabled \
   -Dlibpcap=disabled \
   -Dlibssh2=disabled \
@@ -1478,14 +1428,11 @@ export SOURCE_DATE_EPOCH=$(stat --printf='%Y' %{_specdir}/libvirt.spec)
   -Dstorage_vstorage=disabled \
   -Dstorage_zfs=disabled \
   -Dsysctl_config=disabled \
-  -Duserfaultfd_sysctl=disabled \
-  -Dssh_proxy=disabled \
   -Dtests=disabled \
   -Dudev=disabled \
   -Dwireshark_dissector=disabled \
-  -Dyajl=disabled \
-  %{?enable_werror}
-%mingw_ninja
+  -Dyajl=disabled
+    %mingw_ninja
 %endif
 
 %install
@@ -1516,7 +1463,6 @@ chmod 600 $RPM_BUILD_ROOT%{_sysconfdir}/libvirt/nwfilter/*.xml
     %if ! %{with_qemu}
 rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/libvirtd_qemu.aug
 rm -f $RPM_BUILD_ROOT%{_datadir}/augeas/lenses/tests/test_libvirtd_qemu.aug
-rm -f $RPM_BUILD_ROOT%{_sysusersdir}/libvirt-qemu.conf
     %endif
 %find_lang %{name}
 
@@ -1591,8 +1537,7 @@ rm -rf $RPM_BUILD_ROOT%{mingw64_libexecdir}/libvirt-guests.sh
 %if %{with_native}
 # Building on slow archs, like emulated s390x in Fedora copr, requires
 # raising the test timeout
-export VIR_TEST_DEBUG=1
-%meson_test --no-suite syntax-check --timeout-multiplier 10
+VIR_TEST_DEBUG=1 %meson_test --no-suite syntax-check --timeout-multiplier 10
 %endif
 
 %define libvirt_rpmstatedir %{_localstatedir}/lib/rpm-state/libvirt
@@ -1879,19 +1824,16 @@ exit 0
 %pre daemon-driver-qemu
 %libvirt_sysconfig_pre virtqemud
 %libvirt_systemd_unix_pre virtqemud
-
 # We want soft static allocation of well-known ids, as disk images
-# are commonly shared across NFS mounts by id rather than name.
-# See https://docs.fedoraproject.org/en-US/packaging-guidelines/UsersAndGroups/
-# We can not use the sysusers_create_compat macro here as we want to keep the
-# specfile standalone and not relying on additionnal files.
-getent group 'kvm' >/dev/null || groupadd -f -g '36' -r 'kvm' || :
-getent group 'qemu' >/dev/null || groupadd -f -g '107' -r 'qemu' || :
-if ! getent passwd 'qemu' >/dev/null; then
-  if ! getent passwd '107' >/dev/null; then
-    useradd -r -u '107' -g 'qemu' -G 'kvm' -d '/' -s '/sbin/nologin' -c 'qemu user' 'qemu' || :
+# are commonly shared across NFS mounts by id rather than name; see
+# https://fedoraproject.org/wiki/Packaging:UsersAndGroups
+getent group kvm >/dev/null || groupadd -f -g 36 -r kvm
+getent group qemu >/dev/null || groupadd -f -g 107 -r qemu
+if ! getent passwd qemu >/dev/null; then
+  if ! getent passwd 107 >/dev/null; then
+    useradd -r -u 107 -g qemu -G kvm -d / -s /sbin/nologin -c "qemu user" qemu
   else
-    useradd -r -g 'qemu' -G 'kvm' -d '/' -s '/sbin/nologin' -c 'qemu user' 'qemu' || :
+    useradd -r -g qemu -G kvm -d / -s /sbin/nologin -c "qemu user" qemu
   fi
 fi
 exit 0
@@ -2135,9 +2077,6 @@ exit 0
 %config(noreplace) %{_sysconfdir}/libvirt/virtnetworkd.conf
 %{_datadir}/augeas/lenses/virtnetworkd.aug
 %{_datadir}/augeas/lenses/tests/test_virtnetworkd.aug
-%config(noreplace) %{_sysconfdir}/libvirt/network.conf
-%{_datadir}/augeas/lenses/libvirtd_network.aug
-%{_datadir}/augeas/lenses/tests/test_libvirtd_network.aug
 %{_unitdir}/virtnetworkd.service
 %{_unitdir}/virtnetworkd.socket
 %{_unitdir}/virtnetworkd-ro.socket
@@ -2262,9 +2201,7 @@ exit 0
     %if %{with_qemu}
 %files daemon-driver-qemu
 %config(noreplace) %{_sysconfdir}/libvirt/virtqemud.conf
-        %if %{with_userfaultfd_sysctl}
 %config(noreplace) %{_prefix}/lib/sysctl.d/60-qemu-postcopy-migration.conf
-        %endif
 %{_datadir}/augeas/lenses/virtqemud.aug
 %{_datadir}/augeas/lenses/tests/test_virtqemud.aug
 %{_unitdir}/virtqemud.service
@@ -2299,7 +2236,6 @@ exit 0
 %{_bindir}/virt-qemu-run
 %{_mandir}/man1/virt-qemu-run.1*
 %{_mandir}/man8/virtqemud.8*
-%{_sysusersdir}/libvirt-qemu.conf
     %endif
 
     %if %{with_lxc}
@@ -2455,10 +2391,6 @@ exit 0
 %{_libdir}/libnss_libvirt.so.2
 %{_libdir}/libnss_libvirt_guest.so.2
 
-%files ssh-proxy
-%config(noreplace) %{_sysconfdir}/ssh/ssh_config.d/30-libvirt-ssh-proxy.conf
-%{_libexecdir}/libvirt-ssh-proxy
-
     %if %{with_lxc}
 %files login-shell
 %attr(4750, root, virtlogin) %{_bindir}/virt-login-shell
@@ -2512,7 +2444,7 @@ exit 0
 %{mingw32_bindir}/virt-admin.exe
 %{mingw32_bindir}/virt-xml-validate
 %{mingw32_bindir}/virt-pki-query-dn.exe
-%{mingw32_bindir}/virt-pki-validate.exe
+%{mingw32_bindir}/virt-pki-validate
 %{mingw32_bindir}/libvirt-lxc-0.dll
 %{mingw32_bindir}/libvirt-qemu-0.dll
 %{mingw32_bindir}/libvirt-admin-0.dll
@@ -2571,7 +2503,7 @@ exit 0
 %{mingw64_bindir}/virt-admin.exe
 %{mingw64_bindir}/virt-xml-validate
 %{mingw64_bindir}/virt-pki-query-dn.exe
-%{mingw64_bindir}/virt-pki-validate.exe
+%{mingw64_bindir}/virt-pki-validate
 %{mingw64_bindir}/libvirt-lxc-0.dll
 %{mingw64_bindir}/libvirt-qemu-0.dll
 %{mingw64_bindir}/libvirt-admin-0.dll

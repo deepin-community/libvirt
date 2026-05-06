@@ -562,7 +562,7 @@ The library provides two API: ``virDomainQemuMonitorCommand``, for sending an
 arbitrary monitor command (in either HMP or QMP format) to a qemu guest (
 :since:`Since 0.8.3` ), and ``virDomainQemuAttach``, for registering a qemu
 domain that was manually started so that it can then be managed by libvirtd (
-:since:`Since 0.9.4`, :removed:`removed as of 5.5.0` ).
+:since:`Since 0.9.4` , :removed:`removed as of 5.5.0` ).
 
 Additionally, the following XML additions allow fine-tuning of the command line
 given to qemu when starting a domain ( :since:`Since 0.8.3` ). In order to use
@@ -595,11 +595,8 @@ Example:
        <emulator>/usr/bin/qemu-system-x86_64</emulator>
      </devices>
      <qemu:commandline>
-       <qemu:arg value='-device'/>
-       <qemu:arg value='ipmi-bmc-sim,id=bmc0'/>
-       <qemu:arg value='-device'/>
-       <qemu:arg value='smbus-impi,bmc=bmc0'/>
-       <qemu:env name='QEMU_MODULE_DIR' value='/usr/lib64/qemu'/>
+       <qemu:arg value='-newarg'/>
+       <qemu:env name='QEMU_ENV' value='VAL'/>
      </qemu:commandline>
    </domain>
 

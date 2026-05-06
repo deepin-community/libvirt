@@ -1657,7 +1657,7 @@ static int virNetClientIOEventLoop(virNetClient *client,
 #endif /* !WIN32 */
         int timeout = -1;
         virNetMessage *msg = NULL;
-        g_autoptr(GSource) source = NULL;
+        g_autoptr(GSource) G_GNUC_UNUSED source = NULL;
         GIOCondition ev = 0;
         struct virNetClientIOEventData data = {
             .client = client,
@@ -1720,18 +1720,6 @@ static int virNetClientIOEventLoop(virNetClient *client,
 #endif /* !WIN32 */
 
         g_main_loop_run(client->eventLoop);
-
-        /*
-         * If virNetClientIOEventFD ran, this GSource will already be
-         * destroyed due to G_SOURCE_REMOVE. It is harmless to re-destroy
-         * it, since we still own a reference.
-         *
-         * If virNetClientIOWakeup ran, it will have interrupted the
-         * g_main_loop_run call, before virNetClientIOEventFD could
-         * run, and thus the GSource is still registered, and we need
-         * to destroy it since it is referencing stack memory for 'data'
-         */
-        g_source_destroy(source);
 
 #ifndef WIN32
         ignore_value(pthread_sigmask(SIG_SETMASK, &oldmask, NULL));
@@ -1860,15 +1848,6 @@ static void virNetClientIOUpdateCallback(virNetClient *client,
 }
 
 
-static gboolean virNetClientIOWakeup(gpointer opaque)
-{
-    GMainLoop *loop = opaque;
-
-    g_main_loop_quit(loop);
-
-    return G_SOURCE_REMOVE;
-}
-
 /*
  * This function sends a message to remote server and awaits a reply
  *
@@ -1946,9 +1925,7 @@ static int virNetClientIO(virNetClient *client,
     /* Check to see if another thread is dispatching */
     if (client->haveTheBuck) {
         /* Force other thread to wakeup from poll */
-        g_autoptr(GSource) wakeup = g_idle_source_new();
-        g_source_set_callback(wakeup, virNetClientIOWakeup, client->eventLoop, NULL);
-        g_source_attach(wakeup, client->eventCtx);
+        g_main_loop_quit(client->eventLoop);
 
         /* If we are non-blocking, detach the thread and keep the call in the
          * queue. */
@@ -1968,7 +1945,6 @@ static int virNetClientIO(virNetClient *client,
             return -1;
         }
 
-        g_source_destroy(wakeup);
         VIR_DEBUG("Woken up from sleep head=%p call=%p",
                   client->waitDispatch, thiscall);
         /* Three reasons we can be woken up

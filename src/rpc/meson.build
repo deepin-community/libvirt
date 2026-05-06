@@ -1,11 +1,6 @@
 gendispatch_prog = find_program('gendispatch.pl')
 
-tlsconfig_sources = files(
-  'virnettlsconfig.c',
-  'virnettlscert.c',
-)
-
-socket_sources = tlsconfig_sources + [
+socket_sources = [
   'virnettlscontext.c',
   'virnetsocket.c',
 ]
@@ -59,7 +54,7 @@ foreach name : [ 'virnet', 'virkeepalive' ]
     output: header_file,
     depend_files: rpcgen_src,
     command: [
-      rpcgen_prog,
+      meson_python_prog, python3_prog, rpcgen_prog,
       '--mode=header', '@INPUT@', '@OUTPUT@',
     ],
   )
@@ -70,7 +65,7 @@ foreach name : [ 'virnet', 'virkeepalive' ]
     output: source_file,
     depend_files: rpcgen_src,
     command: [
-      rpcgen_prog,
+      meson_python_prog, python3_prog, rpcgen_prog,
       '--mode=source', '--header=' + header_file, '@INPUT@', '@OUTPUT@',
     ],
   )

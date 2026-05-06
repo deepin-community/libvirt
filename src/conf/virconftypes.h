@@ -66,8 +66,6 @@ typedef struct _virCapsHostSecModelLabel virCapsHostSecModelLabel;
 
 typedef struct _virCapsStoragePool virCapsStoragePool;
 
-typedef struct _virDeviceHostdevPCIDriverInfo virDeviceHostdevPCIDriverInfo;
-
 typedef struct _virDomainABIStability virDomainABIStability;
 
 typedef struct _virDomainActualNetDef virDomainActualNetDef;
@@ -210,11 +208,7 @@ typedef struct _virDomainResctrlMonDef virDomainResctrlMonDef;
 
 typedef struct _virDomainResourceDef virDomainResourceDef;
 
-typedef struct _virDomainSEVCommonDef virDomainSEVCommonDef;
-
 typedef struct _virDomainSEVDef virDomainSEVDef;
-
-typedef struct _virDomainSEVSNPDef virDomainSEVSNPDef;
 
 typedef struct _virDomainSecDef virDomainSecDef;
 
@@ -259,8 +253,6 @@ typedef struct _virDomainVirtioSerialOpts virDomainVirtioSerialOpts;
 typedef struct _virDomainVsockDef virDomainVsockDef;
 
 typedef struct _virDomainCryptoDef virDomainCryptoDef;
-
-typedef struct _virDomainPstoreDef virDomainPstoreDef;
 
 typedef struct _virDomainWatchdogDef virDomainWatchdogDef;
 

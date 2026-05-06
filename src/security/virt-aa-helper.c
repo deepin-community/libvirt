@@ -475,15 +475,14 @@ valid_path(const char *path, const bool readonly)
         "/initrd",
         "/initrd.img",
         "/usr/share/edk2/",
-        "/usr/share/edk2-ovmf/",
-        "/usr/share/OVMF/",
-        "/usr/share/ovmf/",
-        "/usr/share/AAVMF/",
+        "/usr/share/OVMF/",                  /* for OVMF images */
+        "/usr/share/ovmf/",                  /* for OVMF images */
+        "/usr/share/AAVMF/",                 /* for AAVMF images */
         "/usr/share/qemu-efi/",              /* for AAVMF images */
-        "/usr/share/qemu-efi-aarch64/",
+        "/usr/share/qemu-efi-aarch64/",      /* for AAVMF images */
         "/usr/share/qemu/",                  /* SUSE path for OVMF and AAVMF images */
-        "/usr/lib/u-boot/",
-        "/usr/lib/riscv64-linux-gnu/opensbi",
+        "/usr/lib/u-boot/",                  /* u-boot loaders for qemu */
+        "/usr/lib/riscv64-linux-gnu/opensbi" /* RISC-V SBI implementation */
     };
     /* override the above with these */
     const char * const override[] = {
@@ -1002,18 +1001,9 @@ get_files(vahControl * ctl)
         if (vah_add_file(&buf, ctl->def->os.slic_table, "r") != 0)
             goto cleanup;
 
-    if (ctl->def->pstore)
-        if (vah_add_file(&buf, ctl->def->pstore->path, "rw") != 0)
+    if (ctl->def->os.loader && ctl->def->os.loader->path)
+        if (vah_add_file(&buf, ctl->def->os.loader->path, "rk") != 0)
             goto cleanup;
-
-    if (ctl->def->os.loader && ctl->def->os.loader->path) {
-        bool readonly = false;
-        virTristateBoolToBool(ctl->def->os.loader->readonly, &readonly);
-        if (vah_add_file(&buf,
-                         ctl->def->os.loader->path,
-                         readonly ? "rk" : "rwk") != 0)
-            goto cleanup;
-    }
 
     if (ctl->def->os.loader && ctl->def->os.loader->nvram) {
         if (storage_source_add_files(ctl->def->os.loader->nvram, &buf, 0) < 0)
@@ -1102,10 +1092,9 @@ get_files(vahControl * ctl)
             case VIR_DOMAIN_HOSTDEV_SUBSYS_TYPE_PCI: {
                 virPCIDevice *pci = virPCIDeviceNew(&dev->source.subsys.u.pci.addr);
 
-                virDeviceHostdevPCIDriverName driverName = dev->source.subsys.u.pci.driver.name;
-
-                if (driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_VFIO ||
-                    driverName == VIR_DEVICE_HOSTDEV_PCI_DRIVER_NAME_DEFAULT) {
+                virDomainHostdevSubsysPCIBackendType backend = dev->source.subsys.u.pci.backend;
+                if (backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_VFIO ||
+                        backend == VIR_DOMAIN_HOSTDEV_PCI_BACKEND_DEFAULT) {
                     needsVfio = true;
                 }
 
@@ -1574,12 +1563,7 @@ main(int argc, char **argv)
         /* create the profile from TEMPLATE */
         if (ctl->cmd == 'c' || purged) {
             char *tmp = NULL;
-#if defined(WITH_APPARMOR_3)
-            const char *ifexists = "if exists ";
-#else
-            const char *ifexists = "";
-#endif
-            tmp = g_strdup_printf("  #include %s<libvirt/%s.files>\n", ifexists, ctl->uuid);
+            tmp = g_strdup_printf("  #include <libvirt/%s.files>\n", ctl->uuid);
 
             if (ctl->dryrun) {
                 vah_info(profile);

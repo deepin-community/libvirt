@@ -1,4 +1,0 @@
-etc/libvirt/qemu
-var/cache/libvirt/qemu
-var/lib/libvirt/qemu
-var/log/libvirt/qemu

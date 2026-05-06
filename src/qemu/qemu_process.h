@@ -169,7 +169,6 @@ typedef enum {
 int qemuProcessBeginStopJob(virDomainObj *vm,
                             virDomainJob job,
                             bool forceKill);
-void qemuProcessEndStopJob(virDomainObj *vm);
 void qemuProcessStop(virQEMUDriver *driver,
                      virDomainObj *vm,
                      virDomainShutoffReason reason,
@@ -180,7 +179,6 @@ typedef enum {
    VIR_QEMU_PROCESS_KILL_FORCE  = 1 << 0,
    VIR_QEMU_PROCESS_KILL_NOWAIT = 1 << 1,
    VIR_QEMU_PROCESS_KILL_NOCHECK = 1 << 2, /* bypass the running vm check */
-   VIR_QEMU_PROCESS_KILL_MONITOR_ON_ERROR = 1 << 3, /* on error enable process monitor */
 } virQemuProcessKillMode;
 
 int qemuProcessKill(virDomainObj *vm, unsigned int flags);

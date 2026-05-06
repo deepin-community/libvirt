@@ -64,11 +64,6 @@ struct _qemuMigrationParamValue {
 struct _qemuMigrationParams {
     unsigned long long compMethods; /* bit-wise OR of qemuMigrationCompressMethod */
     virBitmap *caps;
-    /* Optional capabilities are enabled only if supported by QEMU */
-    virBitmap *optional;
-    /* A capability present on both optional and remoteOptional bitmaps are
-     * enabled only if they are supported by both sides of migration. */
-    virBitmap *remoteOptional;
     qemuMigrationParamValue params[QEMU_MIGRATION_PARAM_LAST];
     virJSONValue *blockDirtyBitmapMapping;
 };
@@ -104,8 +99,6 @@ VIR_ENUM_IMPL(qemuMigrationCapability,
               "dirty-bitmaps",
               "return-path",
               "zero-copy-send",
-              "postcopy-preempt",
-              "switchover-ack",
 );
 
 
@@ -138,24 +131,10 @@ struct _qemuMigrationParamsAlwaysOnItem {
 
 typedef struct _qemuMigrationParamsFlagMapItem qemuMigrationParamsFlagMapItem;
 struct _qemuMigrationParamsFlagMapItem {
-    /* Describes what to do with the capability if @flag is found.
-     * When set to QEMU_MIGRATION_FLAG_REQUIRED, the capability will be
-     * enabled iff the specified migration flag is enabled. On the other hand
-     * QEMU_MIGRATION_FLAG_FORBIDDEN will enable the capability as long as
-     * the specified migration flag is not enabled. */
     qemuMigrationFlagMatch match;
-    /* Migration flag to check. */
     virDomainMigrateFlags flag;
-    /* Migration capability to be enabled or disabled based on the flag. */
     qemuMigrationCapability cap;
-    /* An optional capability to set in addition to @cap in case it is
-     * supported. Depending on @part either one or both sides of migration
-     * has to support the optional capability to be enabled. */
-    qemuMigrationCapability optional;
-    /* Bit-wise OR of qemuMigrationParty. Determines whether the capability has
-     * to be enabled on the source, on the destination, or on both sides of
-     * migration. */
-    int party;
+    int party; /* bit-wise OR of qemuMigrationParty */
 };
 
 typedef struct _qemuMigrationParamsTPMapItem qemuMigrationParamsTPMapItem;
@@ -186,37 +165,35 @@ static const qemuMigrationParamsAlwaysOnItem qemuMigrationParamsAlwaysOn[] = {
 
 /* Translation from virDomainMigrateFlags to qemuMigrationCapability. */
 static const qemuMigrationParamsFlagMapItem qemuMigrationParamsFlagMap[] = {
-    {.match = QEMU_MIGRATION_FLAG_REQUIRED,
-     .flag = VIR_MIGRATE_RDMA_PIN_ALL,
-     .cap = QEMU_MIGRATION_CAP_RDMA_PIN_ALL,
-     .party = QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
+    {QEMU_MIGRATION_FLAG_REQUIRED,
+     VIR_MIGRATE_RDMA_PIN_ALL,
+     QEMU_MIGRATION_CAP_RDMA_PIN_ALL,
+     QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
 
-    {.match = QEMU_MIGRATION_FLAG_REQUIRED,
-     .flag = VIR_MIGRATE_AUTO_CONVERGE,
-     .cap = QEMU_MIGRATION_CAP_AUTO_CONVERGE,
-     .party = QEMU_MIGRATION_SOURCE},
+    {QEMU_MIGRATION_FLAG_REQUIRED,
+     VIR_MIGRATE_AUTO_CONVERGE,
+     QEMU_MIGRATION_CAP_AUTO_CONVERGE,
+     QEMU_MIGRATION_SOURCE},
 
-    {.match = QEMU_MIGRATION_FLAG_REQUIRED,
-     .flag = VIR_MIGRATE_POSTCOPY,
-     .cap = QEMU_MIGRATION_CAP_POSTCOPY,
-     .optional = QEMU_MIGRATION_CAP_POSTCOPY_PREEMPT,
-     .party = QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
+    {QEMU_MIGRATION_FLAG_REQUIRED,
+     VIR_MIGRATE_POSTCOPY,
+     QEMU_MIGRATION_CAP_POSTCOPY,
+     QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
 
-    {.match = QEMU_MIGRATION_FLAG_REQUIRED,
-     .flag = VIR_MIGRATE_PARALLEL,
-     .cap = QEMU_MIGRATION_CAP_MULTIFD,
-     .party = QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
+    {QEMU_MIGRATION_FLAG_REQUIRED,
+     VIR_MIGRATE_PARALLEL,
+     QEMU_MIGRATION_CAP_MULTIFD,
+     QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
 
-    {.match = QEMU_MIGRATION_FLAG_FORBIDDEN,
-     .flag = VIR_MIGRATE_TUNNELLED,
-     .cap = QEMU_MIGRATION_CAP_RETURN_PATH,
-     .optional = QEMU_MIGRATION_CAP_SWITCHOVER_ACK,
-     .party = QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
+    {QEMU_MIGRATION_FLAG_FORBIDDEN,
+     VIR_MIGRATE_TUNNELLED,
+     QEMU_MIGRATION_CAP_RETURN_PATH,
+     QEMU_MIGRATION_SOURCE | QEMU_MIGRATION_DESTINATION},
 
-    {.match = QEMU_MIGRATION_FLAG_REQUIRED,
-     .flag = VIR_MIGRATE_ZEROCOPY,
-     .cap = QEMU_MIGRATION_CAP_ZERO_COPY_SEND,
-     .party = QEMU_MIGRATION_SOURCE},
+    {QEMU_MIGRATION_FLAG_REQUIRED,
+     VIR_MIGRATE_ZEROCOPY,
+     QEMU_MIGRATION_CAP_ZERO_COPY_SEND,
+     QEMU_MIGRATION_SOURCE},
 };
 
 /* Translation from VIR_MIGRATE_PARAM_* typed parameters to
@@ -347,8 +324,6 @@ qemuMigrationParamsNew(void)
     params = g_new0(qemuMigrationParams, 1);
 
     params->caps = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
-    params->optional = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
-    params->remoteOptional = virBitmapNew(QEMU_MIGRATION_CAP_LAST);
 
     return g_steal_pointer(&params);
 }
@@ -368,8 +343,6 @@ qemuMigrationParamsFree(qemuMigrationParams *migParams)
     }
 
     virBitmapFree(migParams->caps);
-    virBitmapFree(migParams->optional);
-    virBitmapFree(migParams->remoteOptional);
     virJSONValueFree(migParams->blockDirtyBitmapMapping);
     g_free(migParams);
 }
@@ -715,13 +688,6 @@ qemuMigrationParamsFromFlags(virTypedParameterPtr params,
             VIR_DEBUG("Enabling migration capability '%s'",
                       qemuMigrationCapabilityTypeToString(item->cap));
             ignore_value(virBitmapSetBit(migParams->caps, item->cap));
-
-            if (item->optional) {
-                qemuMigrationCapability opt = item->optional;
-                ignore_value(virBitmapSetBit(migParams->optional, opt));
-                if (item->party != party)
-                    ignore_value(virBitmapSetBit(migParams->remoteOptional, opt));
-            }
         }
     }
 
@@ -1160,7 +1126,6 @@ qemuMigrationParamsEnableTLS(virQEMUDriver *driver,
                                      *tlsAlias) < 0)
         return -1;
 
-    /* QEMU interprets an empty string for hostname as if it is not populated */
     if (!migParams->params[QEMU_MIGRATION_PARAM_TLS_HOSTNAME].set &&
         qemuMigrationParamsSetString(migParams,
                                      QEMU_MIGRATION_PARAM_TLS_HOSTNAME,
@@ -1315,8 +1280,7 @@ int
 qemuMigrationParamsCheck(virDomainObj *vm,
                          int asyncJob,
                          qemuMigrationParams *migParams,
-                         virBitmap *remoteSupported,
-                         virBitmap *remoteAuto)
+                         virBitmap *remoteCaps)
 {
     qemuDomainJobPrivate *jobPriv = vm->job->privateData;
     qemuMigrationCapability cap;
@@ -1329,41 +1293,15 @@ qemuMigrationParamsCheck(virDomainObj *vm,
         party = QEMU_MIGRATION_DESTINATION;
 
     for (cap = 0; cap < QEMU_MIGRATION_CAP_LAST; cap++) {
-        bool enable = false;
-        bool optional = false;
-        bool remoteOpt = false;
-        bool remote = false;
-        bool qemu = qemuMigrationCapsGet(vm, cap);
+        bool state = false;
 
-        ignore_value(virBitmapGetBit(migParams->caps, cap, &enable));
-        ignore_value(virBitmapGetBit(migParams->optional, cap, &optional));
-        ignore_value(virBitmapGetBit(migParams->remoteOptional, cap, &remoteOpt));
-        ignore_value(virBitmapGetBit(remoteSupported, cap, &remote));
+        ignore_value(virBitmapGetBit(migParams->caps, cap, &state));
 
-        if (enable && !qemu) {
+        if (state && !qemuMigrationCapsGet(vm, cap)) {
             virReportError(VIR_ERR_ARGUMENT_UNSUPPORTED,
                            _("Migration option '%1$s' is not supported by QEMU binary"),
                            qemuMigrationCapabilityTypeToString(cap));
             return -1;
-        }
-
-        if (optional) {
-            if (!qemu) {
-                VIR_DEBUG("Optional migration capability '%s' not supported by QEMU",
-                          qemuMigrationCapabilityTypeToString(cap));
-                optional = false;
-            } else if (remoteOpt && !remote) {
-                VIR_DEBUG("Optional migration capability '%s' not supported "
-                          "by the other side of migration",
-                          qemuMigrationCapabilityTypeToString(cap));
-                optional = false;
-            }
-
-            if (optional) {
-                VIR_DEBUG("Enabling optional migration capability '%s'",
-                          qemuMigrationCapabilityTypeToString(cap));
-                ignore_value(virBitmapSetBit(migParams->caps, cap));
-            }
         }
     }
 
@@ -1375,8 +1313,8 @@ qemuMigrationParamsCheck(virDomainObj *vm,
             if (qemuMigrationParamsAlwaysOn[i].party != party) {
                 bool remote = false;
 
-                if (remoteAuto)
-                    ignore_value(virBitmapGetBit(remoteAuto, cap, &remote));
+                if (remoteCaps)
+                    ignore_value(virBitmapGetBit(remoteCaps, cap, &remote));
 
                 if (!remote) {
                     VIR_DEBUG("Not enabling migration capability '%s'; it is "
@@ -1662,23 +1600,13 @@ qemuMigrationCapsGet(virDomainObj *vm,
  * @migParams: Migration params object
  *
  * Fetches the value of the QEMU_MIGRATION_PARAM_TLS_HOSTNAME parameter which is
- * passed from the user as VIR_MIGRATE_PARAM_TLS_DESTINATION.
- *
- * In contrast with the migration parameter semantics, where an empty string
- * is considered as if the hostname was not provided, this function will return
- * NULL instead of an empty string as other parts of QEMU expect that the
- * hostname is not provided at all.
+ * passed from the user as VIR_MIGRATE_PARAM_TLS_DESTINATION
  */
 const char *
 qemuMigrationParamsGetTLSHostname(qemuMigrationParams *migParams)
 {
-    const char *hostname = migParams->params[QEMU_MIGRATION_PARAM_TLS_HOSTNAME].value.s;
-
     if (!migParams->params[QEMU_MIGRATION_PARAM_TLS_HOSTNAME].set)
         return NULL;
 
-    if (STREQ(hostname, ""))
-        return NULL;
-
-    return hostname;
+    return migParams->params[QEMU_MIGRATION_PARAM_TLS_HOSTNAME].value.s;
 }

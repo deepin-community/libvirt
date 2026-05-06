@@ -1,0 +1,54 @@
+<domain type='qemu'>
+  <name>riscv64</name>
+  <uuid>fd65fc03-8838-4c4d-9d8d-395802488790</uuid>
+  <memory unit='KiB'>2097152</memory>
+  <currentMemory unit='KiB'>2097152</currentMemory>
+  <vcpu placement='static'>1</vcpu>
+  <os>
+    <type arch='riscv64' machine='virt'>hvm</type>
+    <kernel>/var/lib/libvirt/images/bbl</kernel>
+    <cmdline>console=ttyS0 ro root=/dev/vda</cmdline>
+    <boot dev='hd'/>
+  </os>
+  <clock offset='utc'/>
+  <on_poweroff>destroy</on_poweroff>
+  <on_reboot>restart</on_reboot>
+  <on_crash>destroy</on_crash>
+  <devices>
+    <emulator>/usr/bin/qemu-system-riscv64</emulator>
+    <disk type='file' device='disk'>
+      <driver name='qemu' type='raw'/>
+      <source file='/var/lib/libvirt/images/stage4-disk.img'/>
+      <target dev='vda' bus='virtio'/>
+      <address type='pci' domain='0x0000' bus='0x01' slot='0x00' function='0x0'/>
+    </disk>
+    <controller type='pci' index='0' model='pcie-root'/>
+    <controller type='pci' index='1' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='1' port='0x8'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x0' multifunction='on'/>
+    </controller>
+    <controller type='pci' index='2' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='2' port='0x9'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x1'/>
+    </controller>
+    <controller type='pci' index='3' model='pcie-root-port'>
+      <model name='pcie-root-port'/>
+      <target chassis='3' port='0xa'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x01' function='0x2'/>
+    </controller>
+    <serial type='pty'>
+      <target type='system-serial' port='0'>
+        <model name='16550a'/>
+      </target>
+    </serial>
+    <console type='pty'>
+      <target type='serial' port='0'/>
+    </console>
+    <audio id='1' type='none'/>
+    <memballoon model='virtio'>
+      <address type='pci' domain='0x0000' bus='0x02' slot='0x00' function='0x0'/>
+    </memballoon>
+  </devices>
+</domain>

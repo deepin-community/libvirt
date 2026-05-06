@@ -81,8 +81,7 @@ typedef virCPUDef *
 typedef int
 (*virCPUArchUpdate)(virCPUDef *guest,
                     const virCPUDef *host,
-                    bool relative,
-                    virCPUFeaturePolicy removedPolicy);
+                    bool relative);
 
 typedef int
 (*virCPUArchUpdateLive)(virCPUDef *cpu,
@@ -230,8 +229,7 @@ virCPUBaseline(virArch arch,
 int
 virCPUUpdate(virArch arch,
              virCPUDef *guest,
-             const virCPUDef *host,
-             virCPUFeaturePolicy removedPolicy)
+             const virCPUDef *host)
     ATTRIBUTE_NONNULL(2);
 
 int

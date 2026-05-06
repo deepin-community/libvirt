@@ -174,7 +174,7 @@ static void make_nonnull_domain_snapshot(remote_nonnull_domain_snapshot *snapsho
 /* Helper functions for remoteOpen. */
 
 
-static virDrvStateInitResult
+static int
 remoteStateInitialize(bool privileged G_GNUC_UNUSED,
                       const char *root G_GNUC_UNUSED,
                       bool monolithic,
@@ -1408,7 +1408,7 @@ remoteConnectGetType(virConnectPtr conn)
         return NULL;
 
     /* Stash. */
-    return priv->type = g_steal_pointer(&ret.type);
+    return priv->type = ret.type;
 }
 
 static int remoteConnectIsSecure(virConnectPtr conn)
@@ -1641,11 +1641,12 @@ remoteDeserializeDomainDiskErrors(remote_domain_disk_error *ret_errors_val,
                                   int maxerrors)
 {
     size_t i = 0;
+    size_t j;
 
     if (ret_errors_len > limit || ret_errors_len > maxerrors) {
         virReportError(VIR_ERR_RPC, "%s",
                        _("returned number of disk errors exceeds limit"));
-        return -1;
+        goto error;
     }
 
     for (i = 0; i < ret_errors_len; i++) {
@@ -1654,6 +1655,12 @@ remoteDeserializeDomainDiskErrors(remote_domain_disk_error *ret_errors_val,
     }
 
     return 0;
+
+ error:
+    for (j = 0; j < i; j++)
+        VIR_FREE(errors[j].disk);
+
+    return -1;
 }
 
 static int
@@ -2570,7 +2577,7 @@ static int remoteDomainGetBlockIoTune(virDomainPtr domain,
      */
     if (*nparams == 0) {
         *nparams = ret.nparams;
-        return 0;
+        return -1;
     }
 
     if (virTypedParamsDeserialize((struct _virTypedParameterRemote *) ret.params.params_val,
@@ -7841,7 +7848,6 @@ static virHypervisorDriver hypervisor_driver = {
     .domainStartDirtyRateCalc = remoteDomainStartDirtyRateCalc, /* 7.2.0 */
     .domainSetLaunchSecurityState = remoteDomainSetLaunchSecurityState, /* 8.0.0 */
     .domainFDAssociate = remoteDomainFDAssociate, /* 9.0.0 */
-    .domainGraphicsReload = remoteDomainGraphicsReload, /* 10.2.0 */
 };
 
 static virNetworkDriver network_driver = {
@@ -7984,7 +7990,6 @@ static virNodeDeviceDriver node_device_driver = {
     .nodeDeviceSetAutostart = remoteNodeDeviceSetAutostart, /* 7.8.0 */
     .nodeDeviceIsPersistent = remoteNodeDeviceIsPersistent, /* 7.8.0 */
     .nodeDeviceIsActive = remoteNodeDeviceIsActive, /* 7.8.0 */
-    .nodeDeviceUpdate = remoteNodeDeviceUpdate, /* 10.1.0 */
 };
 
 static virNWFilterDriver nwfilter_driver = {

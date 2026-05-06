@@ -135,8 +135,11 @@ virDomainNumatuneNodeParseXML(virDomainNuma *numa,
     size_t i = 0;
     g_autofree xmlNodePtr *nodes = NULL;
 
-    if ((n = virXPathNodeSet("./numatune/memnode", ctxt, &nodes)) < 0)
+    if ((n = virXPathNodeSet("./numatune/memnode", ctxt, &nodes)) < 0) {
+        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
+                       _("Cannot extract memnode nodes"));
         return -1;
+    }
 
     if (!n)
         return 0;
@@ -343,7 +346,8 @@ virDomainNumaFree(virDomainNuma *numa)
         virBitmapFree(numa->mem_nodes[i].cpumask);
         virBitmapFree(numa->mem_nodes[i].nodeset);
 
-        g_free(numa->mem_nodes[i].distances);
+        if (numa->mem_nodes[i].ndistances > 0)
+            g_free(numa->mem_nodes[i].distances);
 
         g_free(numa->mem_nodes[i].caches);
     }
@@ -684,8 +688,9 @@ virDomainNumaDefNodeDistanceParseXML(virDomainNuma *def,
                                      xmlXPathContextPtr ctxt,
                                      unsigned int cur_cell)
 {
+    int ret = -1;
     int sibling;
-    g_autofree xmlNodePtr *nodes = NULL;
+    xmlNodePtr *nodes = NULL;
     size_t i, ndistances = def->nmem_nodes;
 
     if (ndistances == 0)
@@ -695,13 +700,10 @@ virDomainNumaDefNodeDistanceParseXML(virDomainNuma *def,
     if (!virXPathNode("./distances[1]", ctxt))
         return 0;
 
-    if ((sibling = virXPathNodeSet("./distances[1]/sibling", ctxt, &nodes)) < 0)
-        return -1;
-
-    if (sibling == 0) {
+    if ((sibling = virXPathNodeSet("./distances[1]/sibling", ctxt, &nodes)) <= 0) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("NUMA distances defined without siblings"));
-        return -1;
+        goto cleanup;
     }
 
     for (i = 0; i < sibling; i++) {
@@ -711,19 +713,19 @@ virDomainNumaDefNodeDistanceParseXML(virDomainNuma *def,
 
         if (virXMLPropUInt(nodes[i], "id", 10, VIR_XML_PROP_REQUIRED,
                            &sibling_id) < 0)
-            return -1;
+            goto cleanup;
 
         /* The "id" needs to be within numa/cell range */
         if (sibling_id >= ndistances) {
             virReportError(VIR_ERR_XML_ERROR,
                            _("'sibling_id %1$d' does not refer to a valid cell within NUMA 'cell id %2$d'"),
                            sibling_id, cur_cell);
-            return -1;
+            goto cleanup;
         }
 
         if (virXMLPropUInt(nodes[i], "value", 10, VIR_XML_PROP_REQUIRED,
                            &sibling_value) < 0)
-            return -1;
+            goto cleanup;
 
         /* Assure LOCAL_DISTANCE <= "value" <= UNREACHABLE
          * and correct LOCAL_DISTANCE setting if such applies.
@@ -737,7 +739,7 @@ virDomainNumaDefNodeDistanceParseXML(virDomainNuma *def,
             virReportError(VIR_ERR_XML_ERROR,
                            _("'value %1$d' is invalid for 'sibling id %2$d' under NUMA 'cell id %3$d'"),
                            sibling_value, sibling_id, cur_cell);
-            return -1;
+            goto cleanup;
         }
 
         /* Apply the local / remote distance */
@@ -768,7 +770,17 @@ virDomainNumaDefNodeDistanceParseXML(virDomainNuma *def,
             rdist[cur_cell].value = sibling_value;
     }
 
-    return 0;
+    ret = 0;
+
+ cleanup:
+    if (ret < 0) {
+        for (i = 0; i < ndistances; i++)
+            VIR_FREE(def->mem_nodes[i].distances);
+        def->mem_nodes[i].ndistances = 0;
+    }
+    VIR_FREE(nodes);
+
+    return ret;
 }
 
 
@@ -840,10 +852,7 @@ virDomainNumaDefParseXML(virDomainNuma *def,
     if (!virXPathNode("./cpu/numa[1]", ctxt))
         return 0;
 
-    if ((n = virXPathNodeSet("./cpu/numa[1]/cell", ctxt, &cell)) < 0)
-        return -1;
-
-    if (n == 0) {
+    if ((n = virXPathNodeSet("./cpu/numa[1]/cell", ctxt, &cell)) <= 0) {
         virReportError(VIR_ERR_XML_ERROR, "%s",
                        _("NUMA topology defined without NUMA cells"));
         return -1;

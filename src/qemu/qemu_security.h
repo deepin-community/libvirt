@@ -110,11 +110,6 @@ int qemuSecurityDomainRestorePathLabel(virQEMUDriver *driver,
                                        virDomainObj *vm,
                                        const char *path);
 
-int
-qemuSecurityDomainSetMountNSPathLabel(virQEMUDriver *driver,
-                                      virDomainObj *vm,
-                                      const char *path);
-
 int qemuSecurityCommandRun(virQEMUDriver *driver,
                            virDomainObj *vm,
                            virCommand *cmd,
@@ -151,5 +146,3 @@ int qemuSecurityCommandRun(virQEMUDriver *driver,
 #define qemuSecuritySetTapFDLabel virSecurityManagerSetTapFDLabel
 #define qemuSecurityStackAddNested virSecurityManagerStackAddNested
 #define qemuSecurityVerify virSecurityManagerVerify
-#define qemuSecurityStackLock virSecurityManagerStackLock
-#define qemuSecurityStackUnlock virSecurityManagerStackUnlock

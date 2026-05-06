@@ -2,11 +2,8 @@ docs_css_files = [
   'fonts.css',
   'generic.css',
   'libvirt.css',
-  'libvirt-api.css',
-  'libvirt-template.css',
   'main.css',
-  'mobile-template.css',
-  'mobile-libvirt.css',
+  'mobile.css',
 ]
 
 install_data(docs_css_files, install_dir: docs_html_dir / 'css')

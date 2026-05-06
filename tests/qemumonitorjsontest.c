@@ -2262,16 +2262,13 @@ testQemuMonitorCPUInfoFormat(qemuMonitorCPUInfo *vcpus,
         if (vcpu->qom_path)
             virBufferAsprintf(&buf, "qom_path='%s'\n", vcpu->qom_path);
 
-        if (vcpu->socket_id != -1 || vcpu->die_id != -1 ||
-            vcpu->cluster_id != -1 || vcpu->core_id != -1 ||
+        if (vcpu->socket_id != -1 || vcpu->core_id != -1 ||
             vcpu->thread_id != -1 || vcpu->vcpus != 0) {
             virBufferAddLit(&buf, "topology:");
             if (vcpu->socket_id != -1)
                 virBufferAsprintf(&buf, " socket='%d'", vcpu->socket_id);
             if (vcpu->die_id != -1)
                 virBufferAsprintf(&buf, " die='%d'", vcpu->die_id);
-            if (vcpu->cluster_id != -1)
-                virBufferAsprintf(&buf, " cluster_id='%d'", vcpu->cluster_id);
             if (vcpu->core_id != -1)
                 virBufferAsprintf(&buf, " core='%d'", vcpu->core_id);
             if (vcpu->thread_id != -1)
@@ -2730,7 +2727,10 @@ testQemuMonitorJSONGetSEVInfo(const void *opaque)
     const testGenericData *data = opaque;
     virDomainXMLOption *xmlopt = data->xmlopt;
     g_autoptr(qemuMonitorTest) test = NULL;
-    qemuMonitorSEVInfo info = { };
+    unsigned int apiMajor = 0;
+    unsigned int apiMinor = 0;
+    unsigned int buildID = 0;
+    unsigned int policy = 0;
 
     if (!(test = qemuMonitorTestNewSchema(xmlopt, data->schema)))
         return -1;
@@ -2750,67 +2750,13 @@ testQemuMonitorJSONGetSEVInfo(const void *opaque)
                                "}") < 0)
         return -1;
 
-    if (qemuMonitorGetSEVInfo(qemuMonitorTestGetMonitor(test), &info) < 0)
+    if (qemuMonitorGetSEVInfo(qemuMonitorTestGetMonitor(test),
+                              &apiMajor, &apiMinor, &buildID, &policy) < 0)
         return -1;
 
-    if (info.apiMajor != 1 || info.apiMinor != 8 || info.buildID != 834 ||
-        info.type != QEMU_MONITOR_SEV_GUEST_TYPE_SEV ||
-        info.data.sev.policy != 3 || info.data.sev.handle != 0) {
+    if (apiMajor != 1 || apiMinor != 8 || buildID != 834 || policy != 3) {
         virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
                        "Unexpected SEV info values");
-        return -1;
-    }
-
-    if (qemuMonitorTestAddItem(test, "query-sev",
-                               "{"
-                               "    \"return\": {"
-                               "        \"enabled\": true,"
-                               "        \"api-minor\": 55,"
-                               "        \"handle\": 1,"
-                               "        \"state\": \"running\","
-                               "        \"api-major\": 1,"
-                               "        \"sev-type\": \"sev\","
-                               "        \"build-id\": 21,"
-                               "        \"policy\": 1"
-                               "    },"
-                               "    \"id\": \"libvirt-16\""
-                               "}") < 0)
-        return -1;
-
-    if (qemuMonitorGetSEVInfo(qemuMonitorTestGetMonitor(test), &info) < 0)
-        return -1;
-
-    if (info.apiMajor != 1 || info.apiMinor != 55 || info.buildID != 21 ||
-        info.type != QEMU_MONITOR_SEV_GUEST_TYPE_SEV ||
-        info.data.sev.policy != 1 || info.data.sev.handle != 1) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       "Unexpected SEV info values");
-        return -1;
-    }
-
-    if (qemuMonitorTestAddItem(test, "query-sev",
-                               "{"
-                               "    \"return\": {"
-                               "        \"enabled\": true,"
-                               "        \"api-minor\": 55,"
-                               "        \"state\": \"running\","
-                               "        \"api-major\": 1,"
-                               "        \"sev-type\": \"sev-snp\","
-                               "        \"build-id\": 21,"
-                               "        \"snp-policy\": 196608"
-                               "    },"
-                               "    \"id\": \"libvirt-16\""
-                               "}") < 0)
-        return -1;
-
-    if (qemuMonitorGetSEVInfo(qemuMonitorTestGetMonitor(test), &info) < 0)
-        return -1;
-
-    if (info.apiMajor != 1 || info.apiMinor != 55 || info.buildID != 21 ||
-        info.type != QEMU_MONITOR_SEV_GUEST_TYPE_SEV_SNP ||
-        info.data.sev_snp.snp_policy != 0x30000) {
-        virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                       "Unexpected SEV SNP info values");
         return -1;
     }
 
@@ -2972,10 +2918,6 @@ mymain(void)
     DO_TEST_CPU_INFO("ppc64-hotplug-2", 24);
     DO_TEST_CPU_INFO("ppc64-hotplug-4", 24);
     DO_TEST_CPU_INFO("ppc64-no-threads", 16);
-
-    /* aarch64 doesn't support CPU hotplug yet, so the data used in
-     * this test is partially synthetic */
-    DO_TEST_CPU_INFO("aarch64-clusters", 16);
 
     DO_TEST_CPU_INFO("s390", 2);
 

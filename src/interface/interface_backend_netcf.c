@@ -86,7 +86,7 @@ virNetcfDriverStateDispose(void *obj)
 }
 
 
-static virDrvStateInitResult
+static int
 netcfStateInitialize(bool privileged,
                      const char *root,
                      bool monolithic G_GNUC_UNUSED,

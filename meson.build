@@ -1,6 +1,6 @@
 project(
   'libvirt', 'c',
-  version: '10.7.0',
+  version: '9.10.0',
   license: 'LGPLv2+',
   meson_version: '>= 0.56.0',
   default_options: [
@@ -17,7 +17,7 @@ endif
 
 # figure out if we are building from git
 
-git = run_command('test', '-e', '.git', check: false).returncode() == 0
+git = run_command('test', '-d', '.git', check: false).returncode() == 0
 
 if git and not get_option('no_git')
   run_command('git', 'submodule', 'update', '--init', check: true)
@@ -95,16 +95,6 @@ if initconfdir == ''
   endif
 endif
 
-unitdir = get_option('unitdir')
-if unitdir == ''
-  unitdir = prefix / 'lib' / 'systemd' / 'system'
-endif
-
-sysusersdir = get_option('sysusersdir')
-if sysusersdir == ''
-  sysusersdir = prefix / 'lib' / 'sysusers.d'
-endif
-
 bindir = prefix / get_option('bindir')
 datadir = prefix / get_option('datadir')
 includedir = prefix / get_option('includedir')
@@ -122,11 +112,6 @@ endif
 
 confdir = sysconfdir / meson.project_name()
 pkgdatadir = datadir / meson.project_name()
-
-sshconfdir = get_option('sshconfdir')
-if sshconfdir == ''
-  sshconfdir = sysconfdir / 'ssh' / 'ssh_config.d'
-endif
 
 
 # generate configmake.h header
@@ -453,34 +438,26 @@ if cc.get_id() == 'clang'
     cc_flags += [ '-fsemantic-interposition' ]
 endif
 
-if get_option('b_sanitize') != 'none'
-  # This is needed because of xdrproc_t. It's declared as a pointer to a
-  # function with variable arguments. But for catching type related problems at
-  # compile time, our rpcgen generates functions with proper types, say:
-  #
-  #    bool_t xdr_TestEnum(XDR *, TestEnum *);
-  #
-  # But passing xdr_TestEnum as a callback where xdrproc_t type is expected is
-  # undefined behavior. Yet, we want the comfort of compile time checks, so
-  # just disable the sanitizer warning for now. It's a big hammer though.
-  cc_flags += [ '-fno-sanitize=function' ]
-endif
-
 supported_cc_flags = []
 if get_option('warning_level') == '2'
   supported_cc_flags = cc.get_supported_arguments(cc_flags)
 
-  # we prefer -fstack-protector-strong but fallback to -fstack-protector-all
-  fstack_cflags = cc.first_supported_argument([
-    '-fstack-protector-strong',
-    '-fstack-protector-all',
-  ])
-  supported_cc_flags += fstack_cflags
+  # on aarch64 error: -fstack-protector not supported for this target
+  if host_machine.cpu_family() != 'aarch64'
+    if host_machine.system() in [ 'linux', 'freebsd', 'windows' ]
+      # we prefer -fstack-protector-strong but fallback to -fstack-protector-all
+      fstack_cflags = cc.first_supported_argument([
+        '-fstack-protector-strong',
+        '-fstack-protector-all',
+      ])
+      supported_cc_flags += fstack_cflags
 
-  # When building with mingw using -fstack-protector requires libssp library
-  # which is included by using -fstack-protector with linker.
-  if fstack_cflags.length() == 1 and host_machine.system() == 'windows'
-    add_project_link_arguments(fstack_cflags, language: 'c')
+      # When building with mingw using -fstack-protector requires libssp library
+      # which is included by using -fstack-protector with linker.
+      if fstack_cflags.length() == 1 and host_machine.system() == 'windows'
+        add_project_link_arguments(fstack_cflags, language: 'c')
+      endif
+    endif
   endif
 
   if supported_cc_flags.contains('-Wlogical-op')
@@ -612,8 +589,6 @@ functions = [
   'posix_fallocate',
   'posix_memalign',
   'prlimit',
-  'sched_get_priority_min',
-  'sched_getaffinity',
   'sched_setscheduler',
   'setgroups',
   'setrlimit',
@@ -634,12 +609,6 @@ stat_functions = [
 
 functions += stat_functions
 
-open_functions = [
-  '__open_2',
-]
-
-functions += open_functions
-
 foreach function : functions
   if cc.has_function(function)
     conf.set('WITH_@0@'.format(function.to_upper()), 1)
@@ -649,13 +618,6 @@ endforeach
 
 foreach function : stat_functions
   if cc.has_header_symbol('sys/stat.h', function)
-    conf.set('WITH_@0@_DECL'.format(function.to_upper()), 1)
-  endif
-endforeach
-
-
-foreach function : open_functions
-  if cc.has_header_symbol('fcntl.h', function)
     conf.set('WITH_@0@_DECL'.format(function.to_upper()), 1)
   endif
 endforeach
@@ -712,20 +674,20 @@ symbols = [
 
   # Check for BSD approach for setting MAC addr
   [ 'net/if_dl.h', 'link_addr', '#include <sys/types.h>\n#include <sys/socket.h>' ],
+
+  [ 'sched.h', 'cpu_set_t' ],
 ]
 
 if host_machine.system() == 'linux'
   symbols += [
     # process management
     [ 'sys/syscall.h', 'SYS_pidfd_open' ],
-    # vsock
-    [ 'linux/vm_sockets.h', 'struct sockaddr_vm', '#include <sys/socket.h>' ],
   ]
 endif
 
 foreach symbol : symbols
   if cc.has_header_symbol(symbol[0], symbol[1], args: '-D_GNU_SOURCE', prefix: symbol.get(2, ''))
-    conf.set('WITH_DECL_@0@'.format(symbol[1].underscorify().to_upper()), 1)
+    conf.set('WITH_DECL_@0@'.format(symbol[1].to_upper()), 1)
   endif
 endforeach
 
@@ -838,27 +800,29 @@ endforeach
 
 # optional programs
 
-optional_test_programs = [
+optional_programs = [
   'augparse',
   'black',
-  'flake8',
-  'pdwtags',
-  'pytest',
-]
-
-optional_programs = [
   'dmidecode',
+  'ebtables',
+  'flake8',
   'ip',
+  'ip6tables',
+  'iptables',
   'iscsiadm',
   'mdevctl',
   'mm-ctl',
   'modprobe',
   'ovs-vsctl',
+  'passt',
+  'pdwtags',
+  'pytest',
   'rmmod',
+  'scrub',
   'tc',
-] + optional_test_programs
+  'udevadm',
+]
 
-missing_optional_programs = []
 foreach name : optional_programs
   prog = find_program(name, required: false, dirs: libvirt_sbin_path)
   varname = name.underscorify()
@@ -866,9 +830,6 @@ foreach name : optional_programs
     prog_path = prog.full_path()
   else
     prog_path = name
-    if name in optional_test_programs
-      missing_optional_programs += [ name ]
-    endif
   endif
 
   conf.set_quoted(varname.to_upper(), prog_path)
@@ -992,7 +953,7 @@ else
   endif
 endif
 
-glib_version = '2.58.0'
+glib_version = '2.56.0'
 glib_dep = dependency('glib-2.0', version: '>=' + glib_version)
 gobject_dep = dependency('gobject-2.0', version: '>=' + glib_version)
 if host_machine.system() == 'windows'
@@ -1051,16 +1012,6 @@ if not conf.has('WITH_NBDKIT')
   libnbd_dep = dependency('', required: false)
 endif
 
-# default value for storage_use_nbdkit config option.
-# For now 'auto' just maps to disabled, but in the future it may depend on
-# which security drivers are enabled
-use_nbdkit_default = get_option('nbdkit_config_default').enabled()
-
-if use_nbdkit_default and not conf.has('WITH_NBDKIT')
-  error('nbdkit_config_default requires nbdkit to be enabled')
-endif
-conf.set10('USE_NBDKIT_DEFAULT', use_nbdkit_default)
-
 libnl_version = '3.0'
 if not get_option('libnl').disabled() and host_machine.system() == 'linux'
   libnl_dep = dependency('libnl-3.0', version: '>=' + libnl_version, required: get_option('libnl'))
@@ -1096,9 +1047,6 @@ if conf.has('WITH_REMOTE')
   libssh_dep = dependency('libssh', version: '>=' + libssh_version, required: get_option('libssh'))
   if libssh_dep.found()
     conf.set('WITH_LIBSSH', 1)
-    if cc.has_function('ssh_channel_get_exit_state', dependencies: libssh_dep)
-      conf.set('WITH_SSH_CHANNEL_GET_EXIT_STATE', 1)
-    endif
   endif
 else
   libssh_dep = dependency('', required: false)
@@ -1648,29 +1596,6 @@ endif
 
 if not get_option('driver_network').disabled() and conf.has('WITH_LIBVIRTD')
   conf.set('WITH_NETWORK', 1)
-
-  firewall_backend_priority = get_option('firewall_backend_priority')
-  if firewall_backend_priority.length() == 0
-      if host_machine.system() == 'linux'
-          firewall_backend_priority = ['nftables', 'iptables']
-      else
-          # No firewall impl on non-Linux so far, so force 'none'
-          # as placeholder
-          firewall_backend_priority = ['none']
-      endif
-  else
-      if host_machine.system() != 'linux'
-          error('firewall backend priority only supported on linux hosts')
-      endif
-  endif
-
-  backends = []
-  foreach backend: firewall_backend_priority
-      backend = 'VIR_FIREWALL_BACKEND_' + backend.to_upper()
-      backends += backend
-  endforeach
-
-  conf.set('FIREWALL_BACKENDS', ', '.join(backends))
 elif get_option('driver_network').enabled()
   error('libvirtd must be enabled to build the network driver')
 endif
@@ -2086,22 +2011,10 @@ if not get_option('pm_utils').disabled()
   endif
 endif
 
-if not get_option('ssh_proxy').disabled() and conf.has('WITH_DECL_STRUCT_SOCKADDR_VM')
-  conf.set('WITH_SSH_PROXY', 1)
-elif get_option('ssh_proxy').enabled()
-  error('ssh proxy requires vm_sockets.h which wasn\'t found')
-endif
-
 if not get_option('sysctl_config').disabled() and host_machine.system() == 'linux'
   conf.set('WITH_SYSCTL', 1)
 elif get_option('sysctl_config').enabled()
   error('sysctl configuration is supported only on linux')
-endif
-
-if not get_option('userfaultfd_sysctl').disabled() and conf.has('WITH_SYSCTL')
-  conf.set('WITH_USERFAULTFD_SYSCTL', 1)
-elif get_option('userfaultfd_sysctl').enabled()
-  error('userfaultfd_sysctl option requires sysctl_config to be enabled')
 endif
 
 conf.set_quoted('TLS_PRIORITY', get_option('tls_priority'))
@@ -2254,8 +2167,8 @@ if git
 
   foreach file : dist_files
     meson.add_dist_script(
-      meson_python_prog.full_path(), python3_prog.full_path(),
-      meson_dist_prog.full_path(), file
+      meson_python_prog.full_path(), python3_prog.full_path(), meson_dist_prog.full_path(),
+      meson.project_build_root(), file
     )
   endforeach
 endif
@@ -2403,30 +2316,13 @@ misc_summary = {
   'virt-login-shell': conf.has('WITH_LOGIN_SHELL'),
   'virt-host-validate': conf.has('WITH_HOST_VALIDATE'),
   'TLS priority': conf.get_unquoted('TLS_PRIORITY'),
-  'SSH proxy': conf.has('WITH_SSH_PROXY'),
-  'sysctl config': conf.has('WITH_SYSCTL'),
-  'userfaultfd sysctl': conf.has('WITH_USERFAULTFD_SYSCTL'),
 }
-if conf.has('WITH_NETWORK')
-  misc_summary += {
-    'firewall backends': firewall_backend_priority,
-  }
-endif
 summary(misc_summary, section: 'Miscellaneous', bool_yn: true, list_sep: ' ')
 
 devtools_summary = {
   'wireshark_dissector': wireshark_dep.found(),
 }
 summary(devtools_summary, section: 'Developer Tools', bool_yn: true)
-
-if missing_optional_programs.length() > 0
-  missing_list = ' '.join(missing_optional_programs)
-  missing_warn = ' (some tests will be skipped!)'
-  test_programs_summary = {
-    'Missing': missing_list + missing_warn,
-  }
-  summary(test_programs_summary, section: 'Optional programs', bool_yn: true)
-endif
 
 if conf.has('WITH_QEMU')
   qemu_warn = ''

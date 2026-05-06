@@ -63,7 +63,7 @@
 #include "virjson.h"
 #include "virnetworkportdef.h"
 #include "virutil.h"
-#include "virsystemd.h"
+
 #include "netdev_bandwidth_conf.h"
 
 #define VIR_FROM_THIS VIR_FROM_NETWORK
@@ -576,7 +576,7 @@ firewalld_dbus_signal_callback(GDBusConnection *connection G_GNUC_UNUSED,
  *
  * Initialization function for the QEMU daemon
  */
-static virDrvStateInitResult
+static int
 networkStateInitialize(bool privileged,
                        const char *root,
                        bool monolithic G_GNUC_UNUSED,
@@ -1682,11 +1682,8 @@ static int
 networkReloadFirewallRulesHelper(virNetworkObj *obj,
                                  void *opaque G_GNUC_UNUSED)
 {
-    g_autoptr(virNetworkDriverConfig) cfg = virNetworkDriverGetConfig(networkGetDriver());
     VIR_LOCK_GUARD lock = virObjectLockGuard(obj);
     virNetworkDef *def = virNetworkObjGetDef(obj);
-    virFirewall *fwRemoval = NULL;
-    bool saveStatus = false;
 
     if (virNetworkObjIsActive(obj)) {
         switch ((virNetworkForwardType) def->forward.type) {
@@ -1698,10 +1695,8 @@ networkReloadFirewallRulesHelper(virNetworkObj *obj,
              * network type, forward='open', doesn't need this because it
              * has no iptables rules.
              */
-            networkRemoveFirewallRules(obj);
-            ignore_value(networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval));
-            virNetworkObjSetFwRemoval(obj, fwRemoval);
-            saveStatus = true;
+            networkRemoveFirewallRules(def);
+            ignore_value(networkAddFirewallRules(def));
             break;
 
         case VIR_NETWORK_FORWARD_OPEN:
@@ -1717,11 +1712,6 @@ networkReloadFirewallRulesHelper(virNetworkObj *obj,
             virReportEnumRangeError(virNetworkForwardType, def->forward.type);
             return 0;
         }
-    }
-
-    if (saveStatus) {
-        ignore_value(virNetworkObjSaveStatus(cfg->stateDir, obj,
-                                             network_driver->xmlopt));
     }
 
     return 0;
@@ -1912,8 +1902,6 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
     bool dnsmasqStarted = false;
     bool devOnline = false;
     bool firewalRulesAdded = false;
-    virSocketAddr *dnsServer = NULL;
-    virFirewall *fwRemoval = NULL;
 
     /* Check to see if any network IP collides with an existing route */
     if (networkCheckRouteCollision(def) < 0)
@@ -1959,11 +1947,9 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
 
     /* Add "once per network" rules */
     if (def->forward.type != VIR_NETWORK_FORWARD_OPEN &&
-        networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval) < 0) {
+        networkAddFirewallRules(def) < 0)
         goto error;
-    }
 
-    virNetworkObjSetFwRemoval(obj, fwRemoval);
     firewalRulesAdded = true;
 
     for (i = 0; (ipdef = virNetworkDefGetIPByIndex(def, AF_UNSPEC, i)); i++) {
@@ -1971,9 +1957,6 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
             v4present = true;
         if (VIR_SOCKET_ADDR_IS_FAMILY(&ipdef->address, AF_INET6))
             v6present = true;
-
-        if (!dnsServer)
-            dnsServer = &ipdef->address;
 
         /* Add the IP address/netmask to the bridge */
         if (networkAddAddrToBridge(obj, ipdef) < 0)
@@ -2028,34 +2011,6 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
             goto error;
 
         dnsmasqStarted = true;
-
-        if (def->domain &&
-            def->domainRegister == VIR_TRISTATE_BOOL_YES &&
-            dnsServer) {
-            unsigned int link;
-            int rc;
-
-            if ((link = if_nametoindex(def->bridge)) == 0) {
-                virReportSystemError(ENODEV,
-                                     _("unable to get interface index for %1$s"),
-                                     def->bridge);
-                goto error;
-            }
-
-            rc = virSystemdResolvedRegisterNameServer(link, def->domain,
-                                                      dnsServer);
-            if (rc == -2) {
-                virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                               _("failed to register name server: systemd-resolved is not available"));
-                goto error;
-            }
-
-            if (rc < 0) {
-                virReportError(VIR_ERR_INTERNAL_ERROR, "%s",
-                               _("failed to register name server"));
-                goto error;
-            }
-        }
     }
 
     if (virNetDevBandwidthSet(def->bridge, def->bandwidth, true, true) < 0)
@@ -2079,7 +2034,7 @@ networkStartNetworkVirtual(virNetworkDriverState *driver,
 
     if (firewalRulesAdded &&
         def->forward.type != VIR_NETWORK_FORWARD_OPEN)
-        networkRemoveFirewallRules(obj);
+        networkRemoveFirewallRules(def);
 
     virNetworkObjUnrefMacMap(obj);
 
@@ -2117,7 +2072,7 @@ networkShutdownNetworkVirtual(virNetworkObj *obj)
     ignore_value(virNetDevSetOnline(def->bridge, false));
 
     if (def->forward.type != VIR_NETWORK_FORWARD_OPEN)
-        networkRemoveFirewallRules(obj);
+        networkRemoveFirewallRules(def);
 
     ignore_value(virNetDevBridgeDelete(def->bridge));
 
@@ -2373,6 +2328,7 @@ networkStartNetwork(virNetworkDriverState *driver,
     /* Persist the live configuration now that anything autogenerated
      * is setup.
      */
+    VIR_DEBUG("Writing network status to disk");
     if (virNetworkObjSaveStatus(cfg->stateDir,
                                 obj, network_driver->xmlopt) < 0)
         goto cleanup;
@@ -2838,10 +2794,6 @@ networkValidate(virNetworkDriverState *driver,
         return -1;
     }
 
-    if (!virNetDevBandwidthValidate(def->bandwidth)) {
-        return -1;
-    }
-
     /* we support configs with a single PF defined:
      *   <pf dev='eth0'/>
      * or with a list of netdev names:
@@ -3229,8 +3181,6 @@ networkUpdate(virNetworkPtr net,
     virNetworkIPDef *ipdef;
     bool oldDhcpActive = false;
     bool needFirewallRefresh = false;
-    virFirewall *fwRemoval = NULL;
-
 
 
     virCheckFlags(VIR_NETWORK_UPDATE_AFFECT_LIVE |
@@ -3277,7 +3227,7 @@ networkUpdate(virNetworkPtr net,
                  * old rules (and remember to load new ones after the
                  * update).
                  */
-                networkRemoveFirewallRules(obj);
+                networkRemoveFirewallRules(def);
                 needFirewallRefresh = true;
                 break;
             default:
@@ -3304,21 +3254,16 @@ networkUpdate(virNetworkPtr net,
     if (virNetworkObjUpdate(obj, command, section,
                             parentIndex, xml,
                             network_driver->xmlopt, flags) < 0) {
-        if (needFirewallRefresh) {
-            ignore_value(networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval));
-            virNetworkObjSetFwRemoval(obj, fwRemoval);
-        }
+        if (needFirewallRefresh)
+            ignore_value(networkAddFirewallRules(def));
         goto cleanup;
     }
 
     /* @def is replaced */
     def = virNetworkObjGetDef(obj);
 
-    if (needFirewallRefresh &&
-        networkAddFirewallRules(def, cfg->firewallBackend, &fwRemoval) < 0) {
+    if (needFirewallRefresh && networkAddFirewallRules(def) < 0)
         goto cleanup;
-    }
-    virNetworkObjSetFwRemoval(obj, fwRemoval);
 
     if (flags & VIR_NETWORK_UPDATE_AFFECT_CONFIG) {
         /* save updated persistent config to disk */
@@ -3985,8 +3930,7 @@ networkAllocatePort(virNetworkObj *obj,
             return -1;
         }
         port->plug.hostdevpci.addr = dev->device.pci;
-        port->plug.hostdevpci.driver.name = netdef->forward.driver.name;
-        port->plug.hostdevpci.driver.model = g_strdup(netdef->forward.driver.model);
+        port->plug.hostdevpci.driver = netdef->forward.driverName;
         port->plug.hostdevpci.managed = virTristateBoolFromBool(netdef->forward.managed);
 
         if (port->virtPortProfile) {

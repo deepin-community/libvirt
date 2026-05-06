@@ -59,8 +59,8 @@ void virNetServerShutdownWait(virNetServer *srv);
 
 virJSONValue *virNetServerPreExecRestart(virNetServer *srv);
 
-void virNetServerAddService(virNetServer *srv,
-                            virNetServerService *svc);
+int virNetServerAddService(virNetServer *srv,
+                           virNetServerService *svc);
 int virNetServerAddServiceTCP(virNetServer *srv,
                               virSystemdActivation *act,
                               const char *actname,

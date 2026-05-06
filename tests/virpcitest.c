@@ -344,8 +344,7 @@ testVirPCIDeviceGetVPD(const void *opaque)
     if (!dev)
         return -1;
 
-    if (!(res = virPCIDeviceGetVPD(dev)))
-        return -1;
+    res = virPCIDeviceGetVPD(dev);
 
     /* Only basic checks - full parser validation is done elsewhere. */
     if (res->ro == NULL)

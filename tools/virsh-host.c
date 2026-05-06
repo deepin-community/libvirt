@@ -37,14 +37,20 @@
 /*
  * "capabilities" command
  */
-static const vshCmdInfo info_capabilities = {
-    .help = N_("capabilities"),
-    .desc = N_("Returns capabilities of hypervisor/driver."),
+static const vshCmdInfo info_capabilities[] = {
+    {.name = "help",
+     .data = N_("capabilities")
+    },
+    {.name = "desc",
+     .data = N_("Returns capabilities of hypervisor/driver.")
+    },
+   {.name = NULL}
 };
 
 static const vshCmdOptDef opts_capabilities[] = {
     {.name = "xpath",
      .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -77,36 +83,38 @@ cmdCapabilities(vshControl *ctl, const vshCmd *cmd)
 /*
  * "domcapabilities" command
  */
-static const vshCmdInfo info_domcapabilities = {
-    .help = N_("domain capabilities"),
-    .desc = N_("Returns capabilities of emulator with respect to host and libvirt."),
+static const vshCmdInfo info_domcapabilities[] = {
+    {.name = "help",
+     .data = N_("domain capabilities")
+    },
+    {.name = "desc",
+     .data = N_("Returns capabilities of emulator with respect to host and libvirt.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_domcapabilities[] = {
     {.name = "virttype",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulatorbin",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .help = N_("path to emulator binary (/domain/devices/emulator)"),
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshArchCompleter,
      .help = N_("domain architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .help = N_("machine type (/domain/os/type/@machine)"),
     },
     {.name = "xpath",
      .type = VSH_OT_STRING,
+     .flags = VSH_OFLAG_REQ_OPT,
      .completer = virshCompleteEmpty,
      .help = N_("xpath expression to filter the XML document")
     },
@@ -130,10 +138,10 @@ cmdDomCapabilities(vshControl *ctl, const vshCmd *cmd)
     bool wrap = vshCommandOptBool(cmd, "wrap");
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptString(ctl, cmd, "virttype", &virttype) < 0 ||
-        vshCommandOptString(ctl, cmd, "emulatorbin", &emulatorbin) < 0 ||
-        vshCommandOptString(ctl, cmd, "arch", &arch) < 0 ||
-        vshCommandOptString(ctl, cmd, "machine", &machine) < 0 ||
+    if (vshCommandOptStringReq(ctl, cmd, "virttype", &virttype) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "emulatorbin", &emulatorbin) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "machine", &machine) < 0 ||
         vshCommandOptStringQuiet(ctl, cmd, "xpath", &xpath) < 0)
         return false;
 
@@ -150,15 +158,19 @@ cmdDomCapabilities(vshControl *ctl, const vshCmd *cmd)
 /*
  * "freecell" command
  */
-static const vshCmdInfo info_freecell = {
-    .help = N_("NUMA free memory"),
-    .desc = N_("display available free memory for the NUMA cell."),
+static const vshCmdInfo info_freecell[] = {
+    {.name = "help",
+     .data = N_("NUMA free memory")
+    },
+    {.name = "desc",
+     .data = N_("display available free memory for the NUMA cell.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_freecell[] = {
     {.name = "cellno",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .completer = virshCellnoCompleter,
      .help = N_("NUMA cell number")
     },
@@ -259,21 +271,24 @@ cmdFreecell(vshControl *ctl, const vshCmd *cmd)
 /*
  * "freepages" command
  */
-static const vshCmdInfo info_freepages = {
-    .help = N_("NUMA free pages"),
-    .desc = N_("display available free pages for the NUMA cell."),
+static const vshCmdInfo info_freepages[] = {
+    {.name = "help",
+     .data = N_("NUMA free pages")
+    },
+    {.name = "desc",
+     .data = N_("display available free pages for the NUMA cell.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_freepages[] = {
     {.name = "cellno",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .completer = virshCellnoCompleter,
      .help = N_("NUMA cell number")
     },
     {.name = "pagesize",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .completer = virshAllocpagesPagesizeCompleter,
      .help = N_("page size (in kibibytes)")
     },
@@ -320,10 +335,8 @@ cmdFreepages(vshControl *ctl, const vshCmd *cmd)
 
     VSH_EXCLUSIVE_OPTIONS_VAR(all, cellno);
 
-    if (vshCommandOptScaledInt(ctl, cmd, "pagesize", &bytes,
-                               1024, UINT_MAX * 1024ULL) < 0) {
+    if (vshCommandOptScaledInt(ctl, cmd, "pagesize", &bytes, 1024, UINT_MAX) < 0)
         goto cleanup;
-    }
     kibibytes = VIR_DIV_UP(bytes, 1024);
 
     if (all) {
@@ -466,27 +479,29 @@ cmdFreepages(vshControl *ctl, const vshCmd *cmd)
 /*
  * "allocpages" command
  */
-static const vshCmdInfo info_allocpages = {
-    .help = N_("Manipulate pages pool size"),
-    .desc = N_("Allocate or free some pages in the pool for NUMA cell."),
+static const vshCmdInfo info_allocpages[] = {
+    {.name = "help",
+     .data = N_("Manipulate pages pool size")
+    },
+    {.name = "desc",
+     .data = N_("Allocate or free some pages in the pool for NUMA cell.")
+    },
+    {.name = NULL}
 };
 static const vshCmdOptDef opts_allocpages[] = {
     {.name = "pagesize",
      .type = VSH_OT_INT,
-     .positional = true,
-     .required = true,
+     .flags = VSH_OFLAG_REQ,
      .completer = virshAllocpagesPagesizeCompleter,
      .help = N_("page size (in kibibytes)")
     },
     {.name = "pagecount",
      .type = VSH_OT_INT,
-     .positional = true,
-     .required = true,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("page count")
     },
     {.name = "cellno",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .completer = virshCellnoCompleter,
      .help = N_("NUMA cell number")
     },
@@ -580,15 +595,19 @@ cmdAllocpages(vshControl *ctl, const vshCmd *cmd)
 /*
  * "maxvcpus" command
  */
-static const vshCmdInfo info_maxvcpus = {
-    .help = N_("connection vcpu maximum"),
-    .desc = N_("Show maximum number of virtual CPUs for guests on this connection."),
+static const vshCmdInfo info_maxvcpus[] = {
+    {.name = "help",
+     .data = N_("connection vcpu maximum")
+    },
+    {.name = "desc",
+     .data = N_("Show maximum number of virtual CPUs for guests on this connection.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_maxvcpus[] = {
     {.name = "type",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshDomainVirtTypeCompleter,
      .help = N_("domain type")
     },
@@ -605,7 +624,7 @@ cmdMaxvcpus(vshControl *ctl, const vshCmd *cmd)
     g_autoptr(xmlXPathContext) ctxt = NULL;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptString(ctl, cmd, "type", &type) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "type", &type) < 0)
         return false;
 
     if ((caps = virConnectGetDomainCapabilities(priv->conn, NULL, NULL, NULL,
@@ -629,9 +648,14 @@ cmdMaxvcpus(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodeinfo" command
  */
-static const vshCmdInfo info_nodeinfo = {
-    .help = N_("node information"),
-    .desc = N_("Returns basic information about the node."),
+static const vshCmdInfo info_nodeinfo[] = {
+    {.name = "help",
+     .data = N_("node information")
+    },
+    {.name = "desc",
+     .data = N_("Returns basic information about the node.")
+    },
+    {.name = NULL}
 };
 
 static bool
@@ -660,10 +684,15 @@ cmdNodeinfo(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "nodecpumap" command
  */
-static const vshCmdInfo info_node_cpumap = {
-     .help = N_("node cpu map"),
-     .desc = N_("Displays the node's total number of CPUs, the number of"
-                " online CPUs and the list of online CPUs."),
+static const vshCmdInfo info_node_cpumap[] = {
+    {.name = "help",
+     .data = N_("node cpu map")
+    },
+    {.name = "desc",
+     .data = N_("Displays the node's total number of CPUs, the number of"
+                " online CPUs and the list of online CPUs.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_cpumap[] = {
@@ -711,15 +740,19 @@ cmdNodeCpuMap(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "nodecpustats" command
  */
-static const vshCmdInfo info_nodecpustats = {
-    .help = N_("Prints cpu stats of the node."),
-    .desc = N_("Returns cpu stats of the node, in nanoseconds."),
+static const vshCmdInfo info_nodecpustats[] = {
+    {.name = "help",
+     .data = N_("Prints cpu stats of the node.")
+    },
+    {.name = "desc",
+     .data = N_("Returns cpu stats of the node, in nanoseconds.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_cpustats[] = {
     {.name = "cpu",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .completer = virshNodeCpuCompleter,
      .help = N_("prints specified cpu statistics only.")
     },
@@ -850,15 +883,19 @@ cmdNodeCpuStats(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodememstats" command
  */
-static const vshCmdInfo info_nodememstats = {
-    .help = N_("Prints memory stats of the node."),
-    .desc = N_("Returns memory stats of the node, in kilobytes."),
+static const vshCmdInfo info_nodememstats[] = {
+    {.name = "help",
+     .data = N_("Prints memory stats of the node.")
+    },
+    {.name = "desc",
+     .data = N_("Returns memory stats of the node, in kilobytes.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_memstats[] = {
     {.name = "cell",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .help = N_("prints specified cell statistics only.")
     },
     {.name = NULL}
@@ -904,9 +941,14 @@ cmdNodeMemStats(vshControl *ctl, const vshCmd *cmd)
 /*
  * "nodesevinfo" command
  */
-static const vshCmdInfo info_nodesevinfo = {
-    .help = N_("node SEV information"),
-    .desc = N_("Returns basic SEV information about the node."),
+static const vshCmdInfo info_nodesevinfo[] = {
+    {.name = "help",
+     .data = N_("node SEV information")
+    },
+    {.name = "desc",
+     .data = N_("Returns basic SEV information about the node.")
+    },
+    {.name = NULL}
 };
 
 static bool
@@ -945,25 +987,28 @@ VIR_ENUM_IMPL(virshNodeSuspendTarget,
               "disk",
               "hybrid");
 
-static const vshCmdInfo info_nodesuspend = {
-     .help = N_("suspend the host node for a given time duration"),
-     .desc = N_("Suspend the host node for a given time duration "
-                "and attempt to resume thereafter."),
+static const vshCmdInfo info_nodesuspend[] = {
+    {.name = "help",
+     .data = N_("suspend the host node for a given time duration")
+    },
+    {.name = "desc",
+     .data = N_("Suspend the host node for a given time duration "
+                "and attempt to resume thereafter.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_node_suspend[] = {
     {.name = "target",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
+     .flags = VSH_OFLAG_REQ,
      .completer = virshNodeSuspendTargetCompleter,
      .help = N_("mem(Suspend-to-RAM), disk(Suspend-to-Disk), "
                 "hybrid(Hybrid-Suspend)")
     },
     {.name = "duration",
      .type = VSH_OT_INT,
-     .positional = true,
-     .required = true,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("Suspend duration in seconds, at least 60")
     },
     {.name = NULL}
@@ -977,7 +1022,7 @@ cmdNodeSuspend(vshControl *ctl, const vshCmd *cmd)
     long long duration;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptString(ctl, cmd, "target", &target) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "target", &target) < 0)
         return false;
 
     if (vshCommandOptLongLong(ctl, cmd, "duration", &duration) < 0)
@@ -1003,9 +1048,14 @@ cmdNodeSuspend(vshControl *ctl, const vshCmd *cmd)
 /*
  * "sysinfo" command
  */
-static const vshCmdInfo info_sysinfo = {
-    .help = N_("print the hypervisor sysinfo"),
-    .desc = N_("output an XML string for the hypervisor sysinfo, if available"),
+static const vshCmdInfo info_sysinfo[] = {
+    {.name = "help",
+     .data = N_("print the hypervisor sysinfo")
+    },
+    {.name = "desc",
+     .data = N_("output an XML string for the hypervisor sysinfo, if available")
+    },
+    {.name = NULL}
 };
 
 static bool
@@ -1028,9 +1078,14 @@ cmdSysinfo(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "hostname" command
  */
-static const vshCmdInfo info_hostname = {
-    .help = N_("print the hypervisor hostname"),
-    .desc = "",
+static const vshCmdInfo info_hostname[] = {
+    {.name = "help",
+     .data = N_("print the hypervisor hostname")
+    },
+    {.name = "desc",
+     .data = ""
+    },
+    {.name = NULL}
 };
 
 static bool
@@ -1053,9 +1108,14 @@ cmdHostname(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
 /*
  * "uri" command
  */
-static const vshCmdInfo info_uri = {
-    .help = N_("print the hypervisor canonical URI"),
-    .desc = "",
+static const vshCmdInfo info_uri[] = {
+    {.name = "help",
+     .data = N_("print the hypervisor canonical URI")
+    },
+    {.name = "desc",
+     .data = ""
+    },
+    {.name = NULL}
 };
 
 static bool
@@ -1156,9 +1216,14 @@ vshExtractCPUDefXMLs(vshControl *ctl,
 /*
  * "cpu-compare" command
  */
-static const vshCmdInfo info_cpu_compare = {
-    .help = N_("compare host CPU with a CPU described by an XML file"),
-    .desc = N_("compare CPU with host CPU"),
+static const vshCmdInfo info_cpu_compare[] = {
+    {.name = "help",
+     .data = N_("compare host CPU with a CPU described by an XML file")
+    },
+    {.name = "desc",
+     .data = N_("compare CPU with host CPU")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_cpu_compare[] = {
@@ -1189,7 +1254,7 @@ cmdCPUCompare(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptBool(cmd, "validate"))
         flags |= VIR_CONNECT_COMPARE_CPU_VALIDATE_XML;
 
-    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (!(cpus = vshExtractCPUDefXMLs(ctl, from)))
@@ -1226,9 +1291,14 @@ cmdCPUCompare(vshControl *ctl, const vshCmd *cmd)
 /*
  * "cpu-baseline" command
  */
-static const vshCmdInfo info_cpu_baseline = {
-    .help = N_("compute baseline CPU"),
-    .desc = N_("Compute baseline CPU for a set of given CPUs."),
+static const vshCmdInfo info_cpu_baseline[] = {
+    {.name = "help",
+     .data = N_("compute baseline CPU")
+    },
+    {.name = "desc",
+     .data = N_("Compute baseline CPU for a set of given CPUs.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_cpu_baseline[] = {
@@ -1258,7 +1328,7 @@ cmdCPUBaseline(vshControl *ctl, const vshCmd *cmd)
     if (vshCommandOptBool(cmd, "migratable"))
         flags |= VIR_CONNECT_BASELINE_CPU_MIGRATABLE;
 
-    if (vshCommandOptString(ctl, cmd, "file", &from) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0)
         return false;
 
     if (!(list = vshExtractCPUDefXMLs(ctl, from)))
@@ -1275,17 +1345,21 @@ cmdCPUBaseline(vshControl *ctl, const vshCmd *cmd)
 /*
  * "cpu-models" command
  */
-static const vshCmdInfo info_cpu_models = {
-    .help = N_("CPU models"),
-    .desc = N_("Get the CPU models for an arch."),
+static const vshCmdInfo info_cpu_models[] = {
+    {.name = "help",
+     .data = N_("CPU models")
+    },
+    {.name = "desc",
+     .data = N_("Get the CPU models for an arch.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_cpu_models[] = {
     {.name = "arch",
-     .type = VSH_OT_STRING,
-     .positional = true,
-     .required = true,
+     .type = VSH_OT_DATA,
      .completer = virshArchCompleter,
+     .flags = VSH_OFLAG_REQ,
      .help = N_("architecture")
     },
     {.name = NULL}
@@ -1300,7 +1374,7 @@ cmdCPUModelNames(vshControl *ctl, const vshCmd *cmd)
     const char *arch = NULL;
     virshControl *priv = ctl->privData;
 
-    if (vshCommandOptString(ctl, cmd, "arch", &arch) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0)
         return false;
 
     nmodels = virConnectGetCPUModelNames(priv->conn, arch, &models, 0);
@@ -1325,9 +1399,14 @@ cmdCPUModelNames(vshControl *ctl, const vshCmd *cmd)
 /*
  * "version" command
  */
-static const vshCmdInfo info_version = {
-    .help = N_("show version"),
-    .desc = N_("Display the system version information."),
+static const vshCmdInfo info_version[] = {
+    {.name = "help",
+     .data = N_("show version")
+    },
+    {.name = "desc",
+     .data = N_("Display the system version information.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_version[] = {
@@ -1422,27 +1501,27 @@ cmdVersion(vshControl *ctl, const vshCmd *cmd G_GNUC_UNUSED)
     return true;
 }
 
-static const vshCmdInfo info_node_memory_tune = {
-    .help = N_("Get or set node memory parameters"),
-    .desc = N_("Get or set node memory parameters"),
+static const vshCmdInfo info_node_memory_tune[] = {
+    {"help", N_("Get or set node memory parameters")},
+    {"desc", N_("Get or set node memory parameters\n"
+                "    To get the memory parameters, use following command: \n\n"
+                "    virsh # node-memory-tune")},
+    {NULL, NULL}
 };
 
 static const vshCmdOptDef opts_node_memory_tune[] = {
     {.name = "shm-pages-to-scan",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .help =  N_("number of pages to scan before the shared memory service "
                  "goes to sleep")
     },
     {.name = "shm-sleep-millisecs",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .help =  N_("number of millisecs the shared memory service should "
                  "sleep before next scan")
     },
     {.name = "shm-merge-across-nodes",
      .type = VSH_OT_INT,
-     .unwanted_positional = true,
      .help =  N_("Specifies if pages from different numa nodes can be merged")
     },
     {.name = NULL}
@@ -1538,33 +1617,34 @@ cmdNodeMemoryTune(vshControl *ctl, const vshCmd *cmd)
 /*
  * "hypervisor-cpu-compare" command
  */
-static const vshCmdInfo info_hypervisor_cpu_compare = {
-    .help = N_("compare a CPU with the CPU created by a hypervisor on the host"),
-    .desc = N_("compare CPU with hypervisor CPU"),
+static const vshCmdInfo info_hypervisor_cpu_compare[] = {
+    {.name = "help",
+     .data = N_("compare a CPU with the CPU created by a hypervisor on the host")
+    },
+    {.name = "desc",
+     .data = N_("compare CPU with hypervisor CPU")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_hypervisor_cpu_compare[] = {
     VIRSH_COMMON_OPT_FILE(N_("file containing an XML CPU description")),
     {.name = "virttype",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulator",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .help = N_("path to emulator binary (/domain/devices/emulator)"),
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshArchCompleter,
      .help = N_("CPU architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .help = N_("machine type (/domain/os/type/@machine)"),
     },
     {.name = "error",
@@ -1598,11 +1678,11 @@ cmdHypervisorCPUCompare(vshControl *ctl,
     if (vshCommandOptBool(cmd, "validate"))
         flags |= VIR_CONNECT_COMPARE_CPU_VALIDATE_XML;
 
-    if (vshCommandOptString(ctl, cmd, "file", &from) < 0 ||
-        vshCommandOptString(ctl, cmd, "virttype", &virttype) < 0 ||
-        vshCommandOptString(ctl, cmd, "emulator", &emulator) < 0 ||
-        vshCommandOptString(ctl, cmd, "arch", &arch) < 0 ||
-        vshCommandOptString(ctl, cmd, "machine", &machine) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "virttype", &virttype) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "emulator", &emulator) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "machine", &machine) < 0)
         return false;
 
     if (!(cpus = vshExtractCPUDefXMLs(ctl, from)))
@@ -1644,39 +1724,36 @@ cmdHypervisorCPUCompare(vshControl *ctl,
 /*
  * "hypervisor-cpu-baseline" command
  */
-static const vshCmdInfo info_hypervisor_cpu_baseline = {
-     .help = N_("compute baseline CPU usable by a specific hypervisor"),
-     .desc = N_("Compute baseline CPU for a set of given CPUs. The result "
-                "will be tailored to the specified hypervisor."),
+static const vshCmdInfo info_hypervisor_cpu_baseline[] = {
+    {.name = "help",
+     .data = N_("compute baseline CPU usable by a specific hypervisor")
+    },
+    {.name = "desc",
+     .data = N_("Compute baseline CPU for a set of given CPUs. The result "
+                "will be tailored to the specified hypervisor.")
+    },
+    {.name = NULL}
 };
 
 static const vshCmdOptDef opts_hypervisor_cpu_baseline[] = {
-    {.name = "file",
-     .type = VSH_OT_STRING,
-     .unwanted_positional = true,
-     .completer = virshCompletePathLocalExisting,
-     .help = N_("file containing XML CPU descriptions"),
-    },
+    VIRSH_COMMON_OPT_FILE_FULL(N_("file containing XML CPU descriptions"),
+                               false),
     {.name = "virttype",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshDomainVirtTypeCompleter,
      .help = N_("virtualization type (/domain/@type)"),
     },
     {.name = "emulator",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .help = N_("path to emulator binary (/domain/devices/emulator)"),
     },
     {.name = "arch",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshArchCompleter,
      .help = N_("CPU architecture (/domain/os/type/@arch)"),
     },
     {.name = "machine",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .help = N_("machine type (/domain/os/type/@machine)"),
     },
     {.name = "features",
@@ -1689,7 +1766,6 @@ static const vshCmdOptDef opts_hypervisor_cpu_baseline[] = {
     },
     {.name = "model",
      .type = VSH_OT_STRING,
-     .unwanted_positional = true,
      .completer = virshCPUModelCompleter,
      .help = N_("Shortcut for calling the command with a single CPU model "
                 "and no additional features")
@@ -1718,12 +1794,12 @@ cmdHypervisorCPUBaseline(vshControl *ctl,
     if (vshCommandOptBool(cmd, "migratable"))
         flags |= VIR_CONNECT_BASELINE_CPU_MIGRATABLE;
 
-    if (vshCommandOptString(ctl, cmd, "file", &from) < 0 ||
-        vshCommandOptString(ctl, cmd, "virttype", &virttype) < 0 ||
-        vshCommandOptString(ctl, cmd, "emulator", &emulator) < 0 ||
-        vshCommandOptString(ctl, cmd, "arch", &arch) < 0 ||
-        vshCommandOptString(ctl, cmd, "machine", &machine) < 0 ||
-        vshCommandOptString(ctl, cmd, "model", &model) < 0)
+    if (vshCommandOptStringReq(ctl, cmd, "file", &from) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "virttype", &virttype) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "emulator", &emulator) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "arch", &arch) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "machine", &machine) < 0 ||
+        vshCommandOptStringReq(ctl, cmd, "model", &model) < 0)
         return false;
 
     VSH_ALTERNATIVE_OPTIONS_EXPR("file", from, "model", model);
@@ -1755,133 +1831,133 @@ const vshCmdDef hostAndHypervisorCmds[] = {
     {.name = "allocpages",
      .handler = cmdAllocpages,
      .opts = opts_allocpages,
-     .info = &info_allocpages,
+     .info = info_allocpages,
      .flags = 0
     },
     {.name = "capabilities",
      .handler = cmdCapabilities,
      .opts = opts_capabilities,
-     .info = &info_capabilities,
+     .info = info_capabilities,
      .flags = 0
     },
     {.name = "cpu-baseline",
      .handler = cmdCPUBaseline,
      .opts = opts_cpu_baseline,
-     .info = &info_cpu_baseline,
+     .info = info_cpu_baseline,
      .flags = 0
     },
     {.name = "cpu-compare",
      .handler = cmdCPUCompare,
      .opts = opts_cpu_compare,
-     .info = &info_cpu_compare,
+     .info = info_cpu_compare,
      .flags = 0
     },
     {.name = "cpu-models",
      .handler = cmdCPUModelNames,
      .opts = opts_cpu_models,
-     .info = &info_cpu_models,
+     .info = info_cpu_models,
      .flags = 0
     },
     {.name = "domcapabilities",
      .handler = cmdDomCapabilities,
      .opts = opts_domcapabilities,
-     .info = &info_domcapabilities,
+     .info = info_domcapabilities,
      .flags = 0
     },
     {.name = "freecell",
      .handler = cmdFreecell,
      .opts = opts_freecell,
-     .info = &info_freecell,
+     .info = info_freecell,
      .flags = 0
     },
     {.name = "freepages",
      .handler = cmdFreepages,
      .opts = opts_freepages,
-     .info = &info_freepages,
+     .info = info_freepages,
      .flags = 0
     },
     {.name = "hostname",
      .handler = cmdHostname,
      .opts = NULL,
-     .info = &info_hostname,
+     .info = info_hostname,
      .flags = 0
     },
     {.name = "hypervisor-cpu-baseline",
      .handler = cmdHypervisorCPUBaseline,
      .opts = opts_hypervisor_cpu_baseline,
-     .info = &info_hypervisor_cpu_baseline,
+     .info = info_hypervisor_cpu_baseline,
      .flags = 0
     },
     {.name = "hypervisor-cpu-compare",
      .handler = cmdHypervisorCPUCompare,
      .opts = opts_hypervisor_cpu_compare,
-     .info = &info_hypervisor_cpu_compare,
+     .info = info_hypervisor_cpu_compare,
      .flags = 0
     },
     {.name = "maxvcpus",
      .handler = cmdMaxvcpus,
      .opts = opts_maxvcpus,
-     .info = &info_maxvcpus,
+     .info = info_maxvcpus,
      .flags = 0
     },
     {.name = "node-memory-tune",
      .handler = cmdNodeMemoryTune,
      .opts = opts_node_memory_tune,
-     .info = &info_node_memory_tune,
+     .info = info_node_memory_tune,
      .flags = 0
     },
     {.name = "nodecpumap",
      .handler = cmdNodeCpuMap,
      .opts = opts_node_cpumap,
-     .info = &info_node_cpumap,
+     .info = info_node_cpumap,
      .flags = 0
     },
     {.name = "nodecpustats",
      .handler = cmdNodeCpuStats,
      .opts = opts_node_cpustats,
-     .info = &info_nodecpustats,
+     .info = info_nodecpustats,
      .flags = 0
     },
     {.name = "nodeinfo",
      .handler = cmdNodeinfo,
      .opts = NULL,
-     .info = &info_nodeinfo,
+     .info = info_nodeinfo,
      .flags = 0
     },
     {.name = "nodememstats",
      .handler = cmdNodeMemStats,
      .opts = opts_node_memstats,
-     .info = &info_nodememstats,
+     .info = info_nodememstats,
      .flags = 0
     },
     {.name = "nodesevinfo",
      .handler = cmdNodeSEVInfo,
      .opts = NULL,
-     .info = &info_nodesevinfo,
+     .info = info_nodesevinfo,
      .flags = 0
     },
     {.name = "nodesuspend",
      .handler = cmdNodeSuspend,
      .opts = opts_node_suspend,
-     .info = &info_nodesuspend,
+     .info = info_nodesuspend,
      .flags = 0
     },
     {.name = "sysinfo",
      .handler = cmdSysinfo,
      .opts = NULL,
-     .info = &info_sysinfo,
+     .info = info_sysinfo,
      .flags = 0
     },
     {.name = "uri",
      .handler = cmdURI,
      .opts = NULL,
-     .info = &info_uri,
+     .info = info_uri,
      .flags = 0
     },
     {.name = "version",
      .handler = cmdVersion,
      .opts = opts_version,
-     .info = &info_version,
+     .info = info_version,
      .flags = 0
     },
     {.name = NULL}

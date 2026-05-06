@@ -43,8 +43,8 @@ typedef enum {
      VIR_SECURITY_MANAGER_PRIVILEGED)
 
 virSecurityManager *virSecurityManagerNew(const char *name,
-                                          const char *virtDriver,
-                                          unsigned int flags);
+                                            const char *virtDriver,
+                                            unsigned int flags);
 
 virSecurityManager *virSecurityManagerNewStack(virSecurityManager *primary);
 int virSecurityManagerStackAddNested(virSecurityManager *stack,
@@ -73,10 +73,10 @@ typedef int
 
 
 virSecurityManager *virSecurityManagerNewDAC(const char *virtDriver,
-                                             uid_t user,
-                                             gid_t group,
-                                             unsigned int flags,
-                                             virSecurityManagerDACChownCallback chownCallback);
+                                               uid_t user,
+                                               gid_t group,
+                                               unsigned int flags,
+                                               virSecurityManagerDACChownCallback chownCallback);
 
 int virSecurityManagerPreFork(virSecurityManager *mgr);
 void virSecurityManagerPostFork(virSecurityManager *mgr);
@@ -158,8 +158,6 @@ int virSecurityManagerSetTapFDLabel(virSecurityManager *mgr,
 char *virSecurityManagerGetMountOptions(virSecurityManager *mgr,
                                         virDomainDef *vm);
 virSecurityManager ** virSecurityManagerGetNested(virSecurityManager *mgr);
-void virSecurityManagerStackLock(virSecurityManager *mgr);
-void virSecurityManagerStackUnlock(virSecurityManager *mgr);
 
 typedef enum {
     VIR_SECURITY_DOMAIN_IMAGE_LABEL_BACKING_CHAIN = 1 << 0,
@@ -186,8 +184,8 @@ int virSecurityManagerSetMemoryLabel(virSecurityManager *mgr,
                                      virDomainDef *vm,
                                      virDomainMemoryDef *mem);
 int virSecurityManagerRestoreMemoryLabel(virSecurityManager *mgr,
-                                         virDomainDef *vm,
-                                         virDomainMemoryDef *mem);
+                                        virDomainDef *vm,
+                                        virDomainMemoryDef *mem);
 
 int virSecurityManagerSetInputLabel(virSecurityManager *mgr,
                                     virDomainDef *vm,

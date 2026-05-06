@@ -590,7 +590,6 @@ struct qemuMonitorQueryHotpluggableCpusEntry {
     int node_id;
     int socket_id;
     int die_id;
-    int cluster_id;
     int core_id;
     int thread_id;
 
@@ -614,7 +613,6 @@ struct _qemuMonitorCPUInfo {
      * all entries are -1 */
     int socket_id;
     int die_id;
-    int cluster_id;
     int core_id;
     int thread_id;
     int node_id;
@@ -762,7 +760,6 @@ typedef enum {
     QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY,
     QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_PAUSED,
     QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER,
-    QEMU_MONITOR_MIGRATION_STATUS_POSTCOPY_RECOVER_SETUP,
     QEMU_MONITOR_MIGRATION_STATUS_COMPLETED,
     QEMU_MONITOR_MIGRATION_STATUS_ERROR,
     QEMU_MONITOR_MIGRATION_STATUS_CANCELLING,
@@ -815,7 +812,6 @@ struct _qemuMonitorMigrationStats {
     unsigned long long xbzrle_overflow;
 
     int cpu_throttle_percentage;
-    unsigned long long vfio_data_transferred;
 };
 
 int qemuMonitorGetMigrationStats(qemuMonitor *mon,
@@ -949,8 +945,7 @@ int qemuMonitorDelDevice(qemuMonitor *mon,
 int qemuMonitorCreateObjectProps(virJSONValue **propsret,
                                  const char *type,
                                  const char *alias,
-                                 ...)
-    G_GNUC_NULL_TERMINATED;
+                                 ...);
 
 int qemuMonitorAddObject(qemuMonitor *mon,
                          virJSONValue **props,
@@ -1336,43 +1331,14 @@ int qemuMonitorBlockdevMediumInsert(qemuMonitor *mon,
 char *
 qemuMonitorGetSEVMeasurement(qemuMonitor *mon);
 
-typedef struct _qemuMonitorSEVGuestInfo qemuMonitorSEVGuestInfo;
-struct _qemuMonitorSEVGuestInfo {
-    unsigned int policy;
-    unsigned int handle;
-};
-
-typedef struct _qemuMonitorSEVSNPGuestInfo qemuMonitorSEVSNPGuestInfo;
-struct _qemuMonitorSEVSNPGuestInfo {
-    unsigned long long snp_policy;
-};
-
-
-typedef enum {
-    QEMU_MONITOR_SEV_GUEST_TYPE_SEV,
-    QEMU_MONITOR_SEV_GUEST_TYPE_SEV_SNP,
-
-    QEMU_MONITOR_SEV_GUEST_TYPE_LAST
-} qemuMonitorSEVGuestType;
-
-VIR_ENUM_DECL(qemuMonitorSEVGuest);
-
-typedef struct _qemuMonitorSEVInfo qemuMonitorSEVInfo;
-struct _qemuMonitorSEVInfo {
-    unsigned int apiMajor;
-    unsigned int apiMinor;
-    unsigned int buildID;
-    qemuMonitorSEVGuestType type;
-    union {
-        qemuMonitorSEVGuestInfo sev;
-        qemuMonitorSEVSNPGuestInfo sev_snp;
-    } data;
-};
-
 int
 qemuMonitorGetSEVInfo(qemuMonitor *mon,
-                      qemuMonitorSEVInfo *info)
-    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2);
+                      unsigned int *apiMajor,
+                      unsigned int *apiMinor,
+                      unsigned int *buildID,
+                      unsigned int *policy)
+    ATTRIBUTE_NONNULL(1) ATTRIBUTE_NONNULL(2) ATTRIBUTE_NONNULL(3)
+    ATTRIBUTE_NONNULL(4) ATTRIBUTE_NONNULL(5);
 
 int
 qemuMonitorSetLaunchSecurityState(qemuMonitor *mon,
@@ -1613,8 +1579,3 @@ qemuMonitorExtractQueryStats(virJSONValue *info);
 virJSONValue *
 qemuMonitorGetStatsByQOMPath(virJSONValue *arr,
                              char *qom_path);
-
-int
-qemuMonitorDisplayReload(qemuMonitor *mon,
-                         const char *type,
-                         bool tlsCerts);

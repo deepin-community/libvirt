@@ -1,0 +1,167 @@
+#!/bin/sh
+
+set -e
+
+# summary of how this script can be called:
+#
+#   * <postinst> `configure' <most-recently-configured-version>
+#   * <old-postinst> `abort-upgrade' <new-version>
+#   * <conflictor's-postinst> `abort-remove' `in-favour' <package> <new-version>
+#   * <postinst> `abort-remove'
+#   * <deconfigured's-postinst> `abort-deconfigure' `in-favour' <failed-install-package>
+#     <version> `removing' <conflicting-package> <version>
+#
+# for details, see https://www.debian.org/doc/debian-policy/ or
+# the debian-policy package
+
+. /usr/share/debconf/confmodule
+
+# Allocated UID and GID for libvirt-qemu
+LIBVIRT_QEMU_UID=64055
+LIBVIRT_QEMU_GID=64055
+
+add_users_groups()
+{
+    if ! getent group libvirt >/dev/null; then
+        addgroup --quiet --system libvirt
+    fi
+
+    if ! getent group kvm >/dev/null; then
+        addgroup --quiet --system kvm
+    fi
+    # user and group libvirt runs qemu/kvm instances with
+    if ! getent passwd libvirt-qemu >/dev/null; then
+
+        # set uid if available (expected); don't fail otherwise.
+        PARAMETER_UID=''
+        if ! getent passwd $LIBVIRT_QEMU_UID >/dev/null; then
+            PARAMETER_UID="--uid $LIBVIRT_QEMU_UID"
+        fi
+
+        adduser --quiet \
+                --system \
+                --ingroup kvm \
+                --quiet \
+                --disabled-login \
+                --disabled-password \
+                --home /var/lib/libvirt \
+                --no-create-home \
+                --gecos "Libvirt Qemu" \
+                $PARAMETER_UID \
+                libvirt-qemu
+    fi
+    if ! getent group libvirt-qemu >/dev/null; then
+
+        # set gid if available (expected); don't fail otherwise.
+        PARAMETER_GID=''
+        if ! getent group $LIBVIRT_QEMU_GID >/dev/null; then
+            PARAMETER_GID="--gid $LIBVIRT_QEMU_GID"
+        fi
+
+        addgroup --quiet --system $PARAMETER_GID libvirt-qemu
+        adduser --quiet libvirt-qemu libvirt-qemu
+    fi
+}
+
+add_statoverrides()
+{
+    ROOT_DIRS="
+        /var/lib/libvirt/images/
+        /var/lib/libvirt/boot/
+        /var/cache/libvirt/
+        /var/cache/libvirt/qemu/
+    "
+
+    QEMU_DIRS="
+        /var/lib/libvirt/qemu/
+    "
+
+    SANLOCK_DIR="/var/lib/libvirt/sanlock"
+
+    QEMU_CONF="/etc/libvirt/qemu.conf"
+
+    for dir in ${ROOT_DIRS}; do
+        if ! dpkg-statoverride --list "${dir}" >/dev/null 2>&1; then
+            [ ! -e "${dir}" ] || chown root:root "${dir}"
+            [ ! -e "${dir}" ] || chmod 0711 "${dir}"
+        fi
+    done
+
+    for dir in ${QEMU_DIRS}; do
+        if ! dpkg-statoverride --list "${dir}" >/dev/null 2>&1; then
+            [ ! -e "${dir}" ] || chown libvirt-qemu:libvirt-qemu "${dir}"
+            [ ! -e "${dir}" ] || chmod 0750 "${dir}"
+        fi
+    done
+
+    if ! dpkg-statoverride --list "${SANLOCK_DIR}" >/dev/null 2>&1; then
+        [ ! -e "${SANLOCK_DIR}" ] || chown root:root "${SANLOCK_DIR}"
+        [ ! -e "${SANLOCK_DIR}" ] || chmod 0700 "${SANLOCK_DIR}"
+    fi
+
+    if ! dpkg-statoverride --list "${QEMU_CONF}" >/dev/null 2>&1; then
+        [ ! -e "${QEMU_CONF}" ] || chown root:root "${QEMU_CONF}"
+        [ ! -e "${QEMU_CONF}" ] || chmod 0600 "${QEMU_CONF}"
+    fi
+}
+
+case "$1" in
+    configure)
+        add_users_groups
+        add_statoverrides
+
+        # Make sure the directories don't get removed on package removal since
+        # logrotate chokes otherwise.
+        for dir in qemu lxc; do
+            touch /var/log/libvirt/"${dir}"/.placeholder
+        done
+
+        # Obsolete UML stuff included until 9.0.0-1
+        rm -f /var/log/libvirt/uml/.placeholder
+        if [ -d /var/log/libvirt/uml ]; then
+            rmdir --ignore-fail-on-non-empty /var/log/libvirt/uml
+        fi
+
+        # Directories used for channels until 9.7.0-1
+        if [ -d /var/lib/libvirt/qemu/channel/target ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel/target
+        fi
+        if [ -d /var/lib/libvirt/qemu/channel ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/libvirt/qemu/channel
+        fi
+
+        # Force refresh of capabilities (#731815)
+        rm -f /var/cache/libvirt/qemu/capabilities/*.xml
+
+        # Obsolete AppArmor stuff included until 9.6.0-1
+        LOCAL_ABSTRACTIONS_DIR="/etc/apparmor.d/local/abstractions"
+        LIBVIRT_ABSTRACTIONS="libvirt-lxc libvirt-qemu"
+
+        for name in $LIBVIRT_ABSTRACTIONS; do
+            local_abstraction="$LOCAL_ABSTRACTIONS_DIR/$name"
+
+            # Delete the file if it's empty, leave it alone otherwise
+            if [ ! -s "$local_abstraction" ]; then
+                rm -f "$local_abstraction"
+            fi
+        done
+
+        if [ -d "$LOCAL_ABSTRACTIONS_DIR" ]; then
+            rmdir --ignore-fail-on-non-empty "$LOCAL_ABSTRACTIONS_DIR"
+        fi
+    ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+    ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+db_stop
+
+#DEBHELPER#
+
+exit 0

@@ -1,7 +1,0 @@
-# Lintian would like an explicit Pre-Depends on init-system-helpers (>= 1.54~)
-# to be declared, but we already know that any version of Debian we might want
-# to backport libvirt to has a newer version than that
-libvirt-daemon-log: skip-systemd-native-flag-missing-pre-depends *
-
-# Versioned conflicts are needed for DEP17 M7
-libvirt-daemon-log: conflicts-with-version libvirt-daemon-system *

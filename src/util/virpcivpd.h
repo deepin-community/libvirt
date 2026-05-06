@@ -67,11 +67,9 @@ void virPCIVPDResourceRWFree(virPCIVPDResourceRW *rw);
 
 G_DEFINE_AUTOPTR_CLEANUP_FUNC(virPCIVPDResourceRW, virPCIVPDResourceRWFree);
 
-void
-virPCIVPDResourceUpdateKeyword(virPCIVPDResource *res,
-                               const bool readOnly,
-                               const char *const keyword,
-                               const char *const value);
+bool
+virPCIVPDResourceUpdateKeyword(virPCIVPDResource *res, const bool readOnly,
+                               const char *const keyword, const char *const value);
 
 void virPCIVPDResourceCustomFree(virPCIVPDResourceCustom *custom);
 

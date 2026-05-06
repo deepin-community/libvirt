@@ -546,7 +546,7 @@ qemuDomainFindMaxID(virDomainObj *vm,
  *
  * Initialization function for the QEMU daemon
  */
-static virDrvStateInitResult
+static int
 qemuStateInitialize(bool privileged,
                     const char *root,
                     bool monolithic G_GNUC_UNUSED,
@@ -560,6 +560,7 @@ qemuStateInitialize(bool privileged,
     bool autostart = true;
     size_t i;
     const char *defsecmodel = NULL;
+    g_autofree virSecurityManager **sec_managers = NULL;
     g_autoptr(virIdentity) identity = virIdentityGetCurrent();
 
     qemu_driver = g_new0(virQEMUDriver, 1);
@@ -731,6 +732,15 @@ qemuStateInitialize(bool privileged,
     if (qemuMigrationDstErrorInit(qemu_driver) < 0)
         goto error;
 
+    /* qemu-5.1 and older requires use of '-enable-fips' flag when the host
+     * is in FIPS mode. We store whether FIPS is enabled */
+    if (virFileExists("/proc/sys/crypto/fips_enabled")) {
+        g_autofree char *buf = NULL;
+
+        if (virFileReadAll("/proc/sys/crypto/fips_enabled", 10, &buf) > 0)
+            qemu_driver->hostFips = STREQ(buf, "1\n");
+    }
+
     if (privileged) {
         g_autofree char *channeldir = NULL;
 
@@ -825,8 +835,11 @@ qemuStateInitialize(bool privileged,
     if (!qemu_driver->qemuCapsCache)
         goto error;
 
-    if (qemu_driver->securityManager != NULL)
-        defsecmodel = qemuSecurityGetModel(qemu_driver->securityManager);
+    if (!(sec_managers = qemuSecurityGetNested(qemu_driver->securityManager)))
+        goto error;
+
+    if (sec_managers[0] != NULL)
+        defsecmodel = qemuSecurityGetModel(sec_managers[0]);
 
     if (!(qemu_driver->xmlopt = virQEMUDriverCreateXMLConf(qemu_driver,
                                                            defsecmodel)))
@@ -2102,7 +2115,7 @@ qemuDomainDestroyFlags(virDomainPtr dom,
  endjob:
     if (ret == 0)
         qemuDomainRemoveInactive(driver, vm, 0, false);
-    qemuProcessEndStopJob(vm);
+    virDomainObjEndJob(vm);
 
  cleanup:
     virDomainObjEndAPI(&vm);
@@ -3841,8 +3854,7 @@ processJobStatusChangeEvent(virDomainObj *vm,
 
 static void
 processMonitorEOFEvent(virQEMUDriver *driver,
-                       virDomainObj *vm,
-                       int domid)
+                       virDomainObj *vm)
 {
     qemuDomainObjPrivate *priv = vm->privateData;
     int eventReason = VIR_DOMAIN_EVENT_STOPPED_SHUTDOWN;
@@ -3850,12 +3862,6 @@ processMonitorEOFEvent(virQEMUDriver *driver,
     const char *auditReason = "shutdown";
     unsigned int stopFlags = 0;
     virObjectEvent *event = NULL;
-
-    if (vm->def->id != domid) {
-        VIR_DEBUG("Domain %s was restarted, ignoring EOF",
-                  vm->def->name);
-        return;
-    }
 
     if (qemuProcessBeginStopJob(vm, VIR_JOB_DESTROY, true) < 0)
         return;
@@ -3888,7 +3894,7 @@ processMonitorEOFEvent(virQEMUDriver *driver,
 
  endjob:
     qemuDomainRemoveInactive(driver, vm, 0, false);
-    qemuProcessEndStopJob(vm);
+    virDomainObjEndJob(vm);
 }
 
 
@@ -4041,22 +4047,6 @@ processNbdkitExitedEvent(virDomainObj *vm,
 }
 
 
-static void
-processShutdownCompletedEvent(virQEMUDriver *driver,
-                              virDomainObj *vm)
-{
-    if (qemuProcessBeginStopJob(vm, VIR_JOB_DESTROY, true) < 0)
-        return;
-
-    if (virDomainObjIsActive(vm)) {
-        qemuProcessStop(driver, vm, VIR_DOMAIN_SHUTOFF_UNKNOWN,
-                        VIR_ASYNC_JOB_NONE, 0);
-    }
-
-    qemuProcessEndStopJob(vm);
-}
-
-
 static void qemuProcessEventHandler(void *data, void *opaque)
 {
     struct qemuProcessEvent *processEvent = data;
@@ -4092,7 +4082,7 @@ static void qemuProcessEventHandler(void *data, void *opaque)
         processJobStatusChangeEvent(vm, processEvent->data);
         break;
     case QEMU_PROCESS_EVENT_MONITOR_EOF:
-        processMonitorEOFEvent(driver, vm, GPOINTER_TO_INT(processEvent->data));
+        processMonitorEOFEvent(driver, vm);
         break;
     case QEMU_PROCESS_EVENT_PR_DISCONNECT:
         processPRDisconnectEvent(vm);
@@ -4116,9 +4106,6 @@ static void qemuProcessEventHandler(void *data, void *opaque)
         break;
     case QEMU_PROCESS_EVENT_NBDKIT_EXITED:
         processNbdkitExitedEvent(vm, processEvent->data);
-        break;
-    case QEMU_PROCESS_EVENT_SHUTDOWN_COMPLETED:
-        processShutdownCompletedEvent(driver, vm);
         break;
     case QEMU_PROCESS_EVENT_LAST:
         break;
@@ -5669,16 +5656,9 @@ static int qemuDomainGetSecurityLabelList(virDomainPtr dom,
         ret = 0;
     } else {
         int len = 0;
-        virSecurityManager ** mgrs = NULL;
-
-        /* Ensure top lock is acquired before nested locks */
-        qemuSecurityStackLock(driver->securityManager);
-
-        mgrs = qemuSecurityGetNested(driver->securityManager);
-        if (!mgrs) {
-            qemuSecurityStackUnlock(driver->securityManager);
+        virSecurityManager ** mgrs = qemuSecurityGetNested(driver->securityManager);
+        if (!mgrs)
             goto cleanup;
-        }
 
         /* Allocate seclabels array */
         for (i = 0; mgrs[i]; i++)
@@ -5691,13 +5671,11 @@ static int qemuDomainGetSecurityLabelList(virDomainPtr dom,
         for (i = 0; i < len; i++) {
             if (qemuSecurityGetProcessLabel(mgrs[i], vm->def, vm->pid,
                                             &(*seclabels)[i]) < 0) {
-                qemuSecurityStackUnlock(driver->securityManager);
                 VIR_FREE(mgrs);
                 VIR_FREE(*seclabels);
                 goto cleanup;
             }
         }
-        qemuSecurityStackUnlock(driver->securityManager);
         ret = len;
         VIR_FREE(mgrs);
     }
@@ -6650,40 +6628,6 @@ qemuCheckDiskConfigAgainstDomain(const virDomainDef *def,
 
 
 static int
-qemuDomainAttachMemoryConfig(virDomainDef *vmdef,
-                             virDomainMemoryDef **mem)
-{
-    switch ((*mem)->model) {
-    case VIR_DOMAIN_MEMORY_MODEL_DIMM:
-    case VIR_DOMAIN_MEMORY_MODEL_NVDIMM:
-        if (vmdef->nmems == vmdef->mem.memory_slots) {
-            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
-                           _("no free memory device slot available"));
-            return -1;
-        }
-        break;
-
-    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_PMEM:
-    case VIR_DOMAIN_MEMORY_MODEL_VIRTIO_MEM:
-    case VIR_DOMAIN_MEMORY_MODEL_SGX_EPC:
-        break;
-    case VIR_DOMAIN_MEMORY_MODEL_NONE:
-    case VIR_DOMAIN_MEMORY_MODEL_LAST:
-        virReportEnumRangeError(virDomainMemoryModel, (*mem)->model);
-        return -1;
-    }
-
-    vmdef->mem.cur_balloon += (*mem)->size;
-
-    if (virDomainMemoryInsert(vmdef, *mem) < 0)
-        return -1;
-
-    *mem = NULL;
-    return 0;
-}
-
-
-static int
 qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
                              virDomainDeviceDef *dev,
                              virQEMUCaps *qemuCaps,
@@ -6803,8 +6747,17 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
         break;
 
     case VIR_DOMAIN_DEVICE_MEMORY:
-        if (qemuDomainAttachMemoryConfig(vmdef, &dev->data.memory) < 0)
+        if (vmdef->nmems == vmdef->mem.memory_slots) {
+            virReportError(VIR_ERR_CONFIG_UNSUPPORTED, "%s",
+                           _("no free memory device slot available"));
             return -1;
+        }
+
+        vmdef->mem.cur_balloon += dev->data.memory->size;
+
+        if (virDomainMemoryInsert(vmdef, dev->data.memory) < 0)
+            return -1;
+        dev->data.memory = NULL;
         break;
 
     case VIR_DOMAIN_DEVICE_REDIRDEV:
@@ -6862,15 +6815,6 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
         vmdef->vsock = g_steal_pointer(&dev->data.vsock);
         break;
 
-    case VIR_DOMAIN_DEVICE_IOMMU:
-        if (vmdef->iommu) {
-            virReportError(VIR_ERR_OPERATION_INVALID, "%s",
-                           _("domain already has an iommu device"));
-            return -1;
-        }
-        vmdef->iommu = g_steal_pointer(&dev->data.iommu);
-        break;
-
     case VIR_DOMAIN_DEVICE_VIDEO:
     case VIR_DOMAIN_DEVICE_GRAPHICS:
     case VIR_DOMAIN_DEVICE_HUB:
@@ -6880,9 +6824,9 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_TPM:
     case VIR_DOMAIN_DEVICE_PANIC:
+    case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
          virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                         _("persistent attach of device '%1$s' is not supported"),
@@ -6891,9 +6835,6 @@ qemuDomainAttachDeviceConfig(virDomainDef *vmdef,
     }
 
     if (virDomainDefPostParse(vmdef, parse_flags, xmlopt, qemuCaps) < 0)
-        return -1;
-
-    if (virDomainDefValidate(vmdef, parse_flags, xmlopt, qemuCaps) < 0)
         return -1;
 
     return 0;
@@ -7081,15 +7022,6 @@ qemuDomainDetachDeviceConfig(virDomainDef *vmdef,
         g_clear_pointer(&vmdef->vsock, virDomainVsockDefFree);
         break;
 
-    case VIR_DOMAIN_DEVICE_IOMMU:
-        if (!vmdef->iommu) {
-            virReportError(VIR_ERR_OPERATION_FAILED, "%s",
-                           _("matching iommu device not found"));
-            return -1;
-        }
-        g_clear_pointer(&vmdef->iommu, virDomainIOMMUDefFree);
-        break;
-
     case VIR_DOMAIN_DEVICE_VIDEO:
     case VIR_DOMAIN_DEVICE_GRAPHICS:
     case VIR_DOMAIN_DEVICE_HUB:
@@ -7099,9 +7031,9 @@ qemuDomainDetachDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_NONE:
     case VIR_DOMAIN_DEVICE_TPM:
     case VIR_DOMAIN_DEVICE_PANIC:
+    case VIR_DOMAIN_DEVICE_IOMMU:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("persistent detach of device '%1$s' is not supported"),
@@ -7181,7 +7113,8 @@ qemuDomainUpdateDeviceConfig(virDomainDef *vmdef,
                                          false) < 0)
             return -1;
 
-        virDomainNetUpdate(vmdef, pos, net);
+        if (virDomainNetUpdate(vmdef, pos, net))
+            return -1;
 
         virDomainNetDefFree(oldDev.data.net);
         dev->data.net = NULL;
@@ -7227,7 +7160,6 @@ qemuDomainUpdateDeviceConfig(virDomainDef *vmdef,
     case VIR_DOMAIN_DEVICE_VSOCK:
     case VIR_DOMAIN_DEVICE_AUDIO:
     case VIR_DOMAIN_DEVICE_CRYPTO:
-    case VIR_DOMAIN_DEVICE_PSTORE:
     case VIR_DOMAIN_DEVICE_LAST:
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("persistent update of device '%1$s' is not supported"),
@@ -9288,10 +9220,8 @@ qemuDomainBlockResize(virDomainPtr dom,
     g_autofree char *device = NULL;
     const char *nodename = NULL;
     virDomainDiskDef *disk = NULL;
-    virDomainDiskDef *persistDisk = NULL;
 
-    virCheckFlags(VIR_DOMAIN_BLOCK_RESIZE_BYTES |
-                  VIR_DOMAIN_BLOCK_RESIZE_CAPACITY, -1);
+    virCheckFlags(VIR_DOMAIN_BLOCK_RESIZE_BYTES, -1);
 
     /* We prefer operating on bytes.  */
     if ((flags & VIR_DOMAIN_BLOCK_RESIZE_BYTES) == 0) {
@@ -9324,51 +9254,10 @@ qemuDomainBlockResize(virDomainPtr dom,
         goto endjob;
     }
 
-    if (virStorageSourceIsEmpty(disk->src) || disk->src->readonly) {
-        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                       _("can't resize empty or readonly disk '%1$s'"),
-                       disk->dst);
-        goto endjob;
-    }
-
     if (virStorageSourceGetActualType(disk->src) == VIR_STORAGE_TYPE_VHOST_USER) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
                        _("block resize is not supported for vhostuser disk"));
         goto endjob;
-    }
-
-    /* The physical capacity is needed both when automatic sizing is requested
-     * and when a slice is used on top of a block device.
-     */
-    if (virStorageSourceIsBlockLocal(disk->src) &&
-        ((flags & VIR_DOMAIN_BLOCK_RESIZE_CAPACITY) ||
-         disk->src->sliceStorage)) {
-        g_autoptr(virQEMUDriverConfig) cfg = virQEMUDriverGetConfig(priv->driver);
-
-        if (qemuDomainStorageUpdatePhysical(cfg, vm, disk->src) < 0) {
-            virReportError(VIR_ERR_OPERATION_FAILED,
-                           _("failed to update capacity of '%1$s'"), disk->src->path);
-            goto endjob;
-        }
-
-    }
-
-    if (flags & VIR_DOMAIN_BLOCK_RESIZE_CAPACITY) {
-        if (!qemuBlockStorageSourceIsRaw(disk->src) ||
-            !virStorageSourceIsBlockLocal(disk->src)) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("block resize to full capacity supported only with 'raw' local block-based disks"));
-            goto endjob;
-        }
-
-        if (size == 0) {
-            size = disk->src->physical;
-        } else if (size != disk->src->physical) {
-            virReportError(VIR_ERR_INVALID_ARG,
-                           _("Requested resize to '%1$llu' but device size is '%2$llu'"),
-                           size, disk->src->physical);
-            goto endjob;
-        }
     }
 
     /* qcow2 and qed must be sized on 512 byte blocks/sectors,
@@ -9378,53 +9267,11 @@ qemuDomainBlockResize(virDomainPtr dom,
         disk->src->format == VIR_STORAGE_FILE_QED)
         size = VIR_ROUND_UP(size, 512);
 
-    if (disk->src->sliceStorage) {
-        if (qemuDiskBusIsSD(disk->bus)) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("resize of a 'sd' disk with storage slice is not supported"));
-            goto endjob;
-        }
-
-        /* If the storage slice has a non-zero 'offset' it's usually some weird
-         * configuration that we'd rather not touch */
-        if (disk->src->sliceStorage->offset > 0) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("resize of a disk with storage slice with non-zero 'offset' is not supported"));
-            goto endjob;
-        }
-
-        /* Removing the slice for non-raw will require introducing an attribute that
-         * the slice was fully expanded so that the XML can keep the 'slice' element.
-         * For raw images we simply remove the slice definition as there is no
-         * extra layer. */
-        if (!qemuBlockStorageSourceIsRaw(disk->src)) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED, "%s",
-                           _("resize of a disk with storage slice is supported only for 'raw' images"));
-            goto endjob;
-        }
-
-        /* trying to resize a block device to a size not equal to the actual
-         * size of the block device will cause qemu to fail */
-        if (virStorageSourceIsBlockLocal(disk->src) &&
-            disk->src->physical != size) {
-            virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
-                           _("block device backed disk must be resized to its actual size '%1$llu'"),
-                           disk->src->physical);
-            goto endjob;
-        }
-
-        if (vm->newDef &&
-            (persistDisk = virDomainDiskByTarget(vm->newDef, disk->dst))) {
-            if (!virStorageSourceIsSameLocation(disk->src, persistDisk->src) ||
-                !persistDisk->src->sliceStorage)
-                persistDisk = NULL;
-        }
-
-        /* remove the slice completely, we then instruct qemu to resize */
-        if (qemuBlockReopenSliceExpand(vm, disk->src) < 0)
-            goto endjob;
-
-        qemuDomainSaveStatus(vm);
+    if (virStorageSourceIsEmpty(disk->src) || disk->src->readonly) {
+        virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
+                       _("can't resize empty or readonly disk '%1$s'"),
+                       disk->dst);
+        goto endjob;
     }
 
     if (!qemuDiskBusIsSD(disk->bus)) {
@@ -9440,11 +9287,6 @@ qemuDomainBlockResize(virDomainPtr dom,
         goto endjob;
     }
     qemuDomainObjExitMonitor(vm);
-
-    if (persistDisk) {
-        g_clear_pointer(&persistDisk->src->sliceStorage, virStorageSourceSliceFree);
-        qemuDomainSaveConfig(vm);
-    }
 
     ret = 0;
 
@@ -10223,7 +10065,7 @@ qemuDomainBlockPeek(virDomainPtr dom,
         goto cleanup;
     }
 
-    if (!qemuBlockStorageSourceIsRaw(disk->src)) {
+    if (disk->src->format != VIR_STORAGE_FILE_RAW) {
         virReportError(VIR_ERR_OPERATION_UNSUPPORTED,
                        _("peeking is only supported for disk with 'raw' format not '%1$s'"),
                        virStorageFileFormatTypeToString(disk->src->format));
@@ -10350,6 +10192,125 @@ qemuDomainMemoryPeek(virDomainPtr dom,
 
 
 /**
+ * @driver: qemu driver data
+ * @cfg: driver configuration data
+ * @vm: domain object
+ * @src: storage source data
+ * @ret_fd: pointer to return open'd file descriptor
+ * @ret_sb: pointer to return stat buffer (local or remote)
+ * @skipInaccessible: Don't report error if files are not accessible
+ *
+ * For local storage, open the file using qemuDomainOpenFile and then use
+ * fstat() to grab the stat struct data for the caller.
+ *
+ * For remote storage, attempt to access the file and grab the stat
+ * struct data if the remote connection supports it.
+ *
+ * Returns 1 if @src was successfully opened (@ret_fd and @ret_sb is populated),
+ * 0 if @src can't be opened and @skipInaccessible is true (no errors are
+ * reported) or -1 otherwise (errors are reported).
+ */
+static int
+qemuDomainStorageOpenStat(virQEMUDriver *driver G_GNUC_UNUSED,
+                          virQEMUDriverConfig *cfg,
+                          virDomainObj *vm,
+                          virStorageSource *src,
+                          int *ret_fd,
+                          struct stat *ret_sb,
+                          bool skipInaccessible)
+{
+    if (virStorageSourceIsLocalStorage(src)) {
+        if (skipInaccessible && !virFileExists(src->path))
+            return 0;
+
+        if ((*ret_fd = qemuDomainOpenFile(cfg, vm->def, src->path, O_RDONLY,
+                                          NULL)) < 0)
+            return -1;
+
+        if (fstat(*ret_fd, ret_sb) < 0) {
+            virReportSystemError(errno, _("cannot stat file '%1$s'"), src->path);
+            VIR_FORCE_CLOSE(*ret_fd);
+            return -1;
+        }
+    } else {
+        if (skipInaccessible && virStorageSourceSupportsBackingChainTraversal(src) <= 0)
+            return 0;
+
+        if (virStorageSourceInitAs(src, cfg->user, cfg->group) < 0)
+            return -1;
+
+        if (virStorageSourceStat(src, ret_sb) < 0) {
+            virStorageSourceDeinit(src);
+            virReportSystemError(errno, _("failed to stat remote file '%1$s'"),
+                                 NULLSTR(src->path));
+            return -1;
+        }
+    }
+
+    return 1;
+}
+
+
+/**
+ * @src: storage source data
+ * @fd: file descriptor to close for local
+ *
+ * If local, then just close the file descriptor.
+ * else remote, then tear down the storage driver backend connection.
+ */
+static void
+qemuDomainStorageCloseStat(virStorageSource *src,
+                           int *fd)
+{
+    if (virStorageSourceIsLocalStorage(src))
+        VIR_FORCE_CLOSE(*fd);
+    else
+        virStorageSourceDeinit(src);
+}
+
+
+/**
+ * qemuDomainStorageUpdatePhysical:
+ * @driver: qemu driver
+ * @cfg: qemu driver configuration object
+ * @vm: domain object
+ * @src: storage source to update
+ *
+ * Update the physical size of the disk by reading the actual size of the image
+ * on disk.
+ *
+ * Returns 0 on successful update and -1 otherwise (some uncommon errors may be
+ * reported but are reset (thus only logged)).
+ */
+static int
+qemuDomainStorageUpdatePhysical(virQEMUDriver *driver,
+                                virQEMUDriverConfig *cfg,
+                                virDomainObj *vm,
+                                virStorageSource *src)
+{
+    int ret;
+    int fd = -1;
+    struct stat sb;
+
+    if (virStorageSourceIsEmpty(src))
+        return 0;
+
+    if ((ret = qemuDomainStorageOpenStat(driver, cfg, vm, src, &fd, &sb, true)) <= 0) {
+        if (ret < 0)
+            virResetLastError();
+        return -1;
+    }
+
+    ret = virStorageSourceUpdatePhysicalSize(src, fd, &sb);
+
+    qemuDomainStorageCloseStat(src, &fd);
+
+    return ret;
+}
+
+
+/**
+ * @driver: qemu driver data
  * @cfg: driver configuration data
  * @vm: domain object
  * @src: storage source data
@@ -10380,7 +10341,8 @@ qemuDomainMemoryPeek(virDomainPtr dom,
  * are reported).
  */
 static int
-qemuStorageLimitsRefresh(virQEMUDriverConfig *cfg,
+qemuStorageLimitsRefresh(virQEMUDriver *driver,
+                         virQEMUDriverConfig *cfg,
                          virDomainObj *vm,
                          virStorageSource *src,
                          bool skipInaccessible)
@@ -10392,7 +10354,7 @@ qemuStorageLimitsRefresh(virQEMUDriverConfig *cfg,
     g_autofree char *buf = NULL;
     ssize_t len;
 
-    if ((rc = qemuDomainStorageOpenStat(cfg, vm, src, &fd, &sb,
+    if ((rc = qemuDomainStorageOpenStat(driver, cfg, vm, src, &fd, &sb,
                                         skipInaccessible)) <= 0)
         return rc;
 
@@ -10418,7 +10380,7 @@ qemuStorageLimitsRefresh(virQEMUDriverConfig *cfg,
      * query the highest allocated extent from QEMU
      */
     if (virStorageSourceGetActualType(src) == VIR_STORAGE_TYPE_BLOCK &&
-        !qemuBlockStorageSourceIsRaw(src) &&
+        src->format != VIR_STORAGE_FILE_RAW &&
         S_ISBLK(sb.st_mode))
         src->allocation = 0;
 
@@ -10483,7 +10445,7 @@ qemuDomainGetBlockInfo(virDomainPtr dom,
 
     /* for inactive domains we have to peek into the files */
     if (!virDomainObjIsActive(vm)) {
-        if ((qemuStorageLimitsRefresh(cfg, vm, disk->src, false)) < 0)
+        if ((qemuStorageLimitsRefresh(driver, cfg, vm, disk->src, false)) < 0)
             goto endjob;
 
         info->capacity = disk->src->capacity;
@@ -10523,7 +10485,7 @@ qemuDomainGetBlockInfo(virDomainPtr dom,
         if (info->allocation == 0)
             info->allocation = entry->physical;
 
-        if (qemuDomainStorageUpdatePhysical(cfg, vm, disk->src) == 0) {
+        if (qemuDomainStorageUpdatePhysical(driver, cfg, vm, disk->src) == 0) {
             info->physical = disk->src->physical;
         } else {
             info->physical = entry->physical;
@@ -11963,7 +11925,6 @@ qemuDomainGetJobInfoMigrationStats(virDomainObj *vm,
     case VIR_DOMAIN_JOB_STATUS_POSTCOPY:
     case VIR_DOMAIN_JOB_STATUS_PAUSED:
     case VIR_DOMAIN_JOB_STATUS_POSTCOPY_PAUSED:
-    case VIR_DOMAIN_JOB_STATUS_POSTCOPY_RECOVER:
         if (qemuMigrationAnyFetchStats(vm, VIR_ASYNC_JOB_NONE,
                                        jobData, NULL) < 0)
             return -1;
@@ -17234,7 +17195,8 @@ qemuDomainGetStatsInterface(virQEMUDriver *driver G_GNUC_UNUSED,
 
 /* refresh information by opening images on the disk */
 static int
-qemuDomainGetStatsOneBlockFallback(virQEMUDriverConfig *cfg,
+qemuDomainGetStatsOneBlockFallback(virQEMUDriver *driver,
+                                   virQEMUDriverConfig *cfg,
                                    virDomainObj *dom,
                                    virTypedParamList *params,
                                    virStorageSource *src,
@@ -17246,7 +17208,7 @@ qemuDomainGetStatsOneBlockFallback(virQEMUDriverConfig *cfg,
     if (virStorageSourceIsFD(src))
         return 0;
 
-    if (qemuStorageLimitsRefresh(cfg, dom, src, true) <= 0) {
+    if (qemuStorageLimitsRefresh(driver, cfg, dom, src, true) <= 0) {
         virResetLastError();
         return 0;
     }
@@ -17265,7 +17227,8 @@ qemuDomainGetStatsOneBlockFallback(virQEMUDriverConfig *cfg,
 
 
 static int
-qemuDomainGetStatsOneBlock(virQEMUDriverConfig *cfg,
+qemuDomainGetStatsOneBlock(virQEMUDriver *driver,
+                           virQEMUDriverConfig *cfg,
                            virDomainObj *dom,
                            virTypedParamList *params,
                            const char *entryname,
@@ -17278,7 +17241,7 @@ qemuDomainGetStatsOneBlock(virQEMUDriverConfig *cfg,
     /* the VM is offline so we have to go and load the stast from the disk by
      * ourselves */
     if (!virDomainObjIsActive(dom)) {
-        return qemuDomainGetStatsOneBlockFallback(cfg, dom, params,
+        return qemuDomainGetStatsOneBlockFallback(driver, cfg, dom, params,
                                                   src, block_idx);
     }
 
@@ -17296,7 +17259,7 @@ qemuDomainGetStatsOneBlock(virQEMUDriverConfig *cfg,
     if (entry->physical) {
         virTypedParamListAddULLong(params, entry->physical, "block.%zu.physical", block_idx);
     } else {
-        if (qemuDomainStorageUpdatePhysical(cfg, dom, src) == 0) {
+        if (qemuDomainStorageUpdatePhysical(driver, cfg, dom, src) == 0) {
             virTypedParamListAddULLong(params, src->physical, "block.%zu.physical", block_idx);
         }
     }
@@ -17374,6 +17337,7 @@ qemuDomainGetStatsBlockExportDisk(virDomainDiskDef *disk,
                                   virTypedParamList *params,
                                   size_t *recordnr,
                                   bool visitBacking,
+                                  virQEMUDriver *driver,
                                   virQEMUDriverConfig *cfg,
                                   virDomainObj *dom)
 
@@ -17446,7 +17410,7 @@ qemuDomainGetStatsBlockExportDisk(virDomainDiskDef *disk,
                 return -1;
         }
 
-        if (qemuDomainGetStatsOneBlock(cfg, dom, params,
+        if (qemuDomainGetStatsOneBlock(driver, cfg, dom, params,
                                        backendalias, n, *recordnr,
                                        stats) < 0)
             return -1;
@@ -17473,7 +17437,7 @@ qemuDomainGetStatsBlockExportDisk(virDomainDiskDef *disk,
             if (qemuDomainGetStatsBlockExportHeader(disk, disk->mirror, *recordnr, params) < 0)
                 return -1;
 
-            if (qemuDomainGetStatsOneBlock(cfg, dom, params,
+            if (qemuDomainGetStatsOneBlock(driver, cfg, dom, params,
                                            qemuBlockStorageSourceGetEffectiveNodename(disk->mirror),
                                            disk->mirror,
                                            *recordnr,
@@ -17502,7 +17466,7 @@ qemuDomainGetStatsBlockExportDisk(virDomainDiskDef *disk,
                                                             *recordnr, params) < 0)
                         return -1;
 
-                    if (qemuDomainGetStatsOneBlock(cfg, dom, params,
+                    if (qemuDomainGetStatsOneBlock(driver, cfg, dom, params,
                                                    qemuBlockStorageSourceGetEffectiveNodename(backupdisk->store),
                                                    backupdisk->store,
                                                    *recordnr,
@@ -17559,7 +17523,7 @@ qemuDomainGetStatsBlock(virQEMUDriver *driver,
     for (i = 0; i < dom->def->ndisks; i++) {
         if (qemuDomainGetStatsBlockExportDisk(dom->def->disks[i], stats,
                                               blockparams, &visited,
-                                              visitBacking, cfg, dom) < 0)
+                                              visitBacking, driver, cfg, dom) < 0)
             return -1;
     }
 
@@ -19055,7 +19019,10 @@ qemuDomainGetSEVInfo(virDomainObj *vm,
     int ret = -1;
     int rv;
     g_autofree char *tmp = NULL;
-    qemuMonitorSEVInfo info = { };
+    unsigned int apiMajor = 0;
+    unsigned int apiMinor = 0;
+    unsigned int buildID = 0;
+    unsigned int policy = 0;
     int maxpar = 0;
 
     virCheckFlags(VIR_TYPED_PARAM_STRING_OKAY, -1);
@@ -19070,12 +19037,14 @@ qemuDomainGetSEVInfo(virDomainObj *vm,
     qemuDomainObjEnterMonitor(vm);
     tmp = qemuMonitorGetSEVMeasurement(QEMU_DOMAIN_PRIVATE(vm)->mon);
 
+
     if (!tmp) {
         qemuDomainObjExitMonitor(vm);
         goto endjob;
     }
 
-    rv = qemuMonitorGetSEVInfo(QEMU_DOMAIN_PRIVATE(vm)->mon, &info);
+    rv = qemuMonitorGetSEVInfo(QEMU_DOMAIN_PRIVATE(vm)->mon,
+                               &apiMajor, &apiMinor, &buildID, &policy);
     qemuDomainObjExitMonitor(vm);
 
     if (rv < 0)
@@ -19087,35 +19056,20 @@ qemuDomainGetSEVInfo(virDomainObj *vm,
         goto endjob;
     if (virTypedParamsAddUInt(params, nparams, &maxpar,
                               VIR_DOMAIN_LAUNCH_SECURITY_SEV_API_MAJOR,
-                              info.apiMajor) < 0)
+                              apiMajor) < 0)
         goto endjob;
     if (virTypedParamsAddUInt(params, nparams, &maxpar,
                               VIR_DOMAIN_LAUNCH_SECURITY_SEV_API_MINOR,
-                              info.apiMinor) < 0)
+                              apiMinor) < 0)
         goto endjob;
     if (virTypedParamsAddUInt(params, nparams, &maxpar,
                               VIR_DOMAIN_LAUNCH_SECURITY_SEV_BUILD_ID,
-                              info.buildID) < 0)
+                              buildID) < 0)
         goto endjob;
-
-    switch (info.type) {
-    case QEMU_MONITOR_SEV_GUEST_TYPE_SEV:
-        if (virTypedParamsAddUInt(params, nparams, &maxpar,
-                                  VIR_DOMAIN_LAUNCH_SECURITY_SEV_POLICY,
-                                  info.data.sev.policy) < 0)
-            goto endjob;
-        break;
-
-    case QEMU_MONITOR_SEV_GUEST_TYPE_SEV_SNP:
-        if (virTypedParamsAddULLong(params, nparams, &maxpar,
-                                    VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP_POLICY,
-                                    info.data.sev_snp.snp_policy) < 0)
-            goto endjob;
-        break;
-
-    case QEMU_MONITOR_SEV_GUEST_TYPE_LAST:
-        break;
-    }
+    if (virTypedParamsAddUInt(params, nparams, &maxpar,
+                              VIR_DOMAIN_LAUNCH_SECURITY_SEV_POLICY,
+                              policy) < 0)
+        goto endjob;
 
     ret = 0;
 
@@ -19140,23 +19094,10 @@ qemuDomainGetLaunchSecurityInfo(virDomainPtr domain,
     if (virDomainGetLaunchSecurityInfoEnsureACL(domain->conn, vm->def) < 0)
         goto cleanup;
 
-    if (!vm->def->sec) {
-        ret = 0;
-        goto cleanup;
-    }
-
-    switch (vm->def->sec->sectype) {
-    case VIR_DOMAIN_LAUNCH_SECURITY_SEV:
-    case VIR_DOMAIN_LAUNCH_SECURITY_SEV_SNP:
+    if (vm->def->sec &&
+        vm->def->sec->sectype == VIR_DOMAIN_LAUNCH_SECURITY_SEV) {
         if (qemuDomainGetSEVInfo(vm, params, nparams, flags) < 0)
             goto cleanup;
-        break;
-    case VIR_DOMAIN_LAUNCH_SECURITY_PV:
-        break;
-    case VIR_DOMAIN_LAUNCH_SECURITY_NONE:
-    case VIR_DOMAIN_LAUNCH_SECURITY_LAST:
-        virReportEnumRangeError(virDomainLaunchSecurity, vm->def->sec->sectype);
-        return -1;
     }
 
     ret = 0;
@@ -19993,68 +19934,6 @@ qemuDomainFDAssociate(virDomainPtr domain,
     return ret;
 }
 
-static int
-qemuDomainGraphicsReload(virDomainPtr domain,
-                         unsigned int type,
-                         unsigned int flags)
-{
-    int ret = -1;
-    virDomainObj *vm = NULL;
-    qemuDomainObjPrivate *priv;
-
-    virCheckFlagsGoto(0, cleanup);
-
-    if (type >= VIR_DOMAIN_GRAPHICS_RELOAD_TYPE_LAST) {
-        virReportInvalidArg(type,
-                            _("type must be less than %1$d"),
-                            VIR_DOMAIN_GRAPHICS_RELOAD_TYPE_LAST);
-        return -1;
-    }
-
-    if (!(vm = qemuDomainObjFromDomain(domain)))
-        return -1;
-
-    if (virDomainGraphicsReloadEnsureACL(domain->conn, vm->def))
-        goto cleanup;
-
-    if (type == VIR_DOMAIN_GRAPHICS_RELOAD_TYPE_ANY) {
-        size_t i;
-
-        for (i = 0; i < vm->def->ngraphics; i++) {
-            if (vm->def->graphics[i]->type == VIR_DOMAIN_GRAPHICS_TYPE_VNC)
-                break;
-        }
-
-        if (i == vm->def->ngraphics) {
-            ret = 0;
-            goto cleanup;
-        }
-    }
-
-    if (virDomainObjBeginJob(vm, VIR_JOB_MODIFY) < 0)
-        goto cleanup;
-
-    if (!virDomainObjIsActive(vm)) {
-        virReportError(VIR_ERR_OPERATION_INVALID,
-                       "%s", _("domain is not running"));
-        goto endjob;
-    }
-
-    priv = vm->privateData;
-
-    qemuDomainObjEnterMonitor(vm);
-
-    ret = qemuMonitorDisplayReload(priv->mon, "vnc", true);
-
-    qemuDomainObjExitMonitor(vm);
-
- endjob:
-    virDomainObjEndJob(vm);
-
- cleanup:
-    virDomainObjEndAPI(&vm);
-    return ret;
-}
 
 static virHypervisorDriver qemuHypervisorDriver = {
     .name = QEMU_DRIVER_NAME,
@@ -20305,7 +20184,6 @@ static virHypervisorDriver qemuHypervisorDriver = {
     .domainStartDirtyRateCalc = qemuDomainStartDirtyRateCalc, /* 7.2.0 */
     .domainSetLaunchSecurityState = qemuDomainSetLaunchSecurityState, /* 8.0.0 */
     .domainFDAssociate = qemuDomainFDAssociate, /* 9.0.0 */
-    .domainGraphicsReload = qemuDomainGraphicsReload, /* 10.2.0 */
 };
 
 

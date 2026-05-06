@@ -33,7 +33,6 @@ static char *fchost_prefix;
 #define TEST_FC_HOST_NUM 5
 #define TEST_FC_HOST_NUM_NO_FAB 6
 
-#ifdef WITH_TEST
 /* virNodeDeviceCreateXML using "<parent>" to find the vport capable HBA */
 static const char test7_xml[] =
 "<device>"
@@ -86,7 +85,7 @@ static const char test11_xml[] =
 "    <path>/dev/disk/by-path</path>"
 "  </target>"
 "</pool>";
-#endif /* WITH_TEST */
+
 
 /* Test virIsVHBACapable */
 static int
@@ -223,7 +222,7 @@ test6(const void *data G_GNUC_UNUSED)
 }
 
 
-#ifdef WITH_TEST
+
 /* Test manageVHBAByNodeDevice
  *  - Test both virNodeDeviceCreateXML and virNodeDeviceDestroy
  *  - Create a node device vHBA allowing usage of various different
@@ -314,7 +313,7 @@ manageVHBAByStoragePool(const void *data)
         virConnectClose(conn);
     return ret;
 }
-#endif
+
 
 static int
 mymain(void)
@@ -335,7 +334,6 @@ mymain(void)
         ret = -1;
     if (virTestRun("virVHBAGetConfig-empty-fabric_wwn", test6, NULL) < 0)
         ret = -1;
-#ifdef WITH_TEST
     if (virTestRun("manageVHBAByNodeDevice-by-parent", manageVHBAByNodeDevice,
                    test7_xml) < 0)
         ret = -1;
@@ -351,7 +349,6 @@ mymain(void)
     if (virTestRun("manageVHBAByStoragePool-by-parent", manageVHBAByStoragePool,
                    test11_xml) < 0)
         ret = -1;
-#endif
 
     VIR_FREE(fchost_prefix);
     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;

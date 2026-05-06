@@ -63,9 +63,134 @@
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 
+#undef g_canonicalize_filename
+#undef g_hash_table_steal_extended
 #undef g_fsync
 #undef g_strdup_printf
 #undef g_strdup_vprintf
+
+
+gchar *
+vir_g_canonicalize_filename(const gchar *filename,
+                            const gchar *relative_to)
+{
+#if GLIB_CHECK_VERSION(2, 58, 0)
+    return g_canonicalize_filename(filename, relative_to);
+#else /* ! GLIB_CHECK_VERSION(2, 58, 0) */
+    gchar *canon, *start, *p, *q;
+    guint i;
+
+    g_return_val_if_fail(relative_to == NULL || g_path_is_absolute(relative_to), NULL);
+
+    if (!g_path_is_absolute(filename)) {
+        gchar *cwd_allocated = NULL;
+        const gchar  *cwd;
+
+        if (relative_to != NULL)
+            cwd = relative_to;
+        else
+            cwd = cwd_allocated = g_get_current_dir();
+
+        canon = g_build_filename(cwd, filename, NULL);
+        g_free(cwd_allocated);
+    } else {
+        canon = g_strdup(filename);
+    }
+
+    start = (char *)g_path_skip_root(canon);
+
+    if (start == NULL) {
+        /* This shouldn't really happen, as g_get_current_dir() should
+           return an absolute pathname, but bug 573843 shows this is
+           not always happening */
+        g_free(canon);
+        return g_build_filename(G_DIR_SEPARATOR_S, filename, NULL);
+    }
+
+    /* POSIX allows double slashes at the start to
+     * mean something special (as does windows too).
+     * So, "//" != "/", but more than two slashes
+     * is treated as "/".
+     */
+    i = 0;
+    for (p = start - 1;
+         (p >= canon) &&
+             G_IS_DIR_SEPARATOR(*p);
+         p--)
+        i++;
+    if (i > 2) {
+        i -= 1;
+        start -= i;
+        memmove(start, start+i, strlen(start+i) + 1);
+    }
+
+    /* Make sure we're using the canonical dir separator */
+    p++;
+    while (p < start && G_IS_DIR_SEPARATOR(*p))
+        *p++ = G_DIR_SEPARATOR;
+
+    p = start;
+    while (*p != 0) {
+        if (p[0] == '.' && (p[1] == 0 || G_IS_DIR_SEPARATOR(p[1]))) {
+            memmove(p, p+1, strlen(p+1)+1);
+        } else if (p[0] == '.' && p[1] == '.' &&
+                   (p[2] == 0 || G_IS_DIR_SEPARATOR(p[2]))) {
+            q = p + 2;
+            /* Skip previous separator */
+            p = p - 2;
+            if (p < start)
+                p = start;
+            while (p > start && !G_IS_DIR_SEPARATOR(*p))
+                p--;
+            if (G_IS_DIR_SEPARATOR(*p))
+                *p++ = G_DIR_SEPARATOR;
+            memmove(p, q, strlen(q)+1);
+        } else {
+            /* Skip until next separator */
+            while (*p != 0 && !G_IS_DIR_SEPARATOR(*p))
+                p++;
+
+            if (*p != 0) {
+                /* Canonicalize one separator */
+                *p++ = G_DIR_SEPARATOR;
+            }
+        }
+
+        /* Remove additional separators */
+        q = p;
+        while (*q && G_IS_DIR_SEPARATOR(*q))
+            q++;
+
+        if (p != q)
+            memmove(p, q, strlen(q) + 1);
+    }
+
+    /* Remove trailing slashes */
+    if (p > start && G_IS_DIR_SEPARATOR(*(p-1)))
+        *(p-1) = 0;
+
+    return canon;
+#endif /* ! GLIB_CHECK_VERSION(2, 58, 0) */
+}
+
+
+gboolean
+vir_g_hash_table_steal_extended(GHashTable *hash_table,
+                                gconstpointer lookup_key,
+                                gpointer *stolen_key,
+                                gpointer *stolen_value)
+{
+#if GLIB_CHECK_VERSION(2, 58, 0)
+    return g_hash_table_steal_extended(hash_table, lookup_key, stolen_key, stolen_value);
+#else /* ! GLIB_CHECK_VERSION(2, 58, 0) */
+    if (!(g_hash_table_lookup_extended(hash_table, lookup_key, stolen_key, stolen_value)))
+        return FALSE;
+
+    g_hash_table_steal(hash_table, lookup_key);
+
+    return TRUE;
+#endif /* ! GLIB_CHECK_VERSION(2, 58, 0) */
+}
 
 
 /* Drop when min glib >= 2.63.0 */
@@ -155,68 +280,3 @@ void vir_g_source_unref(GSource *src, GMainContext *ctx)
 }
 
 #endif
-
-
-/**
- * Adapted (to pass syntax check) from 'g_string_replace' from
- * glib-2.81.1. Drop once minimum glib is bumped to 2.68.
- *
- * g_string_replace:
- * @string: a #GString
- * @find: the string to find in @string
- * @replace: the string to insert in place of @find
- * @limit: the maximum instances of @find to replace with @replace, or `0` for
- * no limit
- *
- * Replaces the string @find with the string @replace in a #GString up to
- * @limit times. If the number of instances of @find in the #GString is
- * less than @limit, all instances are replaced. If @limit is `0`,
- * all instances of @find are replaced.
- *
- * If @find is the empty string, since versions 2.69.1 and 2.68.4 the
- * replacement will be inserted no more than once per possible position
- * (beginning of string, end of string and between characters). This did
- * not work correctly in earlier versions.
- *
- * Returns: the number of find and replace operations performed.
- *
- * Since: 2.68
- */
-guint
-vir_g_string_replace(GString *string,
-                     const gchar *find,
-                     const gchar *replace,
-                     guint limit)
-{
-    gsize f_len, r_len, pos;
-    gchar *cur, *next;
-    guint n = 0;
-
-    g_return_val_if_fail(string != NULL, 0);
-    g_return_val_if_fail(find != NULL, 0);
-    g_return_val_if_fail(replace != NULL, 0);
-
-    f_len = strlen(find);
-    r_len = strlen(replace);
-    cur = string->str;
-
-    while ((next = strstr(cur, find)) != NULL) {
-        pos = next - string->str;
-        g_string_erase(string, pos, f_len);
-        g_string_insert(string, pos, replace);
-        cur = string->str + pos + r_len;
-        n++;
-        /* Only match the empty string once at any given position, to
-         * avoid infinite loops */
-        if (f_len == 0) {
-            if (cur[0] == '\0')
-                break;
-            else
-                cur++;
-        }
-        if (n == limit)
-            break;
-    }
-
-    return n;
-}

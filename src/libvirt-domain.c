@@ -852,11 +852,11 @@ virDomainPMWakeup(virDomainPtr dom,
 /**
  * virDomainSave:
  * @domain: a domain object
- * @to: path for the output save file / directory
+ * @to: path for the output file
  *
- * This method will suspend a domain and save its memory contents to a file or
- * direcotry (based on the vmm) on disk. After the call, if successful,the domain
- * is not listed as running anymore (this ends the life of a transient domain).
+ * This method will suspend a domain and save its memory contents to
+ * a file on disk. After the call, if successful, the domain is not
+ * listed as running anymore (this ends the life of a transient domain).
  * Use virDomainRestore() to restore a domain after saving.
  *
  * See virDomainSaveFlags() and virDomainSaveParams() for more control.
@@ -1053,7 +1053,7 @@ virDomainSaveParams(virDomainPtr domain,
 /**
  * virDomainRestore:
  * @conn: pointer to the hypervisor connection
- * @from: path to the input save file / directory
+ * @from: path to the input file
  *
  * This method will restore a domain saved to disk by virDomainSave().
  *
@@ -6387,12 +6387,6 @@ virDomainBlockPeek(virDomainPtr dom,
  * @size is in bytes instead.  @size is taken directly as the new
  * size.  Depending on the file format, the hypervisor may round up
  * to the next alignment boundary.
- *
- * If @flag contains VIR_DOMAIN_BLOCK_RESIZE_CAPACITY (since 10.0.0) the
- * hypervisor will resize the guest block device to fully fill the source.
- * @size must be either set to zero, or to the exact size of the block
- * device source. This is possible only for image formats with no metadata
- * ('raw') and for source devices with limited capacity such as block devices.
  *
  * The @disk parameter is either an unambiguous source name of the
  * block device (the <source file='...'/> sub-element, such as
@@ -14116,49 +14110,5 @@ virDomainFDAssociate(virDomainPtr domain,
 
  error:
     virDispatchError(conn);
-    return -1;
-}
-
-
-/**
- * virDomainGraphicsReload:
- * @domain: a domain object
- * @type: graphics type; from the virDomainGraphicsReloadType enum
- * @flags: extra flags; not used yet, so callers should always pass 0
- *
- * Reload domain's graphics. This can be used to reload TLS certificates
- * without restarting the domain.
- *
- * Returns 0 in case of success, -1 otherwise.
- *
- * Since: 10.2.0
- */
-int
-virDomainGraphicsReload(virDomainPtr domain,
-                        unsigned int type,
-                        unsigned int flags)
-{
-    virConnectPtr conn;
-
-    VIR_DOMAIN_DEBUG(domain, "type=%u, flags=0x%x", type, flags);
-
-    virResetLastError();
-
-    virCheckDomainReturn(domain, -1);
-    conn = domain->conn;
-    virCheckReadOnlyGoto(conn->flags, error);
-
-    if (conn->driver->domainGraphicsReload) {
-        int ret;
-        ret = conn->driver->domainGraphicsReload(domain, type, flags);
-        if (ret < 0)
-            goto error;
-        return ret;
-    }
-
-    virReportUnsupportedError();
-
- error:
-    virDispatchError(domain->conn);
     return -1;
 }

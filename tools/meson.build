@@ -40,7 +40,6 @@ libvirt_shell_lib = static_library(
 
 if conf.has('WITH_HOST_VALIDATE')
   virt_host_validate_sources = [
-    'virt-validate-common.c',
     'virt-host-validate.c',
     'virt-host-validate-common.c',
   ]
@@ -156,7 +155,7 @@ else
   virsh_icon_res = []
 endif
 
-virsh_prog = executable(
+executable(
   'virsh',
   [
     'virsh.c',
@@ -210,7 +209,7 @@ virsh_prog = executable(
 )
 
 if conf.has('WITH_REMOTE')
-  virt_admin_prog = executable(
+  executable(
     'virt-admin',
     [
       'virt-admin.c',
@@ -255,33 +254,13 @@ configure_file(
   install_mode: 'rwxr-xr-x',
 )
 
-executable(
-  'virt-pki-validate',
-  tlsconfig_sources + [
-    'virt-validate-common.c',
-    'virt-pki-validate.c',
-  ],
-  dependencies: [
-    glib_dep,
-    gnutls_dep,
-  ],
-  include_directories: [
-    libvirt_inc,
-    src_inc_dir,
-    top_inc_dir,
-    util_inc_dir,
-    rpc_inc_dir,
-  ],
-  link_args: (
-    libvirt_relro
-    + libvirt_no_indirect
-    + libvirt_no_undefined
-  ),
-  link_with: [
-    libvirt_lib
-  ],
+configure_file(
+  input: 'virt-pki-validate.in',
+  output: '@BASENAME@',
+  configuration: tools_conf,
   install: true,
   install_dir: bindir,
+  install_mode: 'rwxr-xr-x',
 )
 
 executable(
@@ -343,7 +322,7 @@ if conf.has('WITH_LIBVIRTD')
       output: '@BASENAME@',
       configuration: tools_conf,
       install: true,
-      install_dir: unitdir,
+      install_dir: prefix / 'lib' / 'systemd' / 'system',
     )
   endif
 endif
@@ -364,5 +343,3 @@ endif
 if wireshark_dep.found()
   subdir('wireshark')
 endif
-
-subdir('ssh-proxy')

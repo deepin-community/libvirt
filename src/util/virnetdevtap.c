@@ -543,7 +543,7 @@ virNetDevTapReattachBridge(const char *tapname,
         int ret;
         VIR_INFO("Removing %s from %s", tapname, master);
         if (useOVS)
-            ret = virNetDevOpenvswitchRemovePort(tapname);
+            ret = virNetDevOpenvswitchRemovePort(master, tapname);
         else
             ret = virNetDevBridgeRemovePort(master, tapname);
         if (ret < 0)

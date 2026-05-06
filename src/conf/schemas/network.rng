@@ -179,7 +179,15 @@
                 </element>
               </optional>
               <optional>
-                <ref name="hostdevDriver"/>
+                <element name="driver">
+                  <attribute name="name">
+                    <choice>
+                      <value>kvm</value>
+                      <value>vfio</value>
+                    </choice>
+                  </attribute>
+                  <empty/>
+                </element>
               </optional>
               <optional>
                 <element name="nat">
@@ -257,9 +265,6 @@
             <attribute name="name"><ref name="dnsName"/></attribute>
             <optional>
               <attribute name="localOnly"><ref name="virYesNo"/></attribute>
-            </optional>
-            <optional>
-              <attribute name="register"><ref name="virYesNo"/></attribute>
             </optional>
           </element>
         </optional>
