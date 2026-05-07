@@ -81,8 +81,10 @@ Suggests:
 Breaks:
  libvirt-daemon (<< 6.9.0-2~),
  libvirt-daemon-driver-qemu (<< 6.9.0-2~),
+ libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
 Replaces:
  libvirt-daemon (<< 6.9.0-2~),
+ libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
 Description: Programs for the libvirt library
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -357,6 +359,10 @@ Suggests:
  systemd,
  systemtap,
  zfsutils,
+Breaks:
+ libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
+Replaces:
+ libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
 Description: Libvirt daemon configuration files
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -453,6 +459,10 @@ Depends:
  ${shlibs:Depends},
 Recommends:
  libvirt-l10n (= ${binary:Version}),
+Breaks:
+ libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
+Replaces:
+ libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
 Description: library for interfacing with different virtualization systems
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing

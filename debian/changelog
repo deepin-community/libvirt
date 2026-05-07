@@ -1,3 +1,9 @@
+libvirt (10.7.0+really9.10.0-1deepin7) unstable; urgency=medium
+
+  * Resolve file conflict
+
+ -- Tianyu Chen <sweetyfish@deepin.org>  Thu, 07 May 2026 18:18:26 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin6) unstable; urgency=medium
 
   * Revert to previous upstream.
