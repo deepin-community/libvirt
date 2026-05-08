@@ -357,6 +357,10 @@ Suggests:
  systemd,
  systemtap,
  zfsutils,
+Breaks:
+ libvirt-daemon (<< 10.7.0+really9.10.0-1~),
+Replaces:
+ libvirt-daemon (<< 10.7.0+really9.10.0-1~),
 Description: Libvirt daemon configuration files
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing

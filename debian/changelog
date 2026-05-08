@@ -1,3 +1,10 @@
+libvirt (10.7.0+really9.10.0-1deepin7) unstable; urgency=medium
+
+  * Fix file conflict between libvirt-daemon-system and libvirt-daemon
+    for /etc/apparmor.d/usr.sbin.libvirtd.
+
+ -- lichenggang <lichenggang@uniontech.com>  Fri, 08 May 2026 10:17:51 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin6) unstable; urgency=medium
 
   * Revert to previous upstream.
