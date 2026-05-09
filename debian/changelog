@@ -1,3 +1,15 @@
+libvirt (10.7.0+really9.10.0-1deepin9) unstable; urgency=medium
+
+  * Fix firmware descriptor parse failure blocking ARM UEFI discovery
+    - qemuFirmwareFetchParsedConfigs() now skips malformed firmware
+      descriptors instead of aborting the entire firmware discovery
+    - Restores 10.7.0 behavior where a single bad JSON descriptor in
+      /usr/share/qemu/firmware/ does not prevent matching valid ones
+    - Fixes ARM aarch64 UEFI firmware not found when virt-manager
+      requests firmware='efi' and any descriptor file is unparseable
+
+ -- lichenggang <lichenggang@uniontech.com>  Sat, 09 May 2026 16:38:17 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin8) unstable; urgency=medium
 
   * Add loong64 architecture support to debian/control
