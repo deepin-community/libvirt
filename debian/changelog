@@ -1,3 +1,18 @@
+libvirt (10.7.0+really9.10.0-1deepin8) unstable; urgency=medium
+
+  * Add loong64 architecture support to debian/control
+    - Add loong64 to libglusterfs-dev Build-Depends architecture list
+    - Add loong64 to librados-dev Build-Depends architecture list
+    - Add loong64 to librbd-dev Build-Depends architecture list
+    - Add loong64 to qemu-utils Build-Depends architecture list
+    - Add loong64 to libvirt-login-shell Architecture list
+    - Add loong64 to libvirt-daemon-driver-qemu Architecture list
+    - Add loong64 to libvirt-daemon-driver-lxc Architecture list
+    - Add loong64 to libvirt-daemon-driver-storage-gluster Architecture list
+    - Add loong64 to libvirt-daemon-driver-storage-rbd Architecture list
+
+ -- lichenggang <lichenggang@uniontech.com>  Sat, 09 May 2026 15:45:10 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin7) unstable; urgency=medium
 
   * Resolve file conflict
