@@ -1,3 +1,16 @@
+libvirt (10.7.0+really9.10.0-1deepin10) unstable; urgency=medium
+
+  * Enable QEMU/LXC/Ceph/Gluster drivers for loong64 architecture
+    - Add loong64 to ARCHES_QEMU in debian/rules to enable QEMU driver
+    - Add loong64 to ARCHES_LXC in debian/rules to enable LXC driver
+    - Add loong64 to ARCHES_CEPH in debian/rules to enable RBD storage
+    - Add loong64 to ARCHES_GLUSTER in debian/rules to enable Gluster storage
+    - Previously loong64 was missing from all arch lists, causing meson
+      to pass -Ddriver_qemu=disabled -Ddriver_lxc=disabled etc., so no
+      driver .so files were built and dh_install failed
+
+ -- lichenggang <lichenggang@uniontech.com>  Mon, 11 May 2026 14:23:36 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin9) unstable; urgency=medium
 
   * Fix firmware descriptor parse failure blocking ARM UEFI discovery
