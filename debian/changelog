@@ -8,6 +8,9 @@ libvirt (10.7.0+really9.10.0-1deepin10) unstable; urgency=medium
     - Previously loong64 was missing from all arch lists, causing meson
       to pass -Ddriver_qemu=disabled -Ddriver_lxc=disabled etc., so no
       driver .so files were built and dh_install failed
+    - Add virt-qemu-qmp-proxy and virt-qemu-sev-validate binaries
+      and their man pages to libvirt-daemon-driver-qemu.install to
+      fix dh_missing error for newly built QEMU tools
 
  -- lichenggang <lichenggang@uniontech.com>  Mon, 11 May 2026 14:23:36 +0800
 
