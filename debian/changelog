@@ -1,3 +1,14 @@
+libvirt (10.7.0+really9.10.0-1deepin11) unstable; urgency=medium
+
+  * Fix package file conflict between libvirt-daemon-driver-qemu and
+    libvirt-clients-qemu - Remove virt-qemu-qmp-proxy, virt-qemu-sev-
+    validate and their man pages from libvirt-daemon-driver-qemu.install
+    - These files already belong to libvirt-clients-qemu package - Fixes
+    dpkg error: trying to overwrite '/usr/bin/virt-qemu-qmp-proxy' which
+    is also in package libvirt-clients-qemu
+
+ -- lichenggang <lichenggang@uniontech.com>  Wed, 13 May 2026 16:37:17 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin10) unstable; urgency=medium
 
   * Enable QEMU/LXC/Ceph/Gluster drivers for loong64 architecture
