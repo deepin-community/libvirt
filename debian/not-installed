@@ -114,3 +114,9 @@ usr/share/man/man8/virtsecretd.8
 usr/share/man/man8/virtstoraged.8
 usr/share/man/man8/virtvboxd.8
 usr/share/man/man8/virtxend.8
+# On loong64, libvirt-clients-qemu may be excluded but the QEMU driver
+# is built, producing these binaries with no package to claim them.
+usr/bin/virt-qemu-qmp-proxy
+usr/bin/virt-qemu-sev-validate
+usr/share/man/man1/virt-qemu-qmp-proxy.1
+usr/share/man/man1/virt-qemu-sev-validate.1
