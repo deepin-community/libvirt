@@ -23,44 +23,130 @@ Signed-off-by: lichenggang <lichenggang@uniontech.com>
  src/util/virarch.h           |  3 +++
  5 files changed, 37 insertions(+), 1 deletion(-)
 
-diff --git a/src/qemu/qemu_capabilities.c b/src/qemu/qemu_capabilities.c
-index 83119e87..035c8797 100644
---- a/src/qemu/qemu_capabilities.c
-+++ b/src/qemu/qemu_capabilities.c
-@@ -1138,7 +1138,8 @@ virQEMUCapsInitGuestFromBinary(virCaps *caps,
-                                       NULL, NULL, 0, NULL);
+Index: libvirt/src/qemu/qemu_capabilities.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_capabilities.c
++++ libvirt/src/qemu/qemu_capabilities.c
+@@ -825,6 +825,8 @@ virArch virQEMUCapsArchFromString(const
+         return VIR_ARCH_OR32;
+     if (STREQ(arch, "sw64"))
+         return VIR_ARCH_SW_64;
++    if (STREQ(arch, "loongarch64"))
++        return VIR_ARCH_LOONGARCH64;
+ 
+     return virArchFromString(arch);
+ }
+@@ -840,6 +842,8 @@ const char *virQEMUCapsArchToString(virA
+         return "or32";
+     if (arch == VIR_ARCH_SW_64)
+         return "sw64";
++    if (arch == VIR_ARCH_LOONGARCH64)
++        return "loongarch64";
+ 
+     return virArchToString(arch);
+ }
+@@ -2114,10 +2118,11 @@ bool virQEMUCapsHasPCIMultiBus(const vir
+     if (ARCH_IS_S390(def->os.arch))
+         return true;
+ 
+-    /* If the virt machine, both on ARM and RISC-V, supports PCI,
++    /* If the virt machine, both on ARM, RISC-V and LoongArch, supports PCI,
+      * then it also supports multibus */
+     if (qemuDomainIsARMVirt(def) ||
+-        qemuDomainIsRISCVVirt(def)) {
++        qemuDomainIsRISCVVirt(def) ||
++        qemuDomainIsLoongArchVirt(def)) {
+         return true;
      }
  
--    if ((ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64))
-+    if ((ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64 ||
-+        ARCH_IS_LOONGARCH(guestarch)))
-         virCapabilitiesAddGuestFeatureWithToggle(guest, VIR_CAPS_GUEST_FEATURE_TYPE_ACPI,
-                                                  true, true);
+@@ -2747,6 +2752,7 @@ static const char *preferredMachines[] =
+     "sim", /* VIR_ARCH_XTENSAEB */
  
-@@ -2665,6 +2666,7 @@ static const char *preferredMachines[] =
-     NULL, /* VIR_ARCH_ITANIUM (doesn't exist in QEMU any more) */
-     "lm32-evr", /* VIR_ARCH_LM32 */
- 
+     "core3", /* VIR_ARCH_SW_64 */
 +    "virt", /* VIR_ARCH_LOONGARCH64 */
-     "mcf5208evb", /* VIR_ARCH_M68K */
-     "petalogix-s3adsp1800", /* VIR_ARCH_MICROBLAZE */
-     "petalogix-s3adsp1800", /* VIR_ARCH_MICROBLAZEEL */
-diff --git a/src/qemu/qemu_domain.c b/src/qemu/qemu_domain.c
-index 953808fc..ca4a2020 100644
---- a/src/qemu/qemu_domain.c
-+++ b/src/qemu/qemu_domain.c
-@@ -4222,6 +4222,10 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
-             addPCIRoot = true;
+ 
+ };
+ G_STATIC_ASSERT(G_N_ELEMENTS(preferredMachines) == VIR_ARCH_LAST);
+@@ -3122,7 +3128,8 @@ virQEMUCapsProbeQMPHostCPU(virQEMUCaps *
+     if (ARCH_IS_X86(qemuCaps->arch) &&
+         !virQEMUCapsGet(qemuCaps, QEMU_CAPS_CANONICAL_CPU_FEATURES)) {
+         type = QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC_FULL;
+-    } else if (ARCH_IS_ARM(qemuCaps->arch)) {
++    } else if (ARCH_IS_ARM(qemuCaps->arch) ||
++               ARCH_IS_LOONGARCH(qemuCaps->arch)) {
+         type = QEMU_MONITOR_CPU_MODEL_EXPANSION_FULL;
+     } else {
+         type = QEMU_MONITOR_CPU_MODEL_EXPANSION_STATIC;
+@@ -3817,7 +3824,8 @@ virQEMUCapsInitCPUModel(virQEMUCaps *qem
+     } else if (ARCH_IS_X86(qemuCaps->arch)) {
+         ret = virQEMUCapsInitCPUModelX86(qemuCaps, type, modelInfo,
+                                          cpu, migratable);
+-    } else if (ARCH_IS_ARM(qemuCaps->arch)) {
++    } else if (ARCH_IS_ARM(qemuCaps->arch) ||
++               ARCH_IS_LOONGARCH(qemuCaps->arch)) {
+         ret = 2;
+     }
+ 
+Index: libvirt/src/qemu/qemu_domain.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_domain.c
++++ libvirt/src/qemu/qemu_domain.c
+@@ -4160,6 +4160,14 @@ qemuDomainDefAddDefaultDevices(virQEMUDr
+         addPCIeRoot = true;
          break;
  
 +    case VIR_ARCH_LOONGARCH64:
 +        addPCIeRoot = true;
++        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
++            usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
++        else
++            addDefaultUSB = false;
 +        break;
 +
-     case VIR_ARCH_ARMV7B:
-     case VIR_ARCH_CRIS:
-     case VIR_ARCH_ITANIUM:
-@@ -9013,6 +9017,29 @@ qemuDomainIsMipsMalta(const virDomainDef *def)
+     case VIR_ARCH_ARMV6L:
+         addDefaultUSB = false;
+         addDefaultMemballoon = false;
+@@ -5417,6 +5425,10 @@ qemuDomainDefaultNetModel(const virDomai
+     if (qemuDomainIsRISCVVirt(def))
+         return VIR_DOMAIN_NET_MODEL_VIRTIO;
+ 
++    /* virtio is a sensible default for LoongArch virt guests */
++    if (qemuDomainIsLoongArchVirt(def))
++        return VIR_DOMAIN_NET_MODEL_VIRTIO;
++
+     /* In all other cases the model depends on the capabilities. If they were
+      * not provided don't report any default. */
+     if (!qemuCaps)
+@@ -5736,6 +5748,8 @@ qemuDomainChrDefPostParse(virDomainChrDe
+             chr->targetType = VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SPAPR_VIO;
+         } else if (qemuDomainIsARMVirt(def) || qemuDomainIsRISCVVirt(def)) {
+             chr->targetType = VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SYSTEM;
++        } else if (ARCH_IS_LOONGARCH(def->os.arch)) {
++            chr->targetType = VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SYSTEM;
+         } else if (ARCH_IS_S390(def->os.arch)) {
+             chr->targetType = VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SCLP;
+         }
+@@ -5760,7 +5774,8 @@ qemuDomainChrDefPostParse(virDomainChrDe
+         case VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SYSTEM:
+             if (qemuDomainIsARMVirt(def)) {
+                 chr->targetModel = VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_PL011;
+-            } else if (qemuDomainIsRISCVVirt(def)) {
++            } else if (qemuDomainIsRISCVVirt(def) ||
++                       qemuDomainIsLoongArchVirt(def)) {
+                 chr->targetModel = VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_16550A;
+             }
+             break;
+@@ -5934,7 +5949,8 @@ qemuDomainDefaultVideoDevice(const virDo
+     if (qemuDomainIsARMVirt(def) ||
+         qemuDomainIsRISCVVirt(def) ||
+         ARCH_IS_S390(def->os.arch) ||
+-        ARCH_IS_SW64(def->os.arch)) {
++        ARCH_IS_SW64(def->os.arch) ||
++        ARCH_IS_LOONGARCH(def->os.arch)) {
+         return VIR_DOMAIN_VIDEO_TYPE_VIRTIO;
+     }
+     if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_CIRRUS_VGA))
+@@ -9017,6 +9033,29 @@ qemuDomainIsRISCVVirt(const virDomainDef
  }
  
  
@@ -88,59 +174,349 @@ index 953808fc..ca4a2020 100644
 +
 +
  bool
- qemuDomainHasPCIRoot(const virDomainDef *def)
+ qemuDomainIsPSeries(const virDomainDef *def)
  {
-diff --git a/src/qemu/qemu_domain.h b/src/qemu/qemu_domain.h
-index 1e56e506..b4e77ed6 100644
---- a/src/qemu/qemu_domain.h
-+++ b/src/qemu/qemu_domain.h
-@@ -828,6 +828,7 @@ bool qemuDomainIsARMVirt(const virDomainDef *def);
+@@ -9088,7 +9127,8 @@ qemuDomainSupportsPCI(virDomainDef *def,
+     if (def->os.arch != VIR_ARCH_ARMV6L &&
+         def->os.arch != VIR_ARCH_ARMV7L &&
+         def->os.arch != VIR_ARCH_AARCH64 &&
+-        !ARCH_IS_RISCV(def->os.arch)) {
++        !ARCH_IS_RISCV(def->os.arch) &&
++        !ARCH_IS_LOONGARCH(def->os.arch)) {
+         return true;
+     }
+ 
+@@ -9096,7 +9136,8 @@ qemuDomainSupportsPCI(virDomainDef *def,
+         return true;
+ 
+     if ((qemuDomainIsARMVirt(def) ||
+-         qemuDomainIsRISCVVirt(def)) &&
++         qemuDomainIsRISCVVirt(def) ||
++         qemuDomainIsLoongArchVirt(def)) &&
+         virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_GPEX)) {
+         return true;
+     }
+Index: libvirt/src/qemu/qemu_domain.h
+===================================================================
+--- libvirt.orig/src/qemu/qemu_domain.h
++++ libvirt/src/qemu/qemu_domain.h
+@@ -826,6 +826,7 @@ bool qemuDomainIsI440FX(const virDomainD
+ bool qemuDomainIsS390CCW(const virDomainDef *def);
+ bool qemuDomainIsARMVirt(const virDomainDef *def);
  bool qemuDomainIsRISCVVirt(const virDomainDef *def);
++bool qemuDomainIsLoongArchVirt(const virDomainDef *def);
  bool qemuDomainIsPSeries(const virDomainDef *def);
  bool qemuDomainIsMipsMalta(const virDomainDef *def);
-+bool qemuDomainIsLoongArchVirt(const virDomainDef *def);
- bool qemuDomainHasPCIRoot(const virDomainDef *def);
- bool qemuDomainHasPCIeRoot(const virDomainDef *def);
- bool qemuDomainHasBuiltinIDE(const virDomainDef *def);
-diff --git a/src/util/virarch.c b/src/util/virarch.c
-index 01e520de..1ca18d84 100644
---- a/src/util/virarch.c
-+++ b/src/util/virarch.c
-@@ -51,6 +51,7 @@ static const struct virArchData {
-     { "ia64",         64, VIR_ARCH_LITTLE_ENDIAN },
-     { "lm32",         32, VIR_ARCH_BIG_ENDIAN },
+ bool qemuDomainIsSW64(const virDomainDef *def);
+Index: libvirt/src/util/virarch.c
+===================================================================
+--- libvirt.orig/src/util/virarch.c
++++ libvirt/src/util/virarch.c
+@@ -85,6 +85,7 @@ static const struct virArchData {
+     { "xtensaeb",     32, VIR_ARCH_BIG_ENDIAN },
  
+     { "sw_64",        64, VIR_ARCH_LITTLE_ENDIAN },
 +    { "loongarch64",  64, VIR_ARCH_LITTLE_ENDIAN },
-     { "m68k",         32, VIR_ARCH_BIG_ENDIAN },
-     { "microblaze",   32, VIR_ARCH_BIG_ENDIAN },
-     { "microblazeel", 32, VIR_ARCH_LITTLE_ENDIAN},
-@@ -222,6 +223,8 @@ virArch virArchFromHost(void)
-         arch = VIR_ARCH_X86_64;
-     } else if (STREQ(ut.machine, "arm64")) {
+ };
+ 
+ G_STATIC_ASSERT(G_N_ELEMENTS(virArchData) == VIR_ARCH_LAST);
+@@ -228,7 +229,9 @@ virArch virArchFromHost(void)
          arch = VIR_ARCH_AARCH64;
+     } else if (STREQ(ut.machine, "sw_64")) {
+         arch = VIR_ARCH_SW_64;
+-    }else {
 +    } else if (STREQ(ut.machine, "loongarch64")) {
 +        arch = VIR_ARCH_LOONGARCH64;
-     } else {
++    } else {
          /* Otherwise assume the canonical name */
          if ((arch = virArchFromString(ut.machine)) == VIR_ARCH_NONE) {
-diff --git a/src/util/virarch.h b/src/util/virarch.h
-index 747f77c4..9fd92ff0 100644
---- a/src/util/virarch.h
-+++ b/src/util/virarch.h
-@@ -36,6 +36,7 @@ typedef enum {
-     VIR_ARCH_ITANIUM,      /* Itanium     64 LE https://en.wikipedia.org/wiki/Itanium */
-     VIR_ARCH_LM32,         /* MilkyMist   32 BE https://en.wikipedia.org/wiki/Milkymist */
+             VIR_WARN("Unknown host arch %s, report to devel@lists.libvirt.org",
+Index: libvirt/src/util/virarch.h
+===================================================================
+--- libvirt.orig/src/util/virarch.h
++++ libvirt/src/util/virarch.h
+@@ -70,6 +70,7 @@ typedef enum {
+     VIR_ARCH_XTENSAEB,     /* XTensa      32 BE https://en.wikipedia.org/wiki/Xtensa#Processor_Cores */
  
-+    VIR_ARCH_LOONGARCH64,  /* LoongArch   64 LE https://en.wikipedia.org/wiki/Loongson#LoongArch */
-     VIR_ARCH_M68K,         /* m68k        32 BE https://en.wikipedia.org/wiki/Motorola_68000_family */
-     VIR_ARCH_MICROBLAZE,   /* Microblaze  32 BE https://en.wikipedia.org/wiki/MicroBlaze */
-     VIR_ARCH_MICROBLAZEEL, /* Microblaze  32 LE https://en.wikipedia.org/wiki/MicroBlaze */
-@@ -106,6 +107,8 @@ typedef enum {
- #define ARCH_IS_SH4(arch) ((arch) == VIR_ARCH_SH4 ||\
-                            (arch) == VIR_ARCH_SH4EB)
+     VIR_ARCH_SW_64,       /* SW_64       64 LE XHB */
++    VIR_ARCH_LOONGARCH64, /* LoongArch   64 LE https://en.wikipedia.org/wiki/LoongArch */
  
-+#define ARCH_IS_LOONGARCH(arch)  ((arch) == VIR_ARCH_LOONGARCH64)
+     VIR_ARCH_LAST,
+ } virArch;
+@@ -110,6 +111,8 @@ typedef enum {
+ 
+ #define ARCH_IS_SW64(arch) ((arch) == VIR_ARCH_SW_64)
+ 
++#define ARCH_IS_LOONGARCH(arch) ((arch) == VIR_ARCH_LOONGARCH64)
 +
  typedef enum {
      VIR_ARCH_LITTLE_ENDIAN,
      VIR_ARCH_BIG_ENDIAN,
+Index: libvirt/src/conf/schemas/basictypes.rng
+===================================================================
+--- libvirt.orig/src/conf/schemas/basictypes.rng
++++ libvirt/src/conf/schemas/basictypes.rng
+@@ -471,6 +471,7 @@
+       <value>xtensa</value>
+       <value>xtensaeb</value>
+       <value>sw_64</value>
++      <value>loongarch64</value>
+     </choice>
+   </define>
+ 
+Index: libvirt/src/cpu/cpu.c
+===================================================================
+--- libvirt.orig/src/cpu/cpu.c
++++ libvirt/src/cpu/cpu.c
+@@ -28,6 +28,7 @@
+ #include "cpu_s390.h"
+ #include "cpu_arm.h"
+ #include "cpu_sw64.h"
++#include "cpu_loongarch.h"
+ #include "cpu_riscv64.h"
+ #include "capabilities.h"
+ 
+@@ -43,6 +44,7 @@ static struct cpuArchDriver *drivers[] =
+     &cpuDriverArm,
+     &cpuDriverRiscv64,
+     &cpuDriverSW64,
++    &cpuDriverLoongArch,
+ };
+ 
+ 
+Index: libvirt/src/cpu/cpu_loongarch.c
+===================================================================
+--- /dev/null
++++ libvirt/src/cpu/cpu_loongarch.c
+@@ -0,0 +1,44 @@
++/*
++ * cpu_loongarch.c: CPU driver for LoongArch
++ *
++ * Copyright (C) 2024 Deepin.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library.  If not, see
++ * <http://www.gnu.org/licenses/>.
++ */
++
++#include <config.h>
++
++#include "cpu_loongarch.h"
++
++#define VIR_FROM_THIS VIR_FROM_CPU
++
++static virCPUCompareResult
++virCPULoongArchCompare(virCPUDef *host G_GNUC_UNUSED,
++                       virCPUDef *cpu G_GNUC_UNUSED,
++                       bool failIncompatible G_GNUC_UNUSED)
++{
++    return VIR_CPU_COMPARE_IDENTICAL;
++}
++
++static virArch archs[] = {
++    VIR_ARCH_LOONGARCH64,
++};
++
++struct cpuArchDriver cpuDriverLoongArch = {
++    .name = "loongarch",
++    .narch = G_N_ELEMENTS(archs),
++    .arch = archs,
++    .compare = virCPULoongArchCompare,
++};
+Index: libvirt/src/cpu/cpu_loongarch.h
+===================================================================
+--- /dev/null
++++ libvirt/src/cpu/cpu_loongarch.h
+@@ -0,0 +1,25 @@
++/*
++ * cpu_loongarch.h: CPU driver for LoongArch
++ *
++ * Copyright (C) 2024 Deepin.
++ *
++ * This library is free software; you can redistribute it and/or
++ * modify it under the terms of the GNU Lesser General Public
++ * License as published by the Free Software Foundation; either
++ * version 2.1 of the License, or (at your option) any later version.
++ *
++ * This library is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
++ * Lesser General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public
++ * License along with this library.  If not, see
++ * <http://www.gnu.org/licenses/>.
++ */
++
++#pragma once
++
++#include "cpu.h"
++
++extern struct cpuArchDriver cpuDriverLoongArch;
+Index: libvirt/src/cpu/meson.build
+===================================================================
+--- libvirt.orig/src/cpu/meson.build
++++ libvirt/src/cpu/meson.build
+@@ -2,6 +2,7 @@ cpu_sources = [
+   'cpu.c',
+   'cpu_arm.c',
+   'cpu_sw64.c',
++  'cpu_loongarch.c',
+   'cpu_map.c',
+   'cpu_ppc64.c',
+   'cpu_riscv64.c',
+Index: libvirt/src/qemu/qemu_command.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_command.c
++++ libvirt/src/qemu/qemu_command.c
+@@ -2861,7 +2861,8 @@ qemuBuildDomainForbidLegacyUSBController
+ {
+     if (qemuDomainIsQ35(def) ||
+         qemuDomainIsARMVirt(def) ||
+-        qemuDomainIsRISCVVirt(def))
++        qemuDomainIsRISCVVirt(def) ||
++        qemuDomainIsLoongArchVirt(def))
+         return true;
+ 
+     return false;
+@@ -9172,9 +9173,10 @@ qemuChrIsPlatformDevice(const virDomainD
+         }
+     }
+ 
+-    if (ARCH_IS_RISCV(def->os.arch)) {
++    if (ARCH_IS_RISCV(def->os.arch) ||
++        ARCH_IS_LOONGARCH(def->os.arch)) {
+ 
+-        /* 16550a (used by riscv/virt guests) is a platform device */
++        /* 16550a (used by riscv/virt and loongarch/virt guests) is a platform device */
+         if (chr->deviceType == VIR_DOMAIN_CHR_DEVICE_TYPE_SERIAL &&
+             chr->targetType == VIR_DOMAIN_CHR_SERIAL_TARGET_TYPE_SYSTEM &&
+             chr->targetModel == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_16550A) {
+Index: libvirt/src/qemu/qemu_domain_address.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_domain_address.c
++++ libvirt/src/qemu/qemu_domain_address.c
+@@ -492,13 +492,15 @@ qemuDomainAssignVirtioMMIOAddresses(virD
+     if (def->os.arch != VIR_ARCH_ARMV6L &&
+         def->os.arch != VIR_ARCH_ARMV7L &&
+         def->os.arch != VIR_ARCH_AARCH64 &&
+-        !ARCH_IS_RISCV(def->os.arch)) {
++        !ARCH_IS_RISCV(def->os.arch) &&
++        !ARCH_IS_LOONGARCH(def->os.arch)) {
+         return;
+     }
+ 
+     if (!(STRPREFIX(def->os.machine, "vexpress-") ||
+           qemuDomainIsARMVirt(def) ||
+-          qemuDomainIsRISCVVirt(def))) {
++          qemuDomainIsRISCVVirt(def) ||
++          qemuDomainIsLoongArchVirt(def))) {
+         return;
+     }
+ 
+Index: libvirt/src/qemu/qemu_validate.c
+===================================================================
+--- libvirt.orig/src/qemu/qemu_validate.c
++++ libvirt/src/qemu/qemu_validate.c
+@@ -2066,7 +2066,8 @@ qemuValidateDomainChrDef(const virDomain
+                 isCompatible = false;
+             }
+             if (dev->targetModel == VIR_DOMAIN_CHR_SERIAL_TARGET_MODEL_16550A &&
+-                !qemuDomainIsRISCVVirt(def)) {
++                !qemuDomainIsRISCVVirt(def) &&
++                !qemuDomainIsLoongArchVirt(def)) {
+                 isCompatible = false;
+             }
+         }
+@@ -4806,9 +4807,10 @@ qemuValidateDomainDeviceDefIOMMU(const v
+ 
+     case VIR_DOMAIN_IOMMU_MODEL_VIRTIO:
+         if (!qemuDomainIsARMVirt(def) &&
++            !qemuDomainIsLoongArchVirt(def) &&
+             !qemuDomainIsQ35(def)) {
+             virReportError(VIR_ERR_CONFIG_UNSUPPORTED,
+-                           _("IOMMU device: '%1$s' is only supported with Q35 and ARM Virt machines"),
++                           _("IOMMU device: '%1$s' is only supported with Q35, ARM Virt and LoongArch Virt machines"),
+                            virDomainIOMMUModelTypeToString(iommu->model));
+             return -1;
+         }
+Index: libvirt/src/security/apparmor/libvirt-qemu.in
+===================================================================
+--- libvirt.orig/src/security/apparmor/libvirt-qemu.in
++++ libvirt/src/security/apparmor/libvirt-qemu.in
+@@ -167,6 +167,7 @@
+   /usr/bin/qemu-system-tricore rmix,
+   /usr/bin/qemu-system-unicore32 rmix,
+   /usr/bin/qemu-system-x86_64 rmix,
++  /usr/bin/qemu-system-loongarch64 rmix,
+   /usr/bin/qemu-system-xtensa rmix,
+   /usr/bin/qemu-system-xtensaeb rmix,
+   /usr/bin/qemu-unicore32 rmix,
+Index: libvirt/src/security/virt-aa-helper.c
+===================================================================
+--- libvirt.orig/src/security/virt-aa-helper.c
++++ libvirt/src/security/virt-aa-helper.c
+@@ -480,6 +480,7 @@ valid_path(const char *path, const bool
+         "/usr/share/AAVMF/",                 /* for AAVMF images */
+         "/usr/share/qemu-efi/",              /* for AAVMF images */
+         "/usr/share/qemu-efi-aarch64/",      /* for AAVMF images */
++        "/usr/share/qemu-efi-loongarch64/",  /* for LoongArch images */
+         "/usr/share/qemu/",                  /* SUSE path for OVMF and AAVMF images */
+         "/usr/lib/u-boot/",                  /* u-boot loaders for qemu */
+         "/usr/lib/riscv64-linux-gnu/opensbi" /* RISC-V SBI implementation */
+Index: libvirt/src/util/virhostcpu.c
+===================================================================
+--- libvirt.orig/src/util/virhostcpu.c
++++ libvirt/src/util/virhostcpu.c
+@@ -555,6 +555,8 @@ virHostCPUParseFrequency(FILE *cpuinfo,
+         prefix = "cpu MHz dynamic";
+     else if (ARCH_IS_SW64(arch))
+         prefix = "cpu frequency [MHz]";
++    else if (ARCH_IS_LOONGARCH(arch))
++        prefix = "CPU MHz";
+ 
+     if (!prefix) {
+         VIR_WARN("%s is not supported by the %s parser",
+@@ -581,7 +583,8 @@ virHostCPUParsePhysAddrSize(FILE *cpuinf
+         char *str;
+         char *endptr;
+ 
+-        if (!(str = STRSKIP(line, "address sizes")))
++        if (!(str = STRSKIP(line, "address sizes")) &&
++            !(str = STRCASESKIP(line, "address sizes")))
+             continue;
+ 
+         /* Skip the colon. */
+@@ -1652,7 +1655,7 @@ virHostCPUGetPhysAddrSize(const virArch
+ {
+     g_autoptr(FILE) cpuinfo = NULL;
+ 
+-    if (!(ARCH_IS_X86(hostArch) || ARCH_IS_SH4(hostArch))) {
++    if (!(ARCH_IS_X86(hostArch) || ARCH_IS_SH4(hostArch) || ARCH_IS_LOONGARCH(hostArch))) {
+         /* Ensure size is set to 0 as physical address size is unknown */
+         *size = 0;
+         return 0;
+Index: libvirt/src/util/virsysinfo.c
+===================================================================
+--- libvirt.orig/src/util/virsysinfo.c
++++ libvirt/src/util/virsysinfo.c
+@@ -1249,7 +1249,8 @@ virSysinfoRead(void)
+     (defined(__x86_64__) || \
+      defined(__i386__) || \
+      defined(__amd64__) || \
+-     defined(__sw_64__))
++     defined(__sw_64__) || \
++     defined(__loongarch__))
+     return virSysinfoReadDMI();
+ #else /* WIN32 || not supported arch */
+     /*

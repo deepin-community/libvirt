@@ -1,3 +1,11 @@
+libvirt (10.7.0+really9.10.0-1deepin14) unstable; urgency=medium
+
+  * Fix malformed LoongArch64 architecture support patch: regenerate as
+    proper quilt patch covering all 17 files including CPU driver, host
+    CPU info, AppArmor, virtio defaults, and IOMMU validation
+
+ -- lichenggang <lichenggang@uniontech.com>  Thu, 14 May 2026 16:01:43 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin13) unstable; urgency=medium
 
   * Add LoongArch64 architecture support - Add VIR_ARCH_LOONGARCH64 enum
