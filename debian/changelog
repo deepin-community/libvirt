@@ -1,3 +1,14 @@
+libvirt (10.7.0+really9.10.0-1deepin13) unstable; urgency=medium
+
+  * Add LoongArch64 architecture support - Add VIR_ARCH_LOONGARCH64 enum
+    and ARCH_IS_LOONGARCH macro - Add loongarch64 string mapping and
+    host detection - Add preferred QEMU machine type virt for
+    loongarch64 - Add ACPI feature and PCIe root controller defaults -
+    Add qemuDomainIsLoongArchVirt helper function - Ported from libvirt
+    10.7.0 develop/10.7.0 branch
+
+ -- lichenggang <lichenggang@uniontech.com>  Thu, 14 May 2026 13:54:59 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin12) unstable; urgency=medium
 
   * Add QEMU tools to debian/not-installed to prevent dh_missing errors

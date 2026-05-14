@@ -12,3 +12,4 @@ backport/0003-src-Add-ARM-CCA-support-in-domain-schema.patch
 001-cpu-Add-new-Dharma-CPU-model.patch
 002-cpu-Add-new-Chengdu-CPU-model.patch
 fix-firmware-descriptor-parsing.patch
+add-loongarch64-arch-support.patch

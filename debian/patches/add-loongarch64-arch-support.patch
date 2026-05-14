@@ -1,0 +1,146 @@
+From: lichenggang <lichenggang@uniontech.com>
+Date: Wed, 14 May 2026 10:00:00 +0800
+Subject: Add LoongArch64 architecture support to libvirt
+
+Add VIR_ARCH_LOONGARCH64 to the architecture enum and all related
+infrastructure so that virt-manager shows loongarch64 as an architecture
+option on LoongArch hosts. This includes:
+- Architecture enum and string mapping in virarch.h/virarch.c
+- Host architecture detection for "loongarch64" uname machine name
+- Preferred QEMU machine type "virt" for loongarch64
+- ACPI guest feature support for loongarch64
+- PCIe root controller default for loongarch64 guests
+- qemuDomainIsLoongArchVirt() helper function
+
+Ported from libvirt 10.7.0 (develop/10.7.0 branch).
+
+Signed-off-by: lichenggang <lichenggang@uniontech.com>
+---
+ src/qemu/qemu_capabilities.c |  4 +++-
+ src/qemu/qemu_domain.c       | 27 +++++++++++++++++++++++++++
+ src/qemu/qemu_domain.h       |  1 +
+ src/util/virarch.c           |  3 +++
+ src/util/virarch.h           |  3 +++
+ 5 files changed, 37 insertions(+), 1 deletion(-)
+
+diff --git a/src/qemu/qemu_capabilities.c b/src/qemu/qemu_capabilities.c
+index 83119e87..035c8797 100644
+--- a/src/qemu/qemu_capabilities.c
++++ b/src/qemu/qemu_capabilities.c
+@@ -1138,7 +1138,8 @@ virQEMUCapsInitGuestFromBinary(virCaps *caps,
+                                       NULL, NULL, 0, NULL);
+     }
+ 
+-    if ((ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64))
++    if ((ARCH_IS_X86(guestarch) || guestarch == VIR_ARCH_AARCH64 ||
++        ARCH_IS_LOONGARCH(guestarch)))
+         virCapabilitiesAddGuestFeatureWithToggle(guest, VIR_CAPS_GUEST_FEATURE_TYPE_ACPI,
+                                                  true, true);
+ 
+@@ -2665,6 +2666,7 @@ static const char *preferredMachines[] =
+     NULL, /* VIR_ARCH_ITANIUM (doesn't exist in QEMU any more) */
+     "lm32-evr", /* VIR_ARCH_LM32 */
+ 
++    "virt", /* VIR_ARCH_LOONGARCH64 */
+     "mcf5208evb", /* VIR_ARCH_M68K */
+     "petalogix-s3adsp1800", /* VIR_ARCH_MICROBLAZE */
+     "petalogix-s3adsp1800", /* VIR_ARCH_MICROBLAZEEL */
+diff --git a/src/qemu/qemu_domain.c b/src/qemu/qemu_domain.c
+index 953808fc..ca4a2020 100644
+--- a/src/qemu/qemu_domain.c
++++ b/src/qemu/qemu_domain.c
+@@ -4222,6 +4222,10 @@ qemuDomainDefAddDefaultDevices(virQEMUDriver *driver,
+             addPCIRoot = true;
+         break;
+ 
++    case VIR_ARCH_LOONGARCH64:
++        addPCIeRoot = true;
++        break;
++
+     case VIR_ARCH_ARMV7B:
+     case VIR_ARCH_CRIS:
+     case VIR_ARCH_ITANIUM:
+@@ -9013,6 +9017,29 @@ qemuDomainIsMipsMalta(const virDomainDef *def)
+ }
+ 
+ 
++static bool
++qemuDomainMachineIsLoongArchVirt(const char *machine,
++                                 const virArch arch)
++{
++    if (!ARCH_IS_LOONGARCH(arch))
++        return false;
++
++    if (STREQ(machine, "virt") ||
++        STRPREFIX(machine, "virt-")) {
++        return true;
++    }
++
++    return false;
++}
++
++
++bool
++qemuDomainIsLoongArchVirt(const virDomainDef *def)
++{
++    return qemuDomainMachineIsLoongArchVirt(def->os.machine, def->os.arch);
++}
++
++
+ bool
+ qemuDomainHasPCIRoot(const virDomainDef *def)
+ {
+diff --git a/src/qemu/qemu_domain.h b/src/qemu/qemu_domain.h
+index 1e56e506..b4e77ed6 100644
+--- a/src/qemu/qemu_domain.h
++++ b/src/qemu/qemu_domain.h
+@@ -828,6 +828,7 @@ bool qemuDomainIsARMVirt(const virDomainDef *def);
+ bool qemuDomainIsRISCVVirt(const virDomainDef *def);
+ bool qemuDomainIsPSeries(const virDomainDef *def);
+ bool qemuDomainIsMipsMalta(const virDomainDef *def);
++bool qemuDomainIsLoongArchVirt(const virDomainDef *def);
+ bool qemuDomainHasPCIRoot(const virDomainDef *def);
+ bool qemuDomainHasPCIeRoot(const virDomainDef *def);
+ bool qemuDomainHasBuiltinIDE(const virDomainDef *def);
+diff --git a/src/util/virarch.c b/src/util/virarch.c
+index 01e520de..1ca18d84 100644
+--- a/src/util/virarch.c
++++ b/src/util/virarch.c
+@@ -51,6 +51,7 @@ static const struct virArchData {
+     { "ia64",         64, VIR_ARCH_LITTLE_ENDIAN },
+     { "lm32",         32, VIR_ARCH_BIG_ENDIAN },
+ 
++    { "loongarch64",  64, VIR_ARCH_LITTLE_ENDIAN },
+     { "m68k",         32, VIR_ARCH_BIG_ENDIAN },
+     { "microblaze",   32, VIR_ARCH_BIG_ENDIAN },
+     { "microblazeel", 32, VIR_ARCH_LITTLE_ENDIAN},
+@@ -222,6 +223,8 @@ virArch virArchFromHost(void)
+         arch = VIR_ARCH_X86_64;
+     } else if (STREQ(ut.machine, "arm64")) {
+         arch = VIR_ARCH_AARCH64;
++    } else if (STREQ(ut.machine, "loongarch64")) {
++        arch = VIR_ARCH_LOONGARCH64;
+     } else {
+         /* Otherwise assume the canonical name */
+         if ((arch = virArchFromString(ut.machine)) == VIR_ARCH_NONE) {
+diff --git a/src/util/virarch.h b/src/util/virarch.h
+index 747f77c4..9fd92ff0 100644
+--- a/src/util/virarch.h
++++ b/src/util/virarch.h
+@@ -36,6 +36,7 @@ typedef enum {
+     VIR_ARCH_ITANIUM,      /* Itanium     64 LE https://en.wikipedia.org/wiki/Itanium */
+     VIR_ARCH_LM32,         /* MilkyMist   32 BE https://en.wikipedia.org/wiki/Milkymist */
+ 
++    VIR_ARCH_LOONGARCH64,  /* LoongArch   64 LE https://en.wikipedia.org/wiki/Loongson#LoongArch */
+     VIR_ARCH_M68K,         /* m68k        32 BE https://en.wikipedia.org/wiki/Motorola_68000_family */
+     VIR_ARCH_MICROBLAZE,   /* Microblaze  32 BE https://en.wikipedia.org/wiki/MicroBlaze */
+     VIR_ARCH_MICROBLAZEEL, /* Microblaze  32 LE https://en.wikipedia.org/wiki/MicroBlaze */
+@@ -106,6 +107,8 @@ typedef enum {
+ #define ARCH_IS_SH4(arch) ((arch) == VIR_ARCH_SH4 ||\
+                            (arch) == VIR_ARCH_SH4EB)
+ 
++#define ARCH_IS_LOONGARCH(arch)  ((arch) == VIR_ARCH_LOONGARCH64)
++
+ typedef enum {
+     VIR_ARCH_LITTLE_ENDIAN,
+     VIR_ARCH_BIG_ENDIAN,
