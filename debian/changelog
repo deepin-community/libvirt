@@ -1,3 +1,12 @@
+libvirt (10.7.0+really9.10.0-1deepin15) unstable; urgency=medium
+
+  * Fix virtio-iommu test expected output for LoongArch support
+    - Update tests/qemuxml2argvdata/virtio-iommu-wrong-machine.x86_64-latest.err
+    - The LoongArch64 support patch changed the error message format
+    - Add 'LoongArch Virt' to the list of supported machines in error msg
+
+ -- lichenggang <lichenggang@uniontech.com>  Thu, 14 May 2026 16:45:00 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin14) unstable; urgency=medium
 
   * Fix malformed LoongArch64 architecture support patch: regenerate as

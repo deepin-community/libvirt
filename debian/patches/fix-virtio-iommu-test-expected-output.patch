@@ -1,0 +1,24 @@
+From: lichenggang <lichenggang@uniontech.com>
+Date: Wed, 14 May 2026 14:00:00 +0800
+Subject: Fix virtio-iommu test expected output for LoongArch support
+
+The LoongArch64 architecture support patch updated the error message
+for virtio-iommu validation to include "LoongArch Virt" in the list
+of supported machines. However, the corresponding test expected
+output file was not updated, causing qemuxml2argvtest to fail.
+
+Update the expected error message in the .err file to match the
+new error message format.
+
+Signed-off-by: lichenggang <lichenggang@uniontech.com>
+---
+ tests/qemuxml2argvdata/virtio-iommu-wrong-machine.x86_64-latest.err | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: libvirt/tests/qemuxml2argvdata/virtio-iommu-wrong-machine.x86_64-latest.err
+===================================================================
+--- libvirt.orig/tests/qemuxml2argvdata/virtio-iommu-wrong-machine.x86_64-latest.err
++++ libvirt/tests/qemuxml2argvdata/virtio-iommu-wrong-machine.x86_64-latest.err
+@@ -1 +1 @@
+-unsupported configuration: IOMMU device: 'virtio' is only supported with Q35 and ARM Virt machines
++unsupported configuration: IOMMU device: 'virtio' is only supported with Q35, ARM Virt and LoongArch Virt machines
