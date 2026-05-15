@@ -1,0 +1,23 @@
+
+--- libvirt-10.7.0+really9.10.0.orig/src/qemu/qemu_domain.c
++++ libvirt-10.7.0+really9.10.0/src/qemu/qemu_domain.c
+@@ -4161,11 +4161,14 @@ qemuDomainDefAddDefaultDevices(virQEMUDr
+         break;
+ 
+     case VIR_ARCH_LOONGARCH64:
+-        addPCIeRoot = true;
+-        if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
+-            usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
+-        else
+-            addDefaultUSB = false;
++        addDefaultUSB = false;
++        if (qemuDomainIsLoongArchVirt(def)) {
++            addPCIeRoot = virQEMUCapsGet(qemuCaps, QEMU_CAPS_OBJECT_GPEX);
++            /* LoongArch virt requires ACPI for proper display initialization */
++            def->features[VIR_DOMAIN_FEATURE_ACPI] = VIR_TRISTATE_SWITCH_ON;
++            if (virQEMUCapsGet(qemuCaps, QEMU_CAPS_DEVICE_QEMU_XHCI))
++                usbModel = VIR_DOMAIN_CONTROLLER_MODEL_USB_QEMU_XHCI;
++        }
+         break;
+ 
+     case VIR_ARCH_ARMV6L:

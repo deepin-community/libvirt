@@ -1,3 +1,12 @@
+libvirt (10.7.0+really9.10.0-1deepin16) unstable; urgency=medium
+
+  * Enable ACPI by default for LoongArch virt machines
+    - Fixes black screen issue after GRUB boot on LoongArch virt machines
+    - LoongArch virt requires ACPI for proper display initialization
+    - Without ACPI, guest DRM driver cannot initialize display controller
+
+ -- lichenggang <lichenggang@uniontech.com>  Fri, 15 May 2026 10:30:00 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin15) unstable; urgency=medium
 
   * Fix virtio-iommu test expected output for LoongArch support
