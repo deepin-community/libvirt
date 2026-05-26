@@ -1,3 +1,11 @@
+libvirt (10.7.0+really9.10.0-1deepin17) unstable; urgency=medium
+
+  * Fix CVE-2025-13193: set proper umask for external snapshot images to
+    prevent world-readable file creation (information disclosure
+    vulnerability).
+
+ -- deepin-ci-robot <packages@deepin.org>  Wed, 27 May 2026 01:47:54 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin16) unstable; urgency=medium
 
   * Enable ACPI by default for LoongArch virt machines

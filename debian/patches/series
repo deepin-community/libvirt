@@ -15,3 +15,4 @@ fix-firmware-descriptor-parsing.patch
 add-loongarch64-arch-support.patch
 fix-virtio-iommu-test-expected-output.patch
 enable-acpi-for-loongarch-virt.patch
+backport/CVE-2025-13193-set-umask-for-external-snapshots.patch
