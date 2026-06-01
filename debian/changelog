@@ -1,3 +1,20 @@
+libvirt (10.7.0+really9.10.0-1deepin17) unstable; urgency=medium
+
+  * Fix package file conflict between libvirt-daemon and libvirt-daemon-common
+    - Add Conflicts/Replaces on libvirt-daemon-common in libvirt-daemon
+    - During downgrade from 10.7.0-3deepin3, libvirt-daemon-common owns virt-ssh-helper
+    - libvirt-daemon (9.10.0) needs to reclaim this file from the removed package
+  * Fix build failure on OBS due to missing git
+    - Add -Dno_git=true to meson configuration in debian/rules
+    - OBS build environment lacks git, causing meson.build to fail at configure time
+    - The no_git option already exists upstream but was not being used
+  * Fix build failure with libssh >= 0.11 due to deprecated function
+    - ssh_channel_get_exit_status() is deprecated in libssh 0.11+
+    - Call the function once and store result in local variable
+    - Fixes -Werror=deprecated-declarations build error
+
+ -- lichenggang <lichenggang@uniontech.com>  Mon, 01 Jun 2026 10:00:00 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin16) unstable; urgency=medium
 
   * Enable ACPI by default for LoongArch virt machines

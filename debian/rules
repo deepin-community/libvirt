@@ -146,6 +146,7 @@ DEB_CONFIGURE_EXTRA_ARGS := \
     -Dinitconfdir=/etc/default \
     -Dpackager="$(DEB_VENDOR)" \
     -Dpackager_version="$(DEB_VERSION)" \
+    -Dno_git=true \
     $(WITH_DAEMONS) \
     $(WITH_QEMU) \
     -Ddriver_remote=enabled \

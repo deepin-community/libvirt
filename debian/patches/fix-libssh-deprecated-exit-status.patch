@@ -1,0 +1,63 @@
+From: lichenggang <lichenggang@uniontech.com>
+Date: Mon, 01 Jun 2026 18:30:00 +0800
+Subject: Fix deprecated ssh_channel_get_exit_status usage with libssh >= 0.11
+
+libssh 0.11+ marks ssh_channel_get_exit_status() as deprecated, and
+libvirt builds with -Werror, causing compilation to fail with:
+
+  error: 'ssh_channel_get_exit_status' is deprecated [-Werror=deprecated-declarations]
+
+Wrap the deprecated function call with
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+and store the result in a local variable to avoid redundant calls.
+
+Signed-off-by: lichenggang <lichenggang@uniontech.com>
+
+--- a/src/rpc/virnetlibsshsession.c
++++ b/src/rpc/virnetlibsshsession.c
+@@ -1179,12 +1179,19 @@ virNetLibsshChannelRead(virNetLibsshSession *sess,
+     }
+
+     if (ssh_channel_is_eof(sess->channel)) {
++        int exitStatus;
++
+  eof:
+-        if (ssh_channel_get_exit_status(sess->channel)) {
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
++        exitStatus = ssh_channel_get_exit_status(sess->channel);
++#pragma GCC diagnostic pop
++
++        if (exitStatus) {
+             virReportError(VIR_ERR_LIBSSH,
+                            _("Remote command terminated with non-zero code: %1$d"),
+-                           ssh_channel_get_exit_status(sess->channel));
+-            sess->channelCommandReturnValue = ssh_channel_get_exit_status(sess->channel);
++                           exitStatus);
++            sess->channelCommandReturnValue = exitStatus;
+             sess->state = VIR_NET_LIBSSH_STATE_ERROR_REMOTE;
+             virObjectUnlock(sess);
+             return -1;
+@@ -1227,12 +1234,19 @@ virNetLibsshChannelWrite(virNetLibsshSession *sess,
+     }
+
+     if (ssh_channel_is_eof(sess->channel)) {
+-        if (ssh_channel_get_exit_status(sess->channel)) {
++        int exitStatus;
++
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
++        exitStatus = ssh_channel_get_exit_status(sess->channel);
++#pragma GCC diagnostic pop
++
++        if (exitStatus) {
+             virReportError(VIR_ERR_LIBSSH,
+                            _("Remote program terminated with non-zero code: %1$d"),
+-                           ssh_channel_get_exit_status(sess->channel));
++                           exitStatus);
+             sess->state = VIR_NET_LIBSSH_STATE_ERROR_REMOTE;
+-            sess->channelCommandReturnValue = ssh_channel_get_exit_status(sess->channel);
++            sess->channelCommandReturnValue = exitStatus;
+
+             ret = -1;
+             goto cleanup;
