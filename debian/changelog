@@ -12,6 +12,9 @@ libvirt (10.7.0+really9.10.0-1deepin17) unstable; urgency=medium
     - ssh_channel_get_exit_status() is deprecated in libssh 0.11+
     - Call the function once and store result in local variable
     - Fixes -Werror=deprecated-declarations build error
+  * Fix sw64 cpu driver incompatible function pointer
+    - Remove extra virCPUFeaturePolicy parameter from virCPUsw64Update
+    - virCPUArchUpdate typedef expects 3 parameters, not 4
 
  -- lichenggang <lichenggang@uniontech.com>  Mon, 01 Jun 2026 10:00:00 +0800
 
