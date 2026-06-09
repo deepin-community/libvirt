@@ -1,3 +1,31 @@
+libvirt (10.7.0+really9.10.0-1deepin19) unstable; urgency=medium
+
+  * Fix file conflict between libvirt-clients and libvirt-daemon-common
+  * Add Breaks/Replaces on libvirt-daemon-common in libvirt-clients
+  * During upgrade from 10.7.0-3deepin3, libvirt-clients tries to
+    overwrite /usr/bin/virt-admin which is owned by libvirt-daemon-common
+  * Add Breaks/Replaces on libvirt-daemon-driver-network in
+    libvirt-daemon and libvirt-daemon-system
+  * During upgrade from 10.7.0-3deepin3, libvirt-daemon tries to
+    overwrite /usr/lib/libvirt/libvirt_leaseshelper and
+    libvirt_driver_network.so which are owned by
+    libvirt-daemon-driver-network
+  * add missing trailing newline to sw64 CPU patch
+
+ -- lichenggang <lichenggang@deepin.org>  Tue, 14 Apr 2026 10:00:00 +0800
+
+libvirt (10.7.0+really9.10.0-1deepin18) unstable; urgency=medium
+
+  * Fix file conflict between libvirt-daemon-system and libvirt-daemon-
+    common
+  * Add Breaks/Replaces on libvirt-daemon-common in libvirt-daemon-
+    system
+  * During upgrade from 10.7.0-3deepin3, libvirt-daemon-system tries to
+    overwrite /etc/apparmor.d/usr.lib.libvirt.virt-aa-helper which is
+    owned by libvirt-daemon-common
+
+ -- lichenggang <lichenggang@uniontech.com>  Thu, 04 Jun 2026 14:18:19 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin17) unstable; urgency=medium
 
   * Fix package file conflict between libvirt-daemon and libvirt-daemon-common

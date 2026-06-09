@@ -79,12 +79,15 @@ Suggests:
  libvirt-daemon (= ${binary:Version}),
  libvirt-login-shell (= ${binary:Version}),
 Breaks:
+ libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
  libvirt-daemon (<< 6.9.0-2~),
+ libvirt-daemon-common,
  libvirt-daemon-driver-qemu (<< 6.9.0-2~),
- libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
 Replaces:
- libvirt-daemon (<< 6.9.0-2~),
  libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon (<< 6.9.0-2~),
+ libvirt-daemon-common,
+ libvirt-daemon-driver-qemu (<< 6.9.0-2~),
 Description: Programs for the libvirt library
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -166,10 +169,12 @@ Breaks:
  libvirt-clients (<< 6.9.0-2~),
  libvirt-daemon-common,
  libvirt-daemon-driver-lxc (<< 6.9.0-2~),
+ libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin17),
  libvirt-daemon-system (<< 6.9.0-3~),
  libvirt-sanlock (<< 6.9.0-2~),
 Replaces:
  libvirt-daemon-common,
+ libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin17),
  libvirt-daemon-system (<< 6.9.0-3~),
 Description: Virtualization daemon
  Libvirt is a C toolkit to interact with the virtualization capabilities
@@ -363,8 +368,12 @@ Suggests:
  zfsutils,
 Breaks:
  libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-common,
+ libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin17),
 Replaces:
  libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-common,
+ libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin17),
 Description: Libvirt daemon configuration files
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
