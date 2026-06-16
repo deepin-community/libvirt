@@ -167,14 +167,40 @@ Enhances:
  xen,
 Breaks:
  libvirt-clients (<< 6.9.0-2~),
- libvirt-daemon-common,
+ libvirt-daemon-common (<< 10.7.0+really9.10.0-1deepin6),
  libvirt-daemon-driver-lxc (<< 6.9.0-2~),
- libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin17),
+ libvirt-daemon-driver-interface (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-nodedev (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-nwfilter (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-secret (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-disk (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-iscsi (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-logical (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-mpath (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-scsi (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-lock (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-log (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-plugin-lockd (<< 10.7.0+really9.10.0-1deepin6),
  libvirt-daemon-system (<< 6.9.0-3~),
  libvirt-sanlock (<< 6.9.0-2~),
 Replaces:
- libvirt-daemon-common,
- libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin17),
+ libvirt-daemon-common (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-interface (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-nodedev (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-nwfilter (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-secret (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-disk (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-iscsi (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-logical (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-mpath (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-driver-storage-scsi (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-lock (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-log (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-plugin-lockd (<< 10.7.0+really9.10.0-1deepin6),
  libvirt-daemon-system (<< 6.9.0-3~),
 Description: Virtualization daemon
  Libvirt is a C toolkit to interact with the virtualization capabilities
@@ -369,11 +395,11 @@ Suggests:
 Breaks:
  libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
  libvirt-daemon-common,
- libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin17),
+ libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin6),
 Replaces:
  libvirt-common (<< 10.7.0+really9.10.0-1deepin6),
  libvirt-daemon-common,
- libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin17),
+ libvirt-daemon-driver-network (<< 10.7.0+really9.10.0-1deepin6),
 Description: Libvirt daemon configuration files
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing
@@ -412,6 +438,12 @@ Depends:
  libvirt0 (<< ${source:Version}.1~),
  libvirt0 (>= ${source:Version}),
  ${misc:Depends},
+Breaks:
+ libvirt-daemon-common (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-log (<< 10.7.0+really9.10.0-1deepin6),
+Replaces:
+ libvirt-daemon-common (<< 10.7.0+really9.10.0-1deepin6),
+ libvirt-daemon-log (<< 10.7.0+really9.10.0-1deepin6),
 Description: Libvirt daemon configuration files (sysv)
  Libvirt is a C toolkit to interact with the virtualization capabilities
  of recent versions of Linux (and other OSes). The library aims at providing

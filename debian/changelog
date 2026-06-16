@@ -1,3 +1,25 @@
+libvirt (10.7.0+really9.10.0-1deepin20) unstable; urgency=medium
+
+  * Fix dependency issues:
+    - Declare Breaks & Replaces against libvirt-common
+    - Declare Breaks & Replaces against libvirt-daemon-common
+    - Declare Breaks & Replaces against libvirt-daemon-driver-interface
+    - Declare Breaks & Replaces against libvirt-daemon-driver-network
+    - Declare Breaks & Replaces against libvirt-daemon-driver-nodedev
+    - Declare Breaks & Replaces against libvirt-daemon-driver-nwfilter
+    - Declare Breaks & Replaces against libvirt-daemon-driver-secret
+    - Declare Breaks & Replaces against libvirt-daemon-driver-storage-disk
+    - Declare Breaks & Replaces against libvirt-daemon-driver-storage-iscsi
+    - Declare Breaks & Replaces against libvirt-daemon-driver-storage-logical
+    - Declare Breaks & Replaces against libvirt-daemon-driver-storage-mpath
+    - Declare Breaks & Replaces against libvirt-daemon-driver-storage-scsi
+    - Declare Breaks & Replaces against libvirt-daemon-driver-storage
+    - Declare Breaks & Replaces against libvirt-daemon-lock
+    - Declare Breaks & Replaces against libvirt-daemon-log
+    - Declare Breaks & Replaces against libvirt-daemon-plugin-lockd
+
+ -- Tianyu Chen <sweetyfish@deepin.org>  Tue, 16 Jun 2026 10:02:07 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin19) unstable; urgency=medium
 
   * Fix file conflict between libvirt-clients and libvirt-daemon-common
@@ -156,7 +178,6 @@ libvirt (10.7.0+really9.10.0-1deepin7) unstable; urgency=medium
 libvirt (10.7.0+really9.10.0-1deepin6) unstable; urgency=medium
 
   * Revert to previous upstream.
-  
 
  -- lichenggang <lichenggang@deepin.org>  Thu, 30 Apr 2026 17:36:31 +0800
 
