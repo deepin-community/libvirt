@@ -1,3 +1,10 @@
+libvirt (10.7.0+really9.10.0-1deepin21) unstable; urgency=medium
+
+  * Redirect libvirt-guests service output to journal to suppress console 
+  * error messages during shutdown
+
+ -- xinpeng.wang <wangxinpeng@uniontech.com>  Mon, 22 Jun 2026 15:18:41 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin20) unstable; urgency=medium
 
   * Fix dependency issues:

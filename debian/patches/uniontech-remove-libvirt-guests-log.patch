@@ -1,0 +1,13 @@
+Index: deepin-libvirt/tools/libvirt-guests.service.in
+===================================================================
+--- deepin-libvirt.orig/tools/libvirt-guests.service.in
++++ deepin-libvirt/tools/libvirt-guests.service.in
+@@ -23,6 +23,8 @@ Type=oneshot
+ RemainAfterExit=yes
+ StandardOutput=journal+console
+ TimeoutStopSec=0
++StandardOutput=journal
++StandardError=journal
+ 
+ [Install]
+ WantedBy=multi-user.target
