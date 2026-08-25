@@ -18,3 +18,12 @@ fix-virtio-iommu-test-expected-output.patch
 enable-acpi-for-loongarch-virt.patch
 fix-libssh-deprecated-exit-status.patch
 uniontech-remove-libvirt-guests-log.patch
+
+add-latx-sys-support.patch
+remote_driver-fix-the-UAF-causing-UnicodeDecodeError.patch
+Fix-the-issue-of-tpm-version-selection.patch
+virbitmap-Introduce-virBitmapParseUnlimitedAllowEmpt.patch
+virfile-Introduce-virFileReadValueBitmapAllowEmpty.patch
+virhostcpu-Introduce-virHostCPUGetIsolated.patch
+qemu-Substract-isolcpus-from-all-online-affinity.patch
+Add-panic-device-support-for-LoongArch.patch

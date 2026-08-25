@@ -1,0 +1,86 @@
+From bec27ad15b7e64984f14eae2c9ff50e9addb8564 Mon Sep 17 00:00:00 2001
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Mon, 22 Apr 2024 11:07:13 +0200
+Subject: [PATCH 22/24] virhostcpu: Introduce virHostCPUGetIsolated()
+
+This is a helper that parses /sys/devices/system/cpu/isolated
+into a virBitmap. It's going to be needed soon.
+
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Pavel Hrdina <phrdina@redhat.com>
+Signed-off-by: Xianglai Li <lixianglai@loongson.cn>
+---
+ src/libvirt_private.syms |  1 +
+ src/util/virhostcpu.c    | 31 +++++++++++++++++++++++++++++++
+ src/util/virhostcpu.h    |  1 +
+ 3 files changed, 33 insertions(+)
+
+diff --git a/src/libvirt_private.syms b/src/libvirt_private.syms
+index f99e27ed..d581e164 100644
+--- a/src/libvirt_private.syms
++++ b/src/libvirt_private.syms
+@@ -2491,6 +2491,7 @@ virHostCPUGetCount;
+ virHostCPUGetCPUID;
+ virHostCPUGetHaltPollTime;
+ virHostCPUGetInfo;
++virHostCPUGetIsolated;
+ virHostCPUGetKVMMaxVCPUs;
+ virHostCPUGetMap;
+ virHostCPUGetMicrocodeVersion;
+diff --git a/src/util/virhostcpu.c b/src/util/virhostcpu.c
+index 4027547e..6e8efcf7 100644
+--- a/src/util/virhostcpu.c
++++ b/src/util/virhostcpu.c
+@@ -1128,6 +1128,37 @@ virHostCPUGetAvailableCPUsBitmap(void)
+ }
+ 
+ 
++/**
++ * virHostCPUGetIsolated:
++ * @isolated: returned bitmap of isolated CPUs
++ *
++ * Sets @isolated to point to a bitmap of isolated CPUs (e.g. those passed to
++ * isolcpus= kernel cmdline). If the file doesn't exist, @isolated is set to
++ * NULL and success is returned. If the file does exist but it's empty,
++ * @isolated is set to an empty bitmap and success is returned.
++ *
++ * Returns: 0 on success,
++ *         -1 otherwise (with error reported).
++ */
++int
++virHostCPUGetIsolated(virBitmap **isolated)
++{
++    g_autoptr(virBitmap) bitmap = NULL;
++    int rc;
++
++    rc = virFileReadValueBitmapAllowEmpty(&bitmap, "%s/cpu/isolated", SYSFS_SYSTEM_PATH);
++    if (rc == -2) {
++        *isolated = NULL;
++        return 0;
++    } else if (rc < 0) {
++        return -1;
++    }
++
++    *isolated = g_steal_pointer(&bitmap);
++    return 0;
++}
++
++
+ #if WITH_LINUX_KVM_H && defined(KVM_CAP_PPC_SMT)
+ 
+ /* Get the number of threads per subcore.
+diff --git a/src/util/virhostcpu.h b/src/util/virhostcpu.h
+index 5f0d43e0..d18f6071 100644
+--- a/src/util/virhostcpu.h
++++ b/src/util/virhostcpu.h
+@@ -43,6 +43,7 @@ bool virHostCPUHasBitmap(void);
+ virBitmap *virHostCPUGetPresentBitmap(void);
+ virBitmap *virHostCPUGetOnlineBitmap(void);
+ virBitmap *virHostCPUGetAvailableCPUsBitmap(void);
++int virHostCPUGetIsolated(virBitmap **isolated);
+ 
+ int virHostCPUGetCount(void);
+ int virHostCPUGetThreadsPerSubcore(virArch arch) G_NO_INLINE;
+-- 
+2.51.0
+

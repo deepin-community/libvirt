@@ -1,0 +1,69 @@
+From 07f481304fb91f508518b7e559f1d41bc185ebcc Mon Sep 17 00:00:00 2001
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Mon, 22 Apr 2024 11:55:46 +0200
+Subject: [PATCH] qemu: Substract isolcpus from all online affinity
+
+When starting a domain and there's no vCPU/emulator pinning set,
+we query the list of all online physical CPUs and set affinity of
+the child process (which eventually becomes QEMU) to that list.
+We can't assume libvirtd itself had affinity to all online CPUs
+and since affinity of the child process is inherited, we should
+fix it afterwards. But that's not necessarily correct. Users
+might isolate some physical CPUs and we should avoid touching
+them unless explicitly told so (i.e. vCPU/emulator pinning told
+us so).
+
+Therefore, when attempting to set affinity to all online CPUs
+subtract the isolated ones.
+
+Before this commit:
+
+  root@localhost:~# cat /sys/devices/system/cpu/isolated
+  19,21,23
+  root@virtlab414:~# taskset -cp $(pgrep qemu)
+  pid 14835's current affinity list: 0-23
+
+After:
+
+  root@virtlab414:~# taskset -cp $(pgrep qemu)
+  pid 17153's current affinity list: 0-18,20,22
+
+Resolves: https://issues.redhat.com/browse/RHEL-33082
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Pavel Hrdina <phrdina@redhat.com>
+Signed-off-by: Xianglai Li <lixianglai@loongson.cn>
+Signed-off-by: Binbin Zhou <zhoubinbin@loongson.cn>
+---
+ src/qemu/qemu_process.c | 9 +++++++++
+ 1 file changed, 9 insertions(+)
+
+diff --git a/src/qemu/qemu_process.c b/src/qemu/qemu_process.c
+index 15f41048..d1af92b1 100644
+--- a/src/qemu/qemu_process.c
++++ b/src/qemu/qemu_process.c
+@@ -2333,6 +2333,8 @@ qemuProcessDetectIOThreadPIDs(virDomainObj *vm,
+ static int
+ qemuProcessGetAllCpuAffinity(virBitmap **cpumapRet)
+ {
++    g_autoptr(virBitmap) isolCpus = NULL;
++
+     *cpumapRet = NULL;
+ 
+     if (!virHostCPUHasBitmap())
+@@ -2341,6 +2343,13 @@ qemuProcessGetAllCpuAffinity(virBitmap **cpumapRet)
+     if (!(*cpumapRet = virHostCPUGetOnlineBitmap()))
+         return -1;
+ 
++    if (virHostCPUGetIsolated(&isolCpus) < 0)
++        return -1;
++
++    if (isolCpus) {
++        virBitmapSubtract(*cpumapRet, isolCpus);
++    }
++
+     return 0;
+ }
+ 
+-- 
+2.51.0
+
