@@ -1,0 +1,151 @@
+From df8f979d5ff30d74de1a6bf70261c0c664d789a5 Mon Sep 17 00:00:00 2001
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Tue, 23 Apr 2024 10:41:50 +0200
+Subject: [PATCH] virfile: Introduce virFileReadValueBitmapAllowEmpty()
+
+Some sysfs files contain either string representation of a bitmap
+or just a newline character. An example of such file is:
+/sys/devices/system/cpu/isolated. Our current implementation of
+virFileReadValueBitmap() fails in the latter case, unfortunately.
+Introduce a slightly modified version that accepts empty files.
+
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Pavel Hrdina <phrdina@redhat.com>
+Signed-off-by: Xianglai Li <lixianglai@loongson.cn>
+Signed-off-by: Binbin Zhou <zhoubinbin@loongson.cn>
+---
+ src/libvirt_private.syms |  1 +
+ src/util/virfile.c       | 67 +++++++++++++++++++++++++++++++++-------
+ src/util/virfile.h       |  2 ++
+ 3 files changed, 58 insertions(+), 12 deletions(-)
+
+diff --git a/src/libvirt_private.syms b/src/libvirt_private.syms
+index 33dd3523..f99e27ed 100644
+--- a/src/libvirt_private.syms
++++ b/src/libvirt_private.syms
+@@ -2347,6 +2347,7 @@ virFileReadHeaderFD;
+ virFileReadHeaderQuiet;
+ virFileReadLimFD;
+ virFileReadValueBitmap;
++virFileReadValueBitmapAllowEmpty;
+ virFileReadValueInt;
+ virFileReadValueScaledInt;
+ virFileReadValueString;
+diff --git a/src/util/virfile.c b/src/util/virfile.c
+index 007b6cf5..fc40d99b 100644
+--- a/src/util/virfile.c
++++ b/src/util/virfile.c
+@@ -4367,6 +4367,34 @@ virFileReadValueScaledInt(unsigned long long *value, const char *format, ...)
+  * used for small, interface-like files, so it should not be huge (subjective) */
+ #define VIR_FILE_READ_VALUE_STRING_MAX 4096
+ 
++static int
++virFileReadValueBitmapImpl(virBitmap **value,
++                           const char *path,
++                           bool allowEmpty)
++{
++    g_autofree char *str = NULL;
++
++    if (!virFileExists(path))
++        return -2;
++
++    if (virFileReadAll(path, VIR_FILE_READ_VALUE_STRING_MAX, &str) < 0)
++        return -1;
++
++    virStringTrimOptionalNewline(str);
++
++    if (allowEmpty) {
++        *value = virBitmapParseUnlimitedAllowEmpty(str);
++    } else {
++        *value = virBitmapParseUnlimited(str);
++    }
++
++    if (!*value)
++        return -1;
++
++    return 0;
++}
++
++
+ /**
+  * virFileReadValueBitmap:
+  * @value: pointer to virBitmap * to be allocated and filled in with the value
+@@ -4374,13 +4402,13 @@ virFileReadValueScaledInt(unsigned long long *value, const char *format, ...)
+  *
+  * Read int from @format and put it into @value.
+  *
+- * Return -2 for non-existing file, -1 on other errors and 0 if everything went
+- * fine.
++ * Returns: -2 for non-existing file,
++ *          -1 on other errors (with error reported),
++ *           0 otherwise.
+  */
+ int
+ virFileReadValueBitmap(virBitmap **value, const char *format, ...)
+ {
+-    g_autofree char *str = NULL;
+     g_autofree char *path = NULL;
+     va_list ap;
+ 
+@@ -4388,21 +4416,36 @@ virFileReadValueBitmap(virBitmap **value, const char *format, ...)
+     path = g_strdup_vprintf(format, ap);
+     va_end(ap);
+ 
+-    if (!virFileExists(path))
+-        return -2;
++    return virFileReadValueBitmapImpl(value, path, false);
++}
+ 
+-    if (virFileReadAll(path, VIR_FILE_READ_VALUE_STRING_MAX, &str) < 0)
+-        return -1;
+ 
+-    virStringTrimOptionalNewline(str);
++/**
++ * virFileReadValueBitmapAllowEmpty:
++ * @value: pointer to virBitmap * to be allocated and filled in with the value
++ * @format, ...: file to read from
++ *
++ * Just like virFileReadValueBitmap(), except if the file is empty or contains
++ * nothing but spaces an empty bitmap is returned instead of an error.
++ *
++ * Returns: -2 for non-existing file,
++ *          -1 on other errors (with error reported),
++ *           0 otherwise.
++ */
++int
++virFileReadValueBitmapAllowEmpty(virBitmap **value, const char *format, ...)
++{
++    g_autofree char *path = NULL;
++    va_list ap;
+ 
+-    *value = virBitmapParseUnlimited(str);
+-    if (!*value)
+-        return -1;
++    va_start(ap, format);
++    path = g_strdup_vprintf(format, ap);
++    va_end(ap);
+ 
+-    return 0;
++    return virFileReadValueBitmapImpl(value, path, true);
+ }
+ 
++
+ /**
+  * virFileReadValueString:
+  * @value: pointer to char * to be allocated and filled in with the value
+diff --git a/src/util/virfile.h b/src/util/virfile.h
+index 286401e0..fc4c9950 100644
+--- a/src/util/virfile.h
++++ b/src/util/virfile.h
+@@ -354,6 +354,8 @@ int virFileReadValueUllongQuiet(unsigned long long *value, const char *format, .
+  G_GNUC_PRINTF(2, 3);
+ int virFileReadValueBitmap(virBitmap **value, const char *format, ...)
+  G_GNUC_PRINTF(2, 3);
++int virFileReadValueBitmapAllowEmpty(virBitmap **value, const char *format, ...)
++ G_GNUC_PRINTF(2, 3);
+ int virFileReadValueScaledInt(unsigned long long *value, const char *format, ...)
+  G_GNUC_PRINTF(2, 3);
+ int virFileReadValueString(char **value, const char *format, ...)
+-- 
+2.51.0
+

@@ -1,0 +1,194 @@
+From 2358c545bb36da9bc13fe5ea5641df24123d8e72 Mon Sep 17 00:00:00 2001
+From: Michal Privoznik <mprivozn@redhat.com>
+Date: Tue, 23 Apr 2024 09:17:51 +0200
+Subject: [PATCH] virbitmap: Introduce virBitmapParseUnlimitedAllowEmpty()
+
+Some sysfs files contain either string representation of a bitmap
+or just a newline character. An example of such file is:
+/sys/devices/system/cpu/isolated. Our current implementation of
+virBitmapParseUnlimited() fails in the latter case,
+unfortunately. Introduce a slightly modified version that accepts
+empty files.
+
+Signed-off-by: Michal Privoznik <mprivozn@redhat.com>
+Reviewed-by: Pavel Hrdina <phrdina@redhat.com>
+Signed-off-by: Xianglai Li <lixianglai@loongson.cn>
+Signed-off-by: Binbin Zhou <zhoubinbin@loongson.cn>
+---
+ src/libvirt_private.syms |  1 +
+ src/util/virbitmap.c     | 40 +++++++++++++++++++++++++++++++++++-----
+ src/util/virbitmap.h     |  3 +++
+ tests/virbitmaptest.c    | 40 ++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 79 insertions(+), 5 deletions(-)
+
+diff --git a/src/libvirt_private.syms b/src/libvirt_private.syms
+index baae1a4d..33dd3523 100644
+--- a/src/libvirt_private.syms
++++ b/src/libvirt_private.syms
+@@ -1922,6 +1922,7 @@ virBitmapNextSetBit;
+ virBitmapOverlaps;
+ virBitmapParse;
+ virBitmapParseUnlimited;
++virBitmapParseUnlimitedAllowEmpty;
+ virBitmapSetAll;
+ virBitmapSetBit;
+ virBitmapSetBitExpand;
+diff --git a/src/util/virbitmap.c b/src/util/virbitmap.c
+index e48224d7..775bbf15 100644
+--- a/src/util/virbitmap.c
++++ b/src/util/virbitmap.c
+@@ -368,6 +368,7 @@ virBitmapFormat(virBitmap *bitmap)
+  * @str: points to a string representing a human-readable bitmap
+  * @bitmap: a bitmap populated from @str
+  * @limited: Don't use self-expanding APIs, report error if bit exceeds bitmap size
++ * @allowEmpty: Allow @str to be empty string or contain nothing but spaces
+  *
+  * This function is the counterpart of virBitmapFormat. This function creates
+  * a bitmap, in which bits are set according to the content of @str.
+@@ -381,7 +382,8 @@ virBitmapFormat(virBitmap *bitmap)
+ static int
+ virBitmapParseInternal(const char *str,
+                        virBitmap *bitmap,
+-                       bool limited)
++                       bool limited,
++                       bool allowEmpty)
+ {
+     bool neg = false;
+     const char *cur = str;
+@@ -389,13 +391,19 @@ virBitmapParseInternal(const char *str,
+     size_t i;
+     int start, last;
+ 
+-    if (!str)
++    if (!str) {
++        if (allowEmpty)
++            return 0;
+         goto error;
++    }
+ 
+     virSkipSpaces(&cur);
+ 
+-    if (*cur == '\0')
++    if (*cur == '\0') {
++        if (allowEmpty)
++            return 0;
+         goto error;
++    }
+ 
+     while (*cur != 0) {
+         /*
+@@ -505,7 +513,7 @@ virBitmapParse(const char *str,
+ {
+     g_autoptr(virBitmap) tmp = virBitmapNew(bitmapSize);
+ 
+-    if (virBitmapParseInternal(str, tmp, true) < 0)
++    if (virBitmapParseInternal(str, tmp, true, false) < 0)
+         return -1;
+ 
+     *bitmap = g_steal_pointer(&tmp);
+@@ -534,7 +542,29 @@ virBitmapParseUnlimited(const char *str)
+ {
+     g_autoptr(virBitmap) tmp = virBitmapNew(0);
+ 
+-    if (virBitmapParseInternal(str, tmp, false) < 0)
++    if (virBitmapParseInternal(str, tmp, false, false) < 0)
++        return NULL;
++
++    return g_steal_pointer(&tmp);
++}
++
++
++/**
++ * virBitmapParseUnlimitedAllowEmpty:
++ * @str: points to a string representing a human-readable bitmap
++ *
++ * Just like virBitmapParseUnlimited() except when the input string @str is
++ * empty (or contains just spaces) an empty bitmap is returned instead of an
++ * error.
++ *
++ * Returns @bitmap on success, or NULL in cas of error
++ */
++virBitmap *
++virBitmapParseUnlimitedAllowEmpty(const char *str)
++{
++    g_autoptr(virBitmap) tmp = virBitmapNew(0);
++
++    if (virBitmapParseInternal(str, tmp, false, true) < 0)
+         return NULL;
+ 
+     return g_steal_pointer(&tmp);
+diff --git a/src/util/virbitmap.h b/src/util/virbitmap.h
+index a9cf3098..a9f9d97f 100644
+--- a/src/util/virbitmap.h
++++ b/src/util/virbitmap.h
+@@ -84,6 +84,9 @@ int virBitmapParse(const char *str,
+ virBitmap *
+ virBitmapParseUnlimited(const char *str);
+ 
++virBitmap *
++virBitmapParseUnlimitedAllowEmpty(const char *str);
++
+ virBitmap *virBitmapNewCopy(virBitmap *src) ATTRIBUTE_NONNULL(1);
+ 
+ virBitmap *virBitmapNewData(const void *data, int len) ATTRIBUTE_NONNULL(1);
+diff --git a/tests/virbitmaptest.c b/tests/virbitmaptest.c
+index f4fadb7c..adc956ca 100644
+--- a/tests/virbitmaptest.c
++++ b/tests/virbitmaptest.c
+@@ -705,6 +705,43 @@ test16(const void *opaque G_GNUC_UNUSED)
+ }
+ 
+ 
++/* virBitmapParseUnlimitedAllowEmpty */
++static int
++test17(const void *opaque G_GNUC_UNUSED)
++{
++    g_autoptr(virBitmap) map1 = NULL;
++    g_autoptr(virBitmap) map2 = NULL;
++    g_autofree char *map1_str = NULL;
++    g_autofree char *map2_str = NULL;
++
++    if (!(map1 = virBitmapParseUnlimitedAllowEmpty(NULL))) {
++        fprintf(stderr, "Expected success, got failure\n");
++        return -1;
++    }
++
++    if (!(map2 = virBitmapParseUnlimitedAllowEmpty("    "))) {
++        fprintf(stderr, "Expected success, got failure\n");
++        return -1;
++    }
++
++    if (!virBitmapIsAllClear(map1) ||
++        !virBitmapIsAllClear(map2) ||
++        !virBitmapEqual(map1, map2)) {
++        fprintf(stderr, "empty maps should equal\n");
++        return -1;
++    }
++
++    if (!(map1_str = virBitmapFormat(map1)) ||
++        !(map2_str = virBitmapFormat(map2)) ||
++        STRNEQ(map1_str, map2_str)) {
++        fprintf(stderr, "maps don't equal after format to string\n");
++        return -1;
++    }
++
++    return 0;
++}
++
++
+ #define TESTBINARYOP(A, B, RES, FUNC) \
+     testBinaryOpData.a = A; \
+     testBinaryOpData.b = B; \
+@@ -781,6 +818,9 @@ mymain(void)
+     if (virTestRun("test16", test16, NULL) < 0)
+         ret = -1;
+ 
++    if (virTestRun("test17", test17, NULL) < 0)
++        ret = -1;
++
+     return ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+ }
+ 
+-- 
+2.51.0
+

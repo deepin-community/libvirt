@@ -1,0 +1,30 @@
+From 1ddeb71faa65d4fbb8c532a54cf9dbdb54bf72c5 Mon Sep 17 00:00:00 2001
+From: Xianglai Li <lixianglai@loongson.cn>
+Date: Tue, 4 Aug 2026 19:46:52 +0800
+Subject: [PATCH] Add panic device support for LoongArch
+
+Add panic device support for LoongArch
+
+Signed-off-by: Xianglai Li <lixianglai@loongson.cn>
+Signed-off-by: Binbin Zhou <zhoubinbin@loongson.cn>
+---
+ src/qemu/qemu_domain.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/qemu/qemu_domain.c b/src/qemu/qemu_domain.c
+index df2b7934..e9dde6c7 100644
+--- a/src/qemu/qemu_domain.c
++++ b/src/qemu/qemu_domain.c
+@@ -5966,6 +5966,9 @@ qemuDomainDevicePanicDefPostParse(virDomainPanicDef *panic,
+             panic->model = VIR_DOMAIN_PANIC_MODEL_PSERIES;
+         else if (ARCH_IS_S390(def->os.arch))
+             panic->model = VIR_DOMAIN_PANIC_MODEL_S390;
++
++        else if (ARCH_IS_LOONGARCH(def->os.arch))
++            panic->model = VIR_DOMAIN_PANIC_MODEL_PVPANIC;
+         else
+             panic->model = VIR_DOMAIN_PANIC_MODEL_ISA;
+     }
+-- 
+2.51.0
+

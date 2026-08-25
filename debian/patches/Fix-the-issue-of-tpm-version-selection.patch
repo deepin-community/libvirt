@@ -1,0 +1,30 @@
+From f7c9a8adefb6d8ce0abd1df4591e5a69a13bd87f Mon Sep 17 00:00:00 2001
+From: Xianglai Li <lixianglai@loongson.cn>
+Date: Tue, 6 Jan 2026 19:53:58 +0800
+Subject: [PATCH] Fix the issue of tpm version selection
+
+Fix the issue of tpm version selection
+
+Signed-off-by: Xianglai Li <lixianglai@loongson.cn>
+Signed-off-by: Binbin Zhou <zhoubinbin@loongson.cn>
+---
+ src/qemu/qemu_domain.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/src/qemu/qemu_domain.c b/src/qemu/qemu_domain.c
+index 953808fc..df2b7934 100644
+--- a/src/qemu/qemu_domain.c
++++ b/src/qemu/qemu_domain.c
+@@ -6122,7 +6122,8 @@ qemuDomainTPMDefPostParse(virDomainTPMDef *tpm,
+         tpm->data.emulator.version == VIR_DOMAIN_TPM_VERSION_DEFAULT) {
+         if (tpm->model == VIR_DOMAIN_TPM_MODEL_SPAPR ||
+             tpm->model == VIR_DOMAIN_TPM_MODEL_CRB ||
+-            qemuDomainIsARMVirt(def))
++            qemuDomainIsARMVirt(def) ||
++	    qemuDomainIsLoongArchVirt(def))
+             tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_2_0;
+         else
+             tpm->data.emulator.version = VIR_DOMAIN_TPM_VERSION_1_2;
+-- 
+2.51.0
+

@@ -1,0 +1,33 @@
+From 5ea838fadbf849e2f9b3699048a52be97676127f Mon Sep 17 00:00:00 2001
+From: Xianglai Li <lixianglai@loongson.cn>
+Date: Tue, 10 Dec 2024 15:31:53 +0800
+Subject: [PATCH] add latx-sys support
+
+Signed-off-by: Xianglai Li <lixianglai@loongson.cn>
+Signed-off-by: Binbin Zhou <zhoubinbin@loongson.cn>
+---
+ src/qemu/qemu_capabilities.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/src/qemu/qemu_capabilities.c b/src/qemu/qemu_capabilities.c
+index 83119e87..40e0a834 100644
+--- a/src/qemu/qemu_capabilities.c
++++ b/src/qemu/qemu_capabilities.c
+@@ -967,6 +967,14 @@ virQEMUCapsGetDefaultEmulator(virArch hostarch,
+             return binary;
+     }
+ 
++    if (hostarch == VIR_ARCH_LOONGARCH64 && (guestarch == VIR_ARCH_I686 ||
++                                            guestarch == VIR_ARCH_X86_64)) {
++       binary = virFindFileInPath("latx-sys");
++       if(binary) {
++           return binary;
++       }
++    }
++
+     /* First attempt: try the guest architecture as it is */
+     archstr = virQEMUCapsArchToString(guestarch);
+     if ((binary = virQEMUCapsFindBinary("qemu-system-%s", archstr)))
+-- 
+2.51.0
+

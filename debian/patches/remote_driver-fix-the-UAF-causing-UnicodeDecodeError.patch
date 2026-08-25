@@ -1,0 +1,29 @@
+From 02de313026c0ae626ce60f49bebaa6d6f0d34f65 Mon Sep 17 00:00:00 2001
+From: caozhongwang <caozhongwang1@huawei.com>
+Date: Sat, 18 May 2024 17:05:07 +0800
+Subject: [PATCH] remote_driver: fix the UAF causing "UnicodeDecodeError:
+ 'utf-8' codec can't decode byte XXX".
+
+Signed-off-by:xiuqing1 <xiuqing1@huawei.com>
+Signed-off-by: Xianglai Li <lixianglai@loongson.cn>
+Signed-off-by: Binbin Zhou <zhoubinbin@loongson.cn>
+---
+ src/remote/remote_driver.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/src/remote/remote_driver.c b/src/remote/remote_driver.c
+index c4831db6..132d0194 100644
+--- a/src/remote/remote_driver.c
++++ b/src/remote/remote_driver.c
+@@ -1408,7 +1408,7 @@ remoteConnectGetType(virConnectPtr conn)
+         return NULL;
+ 
+     /* Stash. */
+-    return priv->type = ret.type;
++    return priv->type = g_steal_pointer(&ret.type);
+ }
+ 
+ static int remoteConnectIsSecure(virConnectPtr conn)
+-- 
+2.51.0
+

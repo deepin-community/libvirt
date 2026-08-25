@@ -1,3 +1,14 @@
+libvirt (10.7.0+really9.10.0-1deepin22) unstable; urgency=medium
+
+  * Update LoongArch-related patches.
+    - Add latx-sys support
+    - Fix utf8 encode error
+    - Fix the issue of tpm version selection
+    - Substract isolcpus from all online affinity
+    - Add panic device support for LoongArch
+
+ -- Binbin Zhou <zhoubinbin@loongson.cn>  Tue, 25 Aug 2026 16:08:21 +0800
+
 libvirt (10.7.0+really9.10.0-1deepin21) unstable; urgency=medium
 
   * Redirect libvirt-guests service output to journal to suppress console 
